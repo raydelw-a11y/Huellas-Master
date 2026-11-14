@@ -16,5 +16,6 @@
     },
     "allowImportingTsExtensions": true,
     "noEmit": true
-  }
+  },
+  "exclude": ["node_modules", "dist", "docs", ".cache", "chrome-extension"]
 }

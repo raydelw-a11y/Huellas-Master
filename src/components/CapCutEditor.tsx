@@ -50,6 +50,123 @@ export type ClipTransitionType =
   | 'zoom_in'
   | 'flash_sepia';
 
+function getEditorMediaBridgeBases(): string[] {
+  if (typeof window === 'undefined') return [''];
+  const host = window.location.hostname || '';
+  const isLocalOrTunnel =
+    host === 'localhost' ||
+    host === '127.0.0.1' ||
+    host === '::1' ||
+    host.endsWith('.trycloudflare.com');
+  if (isLocalOrTunnel) return [''];
+  let liveTunnel = '';
+  let savedSessionBase = '';
+  try {
+    liveTunnel = String(localStorage.getItem('huellas_live_media_tunnel_v1') || '')
+      .trim()
+      .replace(/\/+$/, '');
+  } catch {}
+  try {
+    const rawSess = localStorage.getItem('huellas_flow_pc_session_v1');
+    if (rawSess) {
+      const parsed = JSON.parse(rawSess);
+      const u = String(parsed?.baseUrl || '').trim().replace(/\/+$/, '');
+      if (/^https?:\/\//i.test(u)) savedSessionBase = u;
+    }
+  } catch {}
+  const isHttpsPage = window.location.protocol === 'https:';
+  const isUsableOrigin = (u: string) =>
+    Boolean(u) &&
+    !(
+      isHttpsPage &&
+      /^http:\/\//i.test(u) &&
+      !/^http:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/i.test(u)
+    );
+  const isRealMobile =
+    typeof navigator !== 'undefined' &&
+    /iPhone|iPad|iPod|Android/i.test(navigator.userAgent || '') &&
+    !/^Mac/i.test(navigator.platform || '');
+  if (isRealMobile) {
+    return Array.from(
+      new Set([...([liveTunnel, savedSessionBase].filter(isUsableOrigin)), ''])
+    );
+  }
+  return Array.from(
+    new Set([
+      'http://localhost:4200',
+      ...([liveTunnel, savedSessionBase].filter(isUsableOrigin)),
+      '',
+    ])
+  );
+}
+
+function getEditorPrimaryServerOrigin(): string {
+  const bases = getEditorMediaBridgeBases();
+  return bases[0] || '';
+}
+
+function normalizeEditorClipTransition(raw: unknown): ClipTransitionType {
+  const t = String(raw || '').trim();
+  if (t === 'fade_black' || t === 'fade') return 'dip_black';
+  if (
+    t === 'direct' ||
+    t === 'crossfade' ||
+    t === 'dip_black' ||
+    t === 'dissolve' ||
+    t === 'zoom_in' ||
+    t === 'flash_sepia'
+  ) {
+    return t;
+  }
+  return 'direct';
+}
+
+function buildOfficialIntroOutroUrls() {
+  const primaryOrigin = getEditorPrimaryServerOrigin();
+  const isLocalOrTunnel =
+    typeof window !== 'undefined' &&
+    (window.location.hostname === 'localhost' ||
+      window.location.hostname === '127.0.0.1' ||
+      window.location.hostname === '::1' ||
+      window.location.hostname.endsWith('.trycloudflare.com'));
+  const isRealMobile =
+    typeof navigator !== 'undefined' &&
+    /iPhone|iPad|iPod|Android/i.test(navigator.userAgent || '') &&
+    !/^Mac/i.test(navigator.platform || '');
+  const canServeLocalFolder =
+    isLocalOrTunnel ||
+    (Boolean(primaryOrigin) &&
+      !(isRealMobile && /^http:\/\/(localhost|127\.0\.0\.1)/i.test(primaryOrigin)));
+  const mediaBase = isLocalOrTunnel ? '' : canServeLocalFolder ? primaryOrigin : '';
+  const introOutroBasePath =
+    '/Users/raydelsantana/Library/Mobile Documents/com~apple~CloudDocs/0YouTube/Huellas de la Humanidad/Intro:Outro';
+  const introVideoUrl =
+    mediaBase || isLocalOrTunnel
+      ? `${mediaBase}/api/flow/serve-folder-file?filePath=${encodeURIComponent(
+          `${introOutroBasePath}/Intro.mp4`
+        )}&v=clean_native_audio_v2`
+      : '/api/assets/official-intro-stream';
+  const introPosterUrl =
+    mediaBase || isLocalOrTunnel
+      ? `${mediaBase}/api/flow/serve-folder-file?filePath=${encodeURIComponent(
+          `${introOutroBasePath}/.Intro_Poster.jpg`
+        )}&v=clean_native_audio_v2`
+      : '';
+  const outroVideoUrl =
+    mediaBase || isLocalOrTunnel
+      ? `${mediaBase}/api/flow/serve-folder-file?filePath=${encodeURIComponent(
+          `${introOutroBasePath}/Outro.mp4`
+        )}&v=clean_native_audio_v2`
+      : '';
+  const outroPosterUrl =
+    mediaBase || isLocalOrTunnel
+      ? `${mediaBase}/api/flow/serve-folder-file?filePath=${encodeURIComponent(
+          `${introOutroBasePath}/.Outro_Poster.jpg`
+        )}&v=clean_native_audio_v2`
+      : '';
+  return { introVideoUrl, introPosterUrl, outroVideoUrl, outroPosterUrl };
+}
+
 export interface TimelineClipItem {
   id: string;
   clipNumber: number;
@@ -777,10 +894,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
   // Sync with any active server-side FFmpeg render job (e.g. if page reloaded during render)
   useEffect(() => {
-    const isLocalHost =
-      typeof window !== 'undefined' &&
-      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-    const serverOrigin = isLocalHost ? '' : 'http://localhost:4200';
+    const serverOrigin = getEditorPrimaryServerOrigin();
     let timer: number | null = null;
 
     const checkServerRenderStatus = async () => {
@@ -2007,10 +2121,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           _v4_16x9_logoDefault5: true,
         })
       );
-      const isLocalHost =
-        typeof window !== 'undefined' &&
-        (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-      const serverOrigin = isLocalHost ? '' : 'http://localhost:4200';
+      const serverOrigin = getEditorPrimaryServerOrigin();
       fetch(`${serverOrigin}/api/editor/sync-client-state`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2088,10 +2199,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       ''
     ).trim();
     if (!fPath) return;
-    const isLocalHost =
-      typeof window !== 'undefined' &&
-      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-    const serverOrigin = isLocalHost ? '' : 'http://localhost:4200';
+    const serverOrigin = getEditorPrimaryServerOrigin();
     try {
       const r = await fetch(
         `${serverOrigin}/api/editor/exported-videos?folderPath=${encodeURIComponent(fPath)}`
@@ -2135,10 +2243,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     setIsAnalyzingReframe9x16(true);
     setStatusMessage('🤖 Analizando cada clip en 05_Clips_Video (rostros, luz, nitidez y movimiento) para Auto-Reframe 9:16...');
 
-    const isLocalHost =
-      typeof window !== 'undefined' &&
-      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-    const serverOrigin = isLocalHost ? '' : 'http://localhost:4200';
+    const serverOrigin = getEditorPrimaryServerOrigin();
 
     try {
       const resp = await fetch(`${serverOrigin}/api/editor/auto-reframe-9x16`, {
@@ -2280,10 +2385,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     }
     if (targetClipNum > 0) {
       try {
-        const isLocalHost =
-          typeof window !== 'undefined' &&
-          (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-        const serverOrigin = isLocalHost ? '' : 'http://localhost:4200';
+        const serverOrigin = getEditorPrimaryServerOrigin();
         const folderPath = (downloadFolderPath || activeDoc?.downloadFolderPath || '').trim();
         const folderName = (downloadFolderName || activeDoc?.downloadFolderName || '').trim();
         const docTitle = (activeDoc?.title || '').trim();
@@ -3235,47 +3337,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       const fName = (downloadFolderName || activeDoc?.downloadFolderName || '').trim();
       const dTitle = (activeDoc?.title || '').trim();
       const qs = `docId=${encodeURIComponent(activeDoc?.id || '')}&folderPath=${encodeURIComponent(fPath)}&folderName=${encodeURIComponent(fName)}&docTitle=${encodeURIComponent(dTitle)}&includePrompts=0`;
-      const host = typeof window !== 'undefined' ? window.location.hostname || '' : '';
-      const isLocal =
-        host === 'localhost' ||
-        host === '127.0.0.1' ||
-        host.endsWith('.trycloudflare.com');
-      let liveTunnel = '';
-      let savedSessionBase = '';
-      try {
-        liveTunnel = String(localStorage.getItem('huellas_live_media_tunnel_v1') || '')
-          .trim()
-          .replace(/\/+$/, '');
-        const rawSession = localStorage.getItem('huellas_flow_pc_session_v1');
-        if (rawSession) {
-          const parsed = JSON.parse(rawSession);
-          const rawUrl = String(parsed?.baseUrl || '').trim().replace(/\/+$/, '');
-          if (rawUrl && /^https?:\/\//i.test(rawUrl)) savedSessionBase = rawUrl;
-        }
-      } catch {}
-      const isHttpsPage = typeof window !== 'undefined' && window.location.protocol === 'https:';
-      const usableRemote = (u: string) =>
-        Boolean(
-          u &&
-            (!isHttpsPage ||
-              !/^http:\/\//i.test(u) ||
-              /^http:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/i.test(u))
-        );
-      const isRealMobile =
-        typeof navigator !== 'undefined' &&
-        /iPhone|iPad|iPod|Android/i.test(navigator.userAgent || '') &&
-        !/^Mac/i.test(navigator.platform || '');
-      const bases = isLocal
-        ? ['']
-        : isRealMobile
-        ? Array.from(new Set([...([liveTunnel, savedSessionBase].filter(usableRemote)), '']))
-        : Array.from(
-            new Set([
-              'http://localhost:4200',
-              ...([liveTunnel, savedSessionBase].filter(usableRemote)),
-              '',
-            ])
-          );
+      const bases = getEditorMediaBridgeBases();
       for (const base of bases) {
         if (cancelled) return;
         try {
@@ -3931,34 +3993,20 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       });
     }
 
-    const isLocalHost =
-      typeof window !== 'undefined' &&
-      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-    const serverOrigin = isLocalHost ? '' : 'http://localhost:4200';
-    const introOutroBasePath =
-      '/Users/raydelsantana/Library/Mobile Documents/com~apple~CloudDocs/0YouTube/Huellas de la Humanidad/Intro:Outro';
-    const defaultIntro8kUrl = `${serverOrigin}/api/flow/serve-folder-file?filePath=${encodeURIComponent(
-      `${introOutroBasePath}/Intro.mp4`
-    )}&v=clean_native_audio_v2`;
-    const introPosterUrl = `${serverOrigin}/api/flow/serve-folder-file?filePath=${encodeURIComponent(
-      `${introOutroBasePath}/.Intro_Poster.jpg`
-    )}&v=clean_native_audio_v2`;
-    const outroVideoUrl = `${serverOrigin}/api/flow/serve-folder-file?filePath=${encodeURIComponent(
-      `${introOutroBasePath}/Outro.mp4`
-    )}&v=clean_native_audio_v2`;
-    const outroPosterUrl = `${serverOrigin}/api/flow/serve-folder-file?filePath=${encodeURIComponent(
-      `${introOutroBasePath}/.Outro_Poster.jpg`
-    )}&v=clean_native_audio_v2`;
+    const {
+      introVideoUrl: defaultIntro8kUrl,
+      introPosterUrl,
+      outroVideoUrl,
+      outroPosterUrl,
+    } = buildOfficialIntroOutroUrls();
     const effectiveIntroUrl = officialIntroUrl || defaultIntro8kUrl;
 
     const introClipItem: TimelineClipItem = {
       id: 'fixed-doc-intro',
       clipNumber: 0,
       fileName: '00_Intro_Huellas_de_la_Humanidad_8K.mp4',
-      timeRangeLabel: mode === 'INTRO_INICIO_00' ? '00:00 - 00:08' : 'Intro Oficial Post-Slogan (8s)',
       duration: 8,
       sourceDuration: 8,
-      originalDuration: 8,
       originalSlotDuration: 8,
       speed: 1,
       foleyVolume: 100,
@@ -3971,7 +4019,6 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         mode === 'INTRO_INICIO_00'
           ? '🎬 INTRO OFICIAL (00:00 - 00:08 • Audio Fade In 1.5s + Fade Out 2.5s) — Huellas de la Humanidad (8K)'
           : '🎬 INTRO OFICIAL POST-SLOGAN (8s tras "Aquí seguimos sus rastros." • Audio Fade In 1.5s + Fade Out 2.5s) — Huellas de la Humanidad (8K)',
-      narrativeText: '🎬 Intro Oficial Huellas de la Humanidad (8s — Minimalismo en Piedra y Oro)',
       trimStart: 0,
       trimEnd: 8,
       smoothSlowMo: false,
@@ -4139,24 +4186,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       setVoiceStartOffsetSec(entrySec);
     }
 
-    const isLocalHost =
-      typeof window !== 'undefined' &&
-      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-    const serverOrigin = isLocalHost ? '' : 'http://localhost:4200';
-    const introOutroBasePath =
-      '/Users/raydelsantana/Library/Mobile Documents/com~apple~CloudDocs/0YouTube/Huellas de la Humanidad/Intro:Outro';
-    const introVideoUrl = `${serverOrigin}/api/flow/serve-folder-file?filePath=${encodeURIComponent(
-      `${introOutroBasePath}/Intro.mp4`
-    )}&v=clean_native_audio_v2`;
-    const introPosterUrl = `${serverOrigin}/api/flow/serve-folder-file?filePath=${encodeURIComponent(
-      `${introOutroBasePath}/.Intro_Poster.jpg`
-    )}&v=clean_native_audio_v2`;
-    const outroVideoUrl = `${serverOrigin}/api/flow/serve-folder-file?filePath=${encodeURIComponent(
-      `${introOutroBasePath}/Outro.mp4`
-    )}&v=clean_native_audio_v2`;
-    const outroPosterUrl = `${serverOrigin}/api/flow/serve-folder-file?filePath=${encodeURIComponent(
-      `${introOutroBasePath}/.Outro_Poster.jpg`
-    )}&v=clean_native_audio_v2`;
+    const { introVideoUrl, introPosterUrl, outroVideoUrl, outroPosterUrl } =
+      buildOfficialIntroOutroUrls();
 
     // 1. Build Clips Track (Track 3)
     const allDocClips = activeDoc.clips || [];
@@ -4268,7 +4299,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         audioMuted: existingItem?.audioMuted !== undefined ? existingItem.audioMuted : isBrollClip,
         audioFadeInSec: existingItem?.audioFadeInSec,
         audioFadeOutSec: existingItem?.audioFadeOutSec,
-        transition: isClip1 ? 'fade_black' : existingItem ? existingItem.transition : defaultTransition,
+        transition: existingItem
+          ? normalizeEditorClipTransition(existingItem.transition)
+          : isClip1
+            ? 'dip_black'
+            : defaultTransition,
         videoUrl,
         posterUrl,
         reviewedForEditor: Boolean(c.reviewedForEditor),
@@ -4314,7 +4349,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           originalSlotDuration: srcDur,
           foleyVolume: isFolderBroll ? 0 : isClip1 ? 80 : 20,
           audioMuted: isFolderBroll || undefined,
-          transition: isClip1 ? 'fade_black' : defaultTransition,
+          transition: isClip1 ? 'dip_black' : defaultTransition,
           videoUrl: rawVidUrl,
           posterUrl: firstFrameByClip[num] || '',
           reviewedForEditor: true,
@@ -4540,6 +4575,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           }
           return {
             ...tc,
+            transition: normalizeEditorClipTransition(tc.transition),
             isStaticBroll: isRestoredBroll || undefined,
             brollCameraMotion: isRestoredBroll
               ? docClipMatch?.brollCameraMotion || tc.brollCameraMotion || 'zoom_in'
@@ -7572,10 +7608,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     const fPath = (downloadFolderPath || activeDoc?.downloadFolderPath || '').trim();
     const fName = (downloadFolderName || activeDoc?.downloadFolderName || '').trim();
     const dTitle = (activeDoc?.title || '').trim();
-    const isLocal =
-      typeof window !== 'undefined' &&
-      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-    const bases = isLocal ? [''] : ['', 'http://localhost:4200'];
+    const bases = getEditorMediaBridgeBases();
 
     const newVocalSegments: TimelineSeparatedVocalItem[] = [];
     const clipPatchById: Record<
@@ -7685,10 +7718,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     const fPath = (downloadFolderPath || activeDoc?.downloadFolderPath || '').trim();
     const fName = (downloadFolderName || activeDoc?.downloadFolderName || '').trim();
     const dTitle = (activeDoc?.title || '').trim();
-    const isLocal =
-      typeof window !== 'undefined' &&
-      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-    const bases = isLocal ? [''] : ['', 'http://localhost:4200'];
+    const bases = getEditorMediaBridgeBases();
 
     const repairedUrlById: Record<string, string> = {};
     let repairedCount = 0;
@@ -7856,10 +7886,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     const fPath = (downloadFolderPath || activeDoc?.downloadFolderPath || '').trim();
     const fName = (downloadFolderName || activeDoc?.downloadFolderName || '').trim();
     const dTitle = (activeDoc?.title || '').trim();
-    const isLocal =
-      typeof window !== 'undefined' &&
-      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-    const bases = isLocal ? [''] : ['', 'http://localhost:4200'];
+    const bases = getEditorMediaBridgeBases();
 
     const newMusicSegments: TimelineSeparatedVocalItem[] = [];
     const clipPatchById: Record<
@@ -8078,10 +8105,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     const dTitle = (activeDoc?.title || '').trim();
     const docClip = activeDoc?.clips?.find((dc) => dc.clipNumber === clipNum);
     const durSec = Math.max(2, Math.round(targetClip.sourceDuration || targetClip.duration || 8));
-    const isLocal =
-      typeof window !== 'undefined' &&
-      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-    const bases = isLocal ? [''] : ['', 'http://localhost:4200'];
+    const bases = getEditorMediaBridgeBases();
 
     try {
       let renderedData: any = null;
@@ -8211,10 +8235,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     const fPath = (downloadFolderPath || activeDoc?.downloadFolderPath || '').trim();
     const fName = (downloadFolderName || activeDoc?.downloadFolderName || '').trim();
     const dTitle = (activeDoc?.title || '').trim();
-    const isLocal =
-      typeof window !== 'undefined' &&
-      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-    const bases = isLocal ? [''] : ['', 'http://localhost:4200'];
+    const bases = getEditorMediaBridgeBases();
 
     try {
       const isolatedMap: Record<
@@ -8754,10 +8775,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       const fPath = (downloadFolderPath || activeDoc?.downloadFolderPath || '').trim();
       const fName = (downloadFolderName || activeDoc?.downloadFolderName || '').trim();
       const dTitle = (activeDoc?.title || '').trim();
-      const isLocal =
-        typeof window !== 'undefined' &&
-        (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-      const base = isLocal ? '' : 'http://localhost:4200';
+      const base = getEditorPrimaryServerOrigin();
 
       const resp = await fetch(`${base}/api/video/optical-flow`, {
         method: 'POST',
@@ -9888,10 +9906,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             })
             .join('\n\n');
 
-          const isLocalHost =
-            typeof window !== 'undefined' &&
-            (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-          const serverOrigin = isLocalHost ? '' : 'http://localhost:4200';
+          const serverOrigin = getEditorPrimaryServerOrigin();
 
           // 1-second smooth countdown & elapsed timer
           let effectiveStartMs = localStartMs;
@@ -10208,8 +10223,23 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           if (frameImg) {
             const isSimIntro = clip.id === 'fixed-doc-intro' || clip.clipNumber === 0;
             const isSimOutro = clip.id === 'fixed-doc-outro' || clip.clipNumber === 999;
+            const hasSimIntro = clipsWithTimelineBounds.some(
+              (c) => c.id === 'fixed-doc-intro' || c.clipNumber === 0
+            );
+            const firstSimBodyClip = clipsWithTimelineBounds.find(
+              (c) =>
+                c.id !== 'fixed-doc-intro' &&
+                c.clipNumber !== 0 &&
+                c.id !== 'fixed-doc-outro' &&
+                c.clipNumber !== 999
+            );
             const isSimClip1AfterIntro =
-              !isSimIntro && !isSimOutro && (clip.clipNumber === 1 || clip.index === 1);
+              !isSimIntro &&
+              !isSimOutro &&
+              hasSimIntro &&
+              Boolean(firstSimBodyClip) &&
+              clip.id === firstSimBodyClip?.id &&
+              clip.transition !== 'direct';
             const isSimLastBodyClip =
               clipsWithTimelineBounds.length >= 3 &&
               clip.index === clipsWithTimelineBounds.length - 2;
@@ -10669,11 +10699,24 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     activeClipAtPlayhead?.id === 'fixed-doc-intro' || activeClipAtPlayhead?.clipNumber === 0;
   const isOutroClipActive =
     activeClipAtPlayhead?.id === 'fixed-doc-outro' || activeClipAtPlayhead?.clipNumber === 999;
+  const hasTimelineIntro = clipsWithTimelineBounds.some(
+    (c) => c.id === 'fixed-doc-intro' || c.clipNumber === 0
+  );
+  const firstTimelineBodyClip = clipsWithTimelineBounds.find(
+    (c) =>
+      c.id !== 'fixed-doc-intro' &&
+      c.clipNumber !== 0 &&
+      c.id !== 'fixed-doc-outro' &&
+      c.clipNumber !== 999
+  );
   const isFirstClipAfterIntro =
     Boolean(activeClipAtPlayhead) &&
     !isIntroClipActive &&
     !isOutroClipActive &&
-    (activeClipAtPlayhead?.clipNumber === 1 || activeClipAtPlayhead?.index === 1);
+    hasTimelineIntro &&
+    Boolean(firstTimelineBodyClip) &&
+    activeClipAtPlayhead?.id === firstTimelineBodyClip?.id &&
+    activeClipAtPlayhead?.transition !== 'direct';
   const isLastBodyClipBeforeOutro =
     Boolean(activeClipAtPlayhead) &&
     clipsWithTimelineBounds.length >= 3 &&

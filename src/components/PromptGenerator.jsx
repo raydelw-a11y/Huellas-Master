@@ -2117,7 +2117,9 @@ const PromptGenerator = ({
   };
 
   const copyToClipboard = () => {
-    navigator.clipboard.writeText(compileTemplate());
+    try {
+      navigator?.clipboard?.writeText?.(compileTemplate())?.catch?.(() => {});
+    } catch {}
     alert('¡Guion copiado al portapapeles!');
   };
 
@@ -3705,7 +3707,7 @@ const PromptGenerator = ({
                   value={formData[v] || ''} 
                   onChange={handleInputChange} 
                   placeholder={`Ingrese ${v.toLowerCase()}...`}
-                  rows="2"
+                  rows={2}
                 />
               </div>
             ))}
@@ -3774,7 +3776,7 @@ const PromptGenerator = ({
               </div>
               <textarea
                 className="form-control"
-                rows="5"
+                rows={5}
                 style={{ fontFamily: 'sans-serif', fontSize: '0.86rem', resize: 'vertical' }}
                 value={voiceoverInput}
                 onChange={(e) => setVoiceoverInput(e.target.value)}
@@ -3813,7 +3815,7 @@ const PromptGenerator = ({
               </div>
               <textarea
                 className="form-control"
-                rows="4"
+                rows={4}
                 style={{ fontFamily: 'monospace', fontSize: '0.82rem', resize: 'vertical' }}
                 value={capcutSrtRaw}
                 onChange={(e) => setCapcutSrtRaw(e.target.value)}
@@ -3921,7 +3923,9 @@ const PromptGenerator = ({
                     style={{ padding: '0.3rem 0.75rem', fontSize: '0.8rem' }}
                     onClick={() => {
                       if (!srtInput.trim()) return;
-                      navigator.clipboard.writeText(cleanSrtContent(srtInput));
+                      try {
+                        navigator?.clipboard?.writeText?.(cleanSrtContent(srtInput))?.catch?.(() => {});
+                      } catch {}
                       alert('✅ .SRT arreglado copiado al portapapeles.');
                     }}
                   >

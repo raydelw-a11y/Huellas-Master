@@ -2,9 +2,21 @@ import {
   DocumentaryProject,
   DEFAULT_OPERATIONAL_HEADER,
   sanitizeOperationalHeader,
+  normalizeProductionType,
+  isVerticalProductionDoc,
   TTSRecord,
   TTSSegmentTiming,
 } from '../types';
+
+export function normalizeFolderServedMediaUrl(rawUrl: string): string {
+  if (typeof rawUrl !== 'string') return '';
+  const trimmed = rawUrl.trim();
+  if (!trimmed) return '';
+  return trimmed.replace(
+    /^https?:\/\/(?:(?:localhost|127\.0\.0\.1)(?::\d+)?|[a-z0-9-]+\.trycloudflare\.com)(\/api\/flow\/serve-folder-file(?:[/?#].*)?)$/i,
+    '$1'
+  );
+}
 import {
   ensureOperationalHeaderInRawClips,
   getStage1ClipDurations,
@@ -1334,7 +1346,7 @@ Línea 2: DE HUIR DE LA GUERRA EN ESPAÑA A LEVANTAR UN IMPERIO EN AMÉRICA`;
       PROP_P6_OPTIONS_JSON: JSON.stringify(p6Opts),
       PROP_P7_OPTIONS_JSON: JSON.stringify(p7Opts),
       GEMINI_DEEP_RESEARCH_CHAT_URL:
-        (doc as any).geminiDeepResearchChatUrl ||
+        doc.geminiDeepResearchChatUrl ||
         doc.promptConfig?.GEMINI_DEEP_RESEARCH_CHAT_URL ||
         'https://gemini.google.com/app/f346b10e556e2341',
       V77_MULTI_PASO1_UPDATED: '2026_11_09_PENICILINA_PEPSI_SYNCED',
@@ -1342,12 +1354,13 @@ Línea 2: DE HUIR DE LA GUERRA EN ESPAÑA A LEVANTAR UN IMPERIO EN AMÉRICA`;
 
     return {
       ...doc,
+      productionType: normalizeProductionType((doc as { productionType?: string }).productionType, updatedCfg),
       title: 'Video 77 — La Penicilina',
       downloadFolderName: 'Video 77 — La Penicilina',
       geminiChatTitle: 'Video 77 — La Penicilina',
       geminiChatUrl: doc.geminiChatUrl || 'https://gemini.google.com/app/03cabb86628532c8',
       geminiDeepResearchChatUrl:
-        (doc as any).geminiDeepResearchChatUrl ||
+        doc.geminiDeepResearchChatUrl ||
         doc.promptConfig?.GEMINI_DEEP_RESEARCH_CHAT_URL ||
         'https://gemini.google.com/app/f346b10e556e2341',
       targetDurationSeconds: 1200,
@@ -1367,6 +1380,10 @@ Línea 2: DE HUIR DE LA GUERRA EN ESPAÑA A LEVANTAR UN IMPERIO EN AMÉRICA`;
         ...(doc.promptConfig || {}),
         UBICACION_INTRO_MARCA: 'INTRO_INICIO_00',
       };
+  const nextProductionType = normalizeProductionType(
+    (doc as { productionType?: string }).productionType,
+    nextPromptConfig
+  );
 
   if (
     masterAudioUrl !== doc.masterAudioUrl ||
@@ -1377,6 +1394,7 @@ Línea 2: DE HUIR DE LA GUERRA EN ESPAÑA A LEVANTAR UN IMPERIO EN AMÉRICA`;
     nextRawReferencePrompts !== (doc.rawReferencePrompts || '') ||
     nextCompiledMasterPrompt !== (doc.compiledMasterPrompt || '') ||
     nextFlowVideoEngine !== doc.flowVideoEngine ||
+    nextProductionType !== doc.productionType ||
     !hasIntroMarca ||
     nextClip1Line1 !== (doc.clip1Line1LocationTime || '') ||
     nextClip1Line2 !== (doc.clip1Line2Hook || '') ||
@@ -1389,6 +1407,7 @@ Línea 2: DE HUIR DE LA GUERRA EN ESPAÑA A LEVANTAR UN IMPERIO EN AMÉRICA`;
   ) {
     return {
       ...doc,
+      productionType: nextProductionType,
       promptConfig: nextPromptConfig,
       masterAudioUrl,
       audioTracks,
@@ -1621,20 +1640,34 @@ export function stripHeavyMediaForStorage(
       doc.thumbnailVerticalImageUrl.length > 60000
         ? { thumbnailVerticalImageUrl: '' }
         : {}),
-      ...(stripReferenceImages && Array.isArray(doc.references)
+            ...(stripReferenceImages && Array.isArray(doc.references)
         ? {
-            references: doc.references.map((r) =>
-              typeof r.imageUrl === 'string' && r.imageUrl.startsWith('data:') && r.imageUrl.length > 60000
-                ? { ...r, imageUrl: '' }
-                : r
-            ),
+            references: doc.references.map((r) => {
+              const normalizedUrl = normalizeFolderServedMediaUrl(r.imageUrl);
+              if (typeof normalizedUrl === 'string' && normalizedUrl.startsWith('data:') && normalizedUrl.length > 60000) {
+                return { ...r, imageUrl: '' };
+              }
+              return normalizedUrl !== r.imageUrl ? { ...r, imageUrl: normalizedUrl } : r;
+            }),
           }
-        : {}),
+        : Array.isArray(doc.references)
+          ? {
+              references: doc.references.map((r) => {
+                const normalizedUrl = normalizeFolderServedMediaUrl(r.imageUrl);
+                return normalizedUrl !== r.imageUrl ? { ...r, imageUrl: normalizedUrl } : r;
+              }),
+            }
+          : {}),
       clips: Array.isArray(doc.clips)
         ? doc.clips.map((c) => {
-            if (!c.videoFrames || c.videoFrames.length === 0) return c;
+            const nextPreview = typeof c.imagePreviewUrl === 'string'
+              ? normalizeFolderServedMediaUrl(c.imagePreviewUrl)
+              : c.imagePreviewUrl;
+            const hasFrames = Boolean(c.videoFrames && c.videoFrames.length > 0);
+            if (!hasFrames && nextPreview === c.imagePreviewUrl) return c;
+            if (!hasFrames) return { ...c, imagePreviewUrl: nextPreview };
             const { videoFrames, ...rest } = c;
-            return rest;
+            return nextPreview !== c.imagePreviewUrl ? { ...rest, imagePreviewUrl: nextPreview } : rest;
           })
         : [],
     };
@@ -2238,12 +2271,18 @@ function mergeTwoDocumentaryObjects(
       const oRevoked = isSideFileRevoked(o);
       const cValidFile = cRevoked ? '' : String(c.videoSavedFileName || '').trim();
       const oValidFile = oRevoked ? '' : String(o.videoSavedFileName || '').trim();
+      const effectiveDiscAtForRejection =
+        effDiscardedAt > 0
+          ? effDiscardedAt
+          : anySideRejectedEmpty && !cValidFile && !oValidFile
+          ? 1
+          : 0;
       const isActivelyRejected =
         (c.videoAuditStatus === 'rejected' ||
           o.videoAuditStatus === 'rejected' ||
           c.auditStatus === 'mismatch' ||
           o.auditStatus === 'mismatch') &&
-        effDiscardedAt > 0 &&
+        (effDiscardedAt > 0 || (anySideRejectedEmpty && !cValidFile && !oValidFile)) &&
         !cValidFile &&
         !oValidFile;
 
@@ -2319,7 +2358,7 @@ function mergeTwoDocumentaryObjects(
           auditReason: rejSide.auditReason || c.auditReason || o.auditReason,
           videoAuditReason: rejSide.videoAuditReason || c.videoAuditReason || o.videoAuditReason,
           ...(effDiscardedFile ? { discardedVideoFileName: effDiscardedFile } : {}),
-          videoDiscardedAt: effDiscardedAt,
+          videoDiscardedAt: effectiveDiscAtForRejection,
         };
       }
 
@@ -2380,6 +2419,29 @@ function mergeTwoDocumentaryObjects(
             : o.videoFrames,
       };
     });
+    if (!rawClipsLegitimatelyTombstoned) {
+      let maxWClipNum = 0;
+      for (const wc of wClipsInit) {
+        if (wc && typeof wc.clipNumber === 'number' && wc.clipNumber > maxWClipNum) {
+          maxWClipNum = wc.clipNumber;
+        }
+      }
+      const existingNums = new Set(
+        mergedClips.map((mc) => (mc && typeof mc.clipNumber === 'number' ? mc.clipNumber : -1))
+      );
+      const tailFromOther = oClipsInit
+        .filter(
+          (oc) =>
+            oc &&
+            typeof oc.clipNumber === 'number' &&
+            oc.clipNumber > maxWClipNum &&
+            !existingNums.has(oc.clipNumber)
+        )
+        .sort((a, b) => a.clipNumber - b.clipNumber);
+      if (tailFromOther.length > 0) {
+        mergedClips = [...mergedClips, ...tailFromOther];
+      }
+    }
   }
 
   let finalRawClipsText = baseWinner.rawClipsText || '';
@@ -3350,8 +3412,7 @@ DESCRIPCION: <1 to 2 Spanish sentences explaining this third unique visual trigg
 TEXTO_PANTALLA: ${hasUserOverlay ? overlayLines.join(' / ') : '<THIRD 2 TO 4 WORD UPPERCASE SPANISH HOOK>'}
 PROMPT: Thumbnail: Create an image in ${aspectPhrase} ...`;
   } else if (stageNumber === 6) {
-    const isRefVertical =
-      doc.productionType === 'SHORT_9X16' || doc.promptConfig?.SUB_OPCION_REELS === '9X16';
+    const isRefVertical = isVerticalProductionDoc(doc);
     const refAspect = isRefVertical ? '9:16 vertical aspect ratio' : '16:9 horizontal aspect ratio';
     stagePrompt = `Act as a Master Historian and Documentary Director of Photography for "Huellas de la Humanidad".
 Based on this voiceover script and historical topic (${doc.topic || doc.title}, ${doc.historicalTime}, ${doc.historicalLocation}):

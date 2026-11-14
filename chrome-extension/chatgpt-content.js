@@ -9,7 +9,16 @@
     } catch {}
   }
 
-  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const sleep = (ms) => {
+    const waitMs = Math.max(0, Number(ms) || 0);
+    if (document.visibilityState === 'hidden' && typeof chrome !== 'undefined' && chrome?.runtime?.sendMessage) {
+      return chrome.runtime
+        .sendMessage({ type: 'HUELLAS_UNTHROTTLED_SLEEP', ms: waitMs })
+        .then(() => undefined)
+        .catch(() => new Promise((resolve) => setTimeout(resolve, waitMs)));
+    }
+    return new Promise((resolve) => setTimeout(resolve, waitMs));
+  };
 
   function isVisible(el) {
     if (!el) return false;
@@ -97,8 +106,8 @@
       'button[data-testid="stop-button"]',
       'button[aria-label*="Stop streaming" i]',
       'button[aria-label*="Stop generating" i]',
-      'button[aria-label*="Stop" i]',
-      'button[aria-label*="Detener" i]',
+      'form button[aria-label="Stop" i]',
+      'form button[aria-label*="Detener" i]',
     ];
     for (const sel of stopSelectors) {
       const els = document.querySelectorAll(sel);
@@ -143,20 +152,11 @@
   }
 
   function getAssistantTurnElements() {
-    const raw = [
-      ...Array.from(
-        document.querySelectorAll(
-          '[data-message-author-role="assistant"], article[data-testid^="conversation-turn-"] [data-message-author-role="assistant"], [data-chatgpt-search-unit-key$=":assistant"], [data-content-search-unit-key$=":assistant"]'
-        )
-      ),
-      ...Array.from(document.querySelectorAll('[data-chatgpt-agent-turn-start]'))
-        .map(
-          (m) =>
-            m.closest('article, [data-testid^="conversation-turn-"], [data-turn="assistant"]') ||
-            m.parentElement
-        )
-        .filter(Boolean),
-    ];
+    const raw = Array.from(
+      document.querySelectorAll(
+        '[data-chatgpt-search-unit-key$=":assistant"], [data-content-search-unit-key$=":assistant"], [data-markdown-text-style="assistant-message"], [data-message-author-role="assistant"], article[data-testid^="conversation-turn-"] [data-message-author-role="assistant"]'
+      )
+    );
     const unique = raw.filter((el, idx, arr) => el && arr.indexOf(el) === idx);
     // Keep only outermost assistant containers so parent + child of the same turn are not counted twice
     return unique.filter((el, _i, arr) => !arr.some((other) => other !== el && other.contains(el)));
@@ -167,7 +167,7 @@
     const clone = rootEl.cloneNode(true);
     clone
       .querySelectorAll(
-        '.sr-only, button, [role="button"], [role="checkbox"], .copy-code-button, [data-testid*="copy" i], [data-testid*="thought" i], [data-chatgpt-agent-turn-start], script, style, svg'
+        '.sr-only, button, [role="button"], [role="checkbox"], .copy-code-button, [data-testid*="copy" i], [data-testid*="thought" i], [data-testid*="reasoning" i], [class*="thought" i], [class*="reasoning" i], [aria-label*="thought" i], [aria-label*="thinking" i], [aria-label*="razonamiento" i], details, summary, [data-chatgpt-agent-turn-start], script, style, svg'
       )
       .forEach((el) => el.remove());
     clone.querySelectorAll('br').forEach((el) => el.replaceWith('\n'));
@@ -188,15 +188,23 @@
     const nodes = getAssistantTurnElements();
     if (nodes.length === 0) return { count: 0, text: '', hasMarkdown: false, hasFinishActions: false };
     const lastNode = nodes[nodes.length - 1];
-    const turnArticle = lastNode.closest('article, [data-testid^="conversation-turn-"]') || lastNode;
-    const hasFinishActions = Boolean(
-      turnArticle.querySelector(
-        'button[data-testid="copy-turn-action-button"], button[data-testid="good-response-turn-action-button"], button[data-testid="bad-response-turn-action-button"], button[aria-label*="Copy" i], button[aria-label*="Copiar" i]'
-      )
-    );
+    const turnArticle =
+      lastNode.closest('article, [data-testid^="conversation-turn-"], [data-talvt-turn-state], [data-turn-key]') ||
+      lastNode;
+    const turnStateAttr = (turnArticle.getAttribute('data-talvt-turn-state') || '').trim().toLowerCase();
+    const hasFinishActions =
+      turnStateAttr === 'complete' ||
+      turnStateAttr === 'completed' ||
+      turnStateAttr === 'done' ||
+      Boolean(
+        turnArticle.querySelector(
+          'button[data-testid="copy-turn-action-button"], button[data-testid="good-response-turn-action-button"], button[data-testid="bad-response-turn-action-button"], button[aria-label*="Copy" i], button[aria-label*="Copiar" i]'
+        )
+      );
+    const mdSelector = '[data-markdown-text-style="assistant-message"], [class*="MarkdownRoot"], .markdown, .prose';
     const rawMd = [
-      ...(lastNode.matches && lastNode.matches('.markdown, .prose') ? [lastNode] : []),
-      ...Array.from(lastNode.querySelectorAll('.markdown, .prose')),
+      ...(lastNode.matches && lastNode.matches(mdSelector) ? [lastNode] : []),
+      ...Array.from(lastNode.querySelectorAll(mdSelector)),
     ];
     const markdownBlocks = rawMd.filter(
       (n, _i, arr) => !arr.some((other) => other !== n && other.contains(n))
@@ -209,10 +217,17 @@
         .join('\n\n')
         .trim();
     }
-    if (!text) {
+    if (!text && hasFinishActions) {
       text = extractCleanNodeText(lastNode);
     }
-    if (/^(?:\d{1,6}|thinking\.{0,3}|pensando\.{0,3}|razonando\.{0,3}|thought\s+for\s+[^\n]{1,40})$/i.test(text)) {
+    if (
+      /^(?:\d{1,6}|thinking\.{0,3}|pensando\.{0,3}|razonando\.{0,3}|thought\s+for\s+[^\n]{1,40}|pens[oó]\s+durante\s+[^\n]{1,40})$/i.test(
+        text
+      ) ||
+      (!markdownBlocks.length &&
+        !hasFinishActions &&
+        /(?:thought\s+for|thinking|pensando|razonando|pens[oó]\s+durante)/i.test(text))
+    ) {
       text = '';
     }
     return {
@@ -417,12 +432,22 @@
             const curUserCount = getUserTurnCount();
             const latest = extractLatestChatGptResponse();
             const latestText = (latest.text || '').trim();
-            const waitingFirstAssistantChunk = curUserCount > initialUserCount && !latestText;
-            const generating = isChatGptStillGenerating() || waitingFirstAssistantChunk;
+            const waitingFirstAssistantChunk =
+              curUserCount > initialUserCount &&
+              (!latestText || (!latest.hasMarkdown && !latest.hasFinishActions));
+            const hasHardStopBtn = Boolean(
+              isVisible(document.querySelector('button[data-testid="stop-button"]')) ||
+                isVisible(document.querySelector('button[aria-label*="Stop streaming" i]'))
+            );
+            const generating =
+              (latest.hasFinishActions && !hasHardStopBtn
+                ? false
+                : isChatGptStillGenerating()) || waitingFirstAssistantChunk;
             const hasNewTurn =
-              latest.count > initialCount || (latestText.length > 2 && latestText !== initialLastText);
-            const readyEnough = latest.hasFinishActions ? latestText.length >= 12 : latestText.length >= 60;
-            const neededStableTicks = latest.hasFinishActions ? 3 : 4;
+              latest.count > initialCount || (latestText.length > 0 && latestText !== initialLastText);
+            const readyEnough =
+              latest.hasFinishActions || latest.hasMarkdown ? latestText.length >= 2 : false;
+            const neededStableTicks = latest.hasFinishActions ? 2 : 6;
 
             if (hasNewTurn && !generating && readyEnough) {
               if (latestText === lastSeenText) {

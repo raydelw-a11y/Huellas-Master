@@ -222,6 +222,7 @@ export interface DocumentaryClip {
   isStaticBroll?: boolean;
   brollCameraMotion?: BrollCameraMotion;
   previousVideoPrompt?: string;
+  durationSeconds?: number;
 }
 
 export interface SunoTrack {
@@ -244,6 +245,52 @@ export type ProductionFormatType =
   | 'TIMELAPSE'
   | 'NOTEBOOKLM'
   | 'POST_3X4';
+
+export function normalizeProductionType(
+  raw: unknown,
+  promptConfig?: Record<string, any> | null
+): ProductionFormatType {
+  const v = typeof raw === 'string' ? raw.trim().toUpperCase() : '';
+  if (v === 'REEL_9X16' || v === 'REELS_9X16' || v === 'SHORT_9X16') return 'REEL_9X16';
+  if (
+    v === 'DOCUMENTAL_16X9' ||
+    v === 'INMERSIVO' ||
+    v === 'TIMELAPSE' ||
+    v === 'NOTEBOOKLM' ||
+    v === 'POST_3X4'
+  ) {
+    return v as ProductionFormatType;
+  }
+  if (promptConfig?.SUB_OPCION_REELS === '9X16') return 'REEL_9X16';
+  return 'DOCUMENTAL_16X9';
+}
+
+export function isVerticalProductionDoc(
+  doc?: { productionType?: unknown; promptConfig?: Record<string, any> | null } | null
+): boolean {
+  if (!doc) return false;
+  return (
+    normalizeProductionType(doc.productionType, doc.promptConfig) === 'REEL_9X16' ||
+    doc.promptConfig?.SUB_OPCION_REELS === '9X16'
+  );
+}
+
+export function mapProductionTypeToTipoProduccion(prodType: ProductionFormatType): string {
+  switch (prodType) {
+    case 'REEL_9X16':
+      return 'REELS';
+    case 'POST_3X4':
+      return 'POST_EXPECTATIVA';
+    case 'NOTEBOOKLM':
+      return 'NOTEBOOKLM_VIDEO';
+    case 'TIMELAPSE':
+      return 'TIMELAPSE';
+    case 'DOCUMENTAL_16X9':
+    case 'INMERSIVO':
+    default:
+      return 'INMERSIVO_CONTEMPLATIVO';
+  }
+}
 
 export type DocumentaryStatusType =
   | 'planificacion'
@@ -278,6 +325,8 @@ export interface DocumentaryProject {
   downloadFolderPath?: string;
   geminiChatUrl?: string;
   geminiChatTitle?: string;
+  geminiDeepResearchChatUrl?: string;
+  geminiDeepResearchChatTitle?: string;
   promptConfig: Record<string, any>;
   compiledMasterPrompt: string;
 
@@ -417,5 +466,8 @@ export function sanitizeOperationalHeader(
   const base = isLegacySpanishOrIncomplete ? DEFAULT_OPERATIONAL_HEADER : trimmed;
   const lineRegex =
     /(?:Use|Usa)\s+(?:omni\s*(?:1\.1\s*)?flash|veo\s*3\.1\s*(?:-\s*lite\s*\[lower\s*priority\])?|lower\s*priority)[^\n]*(?:for\s+(?:the\s+)?(?:initial|starting(?:\s+keyframe)?)\s+(?:clip\s+)?images[^\n]*|para\s+im[áa]genes\s+iniciales\s+de\s+cada\s+clip)\.?/gi;
-  return lineRegex.test(base) ? base.replace(lineRegex, engineLine) : DEFAULT_OPERATIONAL_HEADER.replace(lineRegex, engineLine);
+  const outHeader = lineRegex.test(base)
+    ? base.replace(lineRegex, engineLine)
+    : DEFAULT_OPERATIONAL_HEADER.replace(lineRegex, engineLine);
+  return outHeader.replace(/\bnano\s+banana\s+2\.1\b/gi, 'Nano Banana 2.1');
 }

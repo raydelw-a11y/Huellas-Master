@@ -2026,19 +2026,45 @@ export function syncAndAuditProductionClips(
   arg4?: DocumentaryClip[],
   arg5?: string
 ): DocumentaryClip[] {
-  const isObj = typeof arg1 === 'object' && arg1 !== null;
-  const rawVoiceoverWithPauses = isObj ? arg1.rawVoiceoverWithPauses || '' : arg1 || '';
-  const timelineText = isObj ? arg1.timelineText || '' : arg2 || '';
-  const rawClipsText = isObj ? arg1.rawClipsText || '' : arg3 || '';
-  const existingClips = isObj ? arg1.existingClips || [] : arg4 || [];
-  const clip1Duration = isObj ? arg1.clip1Duration || 6 : 6;
-  const standardClipDuration = isObj && Number(arg1.clipDuration) > 0 ? Number(arg1.clipDuration) : 8;
-  const clip1SyncMode = (isObj ? arg1.clip1SyncMode : arg5) || 'VOZ_EN_CLIP_2';
-  const docTopic = isObj ? (arg1.topic || '').trim() : '';
-  const docTime = isObj ? (arg1.historicalTime || '').trim() : '';
-  const docLocation = isObj ? (arg1.historicalLocation || '').trim() : '';
-  const docRefs = isObj && Array.isArray(arg1.references) ? arg1.references : [];
-  const includeNarrationInClip = isObj ? Boolean(arg1.includeNarrationInClip === true) : false;
+  const objArg =
+    typeof arg1 === 'object' &&
+    arg1 !== null &&
+    !Array.isArray(arg1) &&
+    !('nativeEvent' in (arg1 as Record<string, unknown>))
+      ? arg1
+      : null;
+  const rawVoiceoverWithPauses: string = objArg
+    ? typeof objArg.rawVoiceoverWithPauses === 'string'
+      ? objArg.rawVoiceoverWithPauses
+      : ''
+    : typeof arg1 === 'string'
+    ? arg1
+    : '';
+  const timelineText: string = objArg
+    ? typeof objArg.timelineText === 'string'
+      ? objArg.timelineText
+      : ''
+    : typeof arg2 === 'string'
+    ? arg2
+    : '';
+  const rawClipsText: string = objArg
+    ? typeof objArg.rawClipsText === 'string'
+      ? objArg.rawClipsText
+      : ''
+    : typeof arg3 === 'string'
+    ? arg3
+    : '';
+  const existingClips = objArg ? objArg.existingClips || [] : arg4 || [];
+  const clip1Duration = objArg ? objArg.clip1Duration || 6 : 6;
+  const standardClipDuration =
+    objArg && Number(objArg.clipDuration) > 0 ? Number(objArg.clipDuration) : 8;
+  const clip1SyncMode = (objArg ? objArg.clip1SyncMode : arg5) || 'VOZ_EN_CLIP_2';
+  const docTopic = objArg && typeof objArg.topic === 'string' ? objArg.topic.trim() : '';
+  const docTime = objArg && typeof objArg.historicalTime === 'string' ? objArg.historicalTime.trim() : '';
+  const docLocation =
+    objArg && typeof objArg.historicalLocation === 'string' ? objArg.historicalLocation.trim() : '';
+  const docRefs = objArg && Array.isArray(objArg.references) ? objArg.references : [];
+  const includeNarrationInClip = objArg ? Boolean(objArg.includeNarrationInClip === true) : false;
 
   const parsedFromPrompts = parseClipsFromRawText(
     rawClipsText,

@@ -19,9 +19,21 @@ export default defineConfig(({ command }) => {
     year: 'numeric',
   });
 
-  const buildVersionId = `${buildDate.slice(0, 2)}${buildDate.slice(3, 5)}${String(
-    now.getHours()
-  ).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
+  const nyParts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/New_York',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    })
+      .formatToParts(now)
+      .map((p) => [p.type, p.value])
+  );
+  const nyHour = nyParts.hour === '24' ? '00' : nyParts.hour;
+  const buildVersionId = `${nyParts.month}${nyParts.day}${nyHour}${nyParts.minute}${nyParts.second}`;
 
   return {
     plugins: [
@@ -43,11 +55,9 @@ export default defineConfig(({ command }) => {
         },
       },
     ],
-    define: command === 'build'
-      ? {
-          __BUILD_TIMESTAMP__: JSON.stringify(`${buildTime} - ${buildDate}`),
-        }
-      : {},
+    define: {
+      __BUILD_TIMESTAMP__: JSON.stringify(`${buildTime} - ${buildDate}`),
+    },
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),

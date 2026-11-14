@@ -287,7 +287,7 @@ app.post('/api/settings/gemini-key', async (req, res) => {
 // ============================================================================
 const DEFAULT_OPERATIONAL_HEADER_SERVER = `Act as a historian, film director, and professional journalist. Before starting the generation of any images or video clips, first analyze all provided prompts, check scene by scene whether people/human subjects are present or whether the scene is tagged [IMAGE ONLY — DO NOT GENERATE VIDEO CLIP], and give me a clear pre-generation report stating: (1) the exact total number of scenes, (2) how many video clips will be made with Omni (Omni 1.1 Flash), (3) how many video clips will be made with Lower Priority (Veo 3.1 - Lite [Lower Priority]), and (4) how many scenes are [IMAGE ONLY — DO NOT GENERATE VIDEO CLIP] Static B-Roll plates (for which ONLY the image is generated in Nano Banana 2.1 and NO video clip is created in Flow because optical camera motion is rendered locally in our editor), and only after delivering that report proceed with generation.
 Rename every generated image and video clip using these exact prefixes followed by the 2-digit scene number (01 to 09 for 1 to 9) and the first 6 words of its pasted prompt: start initial clip images with "Inicial_##_" (e.g., Inicial_01_create_an_image_in_16_9), start [IMAGE ONLY — DO NOT GENERATE VIDEO CLIP] Static B-Roll plates with "Broll_##_" (e.g., Broll_18_create_an_image_in_16_9), and start video clips with "Clip_##_" (e.g., Clip_01_create_a_cinematic_8_second_video).
-Use Omni 1.1 Flash exclusively for video clips featuring people and use Veo 3.1 - Lite [Lower Priority] for all remaining video clips without people; use nano banana 2.1 for the initial images of each clip and for all [IMAGE ONLY — DO NOT GENERATE VIDEO CLIP] Static B-Roll plates.
+Use Omni 1.1 Flash exclusively for video clips featuring people and use Veo 3.1 - Lite [Lower Priority] for all remaining video clips without people; use Nano Banana 2.1 for the initial images of each clip and for all [IMAGE ONLY — DO NOT GENERATE VIDEO CLIP] Static B-Roll plates.
 Create the images first and then the video clips using each image as the starting frame, EXCEPT for any prompt tagged [IMAGE ONLY — DO NOT GENERATE VIDEO CLIP] [B-Roll: STATIC_...]: for those B-Roll scenes, generate ONLY the high-resolution Nano Banana 2.1 still image and strictly SKIP creating any video clip in Flow.
 Use the @Reference images of people and locations ONLY when generating the initial images ("Inicial_##") with Nano Banana 2.1 to maintain visual fidelity; when generating each video clip ("Clip_##"), use ONLY its corresponding generated initial image ("Inicial_##") as the starting frame without re-attaching @Person reference sheets or real historical person names.
 Never make shot changes in any clip (except in that specific clip where the prompt explicitly instructs making two 5-second shots each because the narration voice changed scenes) and ensure video clips have no disappearances or transformations; the created initial image will be used as the start of each clip.
@@ -301,10 +301,10 @@ function sanitizeOperationalHeaderServer(
 ): string {
   const engineLine =
     engine === 'HYBRID_PEOPLE_OMNI_REST_LOWER'
-      ? 'Use Omni 1.1 Flash exclusively for video clips featuring people and use Veo 3.1 - Lite [Lower Priority] for all remaining video clips without people; use nano banana 2.1 for the initial images of each clip and for all [IMAGE ONLY — DO NOT GENERATE VIDEO CLIP] Static B-Roll plates.'
+      ? 'Use Omni 1.1 Flash exclusively for video clips featuring people and use Veo 3.1 - Lite [Lower Priority] for all remaining video clips without people; use Nano Banana 2.1 for the initial images of each clip and for all [IMAGE ONLY — DO NOT GENERATE VIDEO CLIP] Static B-Roll plates.'
       : engine === 'OMNI_1_1_FLASH'
-      ? 'Use Omni 1.1 Flash for videos and nano banana 2.1 for the initial images of each clip and for all [IMAGE ONLY — DO NOT GENERATE VIDEO CLIP] Static B-Roll plates.'
-      : 'Use Veo 3.1 - Lite [Lower Priority] for videos and nano banana 2.1 for the initial images of each clip and for all [IMAGE ONLY — DO NOT GENERATE VIDEO CLIP] Static B-Roll plates.';
+      ? 'Use Omni 1.1 Flash for videos and Nano Banana 2.1 for the initial images of each clip and for all [IMAGE ONLY — DO NOT GENERATE VIDEO CLIP] Static B-Roll plates.'
+      : 'Use Veo 3.1 - Lite [Lower Priority] for videos and Nano Banana 2.1 for the initial images of each clip and for all [IMAGE ONLY — DO NOT GENERATE VIDEO CLIP] Static B-Roll plates.';
 
   const trimmed = String(operationalHeader || '').trim();
   const isCorruptedOrIncomplete =
@@ -391,7 +391,7 @@ function readDocumentaries(): any[] {
           }
         }
         if (modified) {
-          fs.writeFileSync(DOCS_FILE, JSON.stringify(data, null, 2), 'utf8');
+          writeFileAtomicUtf8(DOCS_FILE, JSON.stringify(data, null, 2));
         }
         return data;
       }
@@ -464,6 +464,40 @@ function normalizeServerPortableAudioUrl(rawUrl?: any): string {
   return u;
 }
 
+function normalizeServerProductionType(raw: unknown, promptConfig?: Record<string, any> | null): string {
+  const v = typeof raw === 'string' ? raw.trim().toUpperCase() : '';
+  if (v === 'REEL_9X16' || v === 'REELS_9X16' || v === 'SHORT_9X16') return 'REEL_9X16';
+  if (
+    v === 'DOCUMENTAL_16X9' ||
+    v === 'INMERSIVO' ||
+    v === 'TIMELAPSE' ||
+    v === 'NOTEBOOKLM' ||
+    v === 'POST_3X4'
+  ) {
+    return v;
+  }
+  if (promptConfig?.SUB_OPCION_REELS === '9X16') return 'REEL_9X16';
+  return 'DOCUMENTAL_16X9';
+}
+
+function isServerVerticalProductionDoc(doc: any): boolean {
+  if (!doc) return false;
+  return (
+    normalizeServerProductionType(doc.productionType, doc.promptConfig) === 'REEL_9X16' ||
+    doc.promptConfig?.SUB_OPCION_REELS === '9X16'
+  );
+}
+
+function normalizeServerFolderServedMediaUrl(rawUrl: unknown): string {
+  if (typeof rawUrl !== 'string') return '';
+  const trimmed = rawUrl.trim();
+  if (!trimmed) return '';
+  return trimmed.replace(
+    /^https?:\/\/(?:(?:localhost|127\.0\.0\.1)(?::\d+)?|[a-z0-9-]+\.trycloudflare\.com)(\/api\/flow\/serve-folder-file(?:[/?#].*)?)$/i,
+    '$1'
+  );
+}
+
 function sanitizeServerDocAudioUrls(doc: any): any {
   if (!doc || typeof doc !== 'object') return doc;
   const rawTracks = Array.isArray(doc.audioTracks) ? doc.audioTracks : [];
@@ -503,16 +537,39 @@ function sanitizeServerDocAudioUrls(doc: any): any {
       cleanedMaster = 'tts-files/tts-video-77-penicilina.mp3?v=nodup3';
     }
   }
+  const cleanedReferences = Array.isArray(doc.references)
+    ? doc.references.map((r: any) => {
+        if (!r || typeof r !== 'object') return r;
+        const normUrl = normalizeServerFolderServedMediaUrl(r.imageUrl);
+        return normUrl !== (r.imageUrl || '') ? { ...r, imageUrl: normUrl } : r;
+      })
+    : doc.references;
+  const cleanedClips = Array.isArray(doc.clips)
+    ? doc.clips.map((c: any) => {
+        if (!c || typeof c !== 'object' || typeof c.imagePreviewUrl !== 'string') return c;
+        const normPrev = normalizeServerFolderServedMediaUrl(c.imagePreviewUrl);
+        return normPrev !== c.imagePreviewUrl ? { ...c, imagePreviewUrl: normPrev } : c;
+      })
+    : doc.clips;
   return {
     ...doc,
+    productionType: normalizeServerProductionType(doc.productionType, doc.promptConfig),
     masterAudioUrl: cleanedMaster,
     audioTracks: cleanedTracks,
+    ...(cleanedReferences !== undefined ? { references: cleanedReferences } : {}),
+    ...(cleanedClips !== undefined ? { clips: cleanedClips } : {}),
   };
 }
 
+let atomicWriteSeq = 0;
+
 function writeFileAtomicUtf8(targetPath: string, content: string) {
   const dir = path.dirname(targetPath);
-  const tmpPath = path.join(dir, `${path.basename(targetPath)}.tmp.${process.pid}.${Date.now()}`);
+  fs.mkdirSync(dir, { recursive: true });
+  const tmpPath = path.join(
+    dir,
+    `${path.basename(targetPath)}.tmp.${process.pid}.${Date.now()}.${++atomicWriteSeq}`
+  );
   fs.writeFileSync(tmpPath, content, 'utf8');
   fs.renameSync(tmpPath, targetPath);
 }
@@ -684,7 +741,7 @@ function mergeServerClipsPreservingAuthored(
     }
   }
   const STALE_PENDING_AUDIT_RE = /pendiente\s+de\s+generar|falta\s+el\s+prompt/i;
-  return wClips.map((c: any) => {
+  const mergedArr = wClips.map((c: any) => {
     const o = otherClipByNum.get(c.clipNumber);
     if (!o) return c;
     const wHasReal = isServerClipRealAuthored(c);
@@ -727,12 +784,18 @@ function mergeServerClipsPreservingAuthored(
     const oRevoked = isSideFileRevoked(o);
     const cValidFile = cRevoked ? '' : String(c.videoSavedFileName || '').trim();
     const oValidFile = oRevoked ? '' : String(o.videoSavedFileName || '').trim();
+    const effectiveDiscAtForRejection =
+      effDiscardedAt > 0
+        ? effDiscardedAt
+        : anySideRejectedEmpty && !cValidFile && !oValidFile
+        ? 1
+        : 0;
     const isActivelyRejected =
       (c.videoAuditStatus === 'rejected' ||
         o.videoAuditStatus === 'rejected' ||
         c.auditStatus === 'mismatch' ||
         o.auditStatus === 'mismatch') &&
-      effDiscardedAt > 0 &&
+      (effDiscardedAt > 0 || (anySideRejectedEmpty && !cValidFile && !oValidFile)) &&
       !cValidFile &&
       !oValidFile;
 
@@ -805,7 +868,7 @@ function mergeServerClipsPreservingAuthored(
         auditReason: rejSide.auditReason || c.auditReason || o.auditReason,
         videoAuditReason: rejSide.videoAuditReason || c.videoAuditReason || o.videoAuditReason,
         ...(effDiscardedFile ? { discardedVideoFileName: effDiscardedFile } : {}),
-        videoDiscardedAt: effDiscardedAt,
+        videoDiscardedAt: effectiveDiscAtForRejection,
       };
     }
 
@@ -868,6 +931,30 @@ function mergeServerClipsPreservingAuthored(
           : o.videoFrames,
     };
   });
+  if (!rawClipsLegitimatelyTombstoned && wClips.length > 0) {
+    let maxWClipNum = 0;
+    for (const wc of wClips) {
+      if (wc && typeof wc.clipNumber === 'number' && wc.clipNumber > maxWClipNum) {
+        maxWClipNum = wc.clipNumber;
+      }
+    }
+    const existingNums = new Set(
+      mergedArr.map((mc: any) => (mc && typeof mc.clipNumber === 'number' ? mc.clipNumber : -1))
+    );
+    const tailFromOther = oClips
+      .filter(
+        (oc: any) =>
+          oc &&
+          typeof oc.clipNumber === 'number' &&
+          oc.clipNumber > maxWClipNum &&
+          !existingNums.has(oc.clipNumber)
+      )
+      .sort((a: any, b: any) => a.clipNumber - b.clipNumber);
+    if (tailFromOther.length > 0) {
+      return [...mergedArr, ...tailFromOther];
+    }
+  }
+  return mergedArr;
 }
 
 function mergeServerDocObjects(winner: any, other: any) {
@@ -3355,8 +3442,7 @@ MANDATORILY APPLY ALL 5 CTR NEUROPSYCHOLOGY PRINCIPLES IN THE IMAGE PROMPT:
 8. Close with: 'cinematic documentary realism, 8k resolution, sharp focus, safe framing composition, no modern objects, no CGI look, no unintended floating text, no music.'
 Deliver ONLY the ready-to-paste image generation prompt written 100% in English (preserving the exact quoted Spanish text overlay "${overlayText}" and brand name "Huellas de la Humanidad").`;
     } else if (stageNumber === 6) {
-      const isRefVertical =
-        doc.productionType === 'SHORT_9X16' || doc.promptConfig?.SUB_OPCION_REELS === '9X16';
+      const isRefVertical = isServerVerticalProductionDoc(doc);
       const refAspect = isRefVertical ? '9:16 vertical aspect ratio' : '16:9 horizontal aspect ratio';
       stagePrompt = `Act as a historian and director of photography for "Huellas de la Humanidad".
 Based on this voiceover script and historical setting (${doc.topic || doc.title}, ${doc.historicalTime}, ${doc.historicalLocation}):
@@ -4760,8 +4846,7 @@ app.post('/api/editor/sync-client-state', (req, res) => {
       },
       updatedAt: new Date().toISOString(),
     };
-    fs.mkdirSync(path.dirname(EDITOR_CLIENT_STATE_FILE), { recursive: true });
-    fs.writeFileSync(EDITOR_CLIENT_STATE_FILE, JSON.stringify(merged, null, 2), 'utf8');
+    writeFileAtomicUtf8(EDITOR_CLIENT_STATE_FILE, JSON.stringify(merged, null, 2));
     res.json({ ok: true });
   } catch (err: any) {
     res.status(500).json({ ok: false, error: err?.message || 'Failed to sync client state' });
@@ -5407,10 +5492,14 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
           : slotDur > 0.3 && effectiveSpan > 0.2
           ? ((slotDur + 0.06) / effectiveSpan).toFixed(5)
           : (1 / speed).toFixed(4);
+      const hasIntroInExport =
+        Number(clips[0]?.clipNumber) === 0 || clips[0]?.id === 'fixed-doc-intro';
+      const firstBodyExportIdx = hasIntroInExport ? 1 : 0;
       const isFirstClipAfterIntro =
         !isIntroClip &&
         !isOutroClip &&
-        (Number(c.clipNumber) === 1 || (i === 1 && Number(clips[0]?.clipNumber) === 0));
+        c.transition !== 'direct' &&
+        (hasIntroInExport ? i === firstBodyExportIdx : i === 0 && Number(c.clipNumber) === 1);
       const nextClipInList = clips[i + 1];
       const isLastBodyClipBeforeOutro =
         !isIntroClip &&
@@ -6317,6 +6406,7 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       });
       muxerProc.on('error', reject);
     });
+    muxerDonePromise.catch(() => {});
 
     // 4. Execute segment encodes in parallel (with bounded lookahead <= 5 segments so /tmp never exceeds ~900 MB) and stream each completed .ts into its FIFO + delete immediately!
     let completedSegCount = 0;
@@ -9179,14 +9269,38 @@ app.get('/api/flow/serve-folder-file', (req, res) => {
     if (typeof rangeHeader === 'string') {
       const m = rangeHeader.match(/bytes=(\d*)-(\d*)/);
       if (m) {
-        const start = m[1] ? parseInt(m[1], 10) : 0;
-        const end = m[2] ? parseInt(m[2], 10) : fileSize - 1;
-        if (fileSize === 0 || start >= fileSize || start < 0) {
+        const hasStart = m[1] !== '';
+        const hasEnd = m[2] !== '';
+        if (!hasStart && !hasEnd) {
           res.setHeader('Content-Range', `bytes */${fileSize}`);
           res.status(416).end();
           return;
-        } else if (m[2] && end >= fileSize) {
-          req.headers.range = `bytes=${start}-${Math.max(start, fileSize - 1)}`;
+        }
+        if (!hasStart && hasEnd) {
+          const suffixLen = parseInt(m[2], 10);
+          if (fileSize === 0 || !Number.isFinite(suffixLen) || suffixLen <= 0) {
+            res.setHeader('Content-Range', `bytes */${fileSize}`);
+            res.status(416).end();
+            return;
+          }
+          const computedStart = Math.max(0, fileSize - suffixLen);
+          req.headers.range = `bytes=${computedStart}-${fileSize - 1}`;
+        } else {
+          const start = parseInt(m[1], 10);
+          const end = hasEnd ? parseInt(m[2], 10) : fileSize - 1;
+          if (
+            fileSize === 0 ||
+            !Number.isFinite(start) ||
+            start < 0 ||
+            start >= fileSize ||
+            (hasEnd && (!Number.isFinite(end) || end < start))
+          ) {
+            res.setHeader('Content-Range', `bytes */${fileSize}`);
+            res.status(416).end();
+            return;
+          } else if (hasEnd && end >= fileSize) {
+            req.headers.range = `bytes=${start}-${fileSize - 1}`;
+          }
         }
       }
     }
@@ -11930,11 +12044,7 @@ app.post('/api/flow/rerender-broll-clip', async (req, res) => {
               }
             }
             if (changedDb) {
-              fs.writeFileSync(DOCS_FILE, JSON.stringify(allDocs, null, 2), 'utf8');
-              const docsMirrorPath = path.join(process.cwd(), 'docs', 'data', 'documentaries.json');
-              if (fs.existsSync(path.dirname(docsMirrorPath))) {
-                fs.writeFileSync(docsMirrorPath, JSON.stringify(allDocs, null, 2), 'utf8');
-              }
+              writeDocumentaries(allDocs, true);
             }
           }
         } catch {}
@@ -17895,9 +18005,7 @@ app.post('/api/gemini-web/remote-stage-result', async (req, res) => {
       } else if (stageNumber === 5) {
         const isVertThumb =
           list[idx].thumbnailOrientation === 'VERTICAL_9X16' ||
-          (!list[idx].thumbnailOrientation &&
-            (list[idx].productionType === 'SHORT_9X16' ||
-              list[idx].promptConfig?.SUB_OPCION_REELS === '9X16'));
+          (!list[idx].thumbnailOrientation && isServerVerticalProductionDoc(list[idx]));
         const thumbOrientationSrv: 'HORIZONTAL_16X9' | 'VERTICAL_9X16' = isVertThumb
           ? 'VERTICAL_9X16'
           : 'HORIZONTAL_16X9';
@@ -18036,9 +18144,7 @@ app.post('/api/gemini-web/remote-stage-result', async (req, res) => {
           extraPatch.thumbnailTextOverlay = chosenOv;
           const isVert101 =
             list[idx].thumbnailOrientation === 'VERTICAL_9X16' ||
-            (!list[idx].thumbnailOrientation &&
-              (list[idx].productionType === 'SHORT_9X16' ||
-                list[idx].promptConfig?.SUB_OPCION_REELS === '9X16'));
+            (!list[idx].thumbnailOrientation && isServerVerticalProductionDoc(list[idx]));
           const orient101: 'HORIZONTAL_16X9' | 'VERTICAL_9X16' = isVert101 ? 'VERTICAL_9X16' : 'HORIZONTAL_16X9';
           if (String(list[idx].thumbnailPrompt || '').trim()) {
             extraPatch.thumbnailPrompt = cleanAndNormalizeStage5ThumbnailPrompt(

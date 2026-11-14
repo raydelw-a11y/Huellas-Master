@@ -38,3 +38,19 @@ Este proyecto aplica íntegramente el **Sistema Global de Auto-Triaje de 8 Nivel
      - Todas las consultas web operan con `active: false` (100% silenciosas, sin robar foco) **dentro de la misma ventana y perfil de Chrome donde está abierta `Huellas Master`**, donde `ensureResidentGeminiAndChatGptTabs` mantiene siempre vivas (`autoDiscardable: false`) al menos **1 pestaña de `gemini.google.com/app` y 1 de `chatgpt.com`** (reutilizando pestaña libre en un Nuevo chat o creando pestaña temporal `active: false` si está ocupada, y en Gemini seleccionando `4 Carbon · Low` fuera de Notebooks).
      - **PROHIBIDO** usar `chrome-devtools` MCP (`new_page` / `navigate_page`) para estas consultas (abre un navegador aislado sin sesión) y **PROHIBIDO** ejecutar `osascript ... window 1` a ciegas.
    - **Servicio Local Residente**: Si `localhost:4200` no responde, el coordinador revisa `/tmp/huellas-master-4200.log` y `/tmp/huellas-master-4200.err.log` y levanta el servicio residente / `Iniciar_Huellas_Master.command` con acceso TCC válido antes de reintentar la consulta web.
+
+---
+
+# Blindaje Obligatorio Anti-Regresiones (Matriz de Impacto Cruzado y Compuerta `npm run verify`)
+
+Antes de dar por terminado **cualquier** cambio en código, datos o extensión dentro de `Huellas Master`, todos los agentes deben verificar obligatoriamente las zonas hermanas acopladas usando esta Matriz de Impacto Cruzado:
+
+| Si modificas… | Debes revisar obligatoriamente también… | Motivo crítico |
+| :--- | :--- | :--- |
+| **`src/types.ts` o `promptConfig` / `productionType`** | `src/utils/cloudSync.ts`, `src/utils/smartParsers.ts`, `src/App.tsx`, `server.ts` y `data/documentaries.json` | Ningún enum legado (`SHORT_9X16`, `REELS_9X16`, `clipVoiceMode`) puede romper el selector, Etapa 1, Etapa 6 ni mutar `updatedAt` causando tormentas CAS. |
+| **Urls de media / `serve-folder-file` / Intro / `@References`** | `src/App.tsx` (`getMacMediaBridgeBases`, `resolveRemoteFolderMediaUrl`), `src/components/CapCutEditor.tsx` (`getEditorMediaBridgeBases`, `buildOfficialIntroOutroUrls`), `src/utils/cloudSync.ts` (`stripHeavyMediaForStorage`) y `server.ts` (`writeDocumentaries`, `Range`) | La app corre en **3 entornos simultáneos**: Mac `:4200`, Render/iPhone vía túnel Cloudflare HTTPS y GitHub Pages (`docs/`). Nunca dejar `http://localhost:4200` ni `trycloudflare.com` crudos. |
+| **Cuarentena / rechazo / Stage 7 / Stage 8 / `merge`** | `src/utils/cloudSync.ts` (`mergeTwoDocumentaryObjects`), `server.ts` (`mergeServerClipArrays`) y los cargadores de clips en `src/App.tsx` | Impedir resurrección de `videoReady: true` tras rechazo y preservar la cola de clips (`> max clipNumber`) en merges parciales. |
+| **Transiciones o Split Clip 1 en Editor** | `src/components/CapCutEditor.tsx` (`ClipTransitionType`, `normalizeEditorClipTransition`, `isFirstClipAfterIntro`) y `server.ts` (builder FFmpeg `isFirstClipAfterIntro`) | La clave canónica es `'dip_black'` (jamás `'fade_black'`). La Parte B de un Clip 1 dividido no debe repetir fade-in ni sobrescribir `'direct'`. |
+| **`data/documentaries.json` o `docs/data/documentaries.json`** | `scripts/sync-public-docs-json.mjs` y `server.ts` (`writeDocumentaries` / `writeFileAtomicUtf8`) | Nunca usar `cp` directo sobre `data/documentaries.json` hacia `docs/data/` ni `fs.writeFileSync` crudo; `docs/data/` debe ir libre de `videoFrames` y `data:` > 60KB. |
+| **Puentes Web (`chatgpt-content.js` / `gemini-content.js`)** | `node --check chrome-extension/*.js` y prueba real en `:4200` | No cortar respuestas válidas cortas ni dejar pasar texto intermedio de razonamiento. |
+| **Cualquier cambio antes de compilar o subir** | Ejecutar `npm run verify` y `npm run build` (actualizando también fallback `LAST_UPDATED_TEXT` / `__BUILD_TIMESTAMP__`) | Compuerta bloqueante de 6 gates (`tsc --noEmit`, AST JSX/extensión, paridad rutas API, anti-fugas, invariantes JSON J1–J5, UI Global `Actualizado:` + `Acceso Privado`). |

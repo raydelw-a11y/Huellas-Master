@@ -61,7 +61,7 @@
       "REMOTE_GEMINI_STAGE_COMMAND_JSON": "{\"type\":\"REMOTE_GEMINI_STAGE\",\"commandId\":\"rgs_thumb_1794402632127_q8jih\",\"docId\":\"doc-video-77-huellas\",\"stageNumber\":505,\"requestedAt\":1794402632127,\"prompt\":\"Thumbnail: Create an image in 16:9 horizontal aspect ratio featuring an ultra-clean three-element composition with zero visual clutter, dominated on the right sixty percent of the frame by a dramatic medium close-up of a young British male physician in his late twenties with tousled dark hair, sweat beads, visible skin pores, and wide-open anguished eyes showing crisp white sclera making direct piercing eye contact into the camera lens, portrayed by an anonymous historical reenactment actor in authentic period attire (no real public figures or prominent people) wearing a 1941 white clinical coat over a tweed vest, holding up in the foreground a completely dry empty vintage glass medicine vial with tiny traces of yellow powder clinging to its inner walls, set against a cold midnight cyan-blue darkened 1941 British hospital ward with heavy black wartime blackout curtains in deep abyssal shadow, lit by dramatic chiaroscuro warm golden-amber key light across his face and a sharp rim light separating him from the cold dark background. In the bottom-left area of the image, a bold high-contrast cinematic documentary typography text overlay stacked across 2 exact separate lines reads (Line 1: \\\"FALTÓ UNA GOTA\\\" / Line 2: \\\"Y SE APAGÓ\\\"). In the top-right corner, a small discreet 5% scale logo displays \\\"8K\\\" in metallic gold. In the top-left corner, the official page logo from the provided reference image is cleanly integrated at 5% scale, strictly preserving and visibly rendering both the logo emblem and the exact text underneath it \\\"Huellas de la Humanidad\\\" without cropping, blurring, or omitting the sub-text. The scene has cinematic documentary realism, 8k resolution, sharp focus, safe framing composition, no modern objects, no CGI look, no unintended floating text, no music.\",\"taskType\":\"THUMBNAIL_IMAGE_GENERATION\",\"enableCreateImage\":true,\"standaloneNewChat\":true,\"noNotebook\":true,\"mediaType\":\"THUMBNAILS\",\"optionLabel\":\"A\",\"aspectRatio\":\"16:9\",\"enableHighModel\":false,\"enableArgonLow\":true,\"enableCarbonLow\":true,\"preferredModel\":\"CARBON_4_LOW\",\"thinkingLevel\":\"LOW\",\"enableDeepResearch\":false,\"videoName\":\"\",\"deepResearchVideoName\":\"\",\"geminiChatUrl\":\"\",\"geminiDeepResearchChatUrl\":\"\",\"notebookName\":\"\"}",
       "REMOTE_GEMINI_STAGE_ACK_ID": "rgs_1794399996476_23q8n",
       "GEMINI_CHAT_URL": "https://gemini.google.com/app/03cabb86628532c8",
-      "PROMPTS_RESTORED_AT": "1794573152448",
+      "PROMPTS_RESTORED_AT": "1794574021487",
       "FIELD_CLEARED_AT_rawClipsText": "0"
     },
     "compiledMasterPrompt": "",
@@ -1056,7 +1056,7 @@
         "description": "Charles Fletcher",
         "prompt": "Create an image in 16:9 horizontal aspect ratio structured as a 6-view character reference sheet (6 distinct views in a single 3x2 grid image of the exact same person with 100% identical facial, hair, and wardrobe continuity: 1. front full-body standing view, 2. three-quarter full-body view, 3. side profile full-body view, 4. back full-body view, 5. neutral front close-up portrait of head and shoulders, 6. three-quarter close-up portrait showing skin pores and facial structure), depicting a tall slender 29-year-old British male clinical physician in 1941 Oxford, England with short neatly parted dark brown hair, clean-shaven fatigued pale face, attentive hazel eyes, dressed head-to-toe in a knee-length white cotton hospital coat worn over a charcoal-gray three-piece wool suit, white collared shirt, dark silk necktie, tailored wool trousers, and black lace-up leather Oxford shoes against a clean neutral studio background with uniform lighting, portrayed by an anonymous historical reenactment actor in authentic period costume, no real public figures or prominent people, 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Charles_Fletcher",
         "isCreated": true,
-        "imageUrl": "https://gotta-dennis-mold-stars.trycloudflare.com/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F04_Referencias%2FCharles_Fletcher_be4de8fa_4K.jpg&v=1794426151600"
+        "imageUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F04_Referencias%2FCharles_Fletcher_be4de8fa_4K.jpg&v=1794426151600"
       },
       {
         "id": "ref-1794485694004-2",
@@ -1065,7 +1065,7 @@
         "description": "Albert Alexander",
         "prompt": "Create an image in 16:9 horizontal aspect ratio structured as a 6-view character reference sheet (6 distinct views in a single 3x2 grid image of the exact same person with 100% identical facial, hair, and wardrobe continuity: 1. front full-body standing view, 2. three-quarter full-body view, 3. side profile full-body view, 4. back full-body view, 5. neutral front close-up portrait of head and shoulders, 6. three-quarter close-up portrait showing skin pores and facial structure), depicting a sturdy 43-year-old British male reserve police patient in 1941 Oxford, England with short combed brown hair, gaunt weathered facial features, and a clean white sterile gauze bandage neatly covering his left eye, dressed head-to-toe in a long vintage 1941 off-white linen hospital gown tied with cotton strings, loose white cotton pajama trousers, wool socks, and simple brown felt hospital slippers against a clean neutral studio background with uniform lighting, portrayed by an anonymous historical reenactment actor in authentic period costume, no real public figures or prominent people, 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Albert_Alexander",
         "isCreated": true,
-        "imageUrl": "https://gotta-dennis-mold-stars.trycloudflare.com/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F04_Referencias%2FAlbert_Alexander_928b842d_4K.jpg&v=1794426120906"
+        "imageUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F04_Referencias%2FAlbert_Alexander_928b842d_4K.jpg&v=1794426120906"
       },
       {
         "id": "ref-1794485694007-3",
@@ -1074,7 +1074,7 @@
         "description": "Alexander Fleming",
         "prompt": "Create an image in 16:9 horizontal aspect ratio structured as a 6-view character reference sheet (6 distinct views in a single 3x2 grid image of the exact same person with 100% identical facial, hair, and wardrobe continuity: 1. front full-body standing view, 2. three-quarter full-body view, 3. side profile full-body view, 4. back full-body view, 5. neutral front close-up portrait of head and shoulders, 6. three-quarter close-up portrait showing skin pores and facial structure), depicting a 47-year-old Scottish male bacteriologist in 1928 London, England with angular austere facial bone structure, prominent nose, observant pale blue-gray eyes, and silver-gray hair combed straight back, dressed head-to-toe in a white cotton laboratory coat over a medium-gray British three-piece wool suit, stiff white detachable collar shirt, dark navy polka-dot bow tie, cuffed wool trousers, and polished dark brown leather brogues against a clean neutral studio background with uniform lighting, portrayed by an anonymous historical reenactment actor in authentic period costume, no real public figures or prominent people, 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Alexander_Fleming",
         "isCreated": true,
-        "imageUrl": "https://gotta-dennis-mold-stars.trycloudflare.com/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F04_Referencias%2FAlexander_Fleming_fe389484_4K.jpg&v=1794426171631"
+        "imageUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F04_Referencias%2FAlexander_Fleming_fe389484_4K.jpg&v=1794426171631"
       },
       {
         "id": "ref-1794485694011-4",
@@ -1083,7 +1083,7 @@
         "description": "Almroth Wright",
         "prompt": "Create an image in 16:9 horizontal aspect ratio structured as a 6-view character reference sheet (6 distinct views in a single 3x2 grid image of the exact same person with 100% identical facial, hair, and wardrobe continuity: 1. front full-body standing view, 2. three-quarter full-body view, 3. side profile full-body view, 4. back full-body view, 5. neutral front close-up portrait of head and shoulders, 6. three-quarter close-up portrait showing skin pores and facial structure), depicting an imposing 67-year-old British male medical institute director in 1929 London, England with thick silver-white hair, full clipped white mustache, oval wire pince-nez eyeglasses, and stern authoritative expression, dressed head-to-toe in a formal black wool Edwardian-style frock coat, double-breasted gray waistcoat, high starched white wing collar, dark gray silk cravat, striped charcoal trousers, and black leather dress shoes against a clean neutral studio background with uniform lighting, portrayed by an anonymous historical reenactment actor in authentic period costume, no real public figures or prominent people, 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Almroth_Wright",
         "isCreated": true,
-        "imageUrl": "https://gotta-dennis-mold-stars.trycloudflare.com/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F04_Referencias%2FAlmroth_Wright_6a381229_4K.jpg&v=1794426104521"
+        "imageUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F04_Referencias%2FAlmroth_Wright_6a381229_4K.jpg&v=1794426104521"
       },
       {
         "id": "ref-1794485694014-5",
@@ -1092,7 +1092,7 @@
         "description": "Howard Florey",
         "prompt": "Create an image in 16:9 horizontal aspect ratio structured as a 6-view character reference sheet (6 distinct views in a single 3x2 grid image of the exact same person with 100% identical facial, hair, and wardrobe continuity: 1. front full-body standing view, 2. three-quarter full-body view, 3. side profile full-body view, 4. back full-body view, 5. neutral front close-up portrait of head and shoulders, 6. three-quarter close-up portrait showing skin pores and facial structure), depicting a 42-year-old Australian male pathology professor in 1940 Oxford, England with an oval resolute face, neat light-brown hair combed back, thin round gold wire-rimmed spectacles, and intense pragmatic gaze, dressed head-to-toe in a white cotton laboratory coat worn over a brown herringbone tweed waistcoat, white poplin shirt, dark striped tie, charcoal flannel trousers, and dark brown leather Oxford shoes against a clean neutral studio background with uniform lighting, portrayed by an anonymous historical reenactment actor in authentic period costume, no real public figures or prominent people, 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Howard_Florey",
         "isCreated": true,
-        "imageUrl": "https://gotta-dennis-mold-stars.trycloudflare.com/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F04_Referencias%2FHoward_Florey_0c307a15_4K.jpg&v=1794426115782"
+        "imageUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F04_Referencias%2FHoward_Florey_0c307a15_4K.jpg&v=1794426115782"
       },
       {
         "id": "ref-1794485694017-6",
@@ -1101,7 +1101,7 @@
         "description": "Ernst Chain",
         "prompt": "Create an image in 16:9 horizontal aspect ratio structured as a 6-view character reference sheet (6 distinct views in a single 3x2 grid image of the exact same person with 100% identical facial, hair, and wardrobe continuity: 1. front full-body standing view, 2. three-quarter full-body view, 3. side profile full-body view, 4. back full-body view, 5. neutral front close-up portrait of head and shoulders, 6. three-quarter close-up portrait showing skin pores and facial structure), depicting a 33-year-old Central European male biochemist in 1939 Oxford, England with expressive features, broad high forehead, thick dark wavy hair fuller at the temples, and a prominent dark bushy mustache, dressed head-to-toe in a white laboratory coat with sleeves slightly turned at the cuffs over a dark navy wool vest, white shirt, burgundy necktie, pleated dark gray wool trousers, and black leather shoes against a clean neutral studio background with uniform lighting, portrayed by an anonymous historical reenactment actor in authentic period costume, no real public figures or prominent people, 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Ernst_Chain",
         "isCreated": true,
-        "imageUrl": "https://gotta-dennis-mold-stars.trycloudflare.com/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F04_Referencias%2FErnst_Chain_18786ae2_4K.jpg&v=1794426102968"
+        "imageUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F04_Referencias%2FErnst_Chain_18786ae2_4K.jpg&v=1794426102968"
       },
       {
         "id": "ref-1794485694021-7",
@@ -1110,7 +1110,7 @@
         "description": "Norman Heatley",
         "prompt": "Create an image in 16:9 horizontal aspect ratio structured as a 6-view character reference sheet (6 distinct views in a single 3x2 grid image of the exact same person with 100% identical facial, hair, and wardrobe continuity: 1. front full-body standing view, 2. three-quarter full-body view, 3. side profile full-body view, 4. back full-body view, 5. neutral front close-up portrait of head and shoulders, 6. three-quarter close-up portrait showing skin pores and facial structure), depicting a slender 28-year-old British male experimental biochemist in 1940 Oxford, England with an approachable modest face, straight medium-brown hair with a clean side part, and focused inventive eyes, dressed head-to-toe in a white laboratory coat over a heather-brown knitted wool V-neck pullover sweater, cream collared shirt, dark wool tie, tan corduroy trousers, and sturdy brown leather work shoes against a clean neutral studio background with uniform lighting, portrayed by an anonymous historical reenactment actor in authentic period costume, no real public figures or prominent people, 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Norman_Heatley",
         "isCreated": true,
-        "imageUrl": "https://gotta-dennis-mold-stars.trycloudflare.com/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F04_Referencias%2FNorman_Heatley_10408797_4K.jpg&v=1794426135591"
+        "imageUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F04_Referencias%2FNorman_Heatley_10408797_4K.jpg&v=1794426135591"
       },
       {
         "id": "ref-1794485694025-8",
@@ -1119,7 +1119,7 @@
         "description": "Ruth Callow",
         "prompt": "Create an image in 16:9 horizontal aspect ratio structured as a 6-view character reference sheet (6 distinct views in a single 3x2 grid image of the exact same person with 100% identical facial, hair, and wardrobe continuity: 1. front full-body standing view, 2. three-quarter full-body view, 3. side profile full-body view, 4. back full-body view, 5. neutral front close-up portrait of head and shoulders, 6. three-quarter close-up portrait showing skin pores and facial structure), depicting a 22-year-old British female laboratory technician in 1941 Oxford, England with natural fair skin, chestnut hair tucked neatly beneath a tied white linen protective cap, and calm disciplined expression, dressed head-to-toe in a high-buttoned white cotton wrap laboratory coat reaching below the knee, vintage tan rubber laboratory gloves, navy wool skirt hem, beige lisle stockings, and sensible low-heeled black leather shoes against a clean neutral studio background with uniform lighting, portrayed by an anonymous historical reenactment actor in authentic period costume, no real public figures or prominent people, 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Ruth_Callow",
         "isCreated": true,
-        "imageUrl": "https://gotta-dennis-mold-stars.trycloudflare.com/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F04_Referencias%2FRuth_Callow_4ce418ac_4K.jpg&v=1794426109913"
+        "imageUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F04_Referencias%2FRuth_Callow_4ce418ac_4K.jpg&v=1794426109913"
       },
       {
         "id": "ref-1794485694028-9",
@@ -1128,7 +1128,7 @@
         "description": "Andrew Moyer",
         "prompt": "Create an image in 16:9 horizontal aspect ratio structured as a 6-view character reference sheet (6 distinct views in a single 3x2 grid image of the exact same person with 100% identical facial, hair, and wardrobe continuity: 1. front full-body standing view, 2. three-quarter full-body view, 3. side profile full-body view, 4. back full-body view, 5. neutral front close-up portrait of head and shoulders, 6. three-quarter close-up portrait showing skin pores and facial structure), depicting a methodical 60-year-old American male agricultural mycologist in 1942 Peoria, Illinois with thin receding gray hair, clean-shaven lined Midwestern face, and silver metal-rimmed round spectacles, dressed head-to-toe in a crisp white cotton laboratory coat over a white dress shirt, narrow 1940s geometric-patterned tie, high-waisted brown wool slacks, and dark brown leather shoes against a clean neutral studio background with uniform lighting, portrayed by an anonymous historical reenactment actor in authentic period costume, no real public figures or prominent people, 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Andrew_Moyer",
         "isCreated": true,
-        "imageUrl": "https://gotta-dennis-mold-stars.trycloudflare.com/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F04_Referencias%2FAndrew_Moyer_748647c4_4K.jpg&v=1794426125766"
+        "imageUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F04_Referencias%2FAndrew_Moyer_748647c4_4K.jpg&v=1794426125766"
       },
       {
         "id": "ref-1794485694032-10",
@@ -1137,7 +1137,7 @@
         "description": "Mary Hunt",
         "prompt": "Create an image in 16:9 horizontal aspect ratio structured as a 6-view character reference sheet (6 distinct views in a single 3x2 grid image of the exact same person with 100% identical facial, hair, and wardrobe continuity: 1. front full-body standing view, 2. three-quarter full-body view, 3. side profile full-body view, 4. back full-body view, 5. neutral front close-up portrait of head and shoulders, 6. three-quarter close-up portrait showing skin pores and facial structure), depicting a 25-year-old American female bacteriological assistant in 1943 Peoria, Illinois with observant bright eyes, warm natural complexion, and shoulder-length medium-brown hair styled in authentic 1943 pinned waves, dressed head-to-toe in a knee-length white cotton laboratory coat worn open over a pastel blue 1940s collared blouse, tailored navy A-line knee-length wool skirt, seamed stockings, and classic brown leather low-heeled oxfords against a clean neutral studio background with uniform lighting, portrayed by an anonymous historical reenactment actor in authentic period costume, no real public figures or prominent people, 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Mary_Hunt",
         "isCreated": true,
-        "imageUrl": "https://gotta-dennis-mold-stars.trycloudflare.com/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F04_Referencias%2FMary_Hunt_8d808e00_4K.jpg&v=1794426146662"
+        "imageUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F04_Referencias%2FMary_Hunt_8d808e00_4K.jpg&v=1794426146662"
       },
       {
         "id": "ref-1794485694035-11",
@@ -1146,7 +1146,7 @@
         "description": "Salvador Mazza",
         "prompt": "Create an image in 16:9 horizontal aspect ratio structured as a 6-view character reference sheet (6 distinct views in a single 3x2 grid image of the exact same person with 100% identical facial, hair, and wardrobe continuity: 1. front full-body standing view, 2. three-quarter full-body view, 3. side profile full-body view, 4. back full-body view, 5. neutral front close-up portrait of head and shoulders, 6. three-quarter close-up portrait showing skin pores and facial structure), depicting a stocky 58-year-old Argentine male bacteriologist in 1944 Buenos Aires with receding dark gray hair, clipped mustache, round tortoiseshell glasses, and passionate resolute expression, dressed head-to-toe in a buttoned white clinical laboratory coat over a dark navy double-breasted 1940s wool suit, white collar shirt, dark silk tie, and polished black leather shoes against a clean neutral studio background with uniform lighting, portrayed by an anonymous historical reenactment actor in authentic period costume, no real public figures or prominent people, 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Salvador_Mazza",
         "isCreated": true,
-        "imageUrl": "https://gotta-dennis-mold-stars.trycloudflare.com/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F04_Referencias%2FSalvador_Mazza_8bd84605_4K.jpg&v=1794426126841"
+        "imageUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F04_Referencias%2FSalvador_Mazza_8bd84605_4K.jpg&v=1794426126841"
       },
       {
         "id": "ref-1794485694038-12",
@@ -1155,7 +1155,7 @@
         "description": "Historiador Antiguo",
         "prompt": "Create an image in 16:9 horizontal aspect ratio structured as a 6-view character reference sheet (6 distinct views in a single 3x2 grid image of the exact same person with 100% identical facial, hair, and wardrobe continuity: 1. front full-body standing view, 2. three-quarter full-body view, 3. side profile full-body view, 4. back full-body view, 5. neutral front close-up portrait of head and shoulders, 6. three-quarter close-up portrait showing skin pores and facial structure), depicting a dignified 60-year-old male documentary historian with weathered skin, neatly trimmed silver-white beard and mustache, and thin antique reading spectacles, dressed head-to-toe in a dark olive-brown heavy tweed jacket with suede elbow patches, matching wool waistcoat, cream cotton Oxford shirt, dark burgundy knit tie, charcoal wool trousers, and worn dark brown leather lace-up boots against a clean neutral studio background with uniform lighting, portrayed by an anonymous historical reenactment actor in authentic period costume, no real public figures or prominent people, 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Historiador_Antiguo",
         "isCreated": true,
-        "imageUrl": "https://gotta-dennis-mold-stars.trycloudflare.com/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F04_Referencias%2FHistoriador_Antiguo_8ef14943_4K.jpg&v=1794426136876"
+        "imageUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F04_Referencias%2FHistoriador_Antiguo_8ef14943_4K.jpg&v=1794426136876"
       },
       {
         "id": "ref-1794485694038-13",
@@ -1164,7 +1164,7 @@
         "description": "Enfermeria Radcliffe",
         "prompt": "Create an image in 16:9 horizontal aspect ratio structured as a 6-view historical location reference sheet (6 distinct views in a single 3x2 grid image of the exact same historical location with 100% architectural, material, and atmospheric continuity: 1. wide establishing shot, 2. reverse wide angle, 3. medium focal architectural view, 4. ground-level entrance or street perspective, 5. elevated overview angle, 6. close-up structural materials and period lighting detail), depicting the 1941 wartime clinical hospital ward in Oxford, England featuring tall Georgian sash windows draped with thick black air-raid blackout curtains, muted sage-and-cream plaster walls, white enameled iron hospital beds made with crisp white linen sheets, stainless steel surgical bedside trays holding clear empty glass vials, cast-iron steam radiators, and dim warm tungsten pendant lamps casting dramatic chiaroscuro shadows, strictly empty environment with zero people, zero animals, and zero characters anywhere in the frame, 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Enfermeria_Radcliffe",
         "isCreated": true,
-        "imageUrl": "https://gotta-dennis-mold-stars.trycloudflare.com/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F04_Referencias%2FEnfermeria_Radcliffe_b5efd49d_4K.jpg&v=1794426164159"
+        "imageUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F04_Referencias%2FEnfermeria_Radcliffe_b5efd49d_4K.jpg&v=1794426164159"
       },
       {
         "id": "ref-1794485694038-14",
@@ -1173,7 +1173,7 @@
         "description": "Mesa Historiador",
         "prompt": "Create an image in 16:9 horizontal aspect ratio structured as a 6-view historical location reference sheet (6 distinct views in a single 3x2 grid image of the exact same historical location with 100% architectural, material, and atmospheric continuity: 1. wide establishing shot, 2. reverse wide angle, 3. medium focal architectural view, 4. ground-level entrance or street perspective, 5. elevated overview angle, 6. close-up structural materials and period lighting detail), depicting a classic early-20th-century archival historian study room featuring a carved dark mahogany desk surrounded by floor-to-ceiling oak bookshelves packed with leather-bound tomes, an antique brass-and-green-glass banker lamp casting warm golden chiaroscuro light over aged parchment manuscripts, quill pens, glass inkpot, brass magnifying glass, and early amber glass medicine vials, strictly empty environment with zero people, zero animals, and zero characters anywhere in the frame, 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Mesa_Historiador",
         "isCreated": true,
-        "imageUrl": "https://gotta-dennis-mold-stars.trycloudflare.com/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F04_Referencias%2FMesa_Historiador_9251c4e4_4K.jpg&v=1794426192756"
+        "imageUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F04_Referencias%2FMesa_Historiador_9251c4e4_4K.jpg&v=1794426192756"
       },
       {
         "id": "ref-1794485694038-15",
@@ -1182,7 +1182,7 @@
         "description": "Laboratorio St Mary",
         "prompt": "Create an image in 16:9 horizontal aspect ratio structured as a 6-view historical location reference sheet (6 distinct views in a single 3x2 grid image of the exact same historical location with 100% architectural, material, and atmospheric continuity: 1. wide establishing shot, 2. reverse wide angle, 3. medium focal architectural view, 4. ground-level entrance or street perspective, 5. elevated overview angle, 6. close-up structural materials and period lighting detail), depicting the cramped September 1928 basement microbiology laboratory in Paddington, London, England with a soot-grimed sash window slightly ajar letting in cool gray autumn daylight over a dark stained wooden workbench cluttered with stacked glass Petri dishes above a shallow metal antiseptic tray, brass monocular microscope, cast-iron Bunsen gas burner, brass tweezers, and wooden shelves of glass reagent bottles, strictly empty environment with zero people, zero animals, and zero characters anywhere in the frame, 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Laboratorio_St_Mary",
         "isCreated": true,
-        "imageUrl": "https://gotta-dennis-mold-stars.trycloudflare.com/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F04_Referencias%2FLaboratorio_St_Mary_bb0e1d53_4K.jpg&v=1794426194320"
+        "imageUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F04_Referencias%2FLaboratorio_St_Mary_bb0e1d53_4K.jpg&v=1794426194320"
       },
       {
         "id": "ref-1794485694038-16",
@@ -1191,7 +1191,7 @@
         "description": "Sala Medica Londres",
         "prompt": "Create an image in 16:9 horizontal aspect ratio structured as a 6-view historical location reference sheet (6 distinct views in a single 3x2 grid image of the exact same historical location with 100% architectural, material, and atmospheric continuity: 1. wide establishing shot, 2. reverse wide angle, 3. medium focal architectural view, 4. ground-level entrance or street perspective, 5. elevated overview angle, 6. close-up structural materials and period lighting detail), depicting an austere 1929 London medical society lecture hall constructed with dark polished mahogany wall paneling, curved tiered oak seating benches, a carved wooden speaker lectern at the center, tall leaded-glass windows admitting overcast gray London daylight, and warm brass wall sconces, strictly empty environment with zero people, zero animals, and zero characters anywhere in the frame, 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Sala_Medica_Londres",
         "isCreated": true,
-        "imageUrl": "https://gotta-dennis-mold-stars.trycloudflare.com/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F04_Referencias%2FSala_Medica_Londres_fddf3624_4K.jpg&v=1794426204127"
+        "imageUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F04_Referencias%2FSala_Medica_Londres_fddf3624_4K.jpg&v=1794426204127"
       },
       {
         "id": "ref-1794485694038-17",
@@ -1200,7 +1200,7 @@
         "description": "Escuela Dunn Oxford",
         "prompt": "Create an image in 16:9 horizontal aspect ratio structured as a 6-view historical location reference sheet (6 distinct views in a single 3x2 grid image of the exact same historical location with 100% architectural, material, and atmospheric continuity: 1. wide establishing shot, 2. reverse wide angle, 3. medium focal architectural view, 4. ground-level entrance or street perspective, 5. elevated overview angle, 6. close-up structural materials and period lighting detail), depicting the 1940 wartime pathology incubation and extraction laboratory in Oxford, England featuring red-brick exterior architecture and interior rooms lined with wooden racks holding white enameled hospital bedpans, square tin biscuit containers, hundreds of stackable rectangular glazed ceramic culture vessels with side spouts, and a makeshift extraction rig built from reclaimed oak library shelving, copper coils, glass pipes, milk bottles, and an antique brass electric doorbell under warm tungsten bulbs, strictly empty environment with zero people, zero animals, and zero characters anywhere in the frame, 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Escuela_Dunn_Oxford",
         "isCreated": true,
-        "imageUrl": "https://gotta-dennis-mold-stars.trycloudflare.com/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F04_Referencias%2FEscuela_Dunn_Oxford_201fb4f1_4K.jpg&v=1794426180623"
+        "imageUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F04_Referencias%2FEscuela_Dunn_Oxford_201fb4f1_4K.jpg&v=1794426180623"
       },
       {
         "id": "ref-1794485694038-18",
@@ -1209,7 +1209,7 @@
         "description": "Laboratorio Peoria",
         "prompt": "Create an image in 16:9 horizontal aspect ratio structured as a 6-view historical location reference sheet (6 distinct views in a single 3x2 grid image of the exact same historical location with 100% architectural, material, and atmospheric continuity: 1. wide establishing shot, 2. reverse wide angle, 3. medium focal architectural view, 4. ground-level entrance or street perspective, 5. elevated overview angle, 6. close-up structural materials and period lighting detail), depicting the 1941 to 1943 agricultural fermentation research laboratory in Peoria, Illinois, United States with a modern limestone building exterior surrounded by Midwestern summer greenery and crisp white ceramic-tiled interior laboratories equipped with mechanical rotary shaker tables holding glass Erlenmeyer flasks of golden-brown corn steep broth, pilot submerged steel fermentation drums with glass sight-ports, and bright 1940s overhead laboratory fixtures, strictly empty environment with zero people, zero animals, and zero characters anywhere in the frame, 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Laboratorio_Peoria",
         "isCreated": true,
-        "imageUrl": "https://gotta-dennis-mold-stars.trycloudflare.com/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F04_Referencias%2FLaboratorio_Peoria_f102fe1b_4K.jpg&v=1794426160961"
+        "imageUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F04_Referencias%2FLaboratorio_Peoria_f102fe1b_4K.jpg&v=1794426160961"
       },
       {
         "id": "ref-1794485694038-19",
@@ -1218,7 +1218,7 @@
         "description": "Planta Pfizer Brooklyn",
         "prompt": "Create an image in 16:9 horizontal aspect ratio structured as a 6-view historical location reference sheet (6 distinct views in a single 3x2 grid image of the exact same historical location with 100% architectural, material, and atmospheric continuity: 1. wide establishing shot, 2. reverse wide angle, 3. medium focal architectural view, 4. ground-level entrance or street perspective, 5. elevated overview angle, 6. close-up structural materials and period lighting detail), depicting the 1943 converted brick ice plant deep-fermentation facility in Brooklyn, New York, United States housing fourteen colossal ten-thousand-gallon vertical riveted steel fermentation tanks, dense overhead networks of insulated steam pipes, brass pressure dials, heavy cast-iron air compressors, elevated steel catwalks, and high industrial windows casting dramatic volumetric shafts of light through light steam, strictly empty environment with zero people, zero animals, and zero characters anywhere in the frame, 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Planta_Pfizer_Brooklyn",
         "isCreated": true,
-        "imageUrl": "https://gotta-dennis-mold-stars.trycloudflare.com/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F04_Referencias%2FPlanta_Pfizer_Brooklyn_eec5ecb4_4K.jpg&v=1794426169323"
+        "imageUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F04_Referencias%2FPlanta_Pfizer_Brooklyn_eec5ecb4_4K.jpg&v=1794426169323"
       },
       {
         "id": "ref-1794485694038-20",
@@ -1227,7 +1227,7 @@
         "description": "Playas Normandia 1944",
         "prompt": "Create an image in 16:9 horizontal aspect ratio structured as a 6-view historical location reference sheet (6 distinct views in a single 3x2 grid image of the exact same historical location with 100% architectural, material, and atmospheric continuity: 1. wide establishing shot, 2. reverse wide angle, 3. medium focal architectural view, 4. ground-level entrance or street perspective, 5. elevated overview angle, 6. close-up structural materials and period lighting detail), depicting a June 1944 Allied field medical aid station pitched on the wet sandy dunes of Normandy, France with olive-drab canvas military tents, open wooden medical supply crates filled with racks of sealed amber glass ampoules, steel field surgical tables, canvas stretchers on wooden trestles, steel beach obstacles along the shoreline, and moody overcast gray Channel skies, strictly empty environment with zero people, zero animals, and zero characters anywhere in the frame, 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Playas_Normandia_1944",
         "isCreated": true,
-        "imageUrl": "https://gotta-dennis-mold-stars.trycloudflare.com/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F04_Referencias%2FPlayas_Normandia_1944_63ed5e4a_4K.jpg&v=1794426154029"
+        "imageUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F04_Referencias%2FPlayas_Normandia_1944_63ed5e4a_4K.jpg&v=1794426154029"
       },
       {
         "id": "ref-1794485694038-21",
@@ -1236,7 +1236,7 @@
         "description": "Boticas Hospitales Latam",
         "prompt": "Create an image in 16:9 horizontal aspect ratio structured as a 6-view historical location reference sheet (6 distinct views in a single 3x2 grid image of the exact same historical location with 100% architectural, material, and atmospheric continuity: 1. wide establishing shot, 2. reverse wide angle, 3. medium focal architectural view, 4. ground-level entrance or street perspective, 5. elevated overview angle, 6. close-up structural materials and period lighting detail), depicting a classic 1944 Latin American neighborhood pharmacy and colonial stone hospital arcade inspired by Mexico City, Havana, and Buenos Aires, featuring tall carved cedar apothecary shelving lined with white porcelain jars and amber glass vials, brass apothecary scales on a marble-topped wooden counter, tall louvered wooden shutters, wrought-iron glass entrance doors, and warm golden afternoon sunlight across patterned tile floors, strictly empty environment with zero people, zero animals, and zero characters anywhere in the frame, 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Boticas_Hospitales_Latam",
         "isCreated": true,
-        "imageUrl": "https://gotta-dennis-mold-stars.trycloudflare.com/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F04_Referencias%2FBoticas_Hospitales_Latam_80f65001_4K.jpg&v=1794426195815"
+        "imageUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F04_Referencias%2FBoticas_Hospitales_Latam_80f65001_4K.jpg&v=1794426195815"
       },
       {
         "id": "ref-1794485694038-22",
@@ -1245,7 +1245,7 @@
         "description": "Salon Nobel Estocolmo",
         "prompt": "Create an image in 16:9 horizontal aspect ratio structured as a 6-view historical location reference sheet (6 distinct views in a single 3x2 grid image of the exact same historical location with 100% architectural, material, and atmospheric continuity: 1. wide establishing shot, 2. reverse wide angle, 3. medium focal architectural view, 4. ground-level entrance or street perspective, 5. elevated overview angle, 6. close-up structural materials and period lighting detail), depicting the December 1945 neoclassical ceremonial concert hall in Stockholm, Sweden featuring towering fluted marble columns, gilded architectural moldings, massive sparkling crystal chandeliers casting rich golden light over rows of crimson velvet auditorium seats, a carved dark oak speaker lectern on the polished wooden stage, and snow-covered Nordic twilight streets outside the grand stone entrance, strictly empty environment with zero people, zero animals, and zero characters anywhere in the frame, 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Salon_Nobel_Estocolmo",
         "isCreated": true,
-        "imageUrl": "https://gotta-dennis-mold-stars.trycloudflare.com/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F04_Referencias%2FSalon_Nobel_Estocolmo_7699de09_4K.jpg&v=1794426142810"
+        "imageUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F04_Referencias%2FSalon_Nobel_Estocolmo_7699de09_4K.jpg&v=1794426142810"
       }
     ],
     "clip1TextMode": "CAPCUT_MANUAL",
@@ -1272,7 +1272,6 @@
         "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "01_create_a_cinematic_6_second_4bcd0a45_4K.mp4",
-        "videoFrames": [],
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032
       },
@@ -1293,7 +1292,6 @@
         "reviewedForEditor": false,
         "recreated": false,
         "videoSavedFileName": "",
-        "videoFrames": [],
         "videoAuditStatus": "rejected",
         "videoAuditReason": "❌ Corte de cámara brusco y salto de plano prohibido a mitad del clip.",
         "discardedVideoFileName": "02_create_a_cinematic_8_second_582c5ae1_4K.mp4",
@@ -1318,7 +1316,6 @@
         "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "03_create_a_cinematic_8_second_d8115b23_4K.mp4",
-        "videoFrames": [],
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032
       },
@@ -1339,7 +1336,6 @@
         "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "04_create_a_cinematic_8_second_9f89be36_4K.mp4",
-        "videoFrames": [],
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032
       },
@@ -1360,7 +1356,6 @@
         "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "05_create_a_cinematic_8_second_77a1f962_4K.mp4",
-        "videoFrames": [],
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032
       },
@@ -1381,7 +1376,6 @@
         "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "06_create_a_cinematic_8_second_fe849478_4K.mp4",
-        "videoFrames": [],
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032
       },
@@ -1402,7 +1396,6 @@
         "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "07_create_a_cinematic_8_second_8a0e5be8_4K.mp4",
-        "videoFrames": [],
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032
       },
@@ -1423,7 +1416,6 @@
         "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "08_create_a_cinematic_8_second_3d797e03_4K.mp4",
-        "videoFrames": [],
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032
       },
@@ -1444,7 +1436,6 @@
         "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "09_create_a_cinematic_8_second_0cf4c630_4K.mp4",
-        "videoFrames": [],
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032
       },
@@ -1465,7 +1456,6 @@
         "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "10_create_a_cinematic_8_second_1fff4388_4K.mp4",
-        "videoFrames": [],
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032
       },
@@ -1486,7 +1476,6 @@
         "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "11_create_a_cinematic_8_second_02b868e8_4K.mp4",
-        "videoFrames": [],
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032
       },
@@ -1507,7 +1496,6 @@
         "reviewedForEditor": false,
         "recreated": false,
         "videoSavedFileName": "",
-        "videoFrames": [],
         "videoAuditStatus": "rejected",
         "videoAuditReason": "❌ Generó a un hombre en escritorio cuando el prompt pide mujer operadora de telégrafo.",
         "discardedVideoFileName": "12_create_a_cinematic_8_second_29f8b781_4K.mp4",
@@ -1532,7 +1520,6 @@
         "reviewedForEditor": false,
         "recreated": false,
         "videoSavedFileName": "",
-        "videoFrames": [],
         "videoAuditStatus": "rejected",
         "videoAuditReason": "❌ Mutación anatómica severa y salto de plano al levantar la vista del microscopio.",
         "discardedVideoFileName": "13_create_a_cinematic_8_second_3fd9b933_4K.mp4",
@@ -1557,7 +1544,6 @@
         "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "14_create_a_cinematic_8_second_38fa30f9_4K.mp4",
-        "videoFrames": [],
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032
       },
@@ -1578,7 +1564,6 @@
         "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "15_create_a_cinematic_8_second_6ae2fc0d_4K.mp4",
-        "videoFrames": [],
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032
       },
@@ -1599,7 +1584,6 @@
         "reviewedForEditor": false,
         "recreated": false,
         "videoSavedFileName": "",
-        "videoFrames": [],
         "videoAuditStatus": "rejected",
         "videoAuditReason": "❌ Aparece una persona de la nada al segundo 4 y la placa de Petri levita sola.",
         "discardedVideoFileName": "16_create_a_cinematic_8_second_11719428_4K.mp4",
@@ -1624,7 +1608,6 @@
         "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "17_create_a_cinematic_8_second_7c7428d8_4K.mp4",
-        "videoFrames": [],
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032
       },
@@ -1646,7 +1629,6 @@
         "recreated": false,
         "videoSavedFileName": "18_Create_an_image_in_16_Broll_4K.mp4",
         "previousVideoPrompt": "Clip 18 (02:24 - 02:32): Create a cinematic 8-second static B-roll video executing ONLY a smooth, continuous, ultra-steady optical Ken Burns zoom-in over the frozen scene: ONLY a slow, steady optical Ken Burns zoom-in (gradual push-in from wide to tight framing with zero lens distortion) across the 100% still archival photograph plate of the open 1929 scientific bulletin with monochrome bacterial agar illustrations resting motionless on @Mesa_Historiador, keeping the entire starting image 100% frozen as a still documentary B-roll plate from 0s to 8s with zero internal object animation, with no people present. STATIC B-ROLL PLATE LOCK (CAMERA MOTION ONLY): Treat the starting image as a 100% frozen, motionless archival B-roll still plate from 0s to 8s with strictly zero internal object animation, zero morphing, and zero lighting shifts—ONLY the virtual optical rostrum camera performs the zoom in movement. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: subtle archival library room tone, faint dry paper stillness, single continuous shot, strictly no shot changes, no music, no speech, no text. [B-Roll: STATIC_ZOOM_IN] [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
-        "videoFrames": [],
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
         "isStaticBroll": true,
@@ -1669,7 +1651,6 @@
         "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "19_create_a_cinematic_8_second_49483cb1_4K.mp4",
-        "videoFrames": [],
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032
       },
@@ -1690,7 +1671,6 @@
         "reviewedForEditor": false,
         "recreated": false,
         "videoSavedFileName": "",
-        "videoFrames": [],
         "videoAuditStatus": "rejected",
         "videoAuditReason": "❌ Muestra a un científico de espaldas cuando el prompt exige 0 personas (solo objeto).",
         "discardedVideoFileName": "20_create_a_cinematic_8_second_da4c71cf_4K.mp4",
@@ -1715,7 +1695,6 @@
         "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "21_create_a_cinematic_8_second_video_4db99d4b_4K.mp4",
-        "videoFrames": [],
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032
       },
@@ -1736,7 +1715,6 @@
         "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "22_create_a_cinematic_8_second_video_751661e8_4K.mp4",
-        "videoFrames": [],
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032
       },
@@ -1757,7 +1735,6 @@
         "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "23_create_a_cinematic_8_second_video_de5f3c8a_4K.mp4",
-        "videoFrames": [],
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032
       },
@@ -1778,7 +1755,6 @@
         "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "24_create_a_cinematic_8_second_video_39bc2cfa_4K.mp4",
-        "videoFrames": [],
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032
       },
@@ -1799,7 +1775,6 @@
         "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "25_create_a_cinematic_8_second_video_29287299_4K.mp4",
-        "videoFrames": [],
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032
       },
@@ -1820,7 +1795,6 @@
         "reviewedForEditor": false,
         "recreated": false,
         "videoSavedFileName": "",
-        "videoFrames": [],
         "videoAuditStatus": "rejected",
         "videoAuditReason": "❌ Muestra placas secas en un estante en vez del fregadero con bandeja de antiséptico.",
         "discardedVideoFileName": "26_create_a_cinematic_8_second_video_a13cda38_4K.mp4",
@@ -1845,7 +1819,6 @@
         "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "27_create_a_cinematic_8_second_video_a1ebeddd_4K.mp4",
-        "videoFrames": [],
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032
       },
@@ -1867,7 +1840,6 @@
         "recreated": false,
         "videoSavedFileName": "28_Create_an_image_in_16_Broll_4K.mp4",
         "previousVideoPrompt": "Clip 28 (03:44 - 03:52): Create a cinematic 8-second static B-roll video executing ONLY a smooth, continuous, ultra-steady optical Ken Burns zoom-out over the frozen scene: ONLY a slow, steady optical Ken Burns zoom-out (gradual pull-back from close detail to wide framing revealing full context) across the 100% still archival photograph plate of the preserved 1928 Petri dish, cloth-bound notebook, and brass fountain pen frozen in slanting light on the wooden bench of @Laboratorio_St_Mary, keeping the entire starting image 100% frozen as a still documentary B-roll plate from 0s to 8s with zero internal object animation, with no people present. STATIC B-ROLL PLATE LOCK (CAMERA MOTION ONLY): Treat the starting image as a 100% frozen, motionless archival B-roll still plate from 0s to 8s with strictly zero internal object animation, zero morphing, and zero lighting shifts—ONLY the virtual optical rostrum camera performs the zoom out movement. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: quiet regulator wall clock ticking in the basement laboratory, calm room tone, single continuous shot, strictly no shot changes, no music, no speech, no text. [B-Roll: STATIC_ZOOM_OUT] [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
-        "videoFrames": [],
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
         "isStaticBroll": true,
@@ -1890,7 +1862,6 @@
         "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "29_create_a_cinematic_8_second_video_530d5f28_4K.mp4",
-        "videoFrames": [],
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032
       },
@@ -1911,7 +1882,6 @@
         "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "30_Director_examining_flask_in_office_4c723756_4K.mp4",
-        "videoFrames": [],
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032
       },
@@ -1932,7 +1902,6 @@
         "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "31_create_a_cinematic_8_second_video_fcbeeefd_4K.mp4",
-        "videoFrames": [],
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032
       },
@@ -1953,7 +1922,6 @@
         "reviewedForEditor": false,
         "recreated": false,
         "videoSavedFileName": "",
-        "videoFrames": [],
         "videoAuditStatus": "rejected",
         "videoAuditReason": "❌ Mutaba de traje a bata blanca a mitad del plano (prompt #32 ya corregido y alineado con @Alexander_Fleming).",
         "discardedVideoFileName": "32_create_a_cinematic_8_second_video_88f264df_4K.mp4",
@@ -1979,7 +1947,6 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "videoFrames": [],
         "videoAuditStatus": "rejected",
         "videoAuditReason": "⛔ Clip faltante: Google Flow se saltó la escena #33 en el lote anterior.",
         "videoSavedFileName": "",
@@ -2004,7 +1971,6 @@
         "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "34_create_a_cinematic_8_second_video_3d55e994_4K.mp4",
-        "videoFrames": [],
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032
       },
@@ -2025,7 +1991,6 @@
         "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "35_create_a_cinematic_8_second_video_0edf6ca0_4K.mp4",
-        "videoFrames": [],
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032
       },
@@ -2046,7 +2011,6 @@
         "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "36_create_a_cinematic_8_second_video_4c1eb370_4K.mp4",
-        "videoFrames": [],
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032
       },
@@ -2067,7 +2031,6 @@
         "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "37_create_a_cinematic_8_second_video_579ee378_4K.mp4",
-        "videoFrames": [],
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032
       },
@@ -2088,7 +2051,6 @@
         "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "38_create_a_cinematic_8_second_video_85509bae_4K.mp4",
-        "videoFrames": [],
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032
       },
@@ -2109,7 +2071,6 @@
         "reviewedForEditor": false,
         "recreated": false,
         "videoSavedFileName": "",
-        "videoFrames": [],
         "videoAuditStatus": "rejected",
         "videoAuditReason": "❌ Inyectó texto garabateado ilegible y personas de fondo donde se exigía 0 personas.",
         "discardedVideoFileName": "39_create_a_cinematic_8_second_video_86daa842_4K.mp4",
@@ -2134,7 +2095,6 @@
         "reviewedForEditor": false,
         "recreated": false,
         "videoSavedFileName": "",
-        "videoFrames": [],
         "videoAuditStatus": "rejected",
         "videoAuditReason": "❌ El calibrador se movía solo en el aire y aparecía un dedo humano al final (prompt #40 ya corregido).",
         "discardedVideoFileName": "40_create_a_cinematic_8_second_video_dd7e8aef_4K.mp4",
@@ -2161,7 +2121,6 @@
         "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "41_create_a_cinematic_8_second_video_db2bd31c_4K.mp4",
-        "videoFrames": [],
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032
       },
@@ -2182,7 +2141,6 @@
         "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "42_create_a_cinematic_8_second_video_2fde4ec1_4K.mp4",
-        "videoFrames": [],
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032
       },
@@ -2204,7 +2162,6 @@
         "recreated": false,
         "videoSavedFileName": "43_Create_an_image_in_16_Broll_4K.mp4",
         "previousVideoPrompt": "Clip 43 (05:44 - 05:52): Create a cinematic 8-second static B-roll video executing ONLY a smooth, continuous vertical rostrum camera tilt upward from bottom to top over the frozen scene: ONLY a slow, controlled vertical pedestal tilt upward from the base of the still archival frame to the top across the 100% still documentary photograph plate ascending from the lower glass milk bottles up the reclaimed oak shelving, hand-blown glass spirals, and copper coils inside @Escuela_Dunn_Oxford, keeping the entire starting image 100% frozen as a still documentary B-roll plate from 0s to 8s with zero internal object animation, with no people present. STATIC B-ROLL PLATE LOCK (CAMERA MOTION ONLY): Treat the starting image as a 100% frozen, motionless archival B-roll still plate from 0s to 8s with strictly zero internal object animation, zero morphing, and zero lighting shifts—ONLY the virtual optical rostrum camera performs the tilt arriba movement. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: soft resonant glass-and-oak laboratory room tone, distant faint condenser hum, single continuous shot, strictly no shot changes, no music, no speech, no text. [B-Roll: STATIC_TILT_UP] [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
-        "videoFrames": [],
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
         "isStaticBroll": true,
@@ -2227,7 +2184,6 @@
         "reviewedForEditor": false,
         "recreated": false,
         "videoSavedFileName": "",
-        "videoFrames": [],
         "videoAuditStatus": "rejected",
         "videoAuditReason": "❌ Corte de cámara brusco prohibido (pasa de plano general a primer plano de manos).",
         "discardedVideoFileName": "44_create_a_cinematic_8_second_video_0ba0dbfa_4K.mp4",
@@ -2252,7 +2208,6 @@
         "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "45_create_a_cinematic_8_second_video_7e360369_4K.mp4",
-        "videoFrames": [],
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032
       },
@@ -2273,7 +2228,6 @@
         "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "46_create_a_cinematic_8_second_video_ab0c9aae_4K.mp4",
-        "videoFrames": [],
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032
       },
@@ -2294,7 +2248,6 @@
         "reviewedForEditor": false,
         "recreated": false,
         "videoSavedFileName": "",
-        "videoFrames": [],
         "videoAuditStatus": "rejected",
         "videoAuditReason": "❌ Había quedado como B-Roll estático con una mujer donde iba @Ernst_Chain (prompt #47 ya corregido a video dinámico con 2 varones).",
         "discardedVideoFileName": "47_Create_an_image_in_16_Broll_4K.mp4",
@@ -2322,7 +2275,6 @@
         "recreated": false,
         "videoSavedFileName": "48_Create_an_image_in_16_Broll_4K.mp4",
         "previousVideoPrompt": "Clip 48 (06:24 - 06:32): Create a cinematic 8-second video showing a sweeping slow crane glide down the center aisle of @Escuela_Dunn_Oxford revealing row after row of white enameled hospital bedpans and improvised tin vessels stacked neatly from floor to ceiling, with no people present across the full 8 seconds, holding a natural composed frame through the final second. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: warm steady hum of steam heating pipes, subtle metallic creak of heavily loaded wooden racks, single continuous shot, strictly no shot changes, no music, no speech, no text. [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
-        "videoFrames": [],
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
         "isStaticBroll": true,
@@ -2345,7 +2297,6 @@
         "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "49_create_a_cinematic_8_second_video_2d8d8198_4K.mp4",
-        "videoFrames": [],
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032
       },
@@ -2366,7 +2317,6 @@
         "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "50_create_a_cinematic_8_second_video_cfafe45a_4K.mp4",
-        "videoFrames": [],
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032
       },
@@ -2387,7 +2337,6 @@
         "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "51_create_a_cinematic_8_second_video_f90207df_4K.mp4",
-        "videoFrames": [],
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032
       },
@@ -2408,7 +2357,6 @@
         "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "52_create_a_cinematic_8_second_video_95768583_4K.mp4",
-        "videoFrames": [],
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032
       },
@@ -2429,7 +2377,6 @@
         "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "53_create_a_cinematic_8_second_video_6e8653fa_4K.mp4",
-        "videoFrames": [],
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032
       },
@@ -2450,7 +2397,6 @@
         "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "54_create_a_cinematic_8_second_video_e4ea9943_4K.mp4",
-        "videoFrames": [],
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032
       },
@@ -2471,7 +2417,6 @@
         "reviewedForEditor": false,
         "recreated": false,
         "videoSavedFileName": "",
-        "videoFrames": [],
         "videoAuditStatus": "rejected",
         "videoAuditReason": "❌ Aparecían manos humanas sirviendo leche cuando el prompt exige estrictamente 0 personas.",
         "discardedVideoFileName": "55_create_a_cinematic_8_second_video_ecc14744_4K.mp4",
@@ -2496,7 +2441,6 @@
         "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "56_create_a_cinematic_8_second_video_7c00d5a4_4K.mp4",
-        "videoFrames": [],
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032
       },
@@ -2517,7 +2461,6 @@
         "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "57_create_a_cinematic_8_second_video_e840344b_4K.mp4",
-        "videoFrames": [],
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032
       },
@@ -2538,7 +2481,6 @@
         "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "58_create_a_cinematic_8_second_video_dba5a797_4K.mp4",
-        "videoFrames": [],
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032
       },
@@ -2559,7 +2501,6 @@
         "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "59_create_a_cinematic_8_second_video_5c88b959_4K.mp4",
-        "videoFrames": [],
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032
       },
@@ -2580,7 +2521,6 @@
         "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "60_create_a_cinematic_8_second_video_366ec892_4K.mp4",
-        "videoFrames": [],
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032
       },
@@ -2602,7 +2542,6 @@
         "recreated": false,
         "videoSavedFileName": "61_Create_an_image_in_16_Broll_4K.mp4",
         "previousVideoPrompt": "Clip 61 (08:08 - 08:16): Create a cinematic 8-second static B-roll video executing ONLY a smooth, continuous, ultra-steady optical Ken Burns zoom-in over the frozen scene: ONLY a slow, steady optical Ken Burns zoom-in (gradual push-in from wide to tight framing with zero lens distortion) across the 100% still macro photograph plate of the vintage syringe needle tip touching the completely dry empty glass medicine vial on sterile gauze inside @Enfermeria_Radcliffe, keeping the entire starting image 100% frozen as a still documentary B-roll plate from 0s to 8s with zero internal object animation, with no people present. STATIC B-ROLL PLATE LOCK (CAMERA MOTION ONLY): Treat the starting image as a 100% frozen, motionless archival B-roll still plate from 0s to 8s with strictly zero internal object animation, zero morphing, and zero lighting shifts—ONLY the virtual optical rostrum camera performs the zoom in movement. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: heavy solemn hospital ward silence, faint distant radiator tone, single continuous shot, strictly no shot changes, no music, no speech, no text. [B-Roll: STATIC_ZOOM_IN] [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
-        "videoFrames": [],
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
         "isStaticBroll": true,
@@ -2625,7 +2564,6 @@
         "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "62_62_Medium_shot_of_researcher_1efcbd92_4K.mp4",
-        "videoFrames": [],
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032
       },
@@ -2646,7 +2584,6 @@
         "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "63_63_Close_up_of_scientist_643dbd17_4K.mp4",
-        "videoFrames": [],
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032
       },
@@ -2667,7 +2604,6 @@
         "reviewedForEditor": false,
         "recreated": false,
         "videoSavedFileName": "",
-        "videoFrames": [],
         "videoAuditStatus": "rejected",
         "videoAuditReason": "❌ Alucinación anatómica: manos flotando desconectadas sin antebrazos sobre la mesa.",
         "discardedVideoFileName": "64_64_Close_up_of_hands_26ff7fdf_4K.mp4",
@@ -2692,7 +2628,6 @@
         "reviewedForEditor": false,
         "recreated": false,
         "videoSavedFileName": "",
-        "videoFrames": [],
         "videoAuditStatus": "rejected",
         "videoAuditReason": "⛔ Pendiente de generar: su archivo anterior correspondía a la escena #67 y ya fue reubicado.",
         "discardedVideoFileName": "65_65_Wide_shot_of_historic_19e830f2_4K.mp4",
@@ -2717,7 +2652,6 @@
         "reviewedForEditor": false,
         "recreated": false,
         "videoSavedFileName": "",
-        "videoFrames": [],
         "videoAuditStatus": "rejected",
         "videoAuditReason": "⛔ Pendiente de generar: su archivo anterior correspondía a la escena #68 y ya fue reubicado.",
         "discardedVideoFileName": "66_66_Detail_shot_of_old_d843192e_4K.mp4",
@@ -2742,7 +2676,6 @@
         "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "67_Wide_shot_of_historic_19e830f2_4K.mp4",
-        "videoFrames": [],
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794573067176
       },
@@ -2763,7 +2696,6 @@
         "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "68_Detail_shot_of_old_d843192e_4K.mp4",
-        "videoFrames": [],
         "videoAuditStatus": "approved",
         "discardedVideoFileName": "68_68_Macro_shot_of_vintage_0fd04ec1_4K.mp4",
         "videoDiscardedAt": 1794572688032,
@@ -2786,7 +2718,6 @@
         "reviewedForEditor": false,
         "recreated": false,
         "videoSavedFileName": "",
-        "videoFrames": [],
         "videoAuditStatus": "rejected",
         "videoAuditReason": "❌ Escena equivocada: mostraba carga de cajas en un camión bajo lluvia en vez de soldados en hospital de campaña.",
         "discardedVideoFileName": "69_69_Wide_shot_of_researchers_6555187a_4K.mp4",
@@ -2811,7 +2742,6 @@
         "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "70_Macro_shot_of_vintage_0fd04ec1_4K.mp4",
-        "videoFrames": [],
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794573067176
       },
@@ -2831,7 +2761,6 @@
         "pauseNotes": "",
         "reviewedForEditor": true,
         "recreated": false,
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032
       },
       {
@@ -2850,7 +2779,6 @@
         "pauseNotes": "",
         "reviewedForEditor": true,
         "recreated": false,
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032
       },
       {
@@ -2869,7 +2797,6 @@
         "pauseNotes": "",
         "reviewedForEditor": true,
         "recreated": false,
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032
       },
       {
@@ -2889,7 +2816,6 @@
         "reviewedForEditor": true,
         "recreated": false,
         "previousVideoPrompt": "Clip 74 (09:52 - 10:00): Create a cinematic 8-second static B-roll video executing ONLY a smooth, continuous horizontal rostrum camera pan from left to right over the frozen scene: ONLY a slow, level horizontal fluid-head pan from left to right across the still archival frame across the 100% still archival photograph plate gliding laterally from the crossed-out chalk molecular ring diagrams on the slate blackboard across the row of cold inert synthesis flasks, keeping the entire starting image 100% frozen as a still documentary B-roll plate from 0s to 8s with zero internal object animation, with no people present. STATIC B-ROLL PLATE LOCK (CAMERA MOTION ONLY): Treat the starting image as a 100% frozen, motionless archival B-roll still plate from 0s to 8s with strictly zero internal object animation, zero morphing, and zero lighting shifts—ONLY the virtual optical rostrum camera performs the pan derecha movement. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: quiet ticking of a laboratory stopwatch, distant muffled wartime night stillness, single continuous shot, strictly no shot changes, no music, no speech, no text. [B-Roll: STATIC_PAN_RIGHT] [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032,
         "isStaticBroll": true,
         "brollCameraMotion": "pan_right"
@@ -2910,7 +2836,6 @@
         "pauseNotes": "",
         "reviewedForEditor": true,
         "recreated": false,
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032
       },
       {
@@ -2929,7 +2854,6 @@
         "pauseNotes": "",
         "reviewedForEditor": true,
         "recreated": false,
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032
       },
       {
@@ -2948,7 +2872,6 @@
         "pauseNotes": "",
         "reviewedForEditor": true,
         "recreated": false,
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032
       },
       {
@@ -2967,7 +2890,6 @@
         "pauseNotes": "",
         "reviewedForEditor": true,
         "recreated": false,
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032
       },
       {
@@ -2986,7 +2908,6 @@
         "pauseNotes": "",
         "reviewedForEditor": true,
         "recreated": false,
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032
       },
       {
@@ -3005,7 +2926,6 @@
         "pauseNotes": "",
         "reviewedForEditor": true,
         "recreated": false,
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032
       },
       {
@@ -3024,7 +2944,6 @@
         "pauseNotes": "",
         "reviewedForEditor": true,
         "recreated": false,
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032
       },
       {
@@ -3043,7 +2962,6 @@
         "pauseNotes": "",
         "reviewedForEditor": true,
         "recreated": false,
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032
       },
       {
@@ -3062,7 +2980,6 @@
         "pauseNotes": "",
         "reviewedForEditor": true,
         "recreated": false,
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032
       },
       {
@@ -3081,7 +2998,6 @@
         "pauseNotes": "",
         "reviewedForEditor": true,
         "recreated": false,
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032
       },
       {
@@ -3100,7 +3016,6 @@
         "pauseNotes": "",
         "reviewedForEditor": true,
         "recreated": false,
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032
       },
       {
@@ -3119,7 +3034,6 @@
         "pauseNotes": "",
         "reviewedForEditor": true,
         "recreated": false,
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032
       },
       {
@@ -3138,7 +3052,6 @@
         "pauseNotes": "",
         "reviewedForEditor": true,
         "recreated": false,
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032
       },
       {
@@ -3157,7 +3070,6 @@
         "pauseNotes": "",
         "reviewedForEditor": true,
         "recreated": false,
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032
       },
       {
@@ -3177,7 +3089,6 @@
         "reviewedForEditor": true,
         "recreated": false,
         "previousVideoPrompt": "Clip 89 (11:52 - 12:00): Create a cinematic 8-second static B-roll video executing ONLY a smooth, continuous, ultra-steady optical Ken Burns zoom-in over the frozen scene: ONLY a slow, steady optical Ken Burns zoom-in (gradual push-in from wide to tight framing with zero lens distortion) across the 100% still macro photograph plate of the netted cantaloupe rind on the steel tray inside @Laboratorio_Peoria centering tightly on the luminous golden-yellow mold scar, keeping the entire starting image 100% frozen as a still documentary B-roll plate from 0s to 8s with zero internal object animation, with no people present. STATIC B-ROLL PLATE LOCK (CAMERA MOTION ONLY): Treat the starting image as a 100% frozen, motionless archival B-roll still plate from 0s to 8s with strictly zero internal object animation, zero morphing, and zero lighting shifts—ONLY the virtual optical rostrum camera performs the zoom in movement. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: hushed laboratory room tone, faint sterile ventilation hum, single continuous shot, strictly no shot changes, no music, no speech, no text. [B-Roll: STATIC_ZOOM_IN] [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032,
         "isStaticBroll": true,
         "brollCameraMotion": "zoom_in"
@@ -3198,7 +3109,6 @@
         "pauseNotes": "",
         "reviewedForEditor": true,
         "recreated": false,
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032
       },
       {
@@ -3217,7 +3127,6 @@
         "pauseNotes": "",
         "reviewedForEditor": true,
         "recreated": false,
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032
       },
       {
@@ -3237,7 +3146,6 @@
         "reviewedForEditor": true,
         "recreated": false,
         "previousVideoPrompt": "Clip 92 (12:16 - 12:24): Create a cinematic 8-second video showing a slow solemn wide tracking glide across the wet sand of @Playas_Normandia_1944 past the olive-drab medical crates toward gray Atlantic waves breaking against dark steel beach obstacles, with no people present across the full 8 seconds, holding a natural composed frame through the final second. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: rolling crash of cold English Channel waves on wet sand, sea wind snapping canvas tent ropes, single continuous shot, strictly no shot changes, no music, no speech, no text. [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032,
         "isStaticBroll": true,
         "brollCameraMotion": "zoom_out"
@@ -3258,7 +3166,6 @@
         "pauseNotes": "",
         "reviewedForEditor": true,
         "recreated": false,
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032
       },
       {
@@ -3277,7 +3184,6 @@
         "pauseNotes": "Contiene [pausa: 2.5s] en la locución",
         "reviewedForEditor": true,
         "recreated": false,
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032
       },
       {
@@ -3296,7 +3202,6 @@
         "pauseNotes": "",
         "reviewedForEditor": true,
         "recreated": false,
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032
       },
       {
@@ -3315,7 +3220,6 @@
         "pauseNotes": "",
         "reviewedForEditor": true,
         "recreated": false,
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032
       },
       {
@@ -3334,7 +3238,6 @@
         "pauseNotes": "",
         "reviewedForEditor": true,
         "recreated": false,
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032
       },
       {
@@ -3353,7 +3256,6 @@
         "pauseNotes": "",
         "reviewedForEditor": true,
         "recreated": false,
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032
       },
       {
@@ -3372,7 +3274,6 @@
         "pauseNotes": "",
         "reviewedForEditor": true,
         "recreated": false,
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032
       },
       {
@@ -3391,7 +3292,6 @@
         "pauseNotes": "",
         "reviewedForEditor": true,
         "recreated": false,
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032
       },
       {
@@ -3410,7 +3310,6 @@
         "pauseNotes": "",
         "reviewedForEditor": true,
         "recreated": false,
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032
       },
       {
@@ -3429,7 +3328,6 @@
         "pauseNotes": "",
         "reviewedForEditor": true,
         "recreated": false,
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032
       },
       {
@@ -3449,7 +3347,6 @@
         "reviewedForEditor": true,
         "recreated": false,
         "previousVideoPrompt": "Clip 103 (13:44 - 13:52): Create a cinematic 8-second static B-roll video executing ONLY a smooth, continuous, ultra-steady optical Ken Burns zoom-out over the frozen scene: ONLY a slow, steady optical Ken Burns zoom-out (gradual pull-back from close detail to wide framing revealing full context) across the 100% still high-angle archival photograph plate pulling back from a tight cluster of golden penicillin ampoules to reveal the vast 1944 Allied supply depot filled wall-to-wall with crates, keeping the entire starting image 100% frozen as a still documentary B-roll plate from 0s to 8s with zero internal object animation, with no people present. STATIC B-ROLL PLATE LOCK (CAMERA MOTION ONLY): Treat the starting image as a 100% frozen, motionless archival B-roll still plate from 0s to 8s with strictly zero internal object animation, zero morphing, and zero lighting shifts—ONLY the virtual optical rostrum camera performs the zoom out movement. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: deep cavernous warehouse echo, faint wooden crate stillness, single continuous shot, strictly no shot changes, no music, no speech, no text. [B-Roll: STATIC_ZOOM_OUT] [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032,
         "isStaticBroll": true,
         "brollCameraMotion": "zoom_out"
@@ -3470,7 +3367,6 @@
         "pauseNotes": "",
         "reviewedForEditor": true,
         "recreated": false,
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032
       },
       {
@@ -3489,7 +3385,6 @@
         "pauseNotes": "",
         "reviewedForEditor": true,
         "recreated": false,
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032
       },
       {
@@ -3509,7 +3404,6 @@
         "reviewedForEditor": true,
         "recreated": false,
         "previousVideoPrompt": "Clip 106 (14:08 - 14:16): Create a cinematic 8-second video showing a slow graceful macro slider shot across the marble counter from the humble vintage coins toward the abundant gleaming glass vials bathed in warm afternoon sunlight, with no people present across the full 8 seconds, holding a natural composed frame through the final second. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: warm peaceful afternoon street murmur muffled behind shop glass, quiet clock tick, single continuous shot, strictly no shot changes, no music, no speech, no text. [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032,
         "isStaticBroll": true,
         "brollCameraMotion": "zoom_in"
@@ -3530,7 +3424,6 @@
         "pauseNotes": "",
         "reviewedForEditor": true,
         "recreated": false,
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032
       },
       {
@@ -3549,7 +3442,6 @@
         "pauseNotes": "",
         "reviewedForEditor": true,
         "recreated": false,
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032
       },
       {
@@ -3568,7 +3460,6 @@
         "pauseNotes": "",
         "reviewedForEditor": true,
         "recreated": false,
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032
       },
       {
@@ -3587,7 +3478,6 @@
         "pauseNotes": "",
         "reviewedForEditor": true,
         "recreated": false,
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032
       },
       {
@@ -3606,7 +3496,6 @@
         "pauseNotes": "",
         "reviewedForEditor": true,
         "recreated": false,
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032
       },
       {
@@ -3625,7 +3514,6 @@
         "pauseNotes": "",
         "reviewedForEditor": true,
         "recreated": false,
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032
       },
       {
@@ -3644,7 +3532,6 @@
         "pauseNotes": "",
         "reviewedForEditor": true,
         "recreated": false,
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032
       },
       {
@@ -3663,7 +3550,6 @@
         "pauseNotes": "",
         "reviewedForEditor": true,
         "recreated": false,
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032
       },
       {
@@ -3682,7 +3568,6 @@
         "pauseNotes": "",
         "reviewedForEditor": true,
         "recreated": false,
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032
       },
       {
@@ -3701,7 +3586,6 @@
         "pauseNotes": "",
         "reviewedForEditor": true,
         "recreated": false,
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032
       },
       {
@@ -3720,7 +3604,6 @@
         "pauseNotes": "",
         "reviewedForEditor": true,
         "recreated": false,
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032
       },
       {
@@ -3739,7 +3622,6 @@
         "pauseNotes": "",
         "reviewedForEditor": true,
         "recreated": false,
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032
       },
       {
@@ -3758,7 +3640,6 @@
         "pauseNotes": "",
         "reviewedForEditor": true,
         "recreated": false,
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032
       },
       {
@@ -3778,7 +3659,6 @@
         "reviewedForEditor": true,
         "recreated": false,
         "previousVideoPrompt": "Clip 120 (16:00 - 16:08): Create a cinematic 8-second static B-roll video executing ONLY a smooth, continuous horizontal rostrum camera pan from right to left over the frozen scene: ONLY a slow, level horizontal fluid-head pan from right to left across the still archival frame across the 100% still archival photograph plate panning smoothly from the closed neoclassical stone ministry facade leftward toward the misty iron harbor cranes along the Rio de la Plata in 1944 Buenos Aires, keeping the entire starting image 100% frozen as a still documentary B-roll plate from 0s to 8s with zero internal object animation, with no people present. STATIC B-ROLL PLATE LOCK (CAMERA MOTION ONLY): Treat the starting image as a 100% frozen, motionless archival B-roll still plate from 0s to 8s with strictly zero internal object animation, zero morphing, and zero lighting shifts—ONLY the virtual optical rostrum camera performs the pan izquierda movement. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: distant ship foghorn echoing across river mist, cold wind over wet granite, single continuous shot, strictly no shot changes, no music, no speech, no text. [B-Roll: STATIC_PAN_LEFT] [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032,
         "isStaticBroll": true,
         "brollCameraMotion": "pan_left"
@@ -3799,7 +3679,6 @@
         "pauseNotes": "",
         "reviewedForEditor": true,
         "recreated": false,
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032
       },
       {
@@ -3818,7 +3697,6 @@
         "pauseNotes": "Contiene [pausa: 2.2s] en la locución",
         "reviewedForEditor": true,
         "recreated": false,
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032
       },
       {
@@ -3837,7 +3715,6 @@
         "pauseNotes": "",
         "reviewedForEditor": true,
         "recreated": false,
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032
       },
       {
@@ -3856,7 +3733,6 @@
         "pauseNotes": "",
         "reviewedForEditor": true,
         "recreated": false,
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032
       },
       {
@@ -3875,7 +3751,6 @@
         "pauseNotes": "",
         "reviewedForEditor": true,
         "recreated": false,
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032
       },
       {
@@ -3894,7 +3769,6 @@
         "pauseNotes": "",
         "reviewedForEditor": true,
         "recreated": false,
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032
       },
       {
@@ -3913,7 +3787,6 @@
         "pauseNotes": "",
         "reviewedForEditor": true,
         "recreated": false,
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032
       },
       {
@@ -3932,7 +3805,6 @@
         "pauseNotes": "",
         "reviewedForEditor": true,
         "recreated": false,
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032
       },
       {
@@ -3951,7 +3823,6 @@
         "pauseNotes": "",
         "reviewedForEditor": true,
         "recreated": false,
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032
       },
       {
@@ -3970,7 +3841,6 @@
         "pauseNotes": "",
         "reviewedForEditor": true,
         "recreated": false,
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032
       },
       {
@@ -3989,7 +3859,6 @@
         "pauseNotes": "",
         "reviewedForEditor": true,
         "recreated": false,
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032
       },
       {
@@ -4008,7 +3877,6 @@
         "pauseNotes": "Contiene [pausa: 2.2s] en la locución",
         "reviewedForEditor": true,
         "recreated": false,
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032
       },
       {
@@ -4027,7 +3895,6 @@
         "pauseNotes": "",
         "reviewedForEditor": true,
         "recreated": false,
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032
       },
       {
@@ -4046,7 +3913,6 @@
         "pauseNotes": "",
         "reviewedForEditor": true,
         "recreated": false,
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032
       },
       {
@@ -4065,7 +3931,6 @@
         "pauseNotes": "",
         "reviewedForEditor": true,
         "recreated": false,
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032
       },
       {
@@ -4084,7 +3949,6 @@
         "pauseNotes": "",
         "reviewedForEditor": true,
         "recreated": false,
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032
       },
       {
@@ -4103,7 +3967,6 @@
         "pauseNotes": "",
         "reviewedForEditor": true,
         "recreated": false,
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032
       },
       {
@@ -4123,7 +3986,6 @@
         "reviewedForEditor": true,
         "recreated": false,
         "previousVideoPrompt": "Clip 138 (18:24 - 18:32): Create a cinematic 8-second static B-roll video executing ONLY a smooth, continuous vertical rostrum camera tilt downward from top to bottom over the frozen scene: ONLY a slow, controlled vertical pedestal tilt downward from the top of the still archival frame to the base detail across the 100% still overhead documentary photograph plate tilting downward across the slate bench grid of ten Petri dishes onto the four plates overrun by golden resistant bacterial colonies, keeping the entire starting image 100% frozen as a still documentary B-roll plate from 0s to 8s with zero internal object animation, with no people present. STATIC B-ROLL PLATE LOCK (CAMERA MOTION ONLY): Treat the starting image as a 100% frozen, motionless archival B-roll still plate from 0s to 8s with strictly zero internal object animation, zero morphing, and zero lighting shifts—ONLY the virtual optical rostrum camera performs the tilt abajo movement. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: quiet hum of laboratory lighting ballast, cold clinical glass stillness, single continuous shot, strictly no shot changes, no music, no speech, no text. [B-Roll: STATIC_TILT_DOWN] [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032,
         "isStaticBroll": true,
         "brollCameraMotion": "tilt_down"
@@ -4144,7 +4006,6 @@
         "pauseNotes": "",
         "reviewedForEditor": true,
         "recreated": false,
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032
       },
       {
@@ -4163,7 +4024,6 @@
         "pauseNotes": "",
         "reviewedForEditor": true,
         "recreated": false,
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032
       },
       {
@@ -4182,7 +4042,6 @@
         "pauseNotes": "",
         "reviewedForEditor": true,
         "recreated": false,
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032
       },
       {
@@ -4201,7 +4060,6 @@
         "pauseNotes": "Contiene [pausa: 2.4s] en la locución",
         "reviewedForEditor": true,
         "recreated": false,
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032
       },
       {
@@ -4220,7 +4078,6 @@
         "pauseNotes": "",
         "reviewedForEditor": true,
         "recreated": false,
-        "videoFrames": [],
         "videoDiscardedAt": 1794572688032
       }
     ],
@@ -4861,7 +4718,7 @@
         "videoAuditScore": 96,
         "videoAuditIssues": [],
         "videoSavedFileName": "01_00_00_00_06_Sin_Voz_4K.mp4",
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F01_Imagen_Inicial_00_00_00_06_Sin_Voz.jpg&v=1793722697429",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F01_Imagen_Inicial_00_00_00_06_Sin_Voz.jpg&v=1793722697429",
         "recreated": false,
         "reframe9x16Mode": "auto_pan",
         "reframeFocusXStart": 78,
@@ -4892,7 +4749,7 @@
         "videoAuditScore": 96,
         "videoAuditIssues": [],
         "videoSavedFileName": "02_Ano_1885_muelle_de_Maliano_Santander_4K.mp4",
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F02_Imagen_Inicial_Ano_1885_muelle_de_Maliano_Santander.jpg&v=1793721720109",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F02_Imagen_Inicial_Ano_1885_muelle_de_Maliano_Santander.jpg&v=1793721720109",
         "reframe9x16Mode": "auto_pan",
         "reframeFocusXStart": 22,
         "reframeFocusXEnd": 67,
@@ -4922,7 +4779,7 @@
         "videoAttempts": 1,
         "videoSavedFileName": "03_el_oceano_Atlantico_hacia_un_destino_4K.mp4",
         "recreated": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F03_Imagen_Inicial_el_oceano_Atlantico_hacia_un_destino.jpg&v=1793709624528",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F03_Imagen_Inicial_el_oceano_Atlantico_hacia_un_destino.jpg&v=1793709624528",
         "reframe9x16Mode": "auto_focus",
         "reframeFocusXStart": 80,
         "reframeFocusXEnd": 80,
@@ -4952,7 +4809,7 @@
         "recreated": true,
         "videoAuditIssues": [],
         "videoSavedFileName": "04_siempre_la_sangre_el_comercio_y_4K.mp4",
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F04_Imagen_Inicial_siempre_la_sangre_el_comercio_y.jpg&v=1793722697975",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F04_Imagen_Inicial_siempre_la_sangre_el_comercio_y.jpg&v=1793722697975",
         "reframe9x16Mode": "auto_pan",
         "reframeFocusXStart": 36,
         "reframeFocusXEnd": 17,
@@ -4982,7 +4839,7 @@
         "recreated": true,
         "videoAuditIssues": [],
         "videoSavedFileName": "05_de_hacer_la_America_desde_las_4K.mp4",
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F05_Imagen_Inicial_de_hacer_la_America_desde_las.jpg&v=1793721685215",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F05_Imagen_Inicial_de_hacer_la_America_desde_las.jpg&v=1793721685215",
         "reframe9x16Mode": "auto_pan",
         "reframeFocusXStart": 60,
         "reframeFocusXEnd": 44,
@@ -5012,7 +4869,7 @@
         "recreated": true,
         "videoAuditIssues": [],
         "videoSavedFileName": "06_para_levantar_un_nuevo_mundo_Si_4K.mp4",
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F06_Imagen_Inicial_para_levantar_un_nuevo_mundo_Si.jpg&v=1793665898551",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F06_Imagen_Inicial_para_levantar_un_nuevo_mundo_Si.jpg&v=1793665898551",
         "reframe9x16Mode": "auto_center",
         "reframeFocusXStart": 50,
         "reframeFocusXEnd": 50,
@@ -5041,7 +4898,7 @@
         "videoAuditIssues": [],
         "videoAttempts": 1,
         "videoSavedFileName": "07_suscribete_Cada_historia_deja_una_huella_4K.mp4",
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F07_Imagen_Inicial_suscribete_Cada_historia_deja_una_huella.jpg&v=1793667342124",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F07_Imagen_Inicial_suscribete_Cada_historia_deja_una_huella.jpg&v=1793667342124",
         "recreated": false,
         "reframe9x16Mode": "auto_pan",
         "reframeFocusXStart": 27,
@@ -5071,7 +4928,7 @@
         "videoAuditScore": 96,
         "videoAuditIssues": [],
         "videoSavedFileName": "08_de_Asturias_Galicia_Cantabria_y_las_4K.mp4",
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F08_Imagen_Inicial_de_Asturias_Galicia_Cantabria_y_las.jpg&v=1793722698496",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F08_Imagen_Inicial_de_Asturias_Galicia_Cantabria_y_las.jpg&v=1793722698496",
         "recreated": false,
         "reframe9x16Mode": "auto_pan",
         "reframeFocusXStart": 59,
@@ -5102,7 +4959,7 @@
         "videoAuditScore": 96,
         "videoAuditIssues": [],
         "videoSavedFileName": "09_asturiano_de_Colunga_o_en_las_4K.mp4",
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F09_Imagen_Inicial_asturiano_de_Colunga_o_en_las.jpg&v=1793722026680",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F09_Imagen_Inicial_asturiano_de_Colunga_o_en_las.jpg&v=1793722026680",
         "reframe9x16Mode": "auto_pan",
         "reframeFocusXStart": 19,
         "reframeFocusXEnd": 78,
@@ -5131,7 +4988,7 @@
         "videoAuditIssues": [],
         "videoAttempts": 1,
         "videoSavedFileName": "10_techos_de_pizarra_negra_batidos_por_4K.mp4",
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F10_Imagen_Inicial_techos_de_pizarra_negra_batidos_por.jpg&v=1793722144212",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F10_Imagen_Inicial_techos_de_pizarra_negra_batidos_por.jpg&v=1793722144212",
         "recreated": false,
         "reframe9x16Mode": "auto_pan",
         "reframeFocusXStart": 72,
@@ -5162,7 +5019,7 @@
         "videoAuditScore": 96,
         "videoAuditIssues": [],
         "videoSavedFileName": "11_Dentro_de_aquellas_viviendas_sin_chimeneas_4K.mp4",
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F11_Imagen_Inicial_Dentro_de_aquellas_viviendas_sin_chimeneas.jpg&v=1793664172262",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F11_Imagen_Inicial_Dentro_de_aquellas_viviendas_sin_chimeneas.jpg&v=1793664172262",
         "reframe9x16Mode": "auto_pan",
         "reframeFocusXStart": 22,
         "reframeFocusXEnd": 78,
@@ -5192,7 +5049,7 @@
         "videoAttempts": 1,
         "videoSavedFileName": "12_de_roble_y_tojo_bajo_un_4K.mp4",
         "recreated": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F12_Imagen_Inicial_de_roble_y_tojo_bajo_un.jpg&v=1793675193566",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F12_Imagen_Inicial_de_roble_y_tojo_bajo_un.jpg&v=1793675193566",
         "reframe9x16Mode": "auto_pan",
         "reframeFocusXStart": 78,
         "reframeFocusXEnd": 24,
@@ -5222,7 +5079,7 @@
         "recreated": true,
         "videoAuditIssues": [],
         "videoSavedFileName": "13_En_aquel_mundo_estancado_de_acuerdo_4K.mp4",
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F13_Imagen_Inicial_En_aquel_mundo_estancado_de_acuerdo.jpg&v=1793677157047",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F13_Imagen_Inicial_En_aquel_mundo_estancado_de_acuerdo.jpg&v=1793677157047",
         "reframe9x16Mode": "auto_focus",
         "reframeFocusXStart": 67,
         "reframeFocusXEnd": 67,
@@ -5252,7 +5109,7 @@
         "recreated": true,
         "videoAuditIssues": [],
         "videoSavedFileName": "14_entre_1_peseta_y_1_peseta_4K.mp4",
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F14_Imagen_Inicial_entre_1_peseta_y_1_peseta.jpg&v=1793679283228",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F14_Imagen_Inicial_entre_1_peseta_y_1_peseta.jpg&v=1793679283228",
         "reframe9x16Mode": "auto_focus",
         "reframeFocusXStart": 84,
         "reframeFocusXEnd": 84,
@@ -5282,7 +5139,7 @@
         "videoAuditScore": 96,
         "videoAuditIssues": [],
         "videoSavedFileName": "15_mar_Existia_un_terror_aun_mas_4K.mp4",
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F15_Imagen_Inicial_mar_Existia_un_terror_aun_mas.jpg&v=1793677167031",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F15_Imagen_Inicial_mar_Existia_un_terror_aun_mas.jpg&v=1793677167031",
         "reframe9x16Mode": "auto_pan",
         "reframeFocusXStart": 48,
         "reframeFocusXEnd": 71,
@@ -5312,7 +5169,7 @@
         "recreated": true,
         "videoAuditIssues": [],
         "videoSavedFileName": "16_de_julio_de_1885_establecia_que_4K.mp4",
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F16_Imagen_Inicial_de_julio_de_1885_establecia_que.jpg&v=1793679315888",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F16_Imagen_Inicial_de_julio_de_1885_establecia_que.jpg&v=1793679315888",
         "reframe9x16Mode": "auto_pan",
         "reframeFocusXStart": 18,
         "reframeFocusXEnd": 76,
@@ -5342,7 +5199,7 @@
         "reviewedForEditor": true,
         "videoAuditIssues": [],
         "videoSavedFileName": "17_2_mil_pesetas_si_el_sorteo_4K.mp4",
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F17_Imagen_Inicial_2_mil_pesetas_si_el_sorteo.jpg&v=1793677174632",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F17_Imagen_Inicial_2_mil_pesetas_si_el_sorteo.jpg&v=1793677174632",
         "reframe9x16Mode": "auto_pan",
         "reframeFocusXStart": 65,
         "reframeFocusXEnd": 44,
@@ -5372,7 +5229,7 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "18_completos_de_trabajo_fisico_sin_comer_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F18_Imagen_Inicial_completos_de_trabajo_fisico_sin_comer.jpg&v=1793679339237",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F18_Imagen_Inicial_completos_de_trabajo_fisico_sin_comer.jpg&v=1793679339237",
         "reframe9x16Mode": "auto_pan",
         "reframeFocusXStart": 35,
         "reframeFocusXEnd": 21,
@@ -5402,7 +5259,7 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "19_billete_de_tercera_clase_en_vapor_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F19_Imagen_Inicial_billete_de_tercera_clase_en_vapor.jpg&v=1793677181607",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F19_Imagen_Inicial_billete_de_tercera_clase_en_vapor.jpg&v=1793677181607",
         "reframe9x16Mode": "auto_focus",
         "reframeFocusXStart": 84,
         "reframeFocusXEnd": 84,
@@ -5432,7 +5289,7 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "20_pagar_2_mil_pesetas_para_no_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F20_Imagen_Inicial_pagar_2_mil_pesetas_para_no.jpg&v=1793677599545",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F20_Imagen_Inicial_pagar_2_mil_pesetas_para_no.jpg&v=1793677599545",
         "reframe9x16Mode": "auto_focus",
         "reframeFocusXStart": 16,
         "reframeFocusXEnd": 16,
@@ -5462,7 +5319,7 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "21_Asi_comenzo_una_transferencia_demografica_monumental_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F21_Imagen_Inicial_Asi_comenzo_una_transferencia_demografica_monumental.jpg&v=1793679352821",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F21_Imagen_Inicial_Asi_comenzo_una_transferencia_demografica_monumental.jpg&v=1793679352821",
         "reframe9x16Mode": "auto_focus",
         "reframeFocusXStart": 84,
         "reframeFocusXEnd": 84,
@@ -5492,7 +5349,7 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "22_se_sumo_al_menos_un_7a059ffb_1080p_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F22_Imagen_Inicial_se_sumo_al_menos_un_7a059ffb_1080p.jpg&v=1793708488333",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F22_Imagen_Inicial_se_sumo_al_menos_un_7a059ffb_1080p.jpg&v=1793708488333",
         "reframe9x16Mode": "auto_pan",
         "reframeFocusXStart": 22,
         "reframeFocusXEnd": 66,
@@ -5522,7 +5379,7 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "23_y_Gibraltar_Incluso_el_aparato_militar_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F23_Imagen_Inicial_y_Gibraltar_Incluso_el_aparato_militar.jpg&v=1793679369592",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F23_Imagen_Inicial_y_Gibraltar_Incluso_el_aparato_militar.jpg&v=1793679369592",
         "reframe9x16Mode": "auto_focus",
         "reframeFocusXStart": 27,
         "reframeFocusXEnd": 27,
@@ -5552,7 +5409,7 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "24_de_146_mil_jamas_regresaron_a_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F24_Imagen_Inicial_de_146_mil_jamas_regresaron_a.jpg&v=1793715033853",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F24_Imagen_Inicial_de_146_mil_jamas_regresaron_a.jpg&v=1793715033853",
         "reframe9x16Mode": "auto_pan",
         "reframeFocusXStart": 22,
         "reframeFocusXEnd": 78,
@@ -5582,7 +5439,7 @@
         "videoAttempts": 1,
         "videoSavedFileName": "25_registraba_mas_de_129_mil_residentes_4K.mp4",
         "recreated": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F25_Imagen_Inicial_registraba_mas_de_129_mil_residentes.jpg&v=1793679382493",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F25_Imagen_Inicial_registraba_mas_de_129_mil_residentes.jpg&v=1793679382493",
         "reframe9x16Mode": "auto_focus",
         "reframeFocusXStart": 42,
         "reframeFocusXEnd": 42,
@@ -5612,7 +5469,7 @@
         "recreated": true,
         "videoAuditIssues": [],
         "videoSavedFileName": "26_pisar_tierra_americana_aquellos_viajeros_debian_4K.mp4",
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F26_Imagen_Inicial_pisar_tierra_americana_aquellos_viajeros_debian.jpg&v=1793677199687",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F26_Imagen_Inicial_pisar_tierra_americana_aquellos_viajeros_debian.jpg&v=1793677199687",
         "reframe9x16Mode": "auto_center",
         "reframeFocusXStart": 50,
         "reframeFocusXEnd": 50,
@@ -5642,7 +5499,7 @@
         "videoSavedFileName": "27_de_La_Coruna_de_donde_partieron_4K.mp4",
         "recreated": true,
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F27_Imagen_Inicial_de_La_Coruna_de_donde_partieron.jpg&v=1793679395670",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F27_Imagen_Inicial_de_La_Coruna_de_donde_partieron.jpg&v=1793679395670",
         "reframe9x16Mode": "auto_focus",
         "reframeFocusXStart": 21,
         "reframeFocusXEnd": 21,
@@ -5672,7 +5529,7 @@
         "reviewedForEditor": true,
         "videoAuditIssues": [],
         "videoSavedFileName": "28_y_Cadiz_miles_de_viajeros_con_4K.mp4",
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F28_Imagen_Inicial_y_Cadiz_miles_de_viajeros_con.jpg&v=1793677209059",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F28_Imagen_Inicial_y_Cadiz_miles_de_viajeros_con.jpg&v=1793677209059",
         "reframe9x16Mode": "auto_focus",
         "reframeFocusXStart": 16,
         "reframeFocusXEnd": 16,
@@ -5702,7 +5559,7 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "29_de_la_Compania_Trasatlantica_Espanola_o_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F29_Imagen_Inicial_de_la_Compania_Trasatlantica_Espanola_o.jpg&v=1793678351121",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F29_Imagen_Inicial_de_la_Compania_Trasatlantica_Espanola_o.jpg&v=1793678351121",
         "reframe9x16Mode": "auto_pan",
         "reframeFocusXStart": 72,
         "reframeFocusXEnd": 53,
@@ -5731,7 +5588,7 @@
         "videoAuditIssues": [],
         "videoAttempts": 1,
         "videoSavedFileName": "30_ingresaban_en_una_caverna_metalica_de_4K.mp4",
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F30_Imagen_Inicial_ingresaban_en_una_caverna_metalica_de.jpg&v=1793679328298",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F30_Imagen_Inicial_ingresaban_en_una_caverna_metalica_de.jpg&v=1793679328298",
         "recreated": false,
         "reframe9x16Mode": "auto_pan",
         "reframeFocusXStart": 22,
@@ -5762,7 +5619,7 @@
         "recreated": true,
         "videoAuditIssues": [],
         "videoSavedFileName": "31_de_paja_marina_Durante_mas_de_4K.mp4",
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F31_Imagen_Inicial_de_paja_marina_Durante_mas_de.jpg&v=1793677606599",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F31_Imagen_Inicial_de_paja_marina_Durante_mas_de.jpg&v=1793677606599",
         "reframe9x16Mode": "auto_focus",
         "reframeFocusXStart": 16,
         "reframeFocusXEnd": 16,
@@ -5792,7 +5649,7 @@
         "recreated": true,
         "videoAuditIssues": [],
         "videoSavedFileName": "32_irrespirable_El_olor_a_carbon_de_4K.mp4",
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F32_Imagen_Inicial_irrespirable_El_olor_a_carbon_de.jpg&v=1793679412087",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F32_Imagen_Inicial_irrespirable_El_olor_a_carbon_de.jpg&v=1793679412087",
         "reframe9x16Mode": "auto_focus",
         "reframeFocusXStart": 16,
         "reframeFocusXEnd": 16,
@@ -5822,7 +5679,7 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "33_galleta_dura_y_bacalao_hervido_Atrajeran_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F33_Imagen_Inicial_galleta_dura_y_bacalao_hervido_Atrajeran.jpg&v=1793681052966",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F33_Imagen_Inicial_galleta_dura_y_bacalao_hervido_Atrajeran.jpg&v=1793681052966",
         "reframe9x16Mode": "auto_center",
         "reframeFocusXStart": 50,
         "reframeFocusXEnd": 50,
@@ -5852,7 +5709,7 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "34_los_hombres_aplicados_se_hacian_ricos_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F34_Imagen_Inicial_los_hombres_aplicados_se_hacian_ricos.jpg&v=1793713639690",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F34_Imagen_Inicial_los_hombres_aplicados_se_hacian_ricos.jpg&v=1793713639690",
         "reframe9x16Mode": "auto_pan",
         "reframeFocusXStart": 77,
         "reframeFocusXEnd": 35,
@@ -5882,7 +5739,7 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "35_de_alfonso_xiii_todos_compartian_b823e90e_1080p_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F35_Imagen_Inicial_de_alfonso_xiii_todos_compartian_b823e90e_1080p.jpg&v=1793710632958",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F35_Imagen_Inicial_de_alfonso_xiii_todos_compartian_b823e90e_1080p.jpg&v=1793710632958",
         "reframe9x16Mode": "auto_center",
         "reframeFocusXStart": 50,
         "reframeFocusXEnd": 50,
@@ -5912,7 +5769,7 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "36_enfrentaban_al_primer_filtro_del_Nuevo_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F36_Imagen_Inicial_enfrentaban_al_primer_filtro_del_Nuevo.jpg&v=1793681088421",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F36_Imagen_Inicial_enfrentaban_al_primer_filtro_del_Nuevo.jpg&v=1793681088421",
         "reframe9x16Mode": "auto_center",
         "reframeFocusXStart": 50,
         "reframeFocusXEnd": 50,
@@ -5942,7 +5799,7 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "37_portuario_En_el_puerto_mexicano_de_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F37_Imagen_Inicial_portuario_En_el_puerto_mexicano_de.jpg&v=1793681125914",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F37_Imagen_Inicial_portuario_En_el_puerto_mexicano_de.jpg&v=1793681125914",
         "reframe9x16Mode": "auto_pan",
         "reframeFocusXStart": 24,
         "reframeFocusXEnd": 68,
@@ -5972,7 +5829,7 @@
         "videoSavedFileName": "38_junio_de_1894_los_medicos_inspeccionaban_4K.mp4",
         "recreated": true,
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F38_Imagen_Inicial_junio_de_1894_los_medicos_inspeccionaban.jpg&v=1793679499678",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F38_Imagen_Inicial_junio_de_1894_los_medicos_inspeccionaban.jpg&v=1793679499678",
         "reframe9x16Mode": "auto_pan",
         "reframeFocusXStart": 22,
         "reframeFocusXEnd": 76,
@@ -6002,7 +5859,7 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "39_La_Habana_quienes_no_viajaban_en_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F39_Imagen_Inicial_La_Habana_quienes_no_viajaban_en.jpg&v=1793681144551",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F39_Imagen_Inicial_La_Habana_quienes_no_viajaban_en.jpg&v=1793681144551",
         "reframe9x16Mode": "auto_center",
         "reframeFocusXStart": 50,
         "reframeFocusXEnd": 50,
@@ -6032,7 +5889,7 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "40_Casablanca_donde_en_noviembre_de_1900_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F40_Imagen_Inicial_Casablanca_donde_en_noviembre_de_1900.jpg&v=1793681155388",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F40_Imagen_Inicial_Casablanca_donde_en_noviembre_de_1900.jpg&v=1793681155388",
         "reframe9x16Mode": "auto_pan",
         "reframeFocusXStart": 28,
         "reframeFocusXEnd": 47,
@@ -6062,7 +5919,7 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "41_con_una_paradoja_visual_inquietante_un_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F41_Imagen_Inicial_con_una_paradoja_visual_inquietante_un.jpg&v=1793681162035",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F41_Imagen_Inicial_con_una_paradoja_visual_inquietante_un.jpg&v=1793681162035",
         "reframe9x16Mode": "auto_pan",
         "reframeFocusXStart": 18,
         "reframeFocusXEnd": 76,
@@ -6092,7 +5949,7 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "42_paseo_central_por_jardines_con_35_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F42_Imagen_Inicial_paseo_central_por_jardines_con_35.jpg&v=1793681168958",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F42_Imagen_Inicial_paseo_central_por_jardines_con_35.jpg&v=1793681168958",
         "reframe9x16Mode": "auto_pan",
         "reframeFocusXStart": 60,
         "reframeFocusXEnd": 39,
@@ -6122,7 +5979,7 @@
         "videoAttempts": 1,
         "videoSavedFileName": "43_vestido_con_uniforme_de_dril_blanco_4K.mp4",
         "recreated": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F43_Imagen_Inicial_vestido_con_uniforme_de_dril_blanco.jpg&v=1793681175638",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F43_Imagen_Inicial_vestido_con_uniforme_de_dril_blanco.jpg&v=1793681175638",
         "reframe9x16Mode": "auto_center",
         "reframeFocusXStart": 50,
         "reframeFocusXEnd": 50,
@@ -6152,7 +6009,7 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "44_presion_con_olor_a_azufre_y_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F44_Imagen_Inicial_presion_con_olor_a_azufre_y.jpg&v=1793681182071",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F44_Imagen_Inicial_presion_con_olor_a_azufre_y.jpg&v=1793681182071",
         "reframe9x16Mode": "auto_center",
         "reframeFocusXStart": 50,
         "reframeFocusXEnd": 50,
@@ -6182,7 +6039,7 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "45_varilla_de_vidrio_buscando_granulaciones_de_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F45_Imagen_Inicial_varilla_de_vidrio_buscando_granulaciones_de.jpg&v=1793681190159",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F45_Imagen_Inicial_varilla_de_vidrio_buscando_granulaciones_de.jpg&v=1793681190159",
         "reframe9x16Mode": "auto_pan",
         "reframeFocusXStart": 16,
         "reframeFocusXEnd": 35,
@@ -6212,7 +6069,7 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "46_10_mil_inmigrantes_espanoles_y_para_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F46_Imagen_Inicial_10_mil_inmigrantes_espanoles_y_para.jpg&v=1793679621583",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F46_Imagen_Inicial_10_mil_inmigrantes_espanoles_y_para.jpg&v=1793679621583",
         "reframe9x16Mode": "auto_pan",
         "reframeFocusXStart": 52,
         "reframeFocusXEnd": 16,
@@ -6242,7 +6099,7 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "47_septiembre_de_1903_el_periodico_Diario_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F47_Imagen_Inicial_septiembre_de_1903_el_periodico_Diario.jpg&v=1793679639587",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F47_Imagen_Inicial_septiembre_de_1903_el_periodico_Diario.jpg&v=1793679639587",
         "reframe9x16Mode": "auto_center",
         "reframeFocusXStart": 50,
         "reframeFocusXEnd": 50,
@@ -6272,7 +6129,7 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "48_de_inmigrantes_donde_contratistas_e_influyentes_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F48_Imagen_Inicial_de_inmigrantes_donde_contratistas_e_influyentes.jpg&v=1793679653165",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F48_Imagen_Inicial_de_inmigrantes_donde_contratistas_e_influyentes.jpg&v=1793679653165",
         "reframe9x16Mode": "auto_focus",
         "reframeFocusXStart": 84,
         "reframeFocusXEnd": 84,
@@ -6302,7 +6159,7 @@
         "recreated": true,
         "videoAuditIssues": [],
         "videoSavedFileName": "49_More_a_atentar_contra_su_propia_4K.mp4",
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F49_Imagen_Inicial_More_a_atentar_contra_su_propia.jpg&v=1793707016619",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F49_Imagen_Inicial_More_a_atentar_contra_su_propia.jpg&v=1793707016619",
         "reframe9x16Mode": "auto_pan",
         "reframeFocusXStart": 22,
         "reframeFocusXEnd": 78,
@@ -6332,7 +6189,7 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "50_se_encontraba_Ricardo_Ruiz_Balbin_un_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F50_Imagen_Inicial_se_encontraba_Ricardo_Ruiz_Balbin_un.jpg&v=1793681197731",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F50_Imagen_Inicial_se_encontraba_Ricardo_Ruiz_Balbin_un.jpg&v=1793681197731",
         "reframe9x16Mode": "auto_center",
         "reframeFocusXStart": 50,
         "reframeFocusXEnd": 50,
@@ -6362,7 +6219,7 @@
         "recreated": true,
         "videoAuditIssues": [],
         "videoSavedFileName": "51_su_traje_de_pana_humedo_y_4K.mp4",
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F51_Imagen_Inicial_su_traje_de_pana_humedo_y.jpg&v=1793681204007",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F51_Imagen_Inicial_su_traje_de_pana_humedo_y.jpg&v=1793681204007",
         "reframe9x16Mode": "auto_center",
         "reframeFocusXStart": 50,
         "reframeFocusXEnd": 50,
@@ -6392,7 +6249,7 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "52_pana_por_el_dril_blanco_y_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F52_Imagen_Inicial_pana_por_el_dril_blanco_y.jpg&v=1793681210186",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F52_Imagen_Inicial_pana_por_el_dril_blanco_y.jpg&v=1793681210186",
         "reframe9x16Mode": "auto_pan",
         "reframeFocusXStart": 78,
         "reframeFocusXEnd": 24,
@@ -6422,7 +6279,7 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "53_su_salud_Sin_embargo_para_la_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F53_Imagen_Inicial_su_salud_Sin_embargo_para_la.jpg&v=1793681216497",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F53_Imagen_Inicial_su_salud_Sin_embargo_para_la.jpg&v=1793681216497",
         "reframe9x16Mode": "auto_pan",
         "reframeFocusXStart": 63,
         "reframeFocusXEnd": 34,
@@ -6452,7 +6309,7 @@
         "recreated": true,
         "videoAuditIssues": [],
         "videoSavedFileName": "54_La_Habana_la_verdadera_prueba_apenas_4K.mp4",
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F54_Imagen_Inicial_La_Habana_la_verdadera_prueba_apenas.jpg&v=1793681223179",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F54_Imagen_Inicial_La_Habana_la_verdadera_prueba_apenas.jpg&v=1793681223179",
         "reframe9x16Mode": "auto_center",
         "reframeFocusXStart": 50,
         "reframeFocusXEnd": 50,
@@ -6482,7 +6339,7 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "55_tiendas_y_panaderias_para_alcanzar_la_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F55_Imagen_Inicial_tiendas_y_panaderias_para_alcanzar_la.jpg&v=1793681229541",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F55_Imagen_Inicial_tiendas_y_panaderias_para_alcanzar_la.jpg&v=1793681229541",
         "reframe9x16Mode": "auto_pan",
         "reframeFocusXStart": 27,
         "reframeFocusXEnd": 64,
@@ -6511,7 +6368,7 @@
         "videoAuditIssues": [],
         "videoAttempts": 1,
         "videoSavedFileName": "56_Aguila_de_Oro_en_Puebla_las_4K.mp4",
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F56_Imagen_Inicial_Aguila_de_Oro_en_Puebla_las.jpg&v=1793681136159",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F56_Imagen_Inicial_Aguila_de_Oro_en_Puebla_las.jpg&v=1793681136159",
         "recreated": false,
         "reframe9x16Mode": "auto_focus",
         "reframeFocusXStart": 73,
@@ -6542,7 +6399,7 @@
         "recreated": true,
         "videoAuditIssues": [],
         "videoSavedFileName": "57_rigido_sistema_de_dependientes_Reclamados_por_4K.mp4",
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F57_Imagen_Inicial_rigido_sistema_de_dependientes_Reclamados_por.jpg&v=1793681150871",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F57_Imagen_Inicial_rigido_sistema_de_dependientes_Reclamados_por.jpg&v=1793681150871",
         "reframe9x16Mode": "auto_center",
         "reframeFocusXStart": 50,
         "reframeFocusXEnd": 50,
@@ -6572,7 +6429,7 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "58_que_borraba_toda_frontera_entre_el_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F58_Imagen_Inicial_que_borraba_toda_frontera_entre_el.jpg&v=1793681105141",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F58_Imagen_Inicial_que_borraba_toda_frontera_entre_el.jpg&v=1793681105141",
         "reframe9x16Mode": "auto_center",
         "reframeFocusXStart": 50,
         "reframeFocusXEnd": 50,
@@ -6602,7 +6459,7 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "59_los_hornos_abovedados_de_ladrillo_refractario_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F59_Imagen_Inicial_los_hornos_abovedados_de_ladrillo_refractario.jpg&v=1793681072060",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F59_Imagen_Inicial_los_hornos_abovedados_de_ladrillo_refractario.jpg&v=1793681072060",
         "reframe9x16Mode": "auto_focus",
         "reframeFocusXStart": 16,
         "reframeFocusXEnd": 16,
@@ -6632,7 +6489,7 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "60_de_la_noche_Para_ahorrar_alquileres_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F60_Imagen_Inicial_de_la_noche_Para_ahorrar_alquileres.jpg&v=1793681022833",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F60_Imagen_Inicial_de_la_noche_Para_ahorrar_alquileres.jpg&v=1793681022833",
         "reframe9x16Mode": "auto_center",
         "reframeFocusXStart": 50,
         "reframeFocusXEnd": 50,
@@ -6662,7 +6519,7 @@
         "videoAttempts": 1,
         "videoSavedFileName": "61_Al_echar_los_cerrojos_a_medianoche_4K.mp4",
         "recreated": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F61_Imagen_Inicial_Al_echar_los_cerrojos_a_medianoche.jpg&v=1793705889184",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F61_Imagen_Inicial_Al_echar_los_cerrojos_a_medianoche.jpg&v=1793705889184",
         "reframe9x16Mode": "auto_pan",
         "reframeFocusXStart": 22,
         "reframeFocusXEnd": 76,
@@ -6692,7 +6549,7 @@
         "recreated": true,
         "videoAuditIssues": [],
         "videoSavedFileName": "62_balanzas_de_platillos_de_laton_o_4K.mp4",
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F62_Imagen_Inicial_balanzas_de_platillos_de_laton_o.jpg&v=1793705940381",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F62_Imagen_Inicial_balanzas_de_platillos_de_laton_o.jpg&v=1793705940381",
         "reframe9x16Mode": "auto_focus",
         "reframeFocusXStart": 69,
         "reframeFocusXEnd": 69,
@@ -6722,7 +6579,7 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "63_de_bacalao_aceite_de_oliva_y_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F63_Imagen_Inicial_de_bacalao_aceite_de_oliva_y.jpg&v=1793705868317",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F63_Imagen_Inicial_de_bacalao_aceite_de_oliva_y.jpg&v=1793705868317",
         "reframe9x16Mode": "auto_center",
         "reframeFocusXStart": 50,
         "reframeFocusXEnd": 50,
@@ -6752,7 +6609,7 @@
         "recreated": true,
         "videoAuditIssues": [],
         "videoSavedFileName": "64_recibian_sueldo_en_efectivo_y_cuando_4K.mp4",
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F64_Imagen_Inicial_recibian_sueldo_en_efectivo_y_cuando.jpg&v=1793705910513",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F64_Imagen_Inicial_recibian_sueldo_en_efectivo_y_cuando.jpg&v=1793705910513",
         "reframe9x16Mode": "auto_focus",
         "reframeFocusXStart": 25,
         "reframeFocusXEnd": 25,
@@ -6782,7 +6639,7 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "65_corriente_de_la_que_descontaba_cada_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F65_Imagen_Inicial_corriente_de_la_que_descontaba_cada.jpg&v=1793679922933",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F65_Imagen_Inicial_corriente_de_la_que_descontaba_cada.jpg&v=1793679922933",
         "reframe9x16Mode": "auto_focus",
         "reframeFocusXStart": 16,
         "reframeFocusXEnd": 16,
@@ -6812,7 +6669,7 @@
         "videoAttempts": 1,
         "videoSavedFileName": "66_sumision_absoluta_sin_tocar_su_dinero_4K.mp4",
         "recreated": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F66_Imagen_Inicial_sumision_absoluta_sin_tocar_su_dinero.jpg&v=1793705828071",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F66_Imagen_Inicial_sumision_absoluta_sin_tocar_su_dinero.jpg&v=1793705828071",
         "reframe9x16Mode": "auto_pan",
         "reframeFocusXStart": 18,
         "reframeFocusXEnd": 50,
@@ -6842,7 +6699,7 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "67_Aquella_fortuna_levantada_a_base_de_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F67_Imagen_Inicial_Aquella_fortuna_levantada_a_base_de.jpg&v=1793716302353",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F67_Imagen_Inicial_Aquella_fortuna_levantada_a_base_de.jpg&v=1793716302353",
         "reframe9x16Mode": "auto_pan",
         "reframeFocusXStart": 49,
         "reframeFocusXEnd": 16,
@@ -6872,7 +6729,7 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "68_colosales_como_la_Quinta_Covadonga_del_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F68_Imagen_Inicial_colosales_como_la_Quinta_Covadonga_del.jpg&v=1793724323328",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F68_Imagen_Inicial_colosales_como_la_Quinta_Covadonga_del.jpg&v=1793724323328",
         "reframe9x16Mode": "auto_pan",
         "reframeFocusXStart": 16,
         "reframeFocusXEnd": 29,
@@ -6902,7 +6759,7 @@
         "recreated": true,
         "videoAuditIssues": [],
         "videoSavedFileName": "69_Mexico_ademas_de_financiar_cientos_de_4K.mp4",
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F69_Imagen_Inicial_Mexico_ademas_de_financiar_cientos_de.jpg&v=1793706953978",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F69_Imagen_Inicial_Mexico_ademas_de_financiar_cientos_de.jpg&v=1793706953978",
         "reframe9x16Mode": "auto_focus",
         "reframeFocusXStart": 16,
         "reframeFocusXEnd": 16,
@@ -6932,7 +6789,7 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "70_Pero_por_otro_lado_quedo_el_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F70_Imagen_Inicial_Pero_por_otro_lado_quedo_el.jpg&v=1793679994530",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F70_Imagen_Inicial_Pero_por_otro_lado_quedo_el.jpg&v=1793679994530",
         "reframe9x16Mode": "auto_focus",
         "reframeFocusXStart": 16,
         "reframeFocusXEnd": 16,
@@ -6962,7 +6819,7 @@
         "recreated": true,
         "videoAuditIssues": [],
         "videoSavedFileName": "71_el_empleo_el_Diario_de_la_4K.mp4",
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F71_Imagen_Inicial_el_empleo_el_Diario_de_la.jpg&v=1793705940681",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F71_Imagen_Inicial_el_empleo_el_Diario_de_la.jpg&v=1793705940681",
         "reframe9x16Mode": "auto_focus",
         "reframeFocusXStart": 82,
         "reframeFocusXEnd": 82,
@@ -6992,7 +6849,7 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "72_Triscornia_o_repatriados_por_caridad_Muchos_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F72_Imagen_Inicial_Triscornia_o_repatriados_por_caridad_Muchos.jpg&v=1793716399383",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F72_Imagen_Inicial_Triscornia_o_repatriados_por_caridad_Muchos.jpg&v=1793716399383",
         "reframe9x16Mode": "auto_focus",
         "reframeFocusXStart": 84,
         "reframeFocusXEnd": 84,
@@ -7021,7 +6878,7 @@
         "videoAuditIssues": [],
         "videoAttempts": 1,
         "videoSavedFileName": "73_apagarse_en_el_anonimato_antes_que_4K.mp4",
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F73_Imagen_Inicial_apagarse_en_el_anonimato_antes_que.jpg&v=1793680042413",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F73_Imagen_Inicial_apagarse_en_el_anonimato_antes_que.jpg&v=1793680042413",
         "recreated": false,
         "reframe9x16Mode": "auto_pan",
         "reframeFocusXStart": 82,
@@ -7052,7 +6909,7 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "74_dio_un_giro_definitivo_El_13_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F74_Imagen_Inicial_dio_un_giro_definitivo_El_13.jpg&v=1793706391937",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F74_Imagen_Inicial_dio_un_giro_definitivo_El_13.jpg&v=1793706391937",
         "reframe9x16Mode": "auto_focus",
         "reframeFocusXStart": 23,
         "reframeFocusXEnd": 23,
@@ -7082,7 +6939,7 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "75_en_el_muelle_de_Veracruz_el_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F75_Imagen_Inicial_en_el_muelle_de_Veracruz_el.jpg&v=1793706962635",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F75_Imagen_Inicial_en_el_muelle_de_Veracruz_el.jpg&v=1793706962635",
         "reframe9x16Mode": "auto_pan",
         "reframeFocusXStart": 16,
         "reframeFocusXEnd": 57,
@@ -7112,7 +6969,7 @@
         "videoSavedFileName": "76_gastado_boina_negra_chamarra_de_pastor_4K.mp4",
         "recreated": true,
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F76_Imagen_Inicial_gastado_boina_negra_chamarra_de_pastor.jpg&v=1793716874412",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F76_Imagen_Inicial_gastado_boina_negra_chamarra_de_pastor.jpg&v=1793716874412",
         "reframe9x16Mode": "auto_focus",
         "reframeFocusXStart": 61,
         "reframeFocusXEnd": 61,
@@ -7142,7 +6999,7 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "77_obreros_que_al_dia_siguiente_de_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F77_Imagen_Inicial_obreros_que_al_dia_siguiente_de.jpg&v=1793706618870",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F77_Imagen_Inicial_obreros_que_al_dia_siguiente_de.jpg&v=1793706618870",
         "reframe9x16Mode": "auto_focus",
         "reframeFocusXStart": 82,
         "reframeFocusXEnd": 82,
@@ -7172,7 +7029,7 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "78_huella_de_aquel_exodo_late_en_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F78_Imagen_Inicial_huella_de_aquel_exodo_late_en.jpg&v=1793706639531",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F78_Imagen_Inicial_huella_de_aquel_exodo_late_en.jpg&v=1793706639531",
         "reframe9x16Mode": "auto_focus",
         "reframeFocusXStart": 80,
         "reframeFocusXEnd": 80,
@@ -7202,7 +7059,7 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "79_bodegas_y_palacios_habaneros_en_las_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F79_Imagen_Inicial_bodegas_y_palacios_habaneros_en_las.jpg&v=1793718124885",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F79_Imagen_Inicial_bodegas_y_palacios_habaneros_en_las.jpg&v=1793718124885",
         "reframe9x16Mode": "auto_center",
         "reframeFocusXStart": 50,
         "reframeFocusXEnd": 50,
@@ -7232,7 +7089,7 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "80_que_existen_gracias_al_coraje_de_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F80_Imagen_Inicial_que_existen_gracias_al_coraje_de.jpg&v=1793706578941",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F80_Imagen_Inicial_que_existen_gracias_al_coraje_de.jpg&v=1793706578941",
         "reframe9x16Mode": "auto_focus",
         "reframeFocusXStart": 22,
         "reframeFocusXEnd": 22,
@@ -7262,7 +7119,7 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "81_tus_venas_tambien_corre_la_historia_4K.mp4",
         "reviewedForEditor": true,
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F81_Imagen_Inicial_tus_venas_tambien_corre_la_historia.jpg&v=1793706620488",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F81_Imagen_Inicial_tus_venas_tambien_corre_la_historia.jpg&v=1793706620488",
         "reframe9x16Mode": "auto_focus",
         "reframeFocusXStart": 39,
         "reframeFocusXEnd": 39,
@@ -7292,7 +7149,7 @@
         "recreated": true,
         "videoAuditIssues": [],
         "videoSavedFileName": "82_rastros_4K.mp4",
-        "imagePreviewUrl": "http://localhost:4200/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F82_Imagen_Inicial_rastros.jpg&v=1793718471302",
+        "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2076%20E%CC%81xodo%20Espan%CC%83ol%20Transatla%CC%81ntico%20(1880-1940)%2F05_Clips_Video%2F82_Imagen_Inicial_rastros.jpg&v=1793718471302",
         "reframe9x16Mode": "auto_focus",
         "reframeFocusXStart": 70,
         "reframeFocusXEnd": 70,
