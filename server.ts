@@ -852,10 +852,16 @@ function mergeServerClipsPreservingAuthored(
 
     if (isActivelyRejected) {
       const rejSide = oDiscAt > cDiscAt ? o : c;
+      const rejRevAt = Math.max(
+        Number(c.reviewedUpdatedAt || 0),
+        Number(o.reviewedUpdatedAt || 0),
+        effectiveDiscAtForRejection > 1 ? effectiveDiscAtForRejection : 0
+      );
       return {
         ...c,
         ...promptWinnerMeta,
         reviewedForEditor: false,
+        ...(rejRevAt > 0 ? { reviewedUpdatedAt: rejRevAt } : {}),
         recreated: Boolean(c.recreated || o.recreated),
         videoReady: false,
         imageReady: false,
@@ -881,6 +887,53 @@ function mergeServerClipsPreservingAuthored(
     const winningSavedAt = Math.max(Number(c.videoSavedAt || 0), Number(o.videoSavedAt || 0));
     const cSideOk = !effDiscardedAt || cDiscAt >= oDiscAt || Boolean(cValidFile);
     const oSideOk = !effDiscardedAt || oDiscAt >= cDiscAt || Boolean(oValidFile);
+    const cRevAt = Number(c.reviewedUpdatedAt || 0);
+    const oRevAt = Number(o.reviewedUpdatedAt || 0);
+    let mergedReviewedForEditor: boolean;
+    let mergedReviewedUpdatedAt = 0;
+    if (effDiscardedAt > 0) {
+      if (cSideOk && oSideOk) {
+        if (cRevAt > 0 || oRevAt > 0) {
+          if (cRevAt > oRevAt) {
+            mergedReviewedForEditor = Boolean(c.reviewedForEditor);
+            mergedReviewedUpdatedAt = cRevAt;
+          } else if (oRevAt > cRevAt) {
+            mergedReviewedForEditor = Boolean(o.reviewedForEditor);
+            mergedReviewedUpdatedAt = oRevAt;
+          } else {
+            mergedReviewedForEditor = Boolean(c.reviewedForEditor || o.reviewedForEditor);
+            mergedReviewedUpdatedAt = cRevAt;
+          }
+        } else {
+          mergedReviewedForEditor = Boolean(c.reviewedForEditor || o.reviewedForEditor);
+        }
+      } else if (cSideOk) {
+        mergedReviewedForEditor = Boolean(c.reviewedForEditor);
+        mergedReviewedUpdatedAt = cRevAt;
+      } else if (oSideOk) {
+        mergedReviewedForEditor = Boolean(o.reviewedForEditor);
+        mergedReviewedUpdatedAt = oRevAt;
+      } else {
+        mergedReviewedForEditor = false;
+        mergedReviewedUpdatedAt = Math.max(cRevAt, oRevAt);
+      }
+    } else if (cRevAt > 0 || oRevAt > 0) {
+      if (cRevAt > oRevAt) {
+        mergedReviewedForEditor = Boolean(c.reviewedForEditor);
+        mergedReviewedUpdatedAt = cRevAt;
+      } else if (oRevAt > cRevAt) {
+        mergedReviewedForEditor = Boolean(o.reviewedForEditor);
+        mergedReviewedUpdatedAt = oRevAt;
+      } else {
+        mergedReviewedForEditor = Boolean(c.reviewedForEditor || o.reviewedForEditor);
+        mergedReviewedUpdatedAt = cRevAt;
+      }
+    } else {
+      mergedReviewedForEditor =
+        c.reviewedForEditor !== undefined
+          ? Boolean(c.reviewedForEditor || o.reviewedForEditor)
+          : Boolean(o.reviewedForEditor);
+    }
     const isApprovedWithValidFile =
       Boolean(winningFile) &&
       c.auditStatus !== 'mismatch' &&
@@ -901,12 +954,12 @@ function mergeServerClipsPreservingAuthored(
       ...cleanAuditPatch,
       ...(mergedAuditStatus ? { auditStatus: mergedAuditStatus } : {}),
       ...(mergedVideoAuditStatus ? { videoAuditStatus: mergedVideoAuditStatus } : {}),
-      reviewedForEditor:
-        effDiscardedAt > 0
-          ? Boolean((cSideOk && c.reviewedForEditor) || (oSideOk && o.reviewedForEditor))
-          : c.reviewedForEditor !== undefined
-          ? Boolean(c.reviewedForEditor || o.reviewedForEditor)
-          : Boolean(o.reviewedForEditor),
+      reviewedForEditor: mergedReviewedForEditor,
+      ...(mergedReviewedUpdatedAt > 0
+        ? { reviewedUpdatedAt: mergedReviewedUpdatedAt }
+        : c.reviewedUpdatedAt !== undefined
+        ? { reviewedUpdatedAt: undefined }
+        : {}),
       recreated: Boolean(c.recreated || o.recreated),
       videoReady:
         effDiscardedAt > 0
@@ -8272,8 +8325,20 @@ app.get('/api/flow/list-folder-media', async (req, res) => {
       : false;
     const resolvedRoot = rootOpenable ? rawResolvedRoot : '';
 
-    const clipVideos: Array<{ clipNumber: number; fileName: string; url: string }> = [];
-    const clipFrames: Array<{ clipNumber: number; fileName: string; url: string }> = [];
+    const clipVideos: Array<{ clipNumber: number; fileName: string; url: string; mtimeMs: number }> = [];
+    const clipFrames: Array<{ clipNumber: number; fileName: string; url: string; mtimeMs: number }> = [];
+    const discardedClipVideos: Array<{
+      clipNumber: number;
+      fileName: string;
+      url: string;
+      mtimeMs: number;
+    }> = [];
+    const discardedClipFrames: Array<{
+      clipNumber: number;
+      fileName: string;
+      url: string;
+      mtimeMs: number;
+    }> = [];
     const voiceoverFiles: Array<{ fileName: string; url: string }> = [];
     const sunoFiles: Array<{ trackNumber: number; fileName: string; url: string }> = [];
     const pending4kSet = new Set<number>();
@@ -8311,10 +8376,12 @@ app.get('/api/flow/list-folder-media', async (req, res) => {
       } catch {}
 
       const hydratedMeta = resolveDocPipelineContext(resolvedRoot, reqDocId, docTitle);
+      const hydratedMetaClipsByNum = new Map<number, any>();
       const brollClipNumsSet = new Set<number>();
       for (const c of hydratedMeta.clips) {
         const cNum = Number(c?.clipNumber);
         if (!cNum) continue;
+        hydratedMetaClipsByNum.set(cNum, c);
         const parsed = parseServerBrollMotionFromText(`${c.imagePrompt || ''} ${c.videoPrompt || ''}`);
         if (c.isStaticBroll || parsed.isStaticBroll) {
           brollClipNumsSet.add(cNum);
@@ -8423,6 +8490,10 @@ app.get('/api/flow/list-folder-media', async (req, res) => {
 
       const videoSubfolders = ['05_Clips_Video', 'Clips_Aprobados', ''];
       const seenVideoClips = new Set<number>();
+      const bestActiveFrameByClip = new Map<
+        number,
+        { clipNumber: number; fileName: string; url: string; mtimeMs: number; tier: number }
+      >();
       for (const sub of videoSubfolders) {
         const dir = sub ? path.join(resolvedRoot, sub) : resolvedRoot;
         if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) continue;
@@ -8448,6 +8519,7 @@ app.get('/api/flow/list-folder-media', async (req, res) => {
             continue;
           }
           if (!isMaterializedLocalFile(st)) continue;
+          const mtimeMs = Math.floor(st.mtimeMs);
           const mVid = entry.match(
             /^(?:(?:clip|broll|b[\-_]?roll|video|scene|escena)[_\-\s.]*)?0*(\d+)[_\-\s.(].*\.(mp4|webm|mov)$/i
           );
@@ -8464,7 +8536,8 @@ app.get('/api/flow/list-folder-media', async (req, res) => {
               clipVideos.push({
                 clipNumber: num,
                 fileName: entry,
-                url: `/api/flow/serve-folder-file?filePath=${encodeURIComponent(full)}&v=${Math.floor(st.mtimeMs)}`,
+                url: `/api/flow/serve-folder-file?filePath=${encodeURIComponent(full)}&v=${mtimeMs}`,
+                mtimeMs,
               });
             }
           }
@@ -8474,13 +8547,18 @@ app.get('/api/flow/list-folder-media', async (req, res) => {
           if (mFrameImg) {
             const num = parseInt(mFrameImg[1], 10);
             if (num > 0) {
-              clipFrames.push({
-                clipNumber: num,
-                fileName: entry,
-                url: `/api/flow/serve-folder-file?filePath=${encodeURIComponent(full)}&v=${Math.floor(st.mtimeMs)}`,
-              });
+              const prev = bestActiveFrameByClip.get(num);
+              if (!prev || 2 > prev.tier || (prev.tier === 2 && mtimeMs > prev.mtimeMs)) {
+                bestActiveFrameByClip.set(num, {
+                  clipNumber: num,
+                  fileName: entry,
+                  url: `/api/flow/serve-folder-file?filePath=${encodeURIComponent(full)}&v=${mtimeMs}`,
+                  mtimeMs,
+                  tier: 2,
+                });
+              }
             }
-          } else {
+          } else if (!/(?:_broll_source\.|\.meta\.json$)/i.test(entry)) {
             const mLooseImg = entry.match(
               /^(?:(?:broll|b[\-_]?roll|image|imagen|clip)[_\-\s.]*)?0*(\d+)[_\-\s.(].*\.(png|jpg|jpeg|webp)$/i
             );
@@ -8489,15 +8567,159 @@ app.get('/api/flow/list-folder-media', async (req, res) => {
               const isPendingBrollSrc =
                 num > 0 && brollClipNumsSet.has(num) && isEligibleBrollImageEntry(entry);
               if (num > 0 && !isPendingBrollSrc) {
-                clipFrames.push({
-                  clipNumber: num,
-                  fileName: entry,
-                  url: `/api/flow/serve-folder-file?filePath=${encodeURIComponent(full)}&v=${Math.floor(st.mtimeMs)}`,
-                });
+                const prev = bestActiveFrameByClip.get(num);
+                if (!prev || (prev.tier === 1 && mtimeMs > prev.mtimeMs)) {
+                  bestActiveFrameByClip.set(num, {
+                    clipNumber: num,
+                    fileName: entry,
+                    url: `/api/flow/serve-folder-file?filePath=${encodeURIComponent(full)}&v=${mtimeMs}`,
+                    mtimeMs,
+                    tier: 1,
+                  });
+                }
               }
             }
           }
         }
+      }
+      for (const fItem of bestActiveFrameByClip.values()) {
+        clipFrames.push({
+          clipNumber: fItem.clipNumber,
+          fileName: fItem.fileName,
+          url: fItem.url,
+          mtimeMs: fItem.mtimeMs,
+        });
+      }
+
+      // Scan 05_Clips_Video/_Descartados_Auditoria for discarded preview videos/posters (Stage 6 viewer only)
+      const discardedDir = path.join(resolvedRoot, '05_Clips_Video', '_Descartados_Auditoria');
+      if (fs.existsSync(discardedDir)) {
+        try {
+          if (fs.statSync(discardedDir).isDirectory()) {
+            const bestDiscardedVideoByClip = new Map<
+              number,
+              {
+                clipNumber: number;
+                fileName: string;
+                url: string;
+                mtimeMs: number;
+                isExact: boolean;
+                is4k: boolean;
+              }
+            >();
+            const bestDiscardedFrameByClip = new Map<
+              number,
+              { clipNumber: number; fileName: string; url: string; mtimeMs: number; tier: number }
+            >();
+            for (const entry of fs.readdirSync(discardedDir)) {
+              if (
+                !entry ||
+                entry.startsWith('.') ||
+                entry.startsWith('__rendering_') ||
+                entry.startsWith('__incoming_') ||
+                entry.startsWith('~incoming_') ||
+                /\.(?:tmp|part|crdownload|download)(?:\.(?:mp4|webm|mov|jpg|jpeg|png|webp))?$/i.test(
+                  entry
+                ) ||
+                /\.meta\.json$/i.test(entry)
+              ) {
+                continue;
+              }
+              const full = path.join(discardedDir, entry);
+              let st: fs.Stats;
+              try {
+                st = fs.statSync(full);
+              } catch {
+                continue;
+              }
+              if (!isMaterializedLocalFile(st)) continue;
+              const mtimeMs = Math.floor(st.mtimeMs);
+              const mVid = entry.match(
+                /^(?:(?:clip|broll|b[\-_]?roll|video|scene|escena)[_\-\s.]*)?0*(\d+)[_\-\s.(].*\.(mp4|webm|mov)$/i
+              );
+              if (mVid) {
+                const num = parseInt(mVid[1], 10);
+                if (num > 0) {
+                  const expectedDiscName = String(
+                    hydratedMetaClipsByNum.get(num)?.discardedVideoFileName || ''
+                  ).trim();
+                  const isExact = Boolean(expectedDiscName && entry === expectedDiscName);
+                  const is4k = /[_\-]4k\.(mp4|webm|mov)$/i.test(entry);
+                  const prev = bestDiscardedVideoByClip.get(num);
+                  const shouldTake =
+                    !prev ||
+                    (isExact && !prev.isExact) ||
+                    (isExact === prev.isExact && is4k && !prev.is4k) ||
+                    (isExact === prev.isExact && is4k === prev.is4k && mtimeMs > prev.mtimeMs);
+                  if (shouldTake) {
+                    bestDiscardedVideoByClip.set(num, {
+                      clipNumber: num,
+                      fileName: entry,
+                      url: `/api/flow/serve-folder-file?filePath=${encodeURIComponent(full)}&v=${mtimeMs}`,
+                      mtimeMs,
+                      isExact,
+                      is4k,
+                    });
+                  }
+                }
+                continue;
+              }
+              const mFrameImg =
+                entry.match(/^0*(\d+)_Imagen_Inicial_.*\.(png|jpg|jpeg|webp)$/i) ||
+                entry.match(/^(?:inicial|initial)[_\-\s.]*0*(\d+)[_\-\s.(].*\.(png|jpg|jpeg|webp)$/i);
+              if (mFrameImg) {
+                const num = parseInt(mFrameImg[1], 10);
+                if (num > 0) {
+                  const prev = bestDiscardedFrameByClip.get(num);
+                  if (!prev || 2 > prev.tier || (prev.tier === 2 && mtimeMs > prev.mtimeMs)) {
+                    bestDiscardedFrameByClip.set(num, {
+                      clipNumber: num,
+                      fileName: entry,
+                      url: `/api/flow/serve-folder-file?filePath=${encodeURIComponent(full)}&v=${mtimeMs}`,
+                      mtimeMs,
+                      tier: 2,
+                    });
+                  }
+                }
+              } else if (!/(?:_broll_source\.|\.meta\.json$)/i.test(entry)) {
+                const mLooseImg = entry.match(
+                  /^(?:(?:broll|b[\-_]?roll|image|imagen|clip)[_\-\s.]*)?0*(\d+)[_\-\s.(].*\.(png|jpg|jpeg|webp)$/i
+                );
+                if (mLooseImg) {
+                  const num = parseInt(mLooseImg[1], 10);
+                  if (num > 0) {
+                    const prev = bestDiscardedFrameByClip.get(num);
+                    if (!prev || (prev.tier === 1 && mtimeMs > prev.mtimeMs)) {
+                      bestDiscardedFrameByClip.set(num, {
+                        clipNumber: num,
+                        fileName: entry,
+                        url: `/api/flow/serve-folder-file?filePath=${encodeURIComponent(full)}&v=${mtimeMs}`,
+                        mtimeMs,
+                        tier: 1,
+                      });
+                    }
+                  }
+                }
+              }
+            }
+            for (const vItem of bestDiscardedVideoByClip.values()) {
+              discardedClipVideos.push({
+                clipNumber: vItem.clipNumber,
+                fileName: vItem.fileName,
+                url: vItem.url,
+                mtimeMs: vItem.mtimeMs,
+              });
+            }
+            for (const fItem of bestDiscardedFrameByClip.values()) {
+              discardedClipFrames.push({
+                clipNumber: fItem.clipNumber,
+                fileName: fItem.fileName,
+                url: fItem.url,
+                mtimeMs: fItem.mtimeMs,
+              });
+            }
+          }
+        } catch {}
       }
 
       const audioSubfolders = ['02_Audio', 'Audio', ''];
@@ -8648,6 +8870,8 @@ app.get('/api/flow/list-folder-media', async (req, res) => {
       resolvedRoot,
       clipVideos: clipVideos.sort((a, b) => a.clipNumber - b.clipNumber),
       clipFrames: clipFrames.sort((a, b) => a.clipNumber - b.clipNumber),
+      discardedClipVideos: discardedClipVideos.sort((a, b) => a.clipNumber - b.clipNumber),
+      discardedClipFrames: discardedClipFrames.sort((a, b) => a.clipNumber - b.clipNumber),
       voiceoverFiles,
       sunoFiles: sunoFiles.sort((a, b) => a.trackNumber - b.trackNumber),
       localTtsFiles,
@@ -8662,6 +8886,8 @@ app.get('/api/flow/list-folder-media', async (req, res) => {
       error: err.message || 'Error listando archivos de carpeta.',
       clipVideos: [],
       clipFrames: [],
+      discardedClipVideos: [],
+      discardedClipFrames: [],
       voiceoverFiles: [],
       sunoFiles: [],
       localTtsFiles: [],
@@ -11562,6 +11788,9 @@ app.post('/api/flow/load-and-upscale-single-clip', async (req, res) => {
       return inferred === clipNumber;
     };
 
+    const discardedName = String(clip?.discardedVideoFileName || '').trim();
+    const discardedAt = Number(clip?.videoDiscardedAt || 0);
+
     const projectDirs = [
       clipsDir,
       resolvedRoot,
@@ -11570,10 +11799,12 @@ app.post('/api/flow/load-and-upscale-single-clip', async (req, res) => {
     for (const d of projectDirs) {
       if (!fs.existsSync(d) || !fs.statSync(d).isDirectory()) continue;
       for (const entry of fs.readdirSync(d)) {
+        if (discardedName && entry === discardedName) continue;
         if (!matchesTargetClip(entry, false)) continue;
         const full = path.join(d, entry);
         try {
           const st = fs.statSync(full);
+          if (discardedAt > 0 && st.mtimeMs <= discardedAt) continue;
           if (st.isFile() && st.size > 5000) {
             candidates.push({
               fullPath: full,
@@ -11590,10 +11821,12 @@ app.post('/api/flow/load-and-upscale-single-clip', async (req, res) => {
     if (downloadsDir && fs.existsSync(downloadsDir)) {
       const nowMs = Date.now();
       for (const entry of fs.readdirSync(downloadsDir)) {
+        if (discardedName && entry === discardedName) continue;
         if (!matchesTargetClip(entry, true)) continue;
         const full = path.join(downloadsDir, entry);
         try {
           const st = fs.statSync(full);
+          if (discardedAt > 0 && st.mtimeMs <= discardedAt) continue;
           if (st.isFile() && st.size > 5000 && nowMs - st.mtimeMs <= 12 * 3600 * 1000) {
             candidates.push({
               fullPath: full,
@@ -11611,13 +11844,15 @@ app.post('/api/flow/load-and-upscale-single-clip', async (req, res) => {
       const archivedBroll = findArchivedBrollSourceImage(clipsDir, clipNumber);
       if (archivedBroll && fs.existsSync(archivedBroll.imagePath)) {
         const st = fs.statSync(archivedBroll.imagePath);
-        candidates.push({
-          fullPath: archivedBroll.imagePath,
-          fileName: path.basename(archivedBroll.imagePath),
-          mtimeMs: st.mtimeMs,
-          dir: path.dirname(archivedBroll.imagePath),
-          isImageSource: true,
-        });
+        if (discardedAt <= 0 || st.mtimeMs > discardedAt) {
+          candidates.push({
+            fullPath: archivedBroll.imagePath,
+            fileName: path.basename(archivedBroll.imagePath),
+            mtimeMs: st.mtimeMs,
+            dir: path.dirname(archivedBroll.imagePath),
+            isImageSource: true,
+          });
+        }
       }
     }
 
@@ -17223,6 +17458,7 @@ function computeChromeExtensionFingerprint(): string {
 interface PendingExternalGeminiAsk {
   id: string;
   prompt: string;
+  targetModel?: 'QUICK_ANSWERS' | 'CARBON_LOW' | 'CARBON_HIGH';
   createdAt: number;
   claimed: boolean;
   reusedExisting?: boolean;
@@ -17481,17 +17717,30 @@ app.get('/api/extension/fingerprint', (req, res) => {
     lastExtensionAckAt = now;
     lastExtensionAckFingerprint = fp;
   }
-  let nextExternalAsk: { id: string; prompt: string } | null = null;
+  let nextExternalAsk: {
+    id: string;
+    prompt: string;
+    targetModel?: 'QUICK_ANSWERS' | 'CARBON_LOW' | 'CARBON_HIGH';
+  } | null = null;
   let nextExternalChatGptAsk: { id: string; prompt: string } | null = null;
   let nextExternalCopilotAsk: { id: string; prompt: string } | null = null;
-  const unclaimedGeminiAsks: Array<{ id: string; prompt: string }> = [];
+  const unclaimedGeminiAsks: Array<{
+    id: string;
+    prompt: string;
+    targetModel?: 'QUICK_ANSWERS' | 'CARBON_LOW' | 'CARBON_HIGH';
+  }> = [];
   const unclaimedChatGptAsks: Array<{ id: string; prompt: string }> = [];
   const unclaimedCopilotAsks: Array<{ id: string; prompt: string }> = [];
   if (canDeliverOrdersToCaller) {
     for (const item of pendingExternalGeminiAsks.values()) {
       if (!item.claimed) {
-        if (!nextExternalAsk) nextExternalAsk = { id: item.id, prompt: item.prompt };
-        unclaimedGeminiAsks.push({ id: item.id, prompt: item.prompt });
+        const entry = {
+          id: item.id,
+          prompt: item.prompt,
+          targetModel: item.targetModel || 'QUICK_ANSWERS',
+        };
+        if (!nextExternalAsk) nextExternalAsk = entry;
+        unclaimedGeminiAsks.push(entry);
       }
     }
     for (const item of pendingExternalChatGptAsks.values()) {
@@ -18540,6 +18789,15 @@ app.post('/api/gemini-web/ask-external', async (req, res) => {
     res.status(400).json({ ok: false, error: 'Falta el campo prompt.' });
     return;
   }
+  const rawModel = String(req.body?.targetModel || req.body?.model || 'QUICK_ANSWERS')
+    .trim()
+    .toUpperCase();
+  const targetModel: 'QUICK_ANSWERS' | 'CARBON_LOW' | 'CARBON_HIGH' =
+    rawModel === 'CARBON_HIGH'
+      ? 'CARBON_HIGH'
+      : rawModel === 'CARBON_LOW'
+        ? 'CARBON_LOW'
+        : 'QUICK_ANSWERS';
   const timeoutMs = Math.min(Math.max(Number(req.body?.timeoutMs) || 300000, 15000), 360000);
   const id = `ext_gem_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
@@ -18568,6 +18826,7 @@ app.post('/api/gemini-web/ask-external', async (req, res) => {
     pendingExternalGeminiAsks.set(id, {
       id,
       prompt,
+      targetModel,
       createdAt: Date.now(),
       claimed: false,
       resolve,
@@ -18637,6 +18896,7 @@ function runInternalSilentGeminiCarbonLow(
     pendingExternalGeminiAsks.set(id, {
       id,
       prompt: cleanPrompt,
+      targetModel: 'CARBON_LOW',
       createdAt: Date.now(),
       claimed: false,
       resolve,

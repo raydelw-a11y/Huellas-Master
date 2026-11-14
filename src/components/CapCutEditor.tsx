@@ -121,6 +121,69 @@ function normalizeEditorClipTransition(raw: unknown): ClipTransitionType {
   return 'direct';
 }
 
+function extractEditorMediaUrlMeta(urlRaw?: string): { fileName: string; mtimeMs: number } {
+  const url = String(urlRaw || '').trim();
+  if (!url) return { fileName: '', mtimeMs: 0 };
+  let fileName = '';
+  let mtimeMs = 0;
+  try {
+    const parsed = new URL(url, 'http://localhost');
+    const fp = parsed.searchParams.get('filePath') || parsed.pathname || '';
+    const cleanFp = decodeURIComponent(fp).split(/[\\/]/).pop() || '';
+    fileName = cleanFp.trim();
+    const vParam = Number(parsed.searchParams.get('v') || 0);
+    if (Number.isFinite(vParam) && vParam > 0) mtimeMs = vParam;
+  } catch {
+    const fpMatch = url.match(/[?&]filePath=([^&#]+)/i);
+    if (fpMatch && fpMatch[1]) {
+      try {
+        fileName = decodeURIComponent(fpMatch[1]).split(/[\\/]/).pop()?.trim() || '';
+      } catch {}
+    }
+    const vMatch = url.match(/[?&]v=(\d{10,})/i);
+    if (vMatch && vMatch[1]) {
+      const vNum = Number(vMatch[1]);
+      if (Number.isFinite(vNum) && vNum > 0) mtimeMs = vNum;
+    }
+  }
+  return { fileName, mtimeMs };
+}
+
+function isEditorClipRejectedOrQuarantined(docClip?: DocumentaryClip | null): boolean {
+  if (!docClip) return false;
+  if (docClip.videoAuditStatus === 'rejected' || docClip.auditStatus === 'mismatch') {
+    return true;
+  }
+  const discName = String(docClip.discardedVideoFileName || '').trim();
+  const savedName = String(docClip.videoSavedFileName || '').trim();
+  return Boolean(discName && savedName === discName);
+}
+
+function isEditorFolderItemDiscarded(
+  docClip?: DocumentaryClip | null,
+  fileNameRaw?: unknown,
+  mtimeRaw?: unknown,
+  urlRaw?: string
+): boolean {
+  if (urlRaw && /_Descartados_Auditoria/i.test(urlRaw)) return true;
+  if (!docClip) return false;
+  const fName = String(fileNameRaw || '').trim();
+  const discName = String(docClip.discardedVideoFileName || '').trim();
+  if (discName && fName === discName) return true;
+  const savedName = String(docClip.videoSavedFileName || '').trim();
+  if (discName && savedName === discName && (!fName || fName === discName)) return true;
+  const isRej = docClip.videoAuditStatus === 'rejected' || docClip.auditStatus === 'mismatch';
+  if (!isRej) return false;
+  const discAt = Number(docClip.videoDiscardedAt || 0);
+  const itemMtime = Number(mtimeRaw || 0);
+  if (itemMtime > 0 && discAt > 0) {
+    return itemMtime <= discAt;
+  }
+  if (!savedName || savedName === discName) return true;
+  if (fName && savedName === fName) return true;
+  return false;
+}
+
 function buildOfficialIntroOutroUrls() {
   const primaryOrigin = getEditorPrimaryServerOrigin();
   const isLocalOrTunnel =
@@ -694,6 +757,7 @@ interface CapCutEditorProps {
   onExportOrganizedFolder?: () => Promise<void>;
   officialLogoUrl?: string;
   onOfficialLogoChange?: (dataUrl: string) => void;
+  onOpenStage6Review?: () => void;
   isEditorActive?: boolean;
 }
 
@@ -715,6 +779,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   onExportOrganizedFolder,
   officialLogoUrl: propOfficialLogoUrl,
   onOfficialLogoChange,
+  onOpenStage6Review,
   isEditorActive = true,
 }) => {
   const EDITOR_SESSION_STORAGE_KEY = 'huellas_editor_session_state_v1';
@@ -1556,13 +1621,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   );
   const autoAttemptedFoleyClipIdsRef = useRef<Set<string>>(new Set());
   const [draggedClipIndex, setDraggedClipIndex] = useState<number | null>(null);
-  const [showOnlyReviewedClips, setShowOnlyReviewedClips] = useState<boolean>(() =>
-    typeof initialDocStateForInit?.showOnlyReviewedClips === 'boolean'
-      ? initialDocStateForInit.showOnlyReviewedClips
-      : typeof initialSessionState?.showOnlyReviewedClips === 'boolean'
-      ? initialSessionState.showOnlyReviewedClips
-      : false
-  );
+  const [showOnlyReviewedClips, setShowOnlyReviewedClips] = useState<boolean>(true);
 
   // Voiceover Track (Track 4) — Starts at 16s in Opción A (after 8s Intro + 8s Clip 1 Hook) or 8s in Opción B (Post-Slogan)
   const [voiceStartOffsetSec, setVoiceStartOffsetSec] = useState<number>(() => {
@@ -1857,6 +1916,18 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         nextPayload.customTimelineClips = stripHeavyDataUrlsFromClips(
           nextPayload.customTimelineClips
         );
+      }
+      if (
+        nextPayload.parkedTimelineClipsByNumber &&
+        typeof nextPayload.parkedTimelineClipsByNumber === 'object'
+      ) {
+        const cleanedParked: Record<string, TimelineClipItem[]> = {};
+        for (const [k, arr] of Object.entries(nextPayload.parkedTimelineClipsByNumber)) {
+          if (Array.isArray(arr) && arr.length > 0) {
+            cleanedParked[k] = stripHeavyDataUrlsFromClips(arr as TimelineClipItem[]);
+          }
+        }
+        nextPayload.parkedTimelineClipsByNumber = cleanedParked;
       }
       localStorage.setItem(docKey, JSON.stringify(nextPayload));
     } catch {}
@@ -3137,7 +3208,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         setMasterMusicVolume(
           typeof savedDoc?.masterMusicVolume === 'number' ? savedDoc.masterMusicVolume : 10
         );
-        setShowOnlyReviewedClips(Boolean(savedDoc?.showOnlyReviewedClips));
+        setShowOnlyReviewedClips(true);
         setReframeSummary9x16(
           typeof savedDoc?.reframeSummary9x16 === 'string'
             ? savedDoc.reframeSummary9x16
@@ -3320,6 +3391,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   }, [isEditorActive]);
 
   const prevDocIdForMediaScanRef = useRef<string | undefined>(activeDoc?.id);
+  const activeDocRef = useRef(activeDoc);
+  activeDocRef.current = activeDoc;
 
   // Reset extracted first frames when switching documentaries, and re-query local server 05_Clips_Video whenever editor becomes active
   useEffect(() => {
@@ -3346,12 +3419,54 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           const data = await res.json();
           if (cancelled) return;
           const prefix = (u: string) => (u && u.startsWith('/') && base ? `${base}${u}` : u);
+          const latestDocClips = activeDocRef.current?.clips || activeDoc?.clips || [];
+          const docClipByNum = new Map<number, DocumentaryClip>();
+          for (const dc of latestDocClips) {
+            if (dc && typeof dc.clipNumber === 'number') {
+              docClipByNum.set(dc.clipNumber, dc);
+            }
+          }
+          const nextVids: Record<number, string> = {};
+          if (Array.isArray(data.clipVideos)) {
+            for (const item of data.clipVideos) {
+              const cNum = Number(item?.clipNumber || 0);
+              if (cNum <= 0 || !item?.url) continue;
+              if (
+                isEditorFolderItemDiscarded(
+                  docClipByNum.get(cNum),
+                  item?.fileName,
+                  item?.mtimeMs ?? item?.lastModified,
+                  item?.url
+                )
+              ) {
+                continue;
+              }
+              nextVids[cNum] = prefix(String(item.url));
+            }
+            if (data.resolvedRoot || data.clipVideos.length > 0) {
+              setLocalServerClipVideosMap((prev) => {
+                const prevKeys = Object.keys(prev);
+                const nextKeys = Object.keys(nextVids);
+                if (
+                  prevKeys.length === nextKeys.length &&
+                  nextKeys.every((k) => prev[Number(k)] === nextVids[Number(k)])
+                ) {
+                  return prev;
+                }
+                return nextVids;
+              });
+            }
+          }
           if (Array.isArray(data.clipFrames) && data.clipFrames.length > 0) {
             const nextFrames: Record<number, string> = {};
             for (const f of data.clipFrames) {
-              if (f.clipNumber > 0 && f.url && !nextFrames[f.clipNumber]) {
-                nextFrames[f.clipNumber] = prefix(f.url);
+              const fNum = Number(f?.clipNumber || 0);
+              if (fNum <= 0 || !f?.url || nextFrames[fNum]) continue;
+              const docClip = docClipByNum.get(fNum);
+              if (isEditorClipRejectedOrQuarantined(docClip) && !nextVids[fNum]) {
+                continue;
               }
+              nextFrames[fNum] = prefix(String(f.url));
             }
             if (Object.keys(nextFrames).length > 0) {
               setFirstFrameByClip((prev) => {
@@ -3359,25 +3474,6 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 return changed ? { ...prev, ...nextFrames } : prev;
               });
             }
-          }
-          if (Array.isArray(data.clipVideos) && data.clipVideos.length > 0) {
-            const nextVids: Record<number, string> = {};
-            for (const item of data.clipVideos) {
-              if (item.clipNumber > 0 && item.url) {
-                nextVids[item.clipNumber] = prefix(item.url);
-              }
-            }
-            setLocalServerClipVideosMap((prev) => {
-              const prevKeys = Object.keys(prev);
-              const nextKeys = Object.keys(nextVids);
-              if (
-                prevKeys.length === nextKeys.length &&
-                nextKeys.every((k) => prev[Number(k)] === nextVids[Number(k)])
-              ) {
-                return prev;
-              }
-              return nextVids;
-            });
           }
           if (Array.isArray(data.sunoFiles) && data.sunoFiles.length > 0) {
             const nextSuno: Record<number, string> = {};
@@ -3789,6 +3885,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     fixedIntroClip: TimelineClipItem,
     fixedOutroClip?: TimelineClipItem | null
   ): TimelineClipItem[] => {
+    const allScriptClips = activeDoc?.clips || [];
+    const hasStage6ScriptClips = allScriptClips.length > 0;
+
     // 1. Strip existing intro, outro, and any previously split partB slogan clip; restore partA to full clip
     const cleanBody: TimelineClipItem[] = [];
     for (const c of rawClipsInput) {
@@ -3817,25 +3916,44 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     }
 
     if (cleanBody.length === 0) {
+      if (hasStage6ScriptClips) {
+        return [];
+      }
       return fixedOutroClip ? [fixedIntroClip, fixedOutroClip] : [fixedIntroClip];
     }
 
+    const uniqueReviewedBodyNums = new Set(
+      cleanBody
+        .filter((c) => c.clipNumber > 0 && c.clipNumber < 999)
+        .map((c) => c.clipNumber)
+    );
+    const isFullScheduleReviewed =
+      !hasStage6ScriptClips || uniqueReviewedBodyNums.size >= allScriptClips.length;
+    const effectiveOutroClip = isFullScheduleReviewed ? fixedOutroClip : null;
+
     // Ensure Clip 1 (all parts with clipNumber === 1) covers the full 8s Hook before Voiceover starts
+    // Never kidnap Clip 2+ into the silent Hook slot when Clip 1 has not been marked reviewed yet
     const { clip1Sec: c1Base } = getStage1ClipDurations(activeDoc);
     const targetHookSec = !c1Base || c1Base <= 6 ? 8 : c1Base;
-    let firstNarratedIdx = cleanBody.findIndex((c) => c.clipNumber > 1);
-    if (firstNarratedIdx < 1) firstNarratedIdx = 1;
+    const hasClip1 = cleanBody.some((c) => c.clipNumber === 1);
+    let firstNarratedIdx = hasClip1 ? cleanBody.findIndex((c) => c.clipNumber > 1) : 0;
+    if (hasClip1 && firstNarratedIdx < 0) {
+      firstNarratedIdx = cleanBody.length;
+    }
     const clip1Slice = cleanBody.slice(0, firstNarratedIdx);
-    const clip1Sum = clip1Slice.reduce((acc, c) => acc + (c.duration || targetHookSec), 0);
-    if (Math.abs(clip1Sum - targetHookSec) > 0.05) {
-      scaleClipsToExactSpan(clip1Slice, targetHookSec, false);
+    if (clip1Slice.length > 0) {
+      const clip1Sum = clip1Slice.reduce((acc, c) => acc + (c.duration || targetHookSec), 0);
+      if (Math.abs(clip1Sum - targetHookSec) > 0.05) {
+        scaleClipsToExactSpan(clip1Slice, targetHookSec, false);
+      }
     }
 
-    // 2. Locate the exact clip in the opening section (Clips 2..12) where the Slogan Completo ("Aquí seguimos sus rastros.") ends
+    // 2. Locate the exact clip in the opening section (Clips 2..15) where the Slogan Completo ("Aquí seguimos sus rastros.") ends
     let sloganClipIdx = -1;
     const searchLimit = Math.min(cleanBody.length, firstNarratedIdx + 14);
     for (let i = firstNarratedIdx; i < searchLimit; i++) {
       const c = cleanBody[i];
+      if (hasStage6ScriptClips && c.clipNumber > 15) break;
       let decodedUrl = '';
       try {
         decodedUrl = decodeURIComponent(c.videoUrl || '');
@@ -3858,10 +3976,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         break;
       }
     }
-    if (sloganClipIdx < firstNarratedIdx) {
+    if (sloganClipIdx < firstNarratedIdx && isFullScheduleReviewed) {
       if (isVideo76Doc && cleanBody.length > firstNarratedIdx + 5) {
         sloganClipIdx = firstNarratedIdx + 5; // Clip 7
-      } else {
+      } else if (cleanBody.length > firstNarratedIdx) {
         let cum = 0;
         let bestIdx = Math.min(firstNarratedIdx + 5, cleanBody.length - 1);
         let bestDiff = Infinity;
@@ -3878,12 +3996,39 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     }
 
     // 3. Align durations of pre-slogan and post-slogan narrated clips (+1.20s closing breath cushion so the final slogan "Cada historia deja una huella. Aquí seguimos sus rastros." always finishes completely before the Outro)
+    // Only execute scaleClipsToExactSpan when 100% of script clips are reviewed (isFullScheduleReviewed), keeping partial reviews at natural clip durations.
     const targetVoiceDur =
       effectiveVoiceDurationSec > 20 ? Number((effectiveVoiceDurationSec + 1.2).toFixed(2)) : 0;
     if (mode === 'INTRO_POST_SLOGAN') {
+      if (sloganClipIdx < firstNarratedIdx) {
+        // Partial review where the Slogan clip is not reviewed yet: place Intro after any opening clips (<= 7), or at start if only clips > 7 exist
+        const preOpening = cleanBody
+          .slice(firstNarratedIdx)
+          .filter((c) => c.clipNumber > 1 && c.clipNumber <= 7);
+        const postOpening = cleanBody
+          .slice(firstNarratedIdx)
+          .filter((c) => !(c.clipNumber > 1 && c.clipNumber <= 7));
+        if (clip1Slice.length === 0 && preOpening.length === 0) {
+          return [
+            fixedIntroClip,
+            ...postOpening,
+            ...(effectiveOutroClip ? [effectiveOutroClip] : []),
+          ];
+        }
+        return [
+          ...clip1Slice,
+          ...preOpening,
+          fixedIntroClip,
+          ...postOpening,
+          ...(effectiveOutroClip ? [effectiveOutroClip] : []),
+        ];
+      }
+
       const sloganClip = cleanBody[sloganClipIdx];
       // In Video 76, Clip 7 (7.85s MP4) has Shot 1 (0s-4.28s: Historian's Desk for Slogan) and Shot 2 (4.36s-7.85s: Asturias Mountains for Chapter 1)
-      const isVid76TwoShotClip7 = Boolean(isVideo76Doc && sloganClip && sloganClip.clipNumber === 7);
+      const isVid76TwoShotClip7 = Boolean(
+        isVideo76Doc && sloganClip && sloganClip.clipNumber === 7 && !sloganClip.parentGroupId
+      );
 
       if (isVid76TwoShotClip7 && sloganClip) {
         const partA: TimelineClipItem = {
@@ -3914,7 +4059,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         const preClips = [...cleanBody.slice(firstNarratedIdx, sloganClipIdx), partA];
         const postClips = [partB, ...cleanBody.slice(sloganClipIdx + 1)];
 
-        if (targetVoiceDur > sloganSplitAudioSec + 10) {
+        if (isFullScheduleReviewed && targetVoiceDur > sloganSplitAudioSec + 10) {
           scaleClipsToExactSpan(preClips, sloganSplitAudioSec, false);
           const remAfterPartB = Math.max(10, targetVoiceDur - sloganSplitAudioSec - partB.duration);
           const restPost = postClips.slice(1);
@@ -3926,15 +4071,15 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           ...preClips,
           fixedIntroClip,
           ...postClips,
-          ...(fixedOutroClip ? [fixedOutroClip] : []),
+          ...(effectiveOutroClip ? [effectiveOutroClip] : []),
         ];
         return assembled;
       }
 
-      // Standard single-shot Slogan clip in Opción B: align Clips 2..sloganClipIdx to sloganSplitAudioSec, then insert fixedIntroClip
+      // Standard single-shot Slogan clip in Opción B: align Clips 2..sloganClipIdx to sloganSplitAudioSec when schedule is complete, then insert fixedIntroClip
       const preClips = cleanBody.slice(firstNarratedIdx, sloganClipIdx + 1);
       const postClips = cleanBody.slice(sloganClipIdx + 1);
-      if (targetVoiceDur > sloganSplitAudioSec + 10 && preClips.length > 0) {
+      if (isFullScheduleReviewed && targetVoiceDur > sloganSplitAudioSec + 10 && preClips.length > 0) {
         scaleClipsToExactSpan(preClips, sloganSplitAudioSec, false);
         const remVoiceDur = Math.max(10, targetVoiceDur - sloganSplitAudioSec);
         scaleClipsToExactSpan(postClips, remVoiceDur, true);
@@ -3945,12 +4090,12 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         ...preClips,
         fixedIntroClip,
         ...postClips,
-        ...(fixedOutroClip ? [fixedOutroClip] : []),
+        ...(effectiveOutroClip ? [effectiveOutroClip] : []),
       ];
     }
 
-    // Opción A (INTRO_INICIO_00): Fixed 8s Intro at 00:00 - 00:08, Clip 1 at 00:08 - 00:16, Narrated Clips 2..N aligned to targetVoiceDur
-    if (targetVoiceDur > 10 && cleanBody.length > firstNarratedIdx) {
+    // Opción A (INTRO_INICIO_00): Fixed 8s Intro at 00:00 - 00:08, Clip 1 at 00:08 - 00:16, Narrated Clips 2..N aligned to targetVoiceDur when schedule is complete
+    if (isFullScheduleReviewed && targetVoiceDur > 10 && cleanBody.length > firstNarratedIdx) {
       if (
         isVideo76Doc &&
         sloganClipIdx >= firstNarratedIdx &&
@@ -3973,7 +4118,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     return [
       fixedIntroClip,
       ...cleanBody,
-      ...(fixedOutroClip ? [fixedOutroClip] : []),
+      ...(effectiveOutroClip ? [effectiveOutroClip] : []),
     ];
   };
 
@@ -4189,11 +4334,17 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     const { introVideoUrl, introPosterUrl, outroVideoUrl, outroPosterUrl } =
       buildOfficialIntroOutroUrls();
 
-    // 1. Build Clips Track (Track 3)
+    // 1. Build Clips Track (Track 3) — Stage 6 reviewedForEditor is the sole eligibility gate when documentary clips exist
     const allDocClips = activeDoc.clips || [];
-    const reviewedClips = allDocClips.filter((c) => c.reviewedForEditor);
-    const docClips =
-      showOnlyReviewedClips && reviewedClips.length > 0 ? reviewedClips : allDocClips;
+    const hasStage6ScriptClips = allDocClips.length > 0;
+    const reviewedClips = allDocClips
+      .filter((c) => Boolean(c.reviewedForEditor))
+      .sort((a, b) => a.clipNumber - b.clipNumber);
+    const docClips = hasStage6ScriptClips ? reviewedClips : allDocClips;
+    const allStage6Nums = new Set(allDocClips.map((c) => c.clipNumber));
+    const reviewedSet = new Set(reviewedClips.map((c) => c.clipNumber));
+    const isSyncFullScheduleReviewed =
+      !hasStage6ScriptClips || reviewedSet.size >= allDocClips.length;
 
     const getUrlTimestampMs = (u?: string): number => {
       if (!u) return 0;
@@ -4206,14 +4357,31 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       return maxTs;
     };
 
-    const combinedClipVideosMap: Record<number, string> = {
-      ...capturedClipVideosMap,
-      ...localServerClipVideosMap,
-    };
+    const docClipByNumForSync = new Map<number, DocumentaryClip>();
+    for (const c of allDocClips) {
+      if (c && typeof c.clipNumber === 'number') {
+        docClipByNumForSync.set(c.clipNumber, c);
+      }
+    }
+
+    const combinedClipVideosMap: Record<number, string> = {};
+    for (const [kStr, srvUrl] of Object.entries(localServerClipVideosMap)) {
+      const kNum = Number(kStr);
+      if (!srvUrl) continue;
+      const srvMeta = extractEditorMediaUrlMeta(srvUrl);
+      if (isEditorFolderItemDiscarded(docClipByNumForSync.get(kNum), srvMeta.fileName, srvMeta.mtimeMs, srvUrl)) {
+        continue;
+      }
+      combinedClipVideosMap[kNum] = srvUrl;
+    }
     for (const [kStr, capUrl] of Object.entries(capturedClipVideosMap)) {
       const kNum = Number(kStr);
-      const srvUrl = localServerClipVideosMap[kNum] || '';
       if (!capUrl) continue;
+      const capMeta = extractEditorMediaUrlMeta(capUrl);
+      if (isEditorFolderItemDiscarded(docClipByNumForSync.get(kNum), capMeta.fileName, capMeta.mtimeMs, capUrl)) {
+        continue;
+      }
+      const srvUrl = combinedClipVideosMap[kNum] || '';
       if (!srvUrl) {
         combinedClipVideosMap[kNum] = capUrl;
         continue;
@@ -4236,7 +4404,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     };
 
     const bodyClips: TimelineClipItem[] = docClips.map((c, idx) => {
-      const isClip1 = c.clipNumber === 1 || idx === 0;
+      const isClip1 = hasStage6ScriptClips ? c.clipNumber === 1 : c.clipNumber === 1 || idx === 0;
       const srcDur =
         Number(c.durationSeconds) > 0
           ? Number(c.durationSeconds)
@@ -4250,8 +4418,18 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           tc.id !== 'fixed-doc-outro' &&
           !tc.id.endsWith('-slogan-partB')
       );
-      const videoUrl =
-        combinedClipVideosMap[c.clipNumber] || existingItem?.videoUrl || '';
+      const activeCombinedUrl = combinedClipVideosMap[c.clipNumber] || '';
+      const existingMeta = extractEditorMediaUrlMeta(existingItem?.videoUrl);
+      const canReuseExistingUrl =
+        Boolean(existingItem?.videoUrl) &&
+        !isEditorClipRejectedOrQuarantined(c) &&
+        !isEditorFolderItemDiscarded(
+          c,
+          existingMeta.fileName,
+          existingMeta.mtimeMs,
+          existingItem?.videoUrl
+        );
+      const videoUrl = activeCombinedUrl || (canReuseExistingUrl ? existingItem?.videoUrl || '' : '');
 
       // Strictly use each clip's own first frame (never repeat the documentary thumbnail or shared @Reference across clips)
       const posterUrl =
@@ -4316,8 +4494,12 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       };
     });
 
-    // If activeDoc.clips is empty but combinedClipVideosMap has .MP4 files from 05_Clips_Video, build timeline clips from those .MP4 files!
-    if (bodyClips.length === 0 && Object.keys(combinedClipVideosMap).length > 0) {
+    // If activeDoc.clips is empty (no Stage 6 script clips) and combinedClipVideosMap has .MP4 files from 05_Clips_Video, build timeline clips from those .MP4 files
+    if (
+      !hasStage6ScriptClips &&
+      bodyClips.length === 0 &&
+      Object.keys(combinedClipVideosMap).length > 0
+    ) {
       const sortedNums = Object.keys(combinedClipVideosMap)
         .map((n) => parseInt(n, 10))
         .filter((n) => n > 0)
@@ -4442,15 +4624,114 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     };
 
     let sourceClipsForBuild: TimelineClipItem[] = bodyClips;
+    let reconciledCustomStructureChanged = false;
+    let parkedMapChanged = false;
+    const nextParkedMap: Record<string, TimelineClipItem[]> =
+      savedDocOverlays?.parkedTimelineClipsByNumber &&
+      typeof savedDocOverlays.parkedTimelineClipsByNumber === 'object'
+        ? { ...savedDocOverlays.parkedTimelineClipsByNumber }
+        : {};
+
     if (
       savedDocOverlays?.userEditedClips &&
-      Array.isArray(savedDocOverlays.customTimelineClips) &&
-      savedDocOverlays.customTimelineClips.length > 0
+      (Array.isArray(savedDocOverlays.customTimelineClips) ||
+        Object.keys(nextParkedMap).length > 0)
     ) {
-      let anyRegeneratedOrUpdated = false;
-      sourceClipsForBuild = (savedDocOverlays.customTimelineClips as TimelineClipItem[]).map(
-        (tc) => {
-          const freshVideoUrl = combinedClipVideosMap[tc.clipNumber] || tc.videoUrl || '';
+      const rawCustomList: TimelineClipItem[] = Array.isArray(
+        savedDocOverlays.customTimelineClips
+      )
+        ? (savedDocOverlays.customTimelineClips as TimelineClipItem[])
+        : [];
+      const survivingCustom: TimelineClipItem[] = [];
+      const newlyParkedByNum: Record<number, TimelineClipItem[]> = {};
+
+      for (const tc of rawCustomList) {
+        const isIntroOrOutroTc =
+          tc.id === 'fixed-doc-intro' ||
+          tc.id === 'fixed-doc-outro' ||
+          tc.clipNumber === 0 ||
+          tc.clipNumber === 999;
+        if (
+          !isIntroOrOutroTc &&
+          hasStage6ScriptClips &&
+          allStage6Nums.has(tc.clipNumber) &&
+          !reviewedSet.has(tc.clipNumber)
+        ) {
+          reconciledCustomStructureChanged = true;
+          if (!tc.id.endsWith('-slogan-partB')) {
+            const normalizedForPark: TimelineClipItem = tc.id.endsWith('-slogan-partA')
+              ? {
+                  ...tc,
+                  id: tc.id.replace(/-slogan-partA$/, ''),
+                  trimStart: 0,
+                  trimEnd: tc.sourceDuration && tc.sourceDuration > 6 ? tc.sourceDuration : 7.85,
+                  partLabel: undefined,
+                }
+              : tc;
+            if (!newlyParkedByNum[tc.clipNumber]) {
+              newlyParkedByNum[tc.clipNumber] = [];
+            }
+            newlyParkedByNum[tc.clipNumber].push(normalizedForPark);
+          }
+          continue;
+        }
+        survivingCustom.push(tc);
+      }
+
+      for (const [numStr, items] of Object.entries(newlyParkedByNum)) {
+        if (items.length > 0) {
+          nextParkedMap[numStr] = stripHeavyDataUrlsFromClips(items);
+          parkedMapChanged = true;
+        }
+      }
+
+      if (hasStage6ScriptClips && docClips.length === 0) {
+        sourceClipsForBuild = [];
+      } else {
+        const presentCustomNums = new Set(
+          survivingCustom
+            .filter((tc) => tc.clipNumber > 0 && tc.clipNumber !== 999)
+            .map((tc) => tc.clipNumber)
+        );
+        for (const bc of bodyClips) {
+          if (!presentCustomNums.has(bc.clipNumber)) {
+            reconciledCustomStructureChanged = true;
+            const parkedKey = String(bc.clipNumber);
+            const parkedItems = Array.isArray(nextParkedMap[parkedKey])
+              ? nextParkedMap[parkedKey]
+              : null;
+            const itemsToInsert: TimelineClipItem[] =
+              parkedItems && parkedItems.length > 0 ? parkedItems : [bc];
+            if (parkedItems) {
+              delete nextParkedMap[parkedKey];
+              parkedMapChanged = true;
+            }
+            const insIdx = survivingCustom.findIndex(
+              (item) =>
+                item.id === 'fixed-doc-outro' ||
+                item.clipNumber === 999 ||
+                (item.clipNumber > bc.clipNumber && item.clipNumber > 0)
+            );
+            if (insIdx >= 0) {
+              survivingCustom.splice(insIdx, 0, ...itemsToInsert);
+            } else {
+              survivingCustom.push(...itemsToInsert);
+            }
+            presentCustomNums.add(bc.clipNumber);
+          }
+        }
+
+        let anyRegeneratedOrUpdated = false;
+        sourceClipsForBuild = survivingCustom.map(
+          (tc) => {
+          const docClipMatch = activeDoc?.clips?.find((dc) => dc.clipNumber === tc.clipNumber);
+          const activeCombinedUrl = combinedClipVideosMap[tc.clipNumber] || '';
+          const tcMeta = extractEditorMediaUrlMeta(tc.videoUrl);
+          const canReuseSavedTcUrl =
+            Boolean(tc.videoUrl) &&
+            !isEditorClipRejectedOrQuarantined(docClipMatch) &&
+            !isEditorFolderItemDiscarded(docClipMatch, tcMeta.fileName, tcMeta.mtimeMs, tc.videoUrl);
+          const freshVideoUrl = activeCombinedUrl || (canReuseSavedTcUrl ? tc.videoUrl || '' : '');
           const freshPosterUrl = firstFrameByClip[tc.clipNumber] || tc.posterUrl || '';
           const prevBaseVideoUrl = tc.originalVideoUrlBeforeSeparation || tc.videoUrl || '';
           const freshTs = getUrlTimestampMs(freshVideoUrl);
@@ -4468,14 +4749,26 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             !isNewerDiskVideo &&
             (freshTs === 0 || opticalFlowTs === 0 || opticalFlowTs >= freshTs - 1000);
 
+          const origMeta = extractEditorMediaUrlMeta(tc.originalVideoUrlBeforeSeparation);
+          const canReuseOrigUrl =
+            Boolean(tc.originalVideoUrlBeforeSeparation) &&
+            !tc.originalVideoUrlBeforeSeparation!.includes('.foley_only_cache') &&
+            !tc.originalVideoUrlBeforeSeparation!.includes('.vocals_clean_cache') &&
+            !tc.originalVideoUrlBeforeSeparation!.includes('.music_clean_cache') &&
+            !isEditorClipRejectedOrQuarantined(docClipMatch) &&
+            !isEditorFolderItemDiscarded(
+              docClipMatch,
+              origMeta.fileName,
+              origMeta.mtimeMs,
+              tc.originalVideoUrlBeforeSeparation
+            );
           const cleanBaseVideoUrl =
-            combinedClipVideosMap[tc.clipNumber] ||
-            (tc.originalVideoUrlBeforeSeparation &&
-            !tc.originalVideoUrlBeforeSeparation.includes('.foley_only_cache') &&
-            !tc.originalVideoUrlBeforeSeparation.includes('.vocals_clean_cache') &&
-            !tc.originalVideoUrlBeforeSeparation.includes('.music_clean_cache')
+            activeCombinedUrl ||
+            (canReuseOrigUrl
               ? tc.originalVideoUrlBeforeSeparation
-              : tc.videoUrl);
+              : canReuseSavedTcUrl
+                ? tc.videoUrl
+                : '');
 
           const effectiveVideoUrl = cleanBaseVideoUrl || freshVideoUrl;
           const baseOpticalFlowUrl =
@@ -4488,7 +4781,6 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               ? baseOpticalFlowUrl
               : undefined;
 
-          const docClipMatch = activeDoc?.clips?.find((dc) => dc.clipNumber === tc.clipNumber);
           const isRestoredBroll = Boolean(
             docClipMatch?.isStaticBroll ||
               tc.isStaticBroll ||
@@ -4610,11 +4902,16 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             reframeFocusY: repairedFocusY,
             reframeReason: repairedReframeReason,
             userReframed9x16: repairedUserReframed,
+            reviewedForEditor:
+              hasStage6ScriptClips && allStage6Nums.has(tc.clipNumber)
+                ? true
+                : Boolean(tc.reviewedForEditor),
           };
         }
-      );
-      if (anyRegeneratedOrUpdated) {
-        // Will persist builtClips right after alignment below
+        );
+        if (anyRegeneratedOrUpdated) {
+          reconciledCustomStructureChanged = true;
+        }
       }
     }
 
@@ -4623,7 +4920,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       sourceClipsForBuild,
       docIntroPlacement,
       fixedIntroClip,
-      fixedOutroClip
+      isSyncFullScheduleReviewed ? fixedOutroClip : null
     );
 
     const builtClips = alignedBuiltClips.map((bc) => {
@@ -4692,15 +4989,20 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     if (
       activeDoc?.id &&
       savedDocOverlays?.userEditedClips &&
-      Array.isArray(savedDocOverlays.customTimelineClips)
+      (Array.isArray(savedDocOverlays.customTimelineClips) || parkedMapChanged)
     ) {
-      const prevSum = (savedDocOverlays.customTimelineClips as TimelineClipItem[])
+      const prevCustomArr: TimelineClipItem[] = Array.isArray(
+        savedDocOverlays.customTimelineClips
+      )
+        ? (savedDocOverlays.customTimelineClips as TimelineClipItem[])
+        : [];
+      const prevSum = prevCustomArr
         .filter((c) => c.id !== 'fixed-doc-outro' && c.clipNumber !== 999)
         .reduce((acc, c) => acc + (Number(c.duration) || 0), 0);
       const nextSum = builtClips
         .filter((c) => c.id !== 'fixed-doc-outro' && c.clipNumber !== 999)
         .reduce((acc, c) => acc + (Number(c.duration) || 0), 0);
-      const prevClosingClip = [...(savedDocOverlays.customTimelineClips as TimelineClipItem[])]
+      const prevClosingClip = [...prevCustomArr]
         .reverse()
         .find((c) => c.id !== 'fixed-doc-outro' && c.clipNumber !== 999 && c.clipNumber > 0);
       const nextClosingClip = [...builtClips]
@@ -4711,8 +5013,19 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         (prevClosingClip &&
           nextClosingClip &&
           Math.abs((nextClosingClip.duration || 0) - (prevClosingClip.duration || 0)) > 0.15);
-      if (durationRepaired || sourceClipsForBuild !== bodyClips) {
-        persistDocOverlaysPatch({ customTimelineClips: builtClips }, activeDoc.id);
+      if (
+        reconciledCustomStructureChanged ||
+        parkedMapChanged ||
+        durationRepaired ||
+        sourceClipsForBuild !== bodyClips
+      ) {
+        persistDocOverlaysPatch(
+          {
+            customTimelineClips: builtClips,
+            ...(parkedMapChanged ? { parkedTimelineClipsByNumber: nextParkedMap } : {}),
+          },
+          activeDoc.id
+        );
       }
     }
 
@@ -4746,6 +5059,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           }
         });
       }
+    } else if (selectedClipId !== null || selectedClipIds.length > 0) {
+      setSelectedClipId(null);
+      setSelectedClipIds([]);
     }
     if (isDocSwitch) {
       setSeparatedVocalSegments(
@@ -4840,12 +5156,16 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       (acc, item) => acc + item.duration,
       0
     );
+    const allScriptEstimatedEndSec = hasStage6ScriptClips
+      ? FIXED_INTRO_SEC + clip1HookDur + Math.max(0, allDocClips.length - 1) * standardDur
+      : 0;
     const bodySpanEndSec =
-      clip82EndBeforeOutroSec > FIXED_INTRO_SEC + 30
+      isSyncFullScheduleReviewed && clip82EndBeforeOutroSec > FIXED_INTRO_SEC + 30
         ? clip82EndBeforeOutroSec
         : Math.max(
             FIXED_INTRO_SEC + bodyClips.reduce((acc, item) => acc + item.duration, 0),
             fullVoiceSpanSec,
+            allScriptEstimatedEndSec,
             activeDoc.targetDurationSeconds || 120
           );
     const sunoList = activeDoc.sunoTracks || [];
@@ -4970,8 +5290,34 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   };
 
   const reviewedClipsSignature = (activeDoc?.clips || [])
-    .map((c) => `${c.clipNumber}:${c.reviewedForEditor ? 1 : 0}:${c.videoReady ? 1 : 0}`)
+    .map(
+      (c) =>
+        `${c.clipNumber}:${c.reviewedForEditor ? 1 : 0}:${c.videoReady ? 1 : 0}:${c.videoAuditStatus || ''}:${c.auditStatus || ''}:${c.discardedVideoFileName || ''}`
+    )
     .join('|');
+
+  useEffect(() => {
+    const clipsList = activeDoc?.clips || [];
+    if (clipsList.length === 0) return;
+    const byNum = new Map<number, DocumentaryClip>();
+    for (const c of clipsList) {
+      if (c && typeof c.clipNumber === 'number') byNum.set(c.clipNumber, c);
+    }
+    setLocalServerClipVideosMap((prev) => {
+      let changed = false;
+      const next: Record<number, string> = {};
+      for (const [kStr, url] of Object.entries(prev)) {
+        const kNum = Number(kStr);
+        const meta = extractEditorMediaUrlMeta(url);
+        if (isEditorFolderItemDiscarded(byNum.get(kNum), meta.fileName, meta.mtimeMs, url)) {
+          changed = true;
+          continue;
+        }
+        next[kNum] = url;
+      }
+      return changed ? next : prev;
+    });
+  }, [activeDoc?.id, reviewedClipsSignature]);
 
   const allKnownClipNums = Array.from(
     new Set([
@@ -8458,11 +8804,20 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     if (!hasModifiedClipAudio) return;
     commitTimelineClipsUpdate((prev) =>
       prev.map((c) => {
+        const docClip = activeDoc?.clips?.find((dc) => dc.clipNumber === c.clipNumber);
+        const rawSrvUrl = localServerClipVideosMap[c.clipNumber] || '';
+        const srvMeta = extractEditorMediaUrlMeta(rawSrvUrl);
+        const validSrvUrl =
+          rawSrvUrl &&
+          !isEditorFolderItemDiscarded(docClip, srvMeta.fileName, srvMeta.mtimeMs, rawSrvUrl)
+            ? rawSrvUrl
+            : '';
         const cleanVid =
-          localServerClipVideosMap[c.clipNumber] ||
+          validSrvUrl ||
           capturedClipVideosMap[c.clipNumber] ||
-          c.originalVideoUrlBeforeSeparation ||
-          c.videoUrl;
+          (isEditorClipRejectedOrQuarantined(docClip)
+            ? ''
+            : c.originalVideoUrlBeforeSeparation || c.videoUrl);
         const cleanOpt =
           c.originalOpticalFlowUrlBeforeSeparation &&
           !c.originalOpticalFlowUrlBeforeSeparation.includes('.foley_only_cache')
@@ -12403,7 +12758,21 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                         onError={() => {
                           if (deckAssignRef.current.activeSlot !== slotIdx) return;
                           const clipNum = activeClipAtPlayhead?.clipNumber;
-                          const fallbackUrl = clipNum ? localServerClipVideosMap[clipNum] : '';
+                          const docClip = clipNum
+                            ? activeDoc?.clips?.find((dc) => dc.clipNumber === clipNum)
+                            : undefined;
+                          const rawFallbackUrl = clipNum ? localServerClipVideosMap[clipNum] : '';
+                          const fbMeta = extractEditorMediaUrlMeta(rawFallbackUrl);
+                          const fallbackUrl =
+                            rawFallbackUrl &&
+                            !isEditorFolderItemDiscarded(
+                              docClip,
+                              fbMeta.fileName,
+                              fbMeta.mtimeMs,
+                              rawFallbackUrl
+                            )
+                              ? rawFallbackUrl
+                              : '';
                           if (
                             clipNum &&
                             fallbackUrl &&

@@ -61,6 +61,7 @@ const LOCAL_CLIP_REVIEW_STATE_KEY = 'huellas_master_clip_review_state_v1';
 
 interface StoredClipStatusEntry {
   reviewedForEditor: boolean;
+  reviewedUpdatedAt?: number;
   recreated?: boolean;
   videoReady?: boolean;
   imageReady?: boolean;
@@ -103,7 +104,19 @@ export function saveClipReviewStateForDoc(
         !String(c.videoSavedFileName || '').trim();
       const effDiscFile = c.discardedVideoFileName || prev?.discardedVideoFileName || '';
       const effDiscAt = Math.max(Number(c.videoDiscardedAt || 0), Number(prev?.videoDiscardedAt || 0));
-      const nextRev = isRejectedEmpty ? false : Boolean(c.reviewedForEditor);
+      const rawNextRev = isRejectedEmpty ? false : Boolean(c.reviewedForEditor);
+      const clipRevAt = Number(c.reviewedUpdatedAt || 0);
+      const prevRevAt = Number(prev?.reviewedUpdatedAt || 0);
+      const preservePrevNewerRev = Boolean(prev && !isRejectedEmpty && prevRevAt > clipRevAt);
+      const nextRev = preservePrevNewerRev ? Boolean(prev?.reviewedForEditor) : rawNextRev;
+      const nextRevAt = preservePrevNewerRev
+        ? prevRevAt
+        : isRejectedEmpty
+        ? Math.max(clipRevAt, prevRevAt)
+        : Math.max(
+            clipRevAt,
+            prev && prev.reviewedForEditor === rawNextRev ? prevRevAt : 0
+          );
       const nextRec = Boolean(c.recreated);
       const nextVid = isRejectedEmpty ? false : Boolean(c.videoReady);
       const nextImg = isRejectedEmpty ? false : Boolean(c.imageReady);
@@ -117,6 +130,7 @@ export function saveClipReviewStateForDoc(
       if (
         !prev ||
         prev.reviewedForEditor !== nextRev ||
+        prevRevAt !== nextRevAt ||
         Boolean(prev.recreated) !== nextRec ||
         Boolean(prev.videoReady) !== nextVid ||
         Boolean(prev.imageReady) !== nextImg ||
@@ -128,6 +142,7 @@ export function saveClipReviewStateForDoc(
       ) {
         docMap[c.clipNumber] = {
           reviewedForEditor: nextRev,
+          ...(nextRevAt > 0 ? { reviewedUpdatedAt: nextRevAt } : {}),
           recreated: nextRec,
           videoReady: nextVid,
           imageReady: nextImg,
@@ -230,10 +245,28 @@ export function applyStoredClipReviewStateToDocs(
         return c;
       }
 
-      const mergedRev = Boolean(
-        c.reviewedForEditor ||
-          (!isSavedRevokedByFile && savedAfterDiscard && saved.reviewedForEditor)
-      );
+      const cRevAt = Number(c.reviewedUpdatedAt || 0);
+      const sRevAt =
+        !isSavedRevokedByFile && savedAfterDiscard ? Number(saved.reviewedUpdatedAt || 0) : 0;
+      let mergedRev: boolean;
+      let mergedRevAt = 0;
+      if (cRevAt > 0 || sRevAt > 0) {
+        if (sRevAt > cRevAt) {
+          mergedRev = Boolean(saved.reviewedForEditor);
+          mergedRevAt = sRevAt;
+        } else if (cRevAt > sRevAt) {
+          mergedRev = Boolean(c.reviewedForEditor);
+          mergedRevAt = cRevAt;
+        } else {
+          mergedRev = Boolean(c.reviewedForEditor);
+          mergedRevAt = cRevAt;
+        }
+      } else {
+        mergedRev = Boolean(
+          c.reviewedForEditor ||
+            (!isSavedRevokedByFile && savedAfterDiscard && saved.reviewedForEditor)
+        );
+      }
       const mergedRec = Boolean(c.recreated || saved.recreated);
       const mergedVid = Boolean(
         c.videoReady || (!isSavedRevokedByFile && savedAfterDiscard && saved.videoReady)
@@ -244,6 +277,7 @@ export function applyStoredClipReviewStateToDocs(
       const mergedFile = cFile || (!isSavedRevokedByFile ? sFile : '');
       if (
         Boolean(c.reviewedForEditor) !== mergedRev ||
+        cRevAt !== mergedRevAt ||
         Boolean(c.recreated) !== mergedRec ||
         Boolean(c.videoReady) !== mergedVid ||
         Boolean(c.imageReady) !== mergedImg ||
@@ -253,6 +287,7 @@ export function applyStoredClipReviewStateToDocs(
         return {
           ...c,
           reviewedForEditor: mergedRev,
+          ...(mergedRevAt > 0 ? { reviewedUpdatedAt: mergedRevAt } : {}),
           recreated: mergedRec,
           videoReady: mergedVid,
           imageReady: mergedImg,
@@ -2367,10 +2402,16 @@ function mergeTwoDocumentaryObjects(
 
       if (isActivelyRejected) {
         const rejSide = oDiscAt > cDiscAt ? o : c;
+        const rejRevAt = Math.max(
+          Number(c.reviewedUpdatedAt || 0),
+          Number(o.reviewedUpdatedAt || 0),
+          effectiveDiscAtForRejection > 1 ? effectiveDiscAtForRejection : 0
+        );
         return {
           ...c,
           ...promptWinnerMeta,
           reviewedForEditor: false,
+          ...(rejRevAt > 0 ? { reviewedUpdatedAt: rejRevAt } : {}),
           recreated: Boolean(c.recreated || o.recreated),
           videoReady: false,
           imageReady: false,
@@ -2396,6 +2437,53 @@ function mergeTwoDocumentaryObjects(
       const winningSavedAt = Math.max(Number(c.videoSavedAt || 0), Number(o.videoSavedAt || 0));
       const cSideOk = !effDiscardedAt || cDiscAt >= oDiscAt || Boolean(cValidFile);
       const oSideOk = !effDiscardedAt || oDiscAt >= cDiscAt || Boolean(oValidFile);
+      const cRevAt = Number(c.reviewedUpdatedAt || 0);
+      const oRevAt = Number(o.reviewedUpdatedAt || 0);
+      let mergedReviewedForEditor: boolean;
+      let mergedReviewedUpdatedAt = 0;
+      if (effDiscardedAt > 0) {
+        if (cSideOk && oSideOk) {
+          if (cRevAt > 0 || oRevAt > 0) {
+            if (cRevAt > oRevAt) {
+              mergedReviewedForEditor = Boolean(c.reviewedForEditor);
+              mergedReviewedUpdatedAt = cRevAt;
+            } else if (oRevAt > cRevAt) {
+              mergedReviewedForEditor = Boolean(o.reviewedForEditor);
+              mergedReviewedUpdatedAt = oRevAt;
+            } else {
+              mergedReviewedForEditor = Boolean(c.reviewedForEditor || o.reviewedForEditor);
+              mergedReviewedUpdatedAt = cRevAt;
+            }
+          } else {
+            mergedReviewedForEditor = Boolean(c.reviewedForEditor || o.reviewedForEditor);
+          }
+        } else if (cSideOk) {
+          mergedReviewedForEditor = Boolean(c.reviewedForEditor);
+          mergedReviewedUpdatedAt = cRevAt;
+        } else if (oSideOk) {
+          mergedReviewedForEditor = Boolean(o.reviewedForEditor);
+          mergedReviewedUpdatedAt = oRevAt;
+        } else {
+          mergedReviewedForEditor = false;
+          mergedReviewedUpdatedAt = Math.max(cRevAt, oRevAt);
+        }
+      } else if (cRevAt > 0 || oRevAt > 0) {
+        if (cRevAt > oRevAt) {
+          mergedReviewedForEditor = Boolean(c.reviewedForEditor);
+          mergedReviewedUpdatedAt = cRevAt;
+        } else if (oRevAt > cRevAt) {
+          mergedReviewedForEditor = Boolean(o.reviewedForEditor);
+          mergedReviewedUpdatedAt = oRevAt;
+        } else {
+          mergedReviewedForEditor = Boolean(c.reviewedForEditor || o.reviewedForEditor);
+          mergedReviewedUpdatedAt = cRevAt;
+        }
+      } else {
+        mergedReviewedForEditor =
+          c.reviewedForEditor !== undefined
+            ? Boolean(c.reviewedForEditor || o.reviewedForEditor)
+            : Boolean(o.reviewedForEditor);
+      }
       const isApprovedWithValidFile =
         Boolean(winningFile) &&
         c.auditStatus !== 'mismatch' &&
@@ -2420,12 +2508,12 @@ function mergeTwoDocumentaryObjects(
         ...cleanAuditPatch,
         ...(mergedAuditStatus ? { auditStatus: mergedAuditStatus } : {}),
         ...(mergedVideoAuditStatus ? { videoAuditStatus: mergedVideoAuditStatus } : {}),
-        reviewedForEditor:
-          effDiscardedAt > 0
-            ? Boolean((cSideOk && c.reviewedForEditor) || (oSideOk && o.reviewedForEditor))
-            : c.reviewedForEditor !== undefined
-            ? Boolean(c.reviewedForEditor || o.reviewedForEditor)
-            : Boolean(o.reviewedForEditor),
+        reviewedForEditor: mergedReviewedForEditor,
+        ...(mergedReviewedUpdatedAt > 0
+          ? { reviewedUpdatedAt: mergedReviewedUpdatedAt }
+          : c.reviewedUpdatedAt !== undefined
+          ? { reviewedUpdatedAt: undefined }
+          : {}),
         recreated: Boolean(c.recreated || o.recreated),
         videoReady: effDiscardedAt > 0
           ? Boolean(winningFile || (cSideOk && c.videoReady) || (oSideOk && o.videoReady))

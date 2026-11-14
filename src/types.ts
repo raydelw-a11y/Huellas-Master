@@ -192,6 +192,7 @@ export interface DocumentaryClip {
   videoReady: boolean;
   recreated?: boolean;
   reviewedForEditor?: boolean;
+  reviewedUpdatedAt?: number;
   imagePreviewUrl?: string;
   auditStatus?: 'ok' | 'warning' | 'mismatch';
   auditReason?: string;
