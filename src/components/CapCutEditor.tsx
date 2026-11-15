@@ -1344,6 +1344,12 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             logoPosY: 3,
           };
         }
+        if (!parsed._v5_16x9_captionBottom10 && parsed?.['16:9']) {
+          parsed['16:9'] = {
+            ...parsed['16:9'],
+            captionBottomPct: 10,
+          };
+        }
         return parsed?.[aspectRatio] || null;
       }
     } catch {}
@@ -2084,15 +2090,18 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           ? Number(initialOverlayStyles.captionFontSize) || 25
           : 25)
   );
-  const [captionBottomPct, setCaptionBottomPct] = useState<number>(() =>
-    typeof initialFormatProfileForRatio?.captionBottomPct === 'number'
+  const [captionBottomPct, setCaptionBottomPct] = useState<number>(() => {
+    if (aspectRatio === '16:9' && !initialOverlayStyles.captionBottom16x9V10) {
+      return 10;
+    }
+    return typeof initialFormatProfileForRatio?.captionBottomPct === 'number'
       ? initialFormatProfileForRatio.captionBottomPct
       : typeof initialOverlayStyles.captionBottomPct === 'number'
       ? initialOverlayStyles.captionBottomPct
       : aspectRatio === '9:16'
       ? 15
-      : 11
-  );
+      : 10;
+  });
   const [captionColor, setCaptionColor] = useState<'white' | 'amber' | 'custom'>(
     () => initialOverlayStyles.captionColor || 'white'
   );
@@ -2344,6 +2353,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           captionLineMode,
           captionFontSizeV25: true,
           captionBottomPct,
+          captionBottom16x9V10: true,
           captionColor,
           captionCustomColor,
           captionShadowStyle,
@@ -2457,7 +2467,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       hookBoxWidthPct: 82,
       captionFontSize: 25,
       captionWordsPerLine: 6,
-      captionBottomPct: 11,
+      captionBottomPct: 10,
     };
     const default9x16: FormatOverlayProfile = {
       exportResolution: '2K_1440P',
@@ -2492,6 +2502,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           saved16x9.logoOpacity = 95;
           saved16x9.logoPosX = 3;
           saved16x9.logoPosY = 3;
+        }
+        if (!parsed._v5_16x9_captionBottom10) {
+          saved16x9.captionBottomPct = 10;
         }
         return {
           '16:9': { ...default16x9, ...saved16x9 },
@@ -2552,6 +2565,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           _v2_9x16_logoPosX10: true,
           _v3_res_by_ratio: true,
           _v4_16x9_logoDefault5: true,
+          _v5_16x9_captionBottom10: true,
         })
       );
       const serverOrigin = getEditorPrimaryServerOrigin();

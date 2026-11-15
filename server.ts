@@ -6583,18 +6583,23 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         const capFontSizeAss = Math.round(
           refShortSide * (isVertical916 ? 0.052 : 0.039) * capFontScale
         );
+        const useMigrated16x9CaptionBottom10 =
+          !isVertical916 &&
+          !Boolean(savedClientState?.formatProfiles?._v5_16x9_captionBottom10);
         const reqBottomPct =
-          typeof savedFormatProfile.captionBottomPct === 'number' &&
-          savedFormatProfile.captionBottomPct >= 2
+          typeof capStyleCfg.bottomPct === 'number' && capStyleCfg.bottomPct >= 2
+            ? capStyleCfg.bottomPct
+            : !useMigrated16x9CaptionBottom10 &&
+              typeof savedFormatProfile.captionBottomPct === 'number' &&
+              savedFormatProfile.captionBottomPct >= 2
             ? savedFormatProfile.captionBottomPct
-            : typeof savedClientState?.overlayStyles?.captionBottomPct === 'number' &&
+            : !useMigrated16x9CaptionBottom10 &&
+              typeof savedClientState?.overlayStyles?.captionBottomPct === 'number' &&
               savedClientState.overlayStyles.captionBottomPct >= 2
             ? savedClientState.overlayStyles.captionBottomPct
-            : typeof capStyleCfg.bottomPct === 'number' && capStyleCfg.bottomPct >= 2
-            ? capStyleCfg.bottomPct
             : isVertical916
             ? 15.5
-            : 11;
+            : 10;
         const capMarginV = Math.round(outH * (reqBottomPct / 100));
         const capWideOffsetY = Math.max(2, Math.round(refShortSide * 0.004));
         const capTightOffsetY = Math.max(1, Math.round(refShortSide * 0.002));
