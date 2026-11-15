@@ -118,8 +118,8 @@ app.use((req, res, next) => {
   }
   next();
 });
-app.use(express.json({ limit: '200mb' }));
-app.use(express.urlencoded({ limit: '200mb', extended: true }));
+app.use(express.json({ limit: '500mb' }));
+app.use(express.urlencoded({ limit: '500mb', extended: true }));
 
 // Initialize Local Database Directories inside Huellas Master/data
 const DATA_DIR = path.join(process.cwd(), 'data');
@@ -4741,7 +4741,6 @@ const officialAssetsManager = createOfficialAssetsManager({
   dataDir: DATA_DIR,
   getFfmpegBin: () => resolveFfmpegBin(),
 });
-officialAssetsManager.init();
 
 async function upscaleMp4BufferTo4K(inputBuffer: Buffer): Promise<Buffer> {
   const tmpDir = os.tmpdir();
@@ -8633,6 +8632,10 @@ app.get('/api/assets/official-assets-status', async (_req, res) => {
   }
 });
 
+app.post('/api/assets/official-assets-rehydrate', (req, res) => {
+  void officialAssetsManager.handleRehydrate(req, res);
+});
+
 app.get('/api/assets/official-intro', (req, res) => {
   void officialAssetsManager.handleGetMetadata('intro', req, res);
 });
@@ -8804,8 +8807,80 @@ function probeIcloudDriveReadyAsync(icloudVideosDir: string): Promise<boolean> {
       }
     }
   } catch {}
-  const probeScript =
-    'const fs=require("fs");const base=process.argv[1];if(!fs.statSync(base).isDirectory())process.exit(1);const subs=JSON.parse(process.argv[2]||"[]");for(const s of subs){try{if(fs.statSync(s).isDirectory()){fs.readdirSync(s);process.stdout.write("{\\"ok\\":true}");process.exit(0);}}catch(e){if(e&&(e.code==="EPERM"||e.code==="EACCES"))process.exit(2);}}const e=fs.readdirSync(base);process.stdout.write(JSON.stringify(e));process.exit(0)';
+  const probeScript = [
+    'const fs=require("fs"),path=require("path");',
+    'const base=process.argv[1];',
+    'const subs=JSON.parse(process.argv[2]||"[]");',
+    'const checkErr=(e)=>{if(e&&(e.code==="EPERM"||e.code==="EACCES"))process.exit(2);};',
+    'let baseEntries=[];',
+    'try{if(!fs.statSync(base).isDirectory())process.exit(1);baseEntries=fs.readdirSync(base);}catch(e){checkErr(e);process.exit(1);}',
+    'const parentRaw=path.dirname(base);',
+    'let parentDir="";',
+    'for(const cand of [parentRaw,parentRaw.normalize("NFC"),parentRaw.normalize("NFD")]){try{if(fs.statSync(cand).isDirectory()){parentDir=cand;break;}}catch(e){checkErr(e);}}',
+    'let introOutroDir="";',
+    'if(parentDir){',
+    '  for(const rawName of ["Intro:Outro","Intro_Outro"]){',
+    '    for(const form of [rawName,rawName.normalize("NFC"),rawName.normalize("NFD")]){',
+    '      const p=path.join(parentDir,form);',
+    '      try{if(fs.statSync(p).isDirectory()){introOutroDir=p;break;}}catch(e){checkErr(e);}',
+    '    }',
+    '    if(introOutroDir)break;',
+    '  }',
+    '  if(!introOutroDir){',
+    '    try{',
+    '      for(const ent of fs.readdirSync(parentDir)){',
+    '        const norm=String(ent).normalize("NFC").toLowerCase();',
+    '        if(norm==="intro:outro"||norm==="intro_outro"){',
+    '          const p=path.join(parentDir,ent);',
+    '          if(fs.statSync(p).isDirectory()){introOutroDir=p;break;}',
+    '        }',
+    '      }',
+    '    }catch(e){checkErr(e);}',
+    '  }',
+    '}',
+    'if(introOutroDir){try{fs.readdirSync(introOutroDir);}catch(e){checkErr(e);process.exit(1);}}',
+    'let materializedFound=0,readVerified=false;',
+    'const tryProbeFile=(fp)=>{',
+    '  if(readVerified)return true;',
+    '  const bn=path.basename(fp);',
+    '  if(!bn||bn===".DS_Store"||bn.endsWith(".icloud"))return false;',
+    '  try{',
+    '    const st=fs.statSync(fp);',
+    '    if(!st.isFile()||st.size<=0)return false;',
+    '    if(typeof st.blocks==="number"&&st.blocks<=0)return false;',
+    '    materializedFound++;',
+    '    const fd=fs.openSync(fp,"r");',
+    '    const b=Buffer.alloc(16);',
+    '    const n=fs.readSync(fd,b,0,Math.min(16,st.size),0);',
+    '    fs.closeSync(fd);',
+    '    if(n>0){readVerified=true;return true;}',
+    '  }catch(e){checkErr(e);}',
+    '  return false;',
+    '};',
+    'const scanDirForFile=(dir,maxSub)=>{',
+    '  if(!dir||readVerified)return;',
+    '  let list=[];',
+    '  try{list=fs.readdirSync(dir);}catch(e){checkErr(e);return;}',
+    '  const subDirs=[];',
+    '  for(const item of list){',
+    '    if(readVerified)return;',
+    '    const full=path.join(dir,item);',
+    '    try{',
+    '      const st=fs.statSync(full);',
+    '      if(st.isFile())tryProbeFile(full);',
+    '      else if(maxSub>0&&st.isDirectory()&&!item.startsWith("."))subDirs.push(full);',
+    '    }catch(e){checkErr(e);}',
+    '  }',
+    '  for(const sd of subDirs.slice(0,4)){if(readVerified)return;scanDirForFile(sd,maxSub-1);}',
+    '};',
+    'if(introOutroDir)scanDirForFile(introOutroDir,0);',
+    'if(!readVerified&&parentDir)scanDirForFile(parentDir,0);',
+    'for(const s of subs){if(readVerified)break;scanDirForFile(s,1);}',
+    'for(const ent of baseEntries.slice(0,6)){if(readVerified)break;scanDirForFile(path.join(base,ent),1);}',
+    'if(materializedFound>0&&!readVerified)process.exit(3);',
+    'process.stdout.write(JSON.stringify(baseEntries));',
+    'process.exit(0);',
+  ].join('\n');
   icloudDriveProbePromise = new Promise<boolean>((resolve) => {
     let settled = false;
     const finish = (ok: boolean) => {
@@ -8827,7 +8902,7 @@ function probeIcloudDriveReadyAsync(icloudVideosDir: string): Promise<boolean> {
         try {
           proc.kill('SIGKILL');
         } catch {}
-      }, 2000);
+      }, 4500);
       proc.on('close', (code) => {
         clearTimeout(killTimer);
         if (code === 0) {
@@ -8839,9 +8914,15 @@ function probeIcloudDriveReadyAsync(icloudVideosDir: string): Promise<boolean> {
               cachedIcloudVideosEntriesAt = Date.now();
             }
           } catch {}
+          const wasVerified = icloudDriveVerifiedReady;
           icloudDriveVerifiedReady = true;
           icloudLastProbeFailed = false;
           icloudLastProbePermissionDenied = false;
+          if (!wasVerified) {
+            try {
+              officialAssetsManager.triggerRehydrate({ resetBackoff: true });
+            } catch {}
+          }
           setTimeout(() => {
             try {
               void runAutonomousClipsWatcherTick();
@@ -9888,7 +9969,11 @@ app.get('/api/flow/list-folder-media', async (req, res) => {
       clipPrompts,
       pending4kClipNumbers: Array.from(pending4kSet).sort((a, b) => a - b),
       pipelineStatus: activeClipsPipelineStatus,
-      icloudTccPending: !icloudDriveVerifiedReady && (icloudDriveProbeInFlight || icloudLastProbeFailed),
+      icloudDriveVerifiedReady: Boolean(icloudDriveVerifiedReady),
+      icloudProbeInFlight: Boolean(icloudDriveProbeInFlight),
+      icloudTccPending: process.platform === 'darwin' ? !icloudDriveVerifiedReady : false,
+      isLaunchdManaged:
+        process.ppid === 1 || String(process.env.XPC_SERVICE_NAME || '').includes('huellas-master'),
     });
   } catch (err: any) {
     res.json({
@@ -9903,6 +9988,11 @@ app.get('/api/flow/list-folder-media', async (req, res) => {
       localTtsFiles: [],
       pending4kClipNumbers: [],
       pipelineStatus: activeClipsPipelineStatus,
+      icloudDriveVerifiedReady: Boolean(icloudDriveVerifiedReady),
+      icloudProbeInFlight: Boolean(icloudDriveProbeInFlight),
+      icloudTccPending: process.platform === 'darwin' ? !icloudDriveVerifiedReady : false,
+      isLaunchdManaged:
+        process.ppid === 1 || String(process.env.XPC_SERVICE_NAME || '').includes('huellas-master'),
     });
   }
 });
@@ -10880,10 +10970,29 @@ function syncUpscaledClipsToDocumentariesJson(
 }
 
 app.get('/api/flow/process-clips-status', (_req, res) => {
+  if (process.platform === 'darwin' && !icloudDriveVerifiedReady && !icloudDriveProbeInFlight) {
+    const homeDir = process.env.HOME || process.env.USERPROFILE || '';
+    if (homeDir) {
+      const icloudVideosDir = path.join(
+        homeDir,
+        'Library',
+        'Mobile Documents',
+        'com~apple~CloudDocs',
+        '0YouTube',
+        'Huellas de la Humanidad',
+        'Videos'
+      );
+      void probeIcloudDriveReadyAsync(icloudVideosDir);
+    }
+  }
   res.json({
     ok: true,
     ...activeClipsPipelineStatus,
-    icloudTccPending: !icloudDriveVerifiedReady && (icloudDriveProbeInFlight || icloudLastProbeFailed),
+    icloudDriveVerifiedReady: Boolean(icloudDriveVerifiedReady),
+    icloudProbeInFlight: Boolean(icloudDriveProbeInFlight),
+    icloudTccPending: process.platform === 'darwin' ? !icloudDriveVerifiedReady : false,
+    isLaunchdManaged:
+      process.ppid === 1 || String(process.env.XPC_SERVICE_NAME || '').includes('huellas-master'),
   });
 });
 
@@ -22410,6 +22519,22 @@ async function bootstrap() {
   httpServer.listen(PORT, '0.0.0.0', () => {
     console.log(`Huellas Master running at http://localhost:${PORT}`);
     flowPcManager.attachServer(httpServer);
+    officialAssetsManager.init();
+    if (process.platform === 'darwin') {
+      const homeDir = process.env.HOME || process.env.USERPROFILE || '';
+      if (homeDir) {
+        const icloudVideosDir = path.join(
+          homeDir,
+          'Library',
+          'Mobile Documents',
+          'com~apple~CloudDocs',
+          '0YouTube',
+          'Huellas de la Humanidad',
+          'Videos'
+        );
+        void probeIcloudDriveReadyAsync(icloudVideosDir);
+      }
+    }
   });
 }
 

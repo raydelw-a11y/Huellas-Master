@@ -1411,7 +1411,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   // 2B. Permanent Official Intro Stinger Video (8s — Fixed across all documentaries)
   const [officialIntroUrl, setOfficialIntroUrl] = useState<string>('');
   const [officialIntroFileName, setOfficialIntroFileName] = useState<string>('');
+  const [officialOutroFileName, setOfficialOutroFileName] = useState<string>('');
   const [officialAssetsVersion, setOfficialAssetsVersion] = useState<number>(0);
+  const [officialIntroTier, setOfficialIntroTier] = useState<
+    'icloud_hydrated' | 'custom_uploaded' | 'fallback'
+  >('fallback');
+  const [officialOutroTier, setOfficialOutroTier] = useState<
+    'icloud_hydrated' | 'custom_uploaded' | 'fallback'
+  >('fallback');
   const [introPlacementMode, setIntroPlacementMode] = useState<'INTRO_POST_SLOGAN' | 'INTRO_INICIO_00'>(() => {
     return activeDoc?.promptConfig?.UBICACION_INTRO_MARCA === 'INTRO_POST_SLOGAN'
       ? 'INTRO_POST_SLOGAN'
@@ -3355,6 +3362,23 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const pendingOfficialAssetsVersionRef = useRef<number>(0);
   const officialVideoRetryTimersRef = useRef<Set<number>>(new Set());
   const fetchOfficialAssetsStatusRef = useRef<() => Promise<void>>(async () => {});
+  const appliedOfficialAssetsVersionRef = useRef<number>(officialAssetsVersion);
+  appliedOfficialAssetsVersionRef.current = officialAssetsVersion;
+  const activeClipBoundsRef = useRef<{ id: string; clipNumber: number; end: number } | null>(null);
+  const nextClipIdentityRef = useRef<{ id: string; clipNumber: number } | null>(null);
+  const lastOfficialRehydrateAtRef = useRef<number>(0);
+  const lastOfficialStatusPollAtRef = useRef<number>(0);
+  const latestOfficialAssetsStatusRef = useRef<{
+    loaded: boolean;
+    hydrating: boolean;
+    introTier: string;
+    outroTier: string;
+  }>({
+    loaded: false,
+    hydrating: false,
+    introTier: 'fallback',
+    outroTier: 'fallback',
+  });
   const isPlayingRef = useRef<boolean>(false);
   isPlayingRef.current = isPlaying;
 
@@ -4310,19 +4334,59 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     return null;
   };
 
+  const isOfficialClipIdentity = (
+    clip?: { id?: string | null; clipNumber?: number | null } | null
+  ): boolean =>
+    Boolean(
+      clip &&
+        (clip.id === 'fixed-doc-intro' ||
+          clip.id === 'fixed-doc-outro' ||
+          clip.clipNumber === 0 ||
+          clip.clipNumber === 999)
+    );
+
+  const clearOfficialDeckErrorRetries = () => {
+    const retryMap = deckErrorRetryRef.current;
+    for (const key of Object.keys(retryMap)) {
+      if (
+        key.startsWith('0:') ||
+        key.startsWith('999:') ||
+        isOfficialAssetMedia(key) ||
+        key.includes('official-intro') ||
+        key.includes('official-outro')
+      ) {
+        delete retryMap[key];
+      }
+    }
+    officialVideoRetryTimersRef.current.forEach((tid) => window.clearTimeout(tid));
+    officialVideoRetryTimersRef.current.clear();
+  };
+
   const applyOrDeferOfficialAssetsVersion = (nextVerRaw: unknown) => {
     const nextVer = Math.floor(Number(nextVerRaw) || 0);
     if (nextVer <= 0) return;
-    const playingIntroOrOutro =
-      isPlayingRef.current &&
-      (activePlayingClipIdRef.current === 'fixed-doc-intro' ||
-        activePlayingClipIdRef.current === 'fixed-doc-outro');
-    if (playingIntroOrOutro) {
+    const curClip = activeClipBoundsRef.current;
+    const nxtClip = nextClipIdentityRef.current;
+    const playingCurOfficial =
+      isOfficialClipIdentity(curClip) ||
+      activePlayingClipIdRef.current === 'fixed-doc-intro' ||
+      activePlayingClipIdRef.current === 'fixed-doc-outro';
+    const aboutToEnterOfficial =
+      isOfficialClipIdentity(nxtClip) &&
+      curClip !== null &&
+      curClip.end - currentTimeRef.current <= 1.5;
+    if (isPlayingRef.current && (playingCurOfficial || aboutToEnterOfficial)) {
       pendingOfficialAssetsVersionRef.current = nextVer;
       return;
     }
     pendingOfficialAssetsVersionRef.current = 0;
-    setOfficialAssetsVersion((prev) => (prev === nextVer ? prev : nextVer));
+    if (nextVer !== appliedOfficialAssetsVersionRef.current) {
+      if (nextVer > appliedOfficialAssetsVersionRef.current) {
+        clearOfficialDeckErrorRetries();
+      }
+      appliedOfficialAssetsVersionRef.current = nextVer;
+      setOfficialAssetsVersion((prev) => (prev === nextVer ? prev : nextVer));
+    }
   };
 
   // Cleanup any pending asset retry timers on unmount
@@ -4340,33 +4404,176 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     let pollTimer: number | null = null;
     let pollTicks = 0;
     let lastCheckedTier = '';
+    let statusRequestSeq = 0;
+    let latestAppliedStatusSeq = 0;
+    let rehydrateInFlight = false;
+    let mountRehydrateAttempted = false;
+
+    latestOfficialAssetsStatusRef.current = {
+      loaded: false,
+      hydrating: false,
+      introTier: 'fallback',
+      outroTier: 'fallback',
+    };
+
+    const normalizeOfficialTier = (
+      rawTier: unknown
+    ): 'icloud_hydrated' | 'custom_uploaded' | 'fallback' => {
+      const val = String(rawTier || '');
+      if (val === 'icloud_hydrated' || val === 'custom_uploaded') return val;
+      return 'fallback';
+    };
+
+    const isOfficialTierReady = (tier: string): boolean =>
+      tier === 'icloud_hydrated' || tier === 'custom_uploaded';
+
+    const needsMorePolling = (): boolean => {
+      const st = latestOfficialAssetsStatusRef.current;
+      return (
+        !st.loaded ||
+        st.hydrating ||
+        !isOfficialTierReady(st.introTier) ||
+        !isOfficialTierReady(st.outroTier)
+      );
+    };
+
+    const clearPollTimer = () => {
+      if (pollTimer !== null) {
+        window.clearTimeout(pollTimer);
+        pollTimer = null;
+      }
+    };
 
     const loadStatusOnce = async (): Promise<boolean> => {
+      const reqSeq = ++statusRequestSeq;
       const statusData = await fetchOfficialAssetsJson(
         '/api/assets/official-assets-status',
         undefined,
         ac.signal
       );
-      if (cancelled || !statusData) return false;
-      applyOrDeferOfficialAssetsVersion(statusData.version);
-      const introTier = String(statusData.intro?.tier || '');
-      const outroTier = String(statusData.outro?.tier || '');
+      if (cancelled) return false;
+      if (!statusData) {
+        return needsMorePolling();
+      }
+      if (reqSeq < latestAppliedStatusSeq) {
+        return needsMorePolling();
+      }
+      latestAppliedStatusSeq = reqSeq;
+
+      const introTier = normalizeOfficialTier(statusData.intro?.tier);
+      const outroTier = normalizeOfficialTier(statusData.outro?.tier);
       const hydrating = Boolean(statusData.intro?.hydrating || statusData.outro?.hydrating);
+      latestOfficialAssetsStatusRef.current = {
+        loaded: true,
+        hydrating,
+        introTier,
+        outroTier,
+      };
+      setOfficialIntroTier((prev) => (prev === introTier ? prev : introTier));
+      setOfficialOutroTier((prev) => (prev === outroTier ? prev : outroTier));
+      applyOrDeferOfficialAssetsVersion(statusData.version);
+
       const combinedTier = `${introTier}:${outroTier}`;
-      if (combinedTier !== lastCheckedTier && (introTier === 'icloud_hydrated' || introTier === 'custom_uploaded')) {
+      if (combinedTier !== lastCheckedTier) {
         lastCheckedTier = combinedTier;
-        const introMeta = await fetchOfficialAssetsJson('/api/assets/official-intro', undefined, ac.signal);
+        const introMeta = await fetchOfficialAssetsJson(
+          '/api/assets/official-intro',
+          undefined,
+          ac.signal
+        );
         if (!cancelled && introMeta?.hasIntro && introMeta?.introUrl) {
           setOfficialIntroUrl(introMeta.introUrl);
           setOfficialIntroFileName(introMeta.fileName || 'Intro_Oficial_Huellas_8s.mp4');
         }
       }
-      return hydrating || introTier === 'fallback' || outroTier === 'fallback';
+      return needsMorePolling();
+    };
+
+    const maybeTriggerRehydrate = async () => {
+      if (cancelled || rehydrateInFlight) return;
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+      const st = latestOfficialAssetsStatusRef.current;
+      if (st.loaded && isOfficialTierReady(st.introTier) && isOfficialTierReady(st.outroTier)) {
+        return;
+      }
+      if (st.introTier !== 'fallback' && st.outroTier !== 'fallback') return;
+      const now = Date.now();
+      if (now - lastOfficialRehydrateAtRef.current < 15_000) return;
+      lastOfficialRehydrateAtRef.current = now;
+      rehydrateInFlight = true;
+      try {
+        await fetchOfficialAssetsJson(
+          '/api/assets/official-assets-rehydrate',
+          { method: 'POST' },
+          ac.signal
+        );
+        if (!cancelled) {
+          await loadStatusOnce();
+        }
+      } finally {
+        rehydrateInFlight = false;
+      }
+    };
+
+    const scheduleNextPoll = () => {
+      clearPollTimer();
+      if (cancelled || !needsMorePolling()) return;
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+      const delayMs = pollTicks < 12 ? 4_000 : 12_000;
+      pollTimer = window.setTimeout(async () => {
+        pollTimer = null;
+        if (cancelled) return;
+        if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+        pollTicks += 1;
+        let stillNeedsPoll = await loadStatusOnce();
+        if (
+          !cancelled &&
+          !mountRehydrateAttempted &&
+          latestOfficialAssetsStatusRef.current.loaded
+        ) {
+          mountRehydrateAttempted = true;
+          const st = latestOfficialAssetsStatusRef.current;
+          if (st.introTier === 'fallback' || st.outroTier === 'fallback') {
+            await maybeTriggerRehydrate();
+            stillNeedsPoll = needsMorePolling();
+          }
+        }
+        if (!cancelled && stillNeedsPoll) {
+          scheduleNextPoll();
+        }
+      }, delayMs);
+    };
+
+    const handleVisibilityOrFocus = () => {
+      if (cancelled) return;
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+      if (!needsMorePolling()) return;
+      const now = Date.now();
+      if (now - lastOfficialStatusPollAtRef.current >= 1_500) {
+        lastOfficialStatusPollAtRef.current = now;
+        void (async () => {
+          await loadStatusOnce();
+          if (!cancelled) {
+            await maybeTriggerRehydrate();
+          }
+          if (!cancelled && needsMorePolling()) {
+            scheduleNextPoll();
+          }
+        })();
+      } else if (pollTimer === null) {
+        scheduleNextPoll();
+      }
     };
 
     fetchOfficialAssetsStatusRef.current = async () => {
       await loadStatusOnce();
+      if (!cancelled && needsMorePolling() && pollTimer === null) {
+        scheduleNextPoll();
+      }
     };
+
+    window.addEventListener('focus', handleVisibilityOrFocus);
+    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
 
     void fetchOfficialAssetsJson('/api/assets/official-logo', undefined, ac.signal).then((data) => {
       if (cancelled || !data?.logoDataUrl) return;
@@ -4383,33 +4590,27 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       setOfficialIntroFileName(data.fileName || 'Intro_Oficial_Huellas_8s.mp4');
     });
 
-    void loadStatusOnce().then((needsPoll) => {
-      if (cancelled || !needsPoll) return;
-      pollTimer = window.setInterval(() => {
-        if (cancelled) return;
-        pollTicks += 1;
-        if (pollTicks > 12) {
-          if (pollTimer !== null) {
-            window.clearInterval(pollTimer);
-            pollTimer = null;
-          }
-          return;
+    void (async () => {
+      lastOfficialStatusPollAtRef.current = Date.now();
+      await loadStatusOnce();
+      if (!cancelled && latestOfficialAssetsStatusRef.current.loaded) {
+        mountRehydrateAttempted = true;
+        const st = latestOfficialAssetsStatusRef.current;
+        if (st.introTier === 'fallback' || st.outroTier === 'fallback') {
+          await maybeTriggerRehydrate();
         }
-        void loadStatusOnce().then((stillNeedsPoll) => {
-          if (!stillNeedsPoll && pollTimer !== null) {
-            window.clearInterval(pollTimer);
-            pollTimer = null;
-          }
-        });
-      }, 5000);
-    });
+      }
+      if (!cancelled && needsMorePolling()) {
+        scheduleNextPoll();
+      }
+    })();
 
     return () => {
       cancelled = true;
       ac.abort();
-      if (pollTimer !== null) {
-        window.clearInterval(pollTimer);
-      }
+      clearPollTimer();
+      window.removeEventListener('focus', handleVisibilityOrFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
     };
   }, [mediaBridgeGen]);
 
@@ -4451,8 +4652,16 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         if (data?.ok && data.introUrl) {
           setOfficialIntroUrl(data.introUrl);
           setOfficialIntroFileName(file.name);
+          setOfficialIntroTier('custom_uploaded');
+          latestOfficialAssetsStatusRef.current = {
+            ...latestOfficialAssetsStatusRef.current,
+            loaded: true,
+            introTier: 'custom_uploaded',
+          };
           const nextVer = Math.floor(Number(data.version) || Date.now());
           pendingOfficialAssetsVersionRef.current = 0;
+          clearOfficialDeckErrorRetries();
+          appliedOfficialAssetsVersionRef.current = nextVer;
           setOfficialAssetsVersion(nextVer);
           setStatusMessage(
             `✅ Video de Intro Oficial "${file.name}" (4s) guardado permanentemente para todos tus documentales.`
@@ -4464,6 +4673,42 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       setOfficialIntroUrl(blobUrl);
       setOfficialIntroFileName(file.name);
       setStatusMessage(`✅ Video de Intro Oficial "${file.name}" cargado.`);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Save permanent official Outro video (One-time upload for all documentaries)
+  const handleUploadPermanentOutro = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const dataUrl = typeof reader.result === 'string' ? reader.result : '';
+      if (!dataUrl) return;
+      try {
+        const data = await fetchOfficialAssetsJson('/api/assets/official-outro', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ videoDataUrl: dataUrl, fileName: file.name }),
+        });
+        if (data?.ok) {
+          setOfficialOutroFileName(file.name);
+          setOfficialOutroTier('custom_uploaded');
+          latestOfficialAssetsStatusRef.current = {
+            ...latestOfficialAssetsStatusRef.current,
+            loaded: true,
+            outroTier: 'custom_uploaded',
+          };
+          const nextVer = Math.floor(Number(data.version) || Date.now());
+          pendingOfficialAssetsVersionRef.current = 0;
+          clearOfficialDeckErrorRetries();
+          appliedOfficialAssetsVersionRef.current = nextVer;
+          setOfficialAssetsVersion(nextVer);
+          setStatusMessage(
+            `✅ Video de Outro Oficial "${file.name}" guardado permanentemente para todos tus documentales.`
+          );
+          return;
+        }
+      } catch {}
+      setStatusMessage(`❌ No se pudo guardar el Outro Oficial "${file.name}". Verifica la conexión local.`);
     };
     reader.readAsDataURL(file);
   };
@@ -5046,13 +5291,15 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         ? rewriteMediaBridgeUrl(appendOfficialAssetVersion(officialIntroUrl, officialAssetsVersion))
         : '') || introVideoUrl;
     const resolvedIntroPosterUrl =
-      rewriteMediaBridgeUrl(firstFrameByClip[0] || '') ||
-      introPosterUrl ||
+      (officialIntroTier !== 'fallback'
+        ? introPosterUrl || rewriteMediaBridgeUrl(firstFrameByClip[0] || '')
+        : rewriteMediaBridgeUrl(firstFrameByClip[0] || '') || introPosterUrl) ||
       officialLogoUrl ||
       undefined;
     const resolvedOutroPosterUrl =
-      rewriteMediaBridgeUrl(firstFrameByClip[999] || '') ||
-      outroPosterUrl ||
+      (officialOutroTier !== 'fallback'
+        ? outroPosterUrl || rewriteMediaBridgeUrl(firstFrameByClip[999] || '')
+        : rewriteMediaBridgeUrl(firstFrameByClip[999] || '') || outroPosterUrl) ||
       officialLogoUrl ||
       undefined;
 
@@ -6231,6 +6478,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     sloganSplitAudioSec,
     officialIntroUrl,
     officialAssetsVersion,
+    officialIntroTier,
+    officialOutroTier,
     mediaBridgeGen,
   ]);
 
@@ -7961,6 +8210,20 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     return null;
   }, [clipsWithTimelineBounds, activeClipAtPlayhead?.id]);
 
+  activeClipBoundsRef.current = activeClipAtPlayhead
+    ? {
+        id: activeClipAtPlayhead.id,
+        clipNumber: activeClipAtPlayhead.clipNumber,
+        end: activeClipAtPlayhead.end,
+      }
+    : null;
+  nextClipIdentityRef.current = nextClipAtPlayhead
+    ? {
+        id: nextClipAtPlayhead.id,
+        clipNumber: nextClipAtPlayhead.clipNumber,
+      }
+    : null;
+
   const getClipEffectiveVideoUrl = (
     clip?: {
       videoUrl?: string;
@@ -8041,20 +8304,25 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     const pendingVer = pendingOfficialAssetsVersionRef.current;
     if (!pendingVer || pendingVer === officialAssetsVersion) return;
     const isCurrentIntroOrOutro = activeClipAtPlayhead
-      ? activeClipAtPlayhead.id === 'fixed-doc-intro' ||
-        activeClipAtPlayhead.id === 'fixed-doc-outro' ||
-        activeClipAtPlayhead.clipNumber === 0 ||
-        activeClipAtPlayhead.clipNumber === 999
+      ? isOfficialClipIdentity(activeClipAtPlayhead)
       : activePlayingClipIdRef.current === 'fixed-doc-intro' ||
         activePlayingClipIdRef.current === 'fixed-doc-outro';
-    if (!isPlaying || !isCurrentIntroOrOutro) {
+    const isAboutToEnterIntroOrOutro =
+      isOfficialClipIdentity(nextClipAtPlayhead) &&
+      activeClipAtPlayhead !== null &&
+      activeClipAtPlayhead.end - currentTimeRef.current <= 1.5;
+    if (!isPlaying || (!isCurrentIntroOrOutro && !isAboutToEnterIntroOrOutro)) {
       pendingOfficialAssetsVersionRef.current = 0;
+      clearOfficialDeckErrorRetries();
+      appliedOfficialAssetsVersionRef.current = pendingVer;
       setOfficialAssetsVersion(pendingVer);
     }
   }, [
     isPlaying,
     activeClipAtPlayhead?.id,
     activeClipAtPlayhead?.clipNumber,
+    nextClipAtPlayhead?.id,
+    nextClipAtPlayhead?.clipNumber,
     officialAssetsVersion,
   ]);
 
@@ -16709,9 +16977,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                         🎬 Intro Oficial de Marca (8s — Intro.mp4 • Minimalismo en Piedra y Oro)
                       </div>
                       <div className="text-[10px] text-slate-400">
-                        {officialIntroUrl
-                          ? `✅ Guardado permanente: ${officialIntroFileName || 'Intro.mp4 (8s)'}`
-                          : 'Vinculado automáticamente a Intro.mp4 (8s, 8K) con Fade In/Out de audio.'}
+                        {officialIntroTier === 'icloud_hydrated' || officialIntroTier === 'custom_uploaded'
+                          ? `✅ Hidratado desde iCloud / Guardado en SSD: ${officialIntroFileName || 'Intro.mp4 (8s)'}`
+                          : '⏳ En espera de permiso iCloud de macOS (usando fallback) — o súbelo 1 vez aquí'}
                       </div>
                     </div>
                     <label className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-[11px] cursor-pointer shrink-0">
@@ -16782,6 +17050,35 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     >
                       📋 Copiar Prompt Clip Intro (8s)
                     </button>
+                  </div>
+
+                  {/* PERMANENT OFFICIAL OUTRO ("Outro.mp4") */}
+                  <div className="mt-2 pt-2 border-t border-slate-800/90 flex items-center justify-between gap-2 flex-wrap">
+                    <div>
+                      <div className="font-bold text-amber-300 text-[11px]">
+                        🎬 Outro Oficial de Marca (Outro.mp4)
+                      </div>
+                      <div className="text-[10px] text-slate-400">
+                        {officialOutroTier === 'icloud_hydrated' || officialOutroTier === 'custom_uploaded'
+                          ? `✅ Hidratado desde iCloud / Guardado en SSD: ${officialOutroFileName || 'Outro.mp4'}`
+                          : '⏳ En espera de permiso iCloud de macOS (usando fallback) — o súbelo 1 vez aquí'}
+                      </div>
+                    </div>
+                    <label className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-[11px] cursor-pointer shrink-0">
+                      {officialOutroTier === 'icloud_hydrated' || officialOutroTier === 'custom_uploaded'
+                        ? '🔄 Cambiar Outro (.MP4)'
+                        : '📤 Subir Outro Oficial (.MP4)'}
+                      <input
+                        type="file"
+                        accept="video/mp4,video/webm,video/quicktime,video/*"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleUploadPermanentOutro(file);
+                          e.target.value = '';
+                        }}
+                        className="hidden"
+                      />
+                    </label>
                   </div>
                 </div>
 

@@ -273,15 +273,263 @@ export function mayBeOfficialIntroOutroIcloudPath(
     outro: /^\.?outro[_-]poster\.(?:jpg|jpeg|png|webp)$/i,
   };
   const videoRegexByKind = {
-    intro: /^\.?intro(?:[_-][a-z0-9]+)?\.(?:mp4|mov|m4v|webm)$/i,
-    outro: /^\.?outro(?:[_-][a-z0-9]+)?\.(?:mp4|mov|m4v|webm)$/i,
+    intro: /^\.?intro(?:[_ -][a-z0-9_ -]+)?\.(?:mp4|mov|m4v|webm)$/i,
+    outro: /^\.?outro(?:[_ -][a-z0-9_ -]+)?\.(?:mp4|mov|m4v|webm)$/i,
   };
   if (posterRegexByKind.intro.test(base)) return { kind: 'intro', mediaType: 'poster' };
-  if (videoRegexByKind.intro.test(base)) return { kind: 'intro', mediaType: 'video' };
+  if (videoRegexByKind.intro.test(base) || /^00[_ -]?intro/i.test(base)) {
+    return { kind: 'intro', mediaType: 'video' };
+  }
   if (posterRegexByKind.outro.test(base)) return { kind: 'outro', mediaType: 'poster' };
   if (videoRegexByKind.outro.test(base)) return { kind: 'outro', mediaType: 'video' };
   return null;
 }
+
+export const isIntroOutroIcloudPath = mayBeOfficialIntroOutroIcloudPath;
+
+interface DiscoveredIcloudCandidate {
+  logicalName: string;
+  fullPath: string;
+  size: number;
+  mtimeMs: number;
+  materialized: boolean;
+  isEvictedStub: boolean;
+}
+
+interface DiscoveredKindSources {
+  poster: DiscoveredIcloudCandidate | null;
+  webPreview: DiscoveredIcloudCandidate | null;
+  master: DiscoveredIcloudCandidate | null;
+}
+
+interface DiscoverIntroOutroResult {
+  ok: boolean;
+  resolvedDir: string;
+  intro: DiscoveredKindSources;
+  outro: DiscoveredKindSources;
+  error?: string;
+}
+
+const DISCOVER_INTRO_OUTRO_SCRIPT = [
+  'const fs = require("fs");',
+  'const path = require("path");',
+  'const { spawn } = require("child_process");',
+  'const rawTarget = String(process.argv[1] || "");',
+  'function kickBrctl(p) {',
+  '  if (process.platform !== "darwin" || !p) return;',
+  '  try {',
+  '    const c = spawn("/usr/bin/brctl", ["download", p], { detached: true, stdio: "ignore" });',
+  '    c.on("error", () => {});',
+  '    c.unref();',
+  '  } catch {}',
+  '}',
+  'function resolveTargetDir(target) {',
+  '  const direct = [target, target.normalize("NFC"), target.normalize("NFD")];',
+  '  for (const cand of direct) {',
+  '    if (!cand) continue;',
+  '    try {',
+  '      if (fs.statSync(cand).isDirectory()) return cand;',
+  '    } catch {}',
+  '  }',
+  '  const parentRaw = path.dirname(target);',
+  '  for (const pCand of [parentRaw, parentRaw.normalize("NFC"), parentRaw.normalize("NFD")]) {',
+  '    try {',
+  '      if (!fs.statSync(pCand).isDirectory()) continue;',
+  '      const entries = fs.readdirSync(pCand);',
+  '      for (const e of entries) {',
+  '        const norm = String(e || "").normalize("NFC").toLowerCase();',
+  '        if (norm === "intro:outro" || norm === "intro_outro" || norm === "intro-outro") {',
+  '          const full = path.join(pCand, e);',
+  '          try { if (fs.statSync(full).isDirectory()) return full; } catch {}',
+  '        }',
+  '      }',
+  '    } catch {}',
+  '  }',
+  '  return "";',
+  '}',
+  'try {',
+  '  const resolvedDir = resolveTargetDir(rawTarget);',
+  '  if (!resolvedDir) {',
+  '    process.stdout.write(JSON.stringify({ ok: false, resolvedDir: "", error: "ICLOUD_DIR_NOT_AVAILABLE" }));',
+  '    process.exit(0);',
+  '  }',
+  '  const rawEntries = fs.readdirSync(resolvedDir);',
+  '  const byLogical = new Map();',
+  '  for (const entry of rawEntries) {',
+  '    if (!entry || entry === ".DS_Store") continue;',
+  '    const stubMatch = entry.match(/^\\.(.+)\\.icloud$/i);',
+  '    if (stubMatch) {',
+  '      const logicalName = stubMatch[1];',
+  '      const key = logicalName.normalize("NFC");',
+  '      if (!byLogical.has(key)) {',
+  '        byLogical.set(key, {',
+  '          logicalName,',
+  '          fullPath: path.join(resolvedDir, logicalName),',
+  '          size: 0,',
+  '          mtimeMs: 0,',
+  '          materialized: false,',
+  '          isEvictedStub: true,',
+  '        });',
+  '      }',
+  '      continue;',
+  '    }',
+  '    const fullPath = path.join(resolvedDir, entry);',
+  '    try {',
+  '      const st = fs.statSync(fullPath);',
+  '      if (!st.isFile()) continue;',
+  '      const blocks = typeof st.blocks === "number" ? st.blocks : 1;',
+  '      const materialized = st.size > 0 && blocks > 0;',
+  '      const key = entry.normalize("NFC");',
+  '      byLogical.set(key, {',
+  '        logicalName: entry,',
+  '        fullPath,',
+  '        size: Number(st.size || 0),',
+  '        mtimeMs: Number(st.mtimeMs || 0),',
+  '        materialized,',
+  '        isEvictedStub: false,',
+  '      });',
+  '    } catch {}',
+  '  }',
+  '  const items = Array.from(byLogical.values());',
+  '  function pickForKind(kind) {',
+  '    const posterRe = new RegExp("^\\\\.?" + kind + "[_ -]?poster\\\\.(?:jpg|jpeg|png|webp)$", "i");',
+  '    const webRe = new RegExp("^\\\\.?" + kind + "[_ -]?webpreview\\\\.(?:mp4|mov|m4v)$", "i");',
+  '    const exactMasterRe = new RegExp("^" + kind + "\\\\.(?:mp4|mov|m4v)$", "i");',
+  '    const flexMasterRe = new RegExp("^(?:00[_ -]?)?" + kind + "(?![_ -]?webpreview)(?!.*fallback).*\\\\.(?:mp4|mov|m4v)$", "i");',
+  '    const dotMasterRe = new RegExp("^\\\\." + kind + "(?![_ -]?webpreview)(?!.*fallback).*\\\\.(?:mp4|mov|m4v)$", "i");',
+  '    const sortBest = (arr, exactTest) => arr.sort((a, b) => {',
+  '      if (a.materialized !== b.materialized) return a.materialized ? -1 : 1;',
+  '      const aEx = exactTest ? (exactTest(a.logicalName.normalize("NFC")) ? 1 : 0) : 0;',
+  '      const bEx = exactTest ? (exactTest(b.logicalName.normalize("NFC")) ? 1 : 0) : 0;',
+  '      if (aEx !== bEx) return bEx - aEx;',
+  '      if (b.size !== a.size) return b.size - a.size;',
+  '      return b.mtimeMs - a.mtimeMs;',
+  '    })[0] || null;',
+  '    const posters = items.filter((it) => posterRe.test(it.logicalName.normalize("NFC")));',
+  '    const webs = items.filter((it) => webRe.test(it.logicalName.normalize("NFC")));',
+  '    const masters = items.filter((it) => {',
+  '      const n = it.logicalName.normalize("NFC");',
+  '      return exactMasterRe.test(n) || flexMasterRe.test(n) || dotMasterRe.test(n);',
+  '    });',
+  '    const poster = sortBest(posters, (n) => n.startsWith("."));',
+  '    const webPreview = sortBest(webs, (n) => n.startsWith("."));',
+  '    const master = sortBest(masters, (n) => exactMasterRe.test(n));',
+  '    for (const c of [poster, webPreview, master]) {',
+  '      if (c && !c.materialized) kickBrctl(c.fullPath);',
+  '    }',
+  '    return { poster, webPreview, master };',
+  '  }',
+  '  process.stdout.write(JSON.stringify({',
+  '    ok: true,',
+  '    resolvedDir,',
+  '    intro: pickForKind("intro"),',
+  '    outro: pickForKind("outro"),',
+  '  }));',
+  '  process.exit(0);',
+  '} catch (e) {',
+  '  process.stderr.write(String((e && e.code) || (e && e.message) || "DISCOVER_ERR"));',
+  '  process.exit(2);',
+  '}',
+].join('\n');
+
+const CHUNKED_COPY_FROM_ICLOUD_SCRIPT = [
+  'const fs = require("fs");',
+  'const path = require("path");',
+  'const { spawn } = require("child_process");',
+  'const src = process.argv[1];',
+  'const dst = process.argv[2];',
+  'const minBytes = Math.max(1, Number(process.argv[3] || 512));',
+  'const mediaType = String(process.argv[4] || "video");',
+  'function kickBrctl(p) {',
+  '  if (process.platform !== "darwin" || !p) return;',
+  '  try {',
+  '    const c = spawn("/usr/bin/brctl", ["download", p], { detached: true, stdio: "ignore" });',
+  '    c.on("error", () => {});',
+  '    c.unref();',
+  '  } catch {}',
+  '}',
+  'function sleepMs(ms) {',
+  '  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);',
+  '}',
+  'function hasValidMagic(hdr, n, kind) {',
+  '  if (n < 12) return false;',
+  '  if (kind === "image") {',
+  '    const isJpg = hdr[0] === 0xff && hdr[1] === 0xd8 && hdr[2] === 0xff;',
+  '    const isPng = hdr[0] === 0x89 && hdr[1] === 0x50 && hdr[2] === 0x4e && hdr[3] === 0x47;',
+  '    const isWebp = hdr.subarray(0, 4).toString("ascii") === "RIFF" && hdr.subarray(8, 12).toString("ascii") === "WEBP";',
+  '    return isJpg || isPng || isWebp;',
+  '  }',
+  '  const slice = hdr.subarray(0, Math.min(n, 32));',
+  '  if (slice.includes(Buffer.from("ftyp"))) return true;',
+  '  if (hdr[0] === 0x1a && hdr[1] === 0x45 && hdr[2] === 0xdf && hdr[3] === 0xa3) return true;',
+  '  return false;',
+  '}',
+  'let fdIn = -1;',
+  'let fdOut = -1;',
+  'try {',
+  '  try {',
+  '    const preSt = fs.statSync(src);',
+  '    if (typeof preSt.blocks === "number" && preSt.blocks === 0) kickBrctl(src);',
+  '  } catch {',
+  '    kickBrctl(src);',
+  '  }',
+  '  const deadline = Date.now() + 70000;',
+  '  while (true) {',
+  '    try {',
+  '      fdIn = fs.openSync(src, "r");',
+  '      break;',
+  '    } catch (openErr) {',
+  '      if (openErr && openErr.code === "ENOENT" && Date.now() < deadline) {',
+  '        const stubPath = path.join(path.dirname(src), "." + path.basename(src) + ".icloud");',
+  '        if (fs.existsSync(stubPath)) {',
+  '          kickBrctl(src);',
+  '          sleepMs(400);',
+  '          continue;',
+  '        }',
+  '      }',
+  '      throw openErr;',
+  '    }',
+  '  }',
+  '  const st = fs.fstatSync(fdIn);',
+  '  if (!st.isFile()) throw new Error("NOT_REGULAR_FILE");',
+  '  fdOut = fs.openSync(dst, "w");',
+  '  const chunkBuf = Buffer.allocUnsafe(1024 * 1024);',
+  '  const hdr = Buffer.alloc(32);',
+  '  let hdrLen = 0;',
+  '  let bytesCopied = 0;',
+  '  while (true) {',
+  '    const n = fs.readSync(fdIn, chunkBuf, 0, chunkBuf.length, bytesCopied);',
+  '    if (n <= 0) break;',
+  '    if (hdrLen < 32) {',
+  '      const take = Math.min(32 - hdrLen, n);',
+  '      chunkBuf.copy(hdr, hdrLen, 0, take);',
+  '      hdrLen += take;',
+  '    }',
+  '    let written = 0;',
+  '    while (written < n) {',
+  '      written += fs.writeSync(fdOut, chunkBuf, written, n - written);',
+  '    }',
+  '    bytesCopied += n;',
+  '  }',
+  '  if (bytesCopied < minBytes || (st.size > 0 && bytesCopied !== st.size)) {',
+  '    throw new Error("INCOMPLETE_COPY_" + bytesCopied + "_OF_" + st.size);',
+  '  }',
+  '  if (!hasValidMagic(hdr, hdrLen, mediaType)) {',
+  '    throw new Error("INVALID_MEDIA_MAGIC_" + mediaType.toUpperCase());',
+  '  }',
+  '  fs.fsyncSync(fdOut);',
+  '  fs.closeSync(fdOut); fdOut = -1;',
+  '  fs.closeSync(fdIn); fdIn = -1;',
+  '  process.stdout.write(JSON.stringify({ ok: true, size: bytesCopied, mtimeMs: st.mtimeMs }));',
+  '  process.exit(0);',
+  '} catch (err) {',
+  '  try { if (fdOut >= 0) fs.closeSync(fdOut); } catch {}',
+  '  try { if (fdIn >= 0) fs.closeSync(fdIn); } catch {}',
+  '  try { if (fs.existsSync(dst)) fs.unlinkSync(dst); } catch {}',
+  '  process.stderr.write(String((err && err.code) || (err && err.message) || "CHUNK_COPY_ERR"));',
+  '  process.exit(3);',
+  '}',
+].join('\n');
 
 // ============================================================================
 // INTERNAL HELPERS (BOUNDED SUBPROCESSES, SILENT WAV, ATOMIC WRITE)
@@ -487,7 +735,31 @@ export function createOfficialAssetsManager(options: OfficialAssetsManagerOption
   let legacyIntroChecked = false;
   let retryTimer: ReturnType<typeof setTimeout> | null = null;
   let retryStepIdx = 0;
-  const BACKOFF_STEPS_MS = [5_000, 15_000, 45_000, 120_000];
+  let manifestSaveChain: Promise<void> = Promise.resolve();
+  let inFlightDiscoveryPromise: Promise<DiscoverIntroOutroResult> | null = null;
+  let lastDiscoveryCache: { expiresAt: number; result: DiscoverIntroOutroResult } | null = null;
+  const BACKOFF_STEPS_MS = [3_000, 8_000, 15_000, 30_000, 60_000];
+
+  function nextMonotonicVersion(candidateMs?: number): number {
+    const cand =
+      typeof candidateMs === 'number' && Number.isFinite(candidateMs) && candidateMs > 0
+        ? Math.floor(candidateMs)
+        : 0;
+    return Math.max(
+      Date.now(),
+      cand,
+      (Number(manifest.intro.version) || 0) + 1,
+      (Number(manifest.outro.version) || 0) + 1
+    );
+  }
+
+  function fileNonEmptySyncLocal(filePath: string, minBytes = 512): fs.Stats | null {
+    try {
+      const st = fs.statSync(filePath);
+      if (st.isFile() && st.size >= minBytes) return st;
+    } catch {}
+    return null;
+  }
 
   function loadManifestSyncSafe(): void {
     try {
@@ -509,12 +781,35 @@ export function createOfficialAssetsManager(options: OfficialAssetsManagerOption
   }
   loadManifestSyncSafe();
 
-  async function saveManifest(): Promise<void> {
+  function saveManifest(): Promise<void> {
+    const snapshot: OfficialAssetsManifest = {
+      intro: { ...manifest.intro },
+      outro: { ...manifest.outro },
+    };
+    manifestSaveChain = manifestSaveChain
+      .catch(() => {})
+      .then(async () => {
+        try {
+          await writeJsonAtomicAsync(manifestPath, snapshot);
+        } catch (err) {
+          console.warn('[OfficialAssets] Warning saving manifest:', err);
+        }
+      });
+    return manifestSaveChain;
+  }
+
+  async function cleanupOrphanStagingFiles(): Promise<void> {
     try {
-      await writeJsonAtomicAsync(manifestPath, manifest);
-    } catch (err) {
-      console.warn('[OfficialAssets] Warning saving manifest:', err);
-    }
+      await fsp.mkdir(stagingDir, { recursive: true });
+      const entries = await fsp.readdir(stagingDir).catch(() => [] as string[]);
+      await Promise.all(
+        entries.map(async (name) => {
+          if (!name || name === 'silence_8s.wav') return;
+          const full = path.join(stagingDir, name);
+          await fsp.rm(full, { recursive: true, force: true }).catch(() => {});
+        })
+      );
+    } catch {}
   }
 
   async function readLogoBufferLocalOnly(): Promise<Buffer> {
@@ -567,7 +862,7 @@ export function createOfficialAssetsManager(options: OfficialAssetsManagerOption
         await buildWebAndPosterFromLocalMaster('intro', introP.customMp4, true);
         manifest.intro = {
           tier: 'custom_uploaded',
-          version: Math.floor(legacySt.mtimeMs) || Date.now(),
+          version: nextMonotonicVersion(legacySt.mtimeMs),
           updatedAt: new Date().toISOString(),
           fileName,
           hasRealPoster: true,
@@ -738,7 +1033,7 @@ export function createOfficialAssetsManager(options: OfficialAssetsManagerOption
             manifest[kind].tier = (await fileNonEmptyAsync(p.customMp4, 1024))
               ? 'custom_uploaded'
               : 'icloud_hydrated';
-            manifest[kind].version = Math.floor(webSt?.mtimeMs || Date.now());
+            manifest[kind].version = nextMonotonicVersion(webSt?.mtimeMs);
             manifestDirty = true;
           } else if (!hasWeb && manifest[kind].tier !== 'fallback') {
             manifest[kind].tier = 'fallback';
@@ -858,51 +1153,232 @@ export function createOfficialAssetsManager(options: OfficialAssetsManagerOption
     }
   }
 
-  async function copyFromIcloudBounded(
-    sourcePath: string,
-    destPath: string,
-    probeTimeoutMs: number,
-    cpTimeoutMs: number,
-    minSizeBytes: number
-  ): Promise<{ ok: boolean; size: number; mtimeMs: number; error?: string }> {
-    const probe = await probeFileReadableBounded(sourcePath, probeTimeoutMs, 3_500);
-    if (!probe.ok || probe.size < minSizeBytes) {
-      kickIcloudDownloadDetached(sourcePath);
-      return {
+  function discoverIntroOutroSourcesBounded(
+    targetDir: string,
+    timeoutMs = 8_000
+  ): Promise<DiscoverIntroOutroResult> {
+    const emptyKind = (): DiscoveredKindSources => ({
+      poster: null,
+      webPreview: null,
+      master: null,
+    });
+    if (!targetDir) {
+      return Promise.resolve({
         ok: false,
-        size: 0,
-        mtimeMs: 0,
-        error: probe.error || 'ICLOUD_SOURCE_UNREADABLE',
+        resolvedDir: '',
+        intro: emptyKind(),
+        outro: emptyKind(),
+        error: 'EMPTY_ICLOUD_DIR',
+      });
+    }
+    const now = Date.now();
+    if (lastDiscoveryCache && lastDiscoveryCache.expiresAt > now) {
+      return Promise.resolve(lastDiscoveryCache.result);
+    }
+    if (inFlightDiscoveryPromise) return inFlightDiscoveryPromise;
+
+    const promise = new Promise<DiscoverIntroOutroResult>((resolve) => {
+      let settled = false;
+      let timedOut = false;
+      let stdout = '';
+      let stderr = '';
+      const finish = (res: DiscoverIntroOutroResult) => {
+        if (settled) return;
+        settled = true;
+        inFlightDiscoveryPromise = null;
+        if (res.ok) {
+          lastDiscoveryCache = { expiresAt: Date.now() + 2_000, result: res };
+        }
+        resolve(res);
       };
+      try {
+        const child = spawn(
+          process.execPath,
+          ['-e', DISCOVER_INTRO_OUTRO_SCRIPT, path.resolve(targetDir)],
+          { stdio: ['ignore', 'pipe', 'pipe'] }
+        );
+        const timer = setTimeout(() => {
+          timedOut = true;
+          try {
+            child.kill('SIGKILL');
+          } catch {}
+        }, Math.max(1_500, timeoutMs));
+        child.stdout?.on('data', (chunk) => {
+          stdout += chunk.toString();
+        });
+        child.stderr?.on('data', (chunk) => {
+          if (stderr.length < 8_192) stderr += chunk.toString();
+        });
+        child.on('error', (err) => {
+          clearTimeout(timer);
+          finish({
+            ok: false,
+            resolvedDir: '',
+            intro: emptyKind(),
+            outro: emptyKind(),
+            error: err.message || 'DISCOVER_SPAWN_ERR',
+          });
+        });
+        child.on('close', (code) => {
+          clearTimeout(timer);
+          if (timedOut) {
+            finish({
+              ok: false,
+              resolvedDir: '',
+              intro: emptyKind(),
+              outro: emptyKind(),
+              error: `DISCOVER_TIMEOUT_${timeoutMs}MS`,
+            });
+            return;
+          }
+          if (code === 0 && stdout.trim()) {
+            try {
+              const parsed = JSON.parse(stdout.trim());
+              if (parsed && typeof parsed === 'object') {
+                finish({
+                  ok: Boolean(parsed.ok),
+                  resolvedDir: String(parsed.resolvedDir || ''),
+                  intro: parsed.intro || emptyKind(),
+                  outro: parsed.outro || emptyKind(),
+                  error: parsed.error ? String(parsed.error) : undefined,
+                });
+                return;
+              }
+            } catch {}
+          }
+          finish({
+            ok: false,
+            resolvedDir: '',
+            intro: emptyKind(),
+            outro: emptyKind(),
+            error: stderr.trim() || `DISCOVER_EXIT_${code}`,
+          });
+        });
+      } catch (err: any) {
+        finish({
+          ok: false,
+          resolvedDir: '',
+          intro: emptyKind(),
+          outro: emptyKind(),
+          error: err?.message || 'DISCOVER_EXCEPTION',
+        });
+      }
+    });
+
+    inFlightDiscoveryPromise = promise;
+    return promise;
+  }
+
+  async function copyFromIcloudSubprocessChunked(
+    sourcePath: string,
+    destTempPath: string,
+    timeoutMs: number,
+    minSizeBytes: number,
+    expectedMediaType: 'video' | 'image'
+  ): Promise<{ ok: boolean; size: number; mtimeMs: number; error?: string }> {
+    if (!sourcePath) {
+      return { ok: false, size: 0, mtimeMs: 0, error: 'EMPTY_SOURCE_PATH' };
+    }
+    await fsp.mkdir(path.dirname(destTempPath), { recursive: true });
+
+    const res = await new Promise<{ ok: boolean; size: number; mtimeMs: number; error?: string }>(
+      (resolve) => {
+        let settled = false;
+        let timedOut = false;
+        let stdout = '';
+        let stderr = '';
+        const budget = Math.max(5_000, timeoutMs);
+        const finish = (out: { ok: boolean; size: number; mtimeMs: number; error?: string }) => {
+          if (settled) return;
+          settled = true;
+          resolve(out);
+        };
+        try {
+          const child = spawn(
+            process.execPath,
+            [
+              '-e',
+              CHUNKED_COPY_FROM_ICLOUD_SCRIPT,
+              path.resolve(sourcePath),
+              path.resolve(destTempPath),
+              String(Math.max(1, minSizeBytes)),
+              expectedMediaType,
+            ],
+            { stdio: ['ignore', 'pipe', 'pipe'] }
+          );
+          const timer = setTimeout(() => {
+            timedOut = true;
+            try {
+              child.kill('SIGKILL');
+            } catch {}
+          }, budget);
+          child.stdout?.on('data', (chunk) => {
+            stdout += chunk.toString();
+          });
+          child.stderr?.on('data', (chunk) => {
+            if (stderr.length < 8_192) stderr += chunk.toString();
+          });
+          child.on('error', (err) => {
+            clearTimeout(timer);
+            finish({
+              ok: false,
+              size: 0,
+              mtimeMs: 0,
+              error: err.message || 'COPY_SPAWN_ERROR',
+            });
+          });
+          child.on('close', (code) => {
+            clearTimeout(timer);
+            if (timedOut) {
+              kickIcloudDownloadDetached(sourcePath, 5_000);
+              finish({
+                ok: false,
+                size: 0,
+                mtimeMs: 0,
+                error: `COPY_TIMEOUT_${budget}MS`,
+              });
+              return;
+            }
+            if (code === 0 && stdout.trim()) {
+              try {
+                const parsed = JSON.parse(stdout.trim());
+                const size = Number(parsed?.size || 0);
+                const mtimeMs = Number(parsed?.mtimeMs || Date.now());
+                if (parsed?.ok && size >= minSizeBytes) {
+                  finish({ ok: true, size, mtimeMs });
+                  return;
+                }
+              } catch {}
+            }
+            finish({
+              ok: false,
+              size: 0,
+              mtimeMs: 0,
+              error: stderr.trim() || `COPY_EXIT_${code}`,
+            });
+          });
+        } catch (err: any) {
+          finish({
+            ok: false,
+            size: 0,
+            mtimeMs: 0,
+            error: err?.message || 'COPY_EXCEPTION',
+          });
+        }
+      }
+    );
+
+    if (!res.ok) {
+      await fsp.rm(destTempPath, { force: true }).catch(() => {});
+      return res;
     }
 
-    await fsp.mkdir(stagingDir, { recursive: true });
-    const tmpFile = path.join(
-      stagingDir,
-      `cp_${path.basename(destPath)}_${crypto.randomUUID()}`
-    );
-    try {
-      const cpRes = await runSubprocessBounded('/bin/cp', ['--', sourcePath, tmpFile], cpTimeoutMs);
-      if (!cpRes.ok) {
-        await fsp.rm(tmpFile, { force: true }).catch(() => {});
-        return {
-          ok: false,
-          size: 0,
-          mtimeMs: 0,
-          error: cpRes.timedOut ? `CP_TIMEOUT_${cpTimeoutMs}MS` : cpRes.stderr || 'CP_FAILED',
-        };
-      }
-      const st = await fileNonEmptyAsync(tmpFile, minSizeBytes);
-      if (!st) {
-        await fsp.rm(tmpFile, { force: true }).catch(() => {});
-        return { ok: false, size: 0, mtimeMs: 0, error: 'CP_EMPTY_RESULT' };
-      }
-      await fsp.rename(tmpFile, destPath);
-      return { ok: true, size: st.size, mtimeMs: st.mtimeMs };
-    } catch (err: any) {
-      await fsp.rm(tmpFile, { force: true }).catch(() => {});
-      return { ok: false, size: 0, mtimeMs: 0, error: err?.message || 'CP_EXCEPTION' };
+    const verifiedSt = await fileNonEmptyAsync(destTempPath, minSizeBytes);
+    if (!verifiedSt) {
+      await fsp.rm(destTempPath, { force: true }).catch(() => {});
+      return { ok: false, size: 0, mtimeMs: 0, error: 'COPY_EMPTY_LOCAL_FILE' };
     }
+    return { ok: true, size: res.size, mtimeMs: res.mtimeMs };
   }
 
   function hydrateKind(
@@ -921,129 +1397,232 @@ export function createOfficialAssetsManager(options: OfficialAssetsManagerOption
         }
       }
 
-      const dirExists = await probeDirectoryExistsBounded(introOutroIcloudDir, 1500);
-      if (!dirExists) {
-        manifest[kind].lastError = 'ICLOUD_DIR_NOT_AVAILABLE';
-        return Boolean(await fileNonEmptyAsync(p.webMp4, 4096));
-      }
-
-      if (process.platform === 'darwin') {
-        // Non-blocking warm-up download request for Poster, WebPreview, and Master
-        await runSubprocessBounded(
-          '/usr/bin/brctl',
-          ['download', p.icloudPoster, p.icloudWebPreview, p.icloudMaster],
-          8_000
-        ).catch(() => {});
-      }
-
-      const probeBudgetMs = opts?.onDemandTimeoutMs
-        ? Math.min(6_000, Math.max(2_000, Math.floor(opts.onDemandTimeoutMs * 0.25)))
-        : 2_200;
-      const cpMasterBudgetMs = opts?.onDemandTimeoutMs
-        ? Math.max(12_000, opts.onDemandTimeoutMs)
-        : 60_000;
-
-      // 1. Hydrate Poster (.Intro_Poster.jpg / .Outro_Poster.jpg) if needed
-      let hasRealPoster = Boolean(manifest[kind].hasRealPoster && (await fileNonEmptyAsync(p.posterJpg, 1024)));
-      if (!hasRealPoster || opts?.force) {
-        const posterCopy = await copyFromIcloudBounded(
-          p.icloudPoster,
-          p.posterJpg,
-          probeBudgetMs,
-          15_000,
-          1024
-        );
-        if (posterCopy.ok) {
-          hasRealPoster = true;
-          manifest[kind].hasRealPoster = true;
-        }
-      }
-
-      // 2. Hydrate lightweight 1080p WebPreview (.Intro_WebPreview.mp4 / .Outro_WebPreview.mp4) first
+      // Fast local self-heal if masterMp4 already exists on local SSD while webMp4 was missing
+      let hasMaster = Boolean(await fileNonEmptyAsync(p.masterMp4, 50_000));
       let hasWeb = Boolean(
         manifest[kind].tier === 'icloud_hydrated' && (await fileNonEmptyAsync(p.webMp4, 10_000))
       );
-      if (!hasWeb || opts?.force) {
-        const tmpRawWeb = path.join(stagingDir, `${kind}_icloud_webpreview_${crypto.randomUUID()}.mp4`);
-        const webPreviewCopy = await copyFromIcloudBounded(
-          p.icloudWebPreview,
-          tmpRawWeb,
-          probeBudgetMs,
-          Math.min(40_000, cpMasterBudgetMs),
-          10_000
+      let hasRealPoster = Boolean(
+        manifest[kind].hasRealPoster && (await fileNonEmptyAsync(p.posterJpg, 1024))
+      );
+
+      if (hasMaster && !hasWeb && !opts?.force) {
+        const builtFromExistingMaster = await buildWebAndPosterFromLocalMaster(
+          kind,
+          p.masterMp4,
+          !hasRealPoster
         );
-        if (webPreviewCopy.ok) {
-          const built = await buildWebAndPosterFromLocalMaster(kind, tmpRawWeb, !hasRealPoster);
-          await fsp.rm(tmpRawWeb, { force: true }).catch(() => {});
-          if (built) {
-            hasWeb = true;
-            hasRealPoster = true;
-            const webSt = await fileNonEmptyAsync(p.webMp4, 10_000);
-            manifest[kind] = {
-              ...manifest[kind],
-              tier: 'icloud_hydrated',
-              version: Math.floor(webSt?.mtimeMs || Date.now()),
-              updatedAt: new Date().toISOString(),
-              hasRealPoster: true,
-              lastError: undefined,
-            };
-            await saveManifest();
-          }
-        } else {
-          await fsp.rm(tmpRawWeb, { force: true }).catch(() => {});
+        if (builtFromExistingMaster) {
+          hasWeb = true;
+          hasRealPoster = true;
+          const masterSt = await fileNonEmptyAsync(p.masterMp4, 50_000);
+          manifest[kind] = {
+            ...manifest[kind],
+            tier: 'icloud_hydrated',
+            version: nextMonotonicVersion(masterSt?.mtimeMs),
+            updatedAt: new Date().toISOString(),
+            hasRealPoster: true,
+            lastError: undefined,
+          };
+          await saveManifest();
+          return true;
         }
       }
 
-      // 3. Hydrate full 8K Master (Intro.mp4 / Outro.mp4) for 4K FFmpeg exports
-      let hasMaster = Boolean(await fileNonEmptyAsync(p.masterMp4, 50_000));
-      if (!hasMaster || opts?.force) {
-        const tmpMasterVerify = path.join(stagingDir, `${kind}_icloud_master_${crypto.randomUUID()}.mp4`);
-        const masterCopy = await copyFromIcloudBounded(
-          p.icloudMaster,
-          tmpMasterVerify,
-          probeBudgetMs,
-          cpMasterBudgetMs,
-          50_000
+      if (hasWeb && hasMaster && hasRealPoster && !opts?.force) {
+        return true;
+      }
+
+      const discovery = await discoverIntroOutroSourcesBounded(introOutroIcloudDir, 8_000);
+      if (!discovery.ok) {
+        manifest[kind].lastError = discovery.error || 'ICLOUD_DIR_NOT_AVAILABLE';
+        await saveManifest();
+        return Boolean(await fileNonEmptyAsync(p.webMp4, 4096));
+      }
+
+      const cand = discovery[kind];
+      const copyBudgetMs = opts?.onDemandTimeoutMs
+        ? Math.min(90_000, Math.max(15_000, opts.onDemandTimeoutMs))
+        : 75_000;
+
+      let lastCopyError = '';
+
+      const tryHydratePosterFromIcloud = async (budgetMs: number): Promise<void> => {
+        if (!cand.poster || (hasRealPoster && !opts?.force)) return;
+        const tmpPosterCopy = path.join(
+          stagingDir,
+          `${kind}_icloud_poster_${crypto.randomUUID()}${path.extname(cand.poster.logicalName) || '.jpg'}`
         );
-        if (masterCopy.ok) {
-          const check = await inspectLocalVideoFile(getFfmpegBin(), tmpMasterVerify, 15_000);
-          if (check.valid) {
-            await fsp.rename(tmpMasterVerify, p.masterMp4);
-            hasMaster = true;
-            if (!hasWeb) {
-              const builtFromMaster = await buildWebAndPosterFromLocalMaster(
-                kind,
-                p.masterMp4,
-                !hasRealPoster
-              );
-              if (builtFromMaster) {
-                hasWeb = true;
-                hasRealPoster = true;
-              }
-            }
-            const webSt = await fileNonEmptyAsync(p.webMp4, 10_000);
-            const masterSt = await fileNonEmptyAsync(p.masterMp4, 50_000);
-            manifest[kind] = {
-              ...manifest[kind],
-              tier: hasWeb ? 'icloud_hydrated' : manifest[kind].tier,
-              version: Math.floor(webSt?.mtimeMs || masterSt?.mtimeMs || Date.now()),
-              updatedAt: new Date().toISOString(),
-              hasRealPoster,
-              sourceSize: masterCopy.size,
-              sourceMtimeMs: masterCopy.mtimeMs,
-              lastError: undefined,
-            };
-            await saveManifest();
-          } else {
-            await fsp.rm(tmpMasterVerify, { force: true }).catch(() => {});
-            manifest[kind].lastError = 'MASTER_INVALID_CONTAINER';
-          }
+        const posterCopy = await copyFromIcloudSubprocessChunked(
+          cand.poster.fullPath,
+          tmpPosterCopy,
+          budgetMs,
+          1024,
+          'image'
+        );
+        if (!posterCopy.ok) {
+          await fsp.rm(tmpPosterCopy, { force: true }).catch(() => {});
+          return;
+        }
+        if (/\.jpe?g$/i.test(cand.poster.logicalName)) {
+          await fsp.rename(tmpPosterCopy, p.posterJpg);
+          hasRealPoster = true;
+          manifest[kind].hasRealPoster = true;
         } else {
-          await fsp.rm(tmpMasterVerify, { force: true }).catch(() => {});
-          if (!hasWeb) {
-            manifest[kind].lastError = masterCopy.error || 'ICLOUD_HYDRATION_PENDING';
+          const tmpPosterJpg = path.join(stagingDir, `${kind}_icloud_poster_conv_${crypto.randomUUID()}.jpg`);
+          const convRes = await runSubprocessBounded(
+            getFfmpegBin(),
+            [
+              '-y',
+              '-i',
+              tmpPosterCopy,
+              '-frames:v',
+              '1',
+              '-vf',
+              'scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:color=#060504,format=yuvj420p',
+              '-q:v',
+              '3',
+              tmpPosterJpg,
+            ],
+            12_000
+          );
+          await fsp.rm(tmpPosterCopy, { force: true }).catch(() => {});
+          if (convRes.ok && (await fileNonEmptyAsync(tmpPosterJpg, 512))) {
+            await fsp.rename(tmpPosterJpg, p.posterJpg);
+            hasRealPoster = true;
+            manifest[kind].hasRealPoster = true;
+          } else {
+            await fsp.rm(tmpPosterJpg, { force: true }).catch(() => {});
           }
         }
+      };
+
+      const hydrateFromWebPreview = async (): Promise<boolean> => {
+        if (!cand.webPreview) return false;
+        const tmpRawWeb = path.join(stagingDir, `${kind}_icloud_webpreview_${crypto.randomUUID()}.mp4`);
+        const webCopy = await copyFromIcloudSubprocessChunked(
+          cand.webPreview.fullPath,
+          tmpRawWeb,
+          copyBudgetMs,
+          10_000,
+          'video'
+        );
+        if (!webCopy.ok) {
+          lastCopyError = webCopy.error || lastCopyError;
+          await fsp.rm(tmpRawWeb, { force: true }).catch(() => {});
+          return false;
+        }
+        const built = await buildWebAndPosterFromLocalMaster(kind, tmpRawWeb, !hasRealPoster);
+        await fsp.rm(tmpRawWeb, { force: true }).catch(() => {});
+        if (!built) {
+          lastCopyError = 'WEBPREVIEW_INVALID_CONTAINER';
+          return false;
+        }
+        hasWeb = true;
+        hasRealPoster = true;
+        manifest[kind] = {
+          ...manifest[kind],
+          tier: 'icloud_hydrated',
+          version: nextMonotonicVersion(webCopy.mtimeMs),
+          updatedAt: new Date().toISOString(),
+          fileName: cand.master?.logicalName || cand.webPreview.logicalName,
+          hasRealPoster: true,
+          lastError: undefined,
+        };
+        await saveManifest();
+        return true;
+      };
+
+      const hydrateFromMaster = async (): Promise<boolean> => {
+        if (!cand.master) return false;
+        const tmpMasterVerify = path.join(stagingDir, `${kind}_icloud_master_${crypto.randomUUID()}.mp4`);
+        const masterCopy = await copyFromIcloudSubprocessChunked(
+          cand.master.fullPath,
+          tmpMasterVerify,
+          copyBudgetMs,
+          50_000,
+          'video'
+        );
+        if (!masterCopy.ok) {
+          lastCopyError = masterCopy.error || lastCopyError;
+          await fsp.rm(tmpMasterVerify, { force: true }).catch(() => {});
+          return false;
+        }
+        const check = await inspectLocalVideoFile(getFfmpegBin(), tmpMasterVerify, 15_000);
+        if (!check.valid) {
+          lastCopyError = 'MASTER_INVALID_CONTAINER';
+          await fsp.rm(tmpMasterVerify, { force: true }).catch(() => {});
+          return false;
+        }
+        await fsp.rename(tmpMasterVerify, p.masterMp4);
+        hasMaster = true;
+        if (!hasWeb || opts?.force) {
+          const builtFromMaster = await buildWebAndPosterFromLocalMaster(
+            kind,
+            p.masterMp4,
+            !hasRealPoster
+          );
+          if (builtFromMaster) {
+            hasWeb = true;
+            hasRealPoster = true;
+          }
+        }
+        manifest[kind] = {
+          ...manifest[kind],
+          tier: hasWeb ? 'icloud_hydrated' : manifest[kind].tier,
+          version: nextMonotonicVersion(masterCopy.mtimeMs),
+          updatedAt: new Date().toISOString(),
+          fileName: cand.master.logicalName,
+          hasRealPoster,
+          sourceSize: masterCopy.size,
+          sourceMtimeMs: masterCopy.mtimeMs,
+          lastError: undefined,
+        };
+        await saveManifest();
+        return true;
+      };
+
+      if (cand.poster?.materialized) {
+        await tryHydratePosterFromIcloud(15_000);
+      }
+
+      // Smart hydration order:
+      // (a) webPreview materialized -> publish webMp4 immediately, then hydrate masterMp4
+      // (b) master materialized or no webPreview -> copy master directly -> transcode 1080p webMp4 + real poster
+      // (c) both unmaterialized (blocks === 0 / evicted) -> try webPreview if present, then master with 75s budget
+      if (cand.webPreview?.materialized) {
+        if (!hasWeb || opts?.force) {
+          await hydrateFromWebPreview();
+        }
+        if ((!hasMaster || opts?.force) && cand.master) {
+          await hydrateFromMaster();
+        }
+      } else if (cand.master?.materialized || !cand.webPreview) {
+        if ((!hasMaster || !hasWeb || opts?.force) && cand.master) {
+          await hydrateFromMaster();
+        }
+      } else {
+        if (!hasWeb || opts?.force) {
+          await hydrateFromWebPreview();
+        }
+        if ((!hasMaster || !hasWeb || opts?.force) && cand.master) {
+          await hydrateFromMaster();
+        }
+      }
+
+      if (!hasRealPoster && cand.poster) {
+        await tryHydratePosterFromIcloud(30_000);
+        if (hasRealPoster) {
+          manifest[kind].version = nextMonotonicVersion();
+          await saveManifest();
+        }
+      }
+
+      if (!hasWeb && !hasMaster) {
+        manifest[kind].lastError =
+          lastCopyError ||
+          (!cand.master && !cand.webPreview ? 'NO_INTRO_OUTRO_MEDIA_FOUND' : 'ICLOUD_HYDRATION_PENDING');
+        await saveManifest();
       }
 
       return hasWeb || hasMaster;
@@ -1057,29 +1636,38 @@ export function createOfficialAssetsManager(options: OfficialAssetsManagerOption
     });
   }
 
+  async function evaluateAndScheduleNextRetry(): Promise<void> {
+    const isKindDone = async (kind: OfficialAssetKind): Promise<boolean> => {
+      const p = pathsFor(kind);
+      if (manifest[kind].tier === 'custom_uploaded') {
+        return Boolean(
+          (await fileNonEmptyAsync(p.webMp4, 4096)) || (await fileNonEmptyAsync(p.customMp4, 1024))
+        );
+      }
+      return (
+        manifest[kind].tier === 'icloud_hydrated' &&
+        Boolean(await fileNonEmptyAsync(p.webMp4, 4096)) &&
+        Boolean(await fileNonEmptyAsync(p.masterMp4, 50_000))
+      );
+    };
+
+    const [introDone, outroDone] = await Promise.all([isKindDone('intro'), isKindDone('outro')]);
+    if (!introDone || !outroDone) {
+      const nextDelay = BACKOFF_STEPS_MS[Math.min(retryStepIdx, BACKOFF_STEPS_MS.length - 1)];
+      retryStepIdx++;
+      scheduleBackgroundHydration(nextDelay);
+    } else {
+      retryStepIdx = 0;
+    }
+  }
+
   function scheduleBackgroundHydration(delayMs: number): void {
     if (retryTimer) return;
     retryTimer = setTimeout(async () => {
       retryTimer = null;
       try {
         await Promise.all([hydrateKind('intro'), hydrateKind('outro')]);
-        const introDone =
-          manifest.intro.tier !== 'fallback' &&
-          Boolean(await fileNonEmptyAsync(pathsFor('intro').masterMp4, 50_000));
-        const outroDone =
-          manifest.outro.tier !== 'fallback' &&
-          Boolean(await fileNonEmptyAsync(pathsFor('outro').masterMp4, 50_000));
-        if (!introDone || !outroDone) {
-          const dirOk = await probeDirectoryExistsBounded(introOutroIcloudDir, 1200);
-          if (dirOk) {
-            const nextDelay =
-              BACKOFF_STEPS_MS[Math.min(retryStepIdx, BACKOFF_STEPS_MS.length - 1)];
-            retryStepIdx++;
-            scheduleBackgroundHydration(nextDelay);
-          }
-        } else {
-          retryStepIdx = 0;
-        }
+        await evaluateAndScheduleNextRetry();
       } catch {
         const nextDelay = BACKOFF_STEPS_MS[Math.min(retryStepIdx, BACKOFF_STEPS_MS.length - 1)];
         retryStepIdx++;
@@ -1092,9 +1680,52 @@ export function createOfficialAssetsManager(options: OfficialAssetsManagerOption
   }
 
   function init(): void {
-    void ensureColdBootFallbacks().then(() => {
-      scheduleBackgroundHydration(250);
-    });
+    void cleanupOrphanStagingFiles()
+      .then(() => ensureColdBootFallbacks())
+      .then(() => {
+        scheduleBackgroundHydration(250);
+      });
+  }
+
+  function buildStatusPayloadSync(): OfficialAssetsStatusPayload {
+    const buildEntrySync = (kind: OfficialAssetKind): OfficialAssetStatusEntry => {
+      const p = pathsFor(kind);
+      const masterSt = fileNonEmptySyncLocal(p.masterMp4, 50_000);
+      const webSt = fileNonEmptySyncLocal(p.webMp4, 4096);
+      const customSt = fileNonEmptySyncLocal(p.customMp4, 1024);
+      const posterSt = fileNonEmptySyncLocal(p.posterJpg, 512);
+      const effectiveTier: OfficialAssetTier =
+        customSt && manifest[kind].tier === 'custom_uploaded'
+          ? 'custom_uploaded'
+          : webSt
+            ? 'icloud_hydrated'
+            : 'fallback';
+      const version =
+        Number(manifest[kind].version) > 1
+          ? Number(manifest[kind].version)
+          : Math.floor(webSt?.mtimeMs || posterSt?.mtimeMs || 1);
+      return {
+        tier: effectiveTier,
+        version,
+        hydrating: Boolean(
+          hydratingByKind[kind] || (effectiveTier === 'fallback' && retryTimer !== null)
+        ),
+        hasMaster: Boolean(masterSt || customSt),
+        hasWeb: Boolean(webSt),
+        hasPoster: Boolean(posterSt),
+        ...(manifest[kind].lastError && effectiveTier === 'fallback'
+          ? { error: manifest[kind].lastError }
+          : {}),
+      };
+    };
+    const intro = buildEntrySync('intro');
+    const outro = buildEntrySync('outro');
+    return {
+      ok: true,
+      version: Math.max(intro.version, outro.version),
+      intro,
+      outro,
+    };
   }
 
   async function getStatusPayload(): Promise<OfficialAssetsStatusPayload> {
@@ -1119,7 +1750,9 @@ export function createOfficialAssetsManager(options: OfficialAssetsManagerOption
       return {
         tier: effectiveTier,
         version,
-        hydrating: Boolean(hydratingByKind[kind]) || effectiveTier === 'fallback',
+        hydrating: Boolean(
+          hydratingByKind[kind] || (effectiveTier === 'fallback' && retryTimer !== null)
+        ),
         hasMaster: Boolean(masterSt || customSt),
         hasWeb: Boolean(webSt),
         hasPoster: Boolean(posterSt),
@@ -1132,6 +1765,12 @@ export function createOfficialAssetsManager(options: OfficialAssetsManagerOption
     const [intro, outro] = await Promise.all([buildEntry('intro'), buildEntry('outro')]);
     if (intro.tier === 'fallback' || outro.tier === 'fallback') {
       scheduleBackgroundHydration(1000);
+      if (intro.tier === 'fallback') {
+        intro.hydrating = Boolean(hydratingByKind.intro || retryTimer !== null);
+      }
+      if (outro.tier === 'fallback') {
+        outro.hydrating = Boolean(hydratingByKind.outro || retryTimer !== null);
+      }
     }
     return {
       ok: true,
@@ -1139,6 +1778,58 @@ export function createOfficialAssetsManager(options: OfficialAssetsManagerOption
       intro,
       outro,
     };
+  }
+
+  function triggerRehydrate(opts?: {
+    force?: boolean;
+    resetBackoff?: boolean;
+  }): { triggered: boolean; status: OfficialAssetsStatusPayload } {
+    negativeReadProbeCache.clear();
+    lastBrctlKickByPath.clear();
+    lastDiscoveryCache = null;
+    if (opts?.resetBackoff || opts?.force) {
+      retryStepIdx = 0;
+    }
+    if (retryTimer) {
+      clearTimeout(retryTimer);
+      retryTimer = null;
+    }
+    const force = Boolean(opts?.force);
+    const alreadyBothInFlight = Boolean(hydratingByKind.intro && hydratingByKind.outro);
+    const pIntro = hydrateKind('intro', { force });
+    const pOutro = hydrateKind('outro', { force });
+    void Promise.all([pIntro, pOutro])
+      .then(() => evaluateAndScheduleNextRetry())
+      .catch(() => {
+        scheduleBackgroundHydration(BACKOFF_STEPS_MS[0]);
+      });
+    return {
+      triggered: !alreadyBothInFlight || force,
+      status: buildStatusPayloadSync(),
+    };
+  }
+
+  async function handleRehydrate(req: Request, res: Response): Promise<void> {
+    try {
+      await ensureColdBootFallbacks();
+      const result = triggerRehydrate({
+        force: Boolean(req.body?.force),
+        resetBackoff: true,
+      });
+      const freshStatus = await getStatusPayload();
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+      res.json({
+        ok: true,
+        triggered: result.triggered,
+        status: freshStatus,
+      });
+    } catch (err: any) {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+      res.status(500).json({
+        ok: false,
+        error: err?.message || 'Error rehidratando assets oficiales.',
+      });
+    }
   }
 
   function applyStandardAssetHeaders(res: Response, tier: OfficialAssetTier | 'error'): void {
@@ -1267,7 +1958,9 @@ export function createOfficialAssetsManager(options: OfficialAssetsManagerOption
       const cleanup = () => {
         if (!stream.destroyed) stream.destroy();
       };
-      req.on('close', cleanup);
+      res.on('close', () => {
+        if (!res.writableFinished) cleanup();
+      });
       stream.on('error', () => {
         cleanup();
         if (!res.headersSent) {
@@ -1293,7 +1986,9 @@ export function createOfficialAssetsManager(options: OfficialAssetsManagerOption
     const cleanup = () => {
       if (!stream.destroyed) stream.destroy();
     };
-    req.on('close', cleanup);
+    res.on('close', () => {
+      if (!res.writableFinished) cleanup();
+    });
     stream.on('error', () => {
       cleanup();
       if (!res.headersSent) {
@@ -1449,19 +2144,19 @@ export function createOfficialAssetsManager(options: OfficialAssetsManagerOption
       await fsp.rename(tmpCustom, p.customMp4);
       await buildWebAndPosterFromLocalMaster(kind, p.customMp4, true);
 
-      const nowMs = Date.now();
+      const nextVer = nextMonotonicVersion();
       const safeName = String(
         fileName ||
           (kind === 'intro' ? 'Intro_Oficial_Huellas_Custom.mp4' : 'Outro_Oficial_Huellas_Custom.mp4')
       );
       manifest[kind] = {
         tier: 'custom_uploaded',
-        version: nowMs,
-        updatedAt: new Date(nowMs).toISOString(),
+        version: nextVer,
+        updatedAt: new Date().toISOString(),
         fileName: safeName,
         hasRealPoster: true,
         sourceSize: buf.length,
-        sourceMtimeMs: nowMs,
+        sourceMtimeMs: nextVer,
         lastError: undefined,
       };
       await saveManifest();
@@ -1472,9 +2167,9 @@ export function createOfficialAssetsManager(options: OfficialAssetsManagerOption
         hasOutro: true,
         introUrl: `/api/assets/official-intro-stream?v=${manifest.intro.version}`,
         outroUrl: `/api/assets/official-outro-stream?v=${manifest.outro.version}`,
-        posterUrl: `/api/assets/official-${kind}-poster?v=${nowMs}`,
+        posterUrl: `/api/assets/official-${kind}-poster?v=${nextVer}`,
         tier: 'custom_uploaded',
-        version: nowMs,
+        version: nextVer,
         fileName: safeName,
         sizeBytes: buf.length,
         updatedAt: manifest[kind].updatedAt,
@@ -1504,8 +2199,8 @@ export function createOfficialAssetsManager(options: OfficialAssetsManagerOption
       return { ok: true, filePath: p.masterMp4, tier: 'icloud_hydrated_master' };
     }
 
-    // 3. On-demand bounded hydration (~25s default) from Intro:Outro
-    const timeoutMs = opts?.timeoutMs ?? 25_000;
+    // 3. On-demand bounded hydration (~45s default) from Intro:Outro
+    const timeoutMs = opts?.timeoutMs ?? 45_000;
     await hydrateKind(kind, { onDemandTimeoutMs: timeoutMs });
 
     const hydratedMaster = await fileNonEmptyAsync(p.masterMp4, 50_000);
@@ -1550,7 +2245,11 @@ export function createOfficialAssetsManager(options: OfficialAssetsManagerOption
     handlePoster,
     handleGetMetadata,
     handleUploadCustom,
+    handleUpload: handleUploadCustom,
     resolveForExport,
     hydrateKind,
+    triggerRehydrate,
+    handleRehydrate,
+    isIntroOutroIcloudPath: mayBeOfficialIntroOutroIcloudPath,
   };
 }
