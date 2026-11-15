@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-11-08T12:13:00.000Z",
-    "updatedAt": "2026-11-15T01:32:03.143Z",
+    "updatedAt": "2026-11-15T01:33:34.439Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -61,7 +61,7 @@
       "REMOTE_GEMINI_STAGE_COMMAND_JSON": "{\"type\":\"REMOTE_GEMINI_STAGE\",\"commandId\":\"rgs_thumb_1794402632127_q8jih\",\"docId\":\"doc-video-77-huellas\",\"stageNumber\":505,\"requestedAt\":1794402632127,\"prompt\":\"Thumbnail: Create an image in 16:9 horizontal aspect ratio featuring an ultra-clean three-element composition with zero visual clutter, dominated on the right sixty percent of the frame by a dramatic medium close-up of a young British male physician in his late twenties with tousled dark hair, sweat beads, visible skin pores, and wide-open anguished eyes showing crisp white sclera making direct piercing eye contact into the camera lens, portrayed by an anonymous historical reenactment actor in authentic period attire (no real public figures or prominent people) wearing a 1941 white clinical coat over a tweed vest, holding up in the foreground a completely dry empty vintage glass medicine vial with tiny traces of yellow powder clinging to its inner walls, set against a cold midnight cyan-blue darkened 1941 British hospital ward with heavy black wartime blackout curtains in deep abyssal shadow, lit by dramatic chiaroscuro warm golden-amber key light across his face and a sharp rim light separating him from the cold dark background. In the bottom-left area of the image, a bold high-contrast cinematic documentary typography text overlay stacked across 2 exact separate lines reads (Line 1: \\\"FALTÓ UNA GOTA\\\" / Line 2: \\\"Y SE APAGÓ\\\"). In the top-right corner, a small discreet 5% scale logo displays \\\"8K\\\" in metallic gold. In the top-left corner, the official page logo from the provided reference image is cleanly integrated at 5% scale, strictly preserving and visibly rendering both the logo emblem and the exact text underneath it \\\"Huellas de la Humanidad\\\" without cropping, blurring, or omitting the sub-text. The scene has cinematic documentary realism, 8k resolution, sharp focus, safe framing composition, no modern objects, no CGI look, no unintended floating text, no music.\",\"taskType\":\"THUMBNAIL_IMAGE_GENERATION\",\"enableCreateImage\":true,\"standaloneNewChat\":true,\"noNotebook\":true,\"mediaType\":\"THUMBNAILS\",\"optionLabel\":\"A\",\"aspectRatio\":\"16:9\",\"enableHighModel\":false,\"enableArgonLow\":true,\"enableCarbonLow\":true,\"preferredModel\":\"CARBON_4_LOW\",\"thinkingLevel\":\"LOW\",\"enableDeepResearch\":false,\"videoName\":\"\",\"deepResearchVideoName\":\"\",\"geminiChatUrl\":\"\",\"geminiDeepResearchChatUrl\":\"\",\"notebookName\":\"\"}",
       "REMOTE_GEMINI_STAGE_ACK_ID": "rgs_1794399996476_23q8n",
       "GEMINI_CHAT_URL": "https://gemini.google.com/app/03cabb86628532c8",
-      "PROMPTS_RESTORED_AT": "1794706323143",
+      "PROMPTS_RESTORED_AT": "1794706414439",
       "FIELD_CLEARED_AT_rawClipsText": "0"
     },
     "compiledMasterPrompt": "",
@@ -1739,7 +1739,13 @@
         "reviewedUpdatedAt": 1794677478501,
         "videoDiscardOverriddenAt": 1794677478501,
         "videoAttempts": 2,
-        "videoAuditIssues": []
+        "videoAuditIssues": [],
+        "reframe9x16Mode": "auto_center",
+        "reframeFocusXStart": 50,
+        "reframeFocusXEnd": 50,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.55,
+        "reframeReason": "Encuadre central simétrico IA (50%)"
       },
       {
         "id": "clip-17-1794442731321-hp1z",
@@ -1858,6 +1864,12 @@
         "reviewedUpdatedAt": 1794641982559,
         "videoDiscardOverriddenAt": 1794677508406,
         "videoAuditIssues": [],
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 39,
+        "reframeFocusXEnd": 58,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.62,
+        "reframeReason": "Paneo dinámico IA (39% → 58%) siguiendo acción/sujeto",
         "videoFrames": []
       },
       {
@@ -2034,6 +2046,12 @@
         "reviewedUpdatedAt": 1794641982559,
         "videoDiscardOverriddenAt": 1794677501307,
         "videoAuditIssues": [],
+        "reframe9x16Mode": "auto_center",
+        "reframeFocusXStart": 50,
+        "reframeFocusXEnd": 50,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.55,
+        "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoFrames": []
       },
       {
@@ -2215,7 +2233,13 @@
         "imagePreviewUrl": "",
         "reviewedUpdatedAt": 1794678280589,
         "videoAuditIssues": [],
-        "videoDiscardOverriddenAt": 1794678280589
+        "videoDiscardOverriddenAt": 1794678280589,
+        "reframe9x16Mode": "auto_focus",
+        "reframeFocusXStart": 17,
+        "reframeFocusXEnd": 17,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.74,
+        "reframeReason": "Enfoque inteligente IA en tercio izquierdo (17%)"
       },
       {
         "id": "clip-33-1794442731487-7ng7",
@@ -2241,7 +2265,13 @@
         "imagePreviewUrl": "",
         "reviewedUpdatedAt": 1794678785398,
         "videoAuditIssues": [],
-        "videoDiscardOverriddenAt": 1794678785398
+        "videoDiscardOverriddenAt": 1794678785398,
+        "reframe9x16Mode": "auto_focus",
+        "reframeFocusXStart": 21,
+        "reframeFocusXEnd": 21,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.66,
+        "reframeReason": "Enfoque inteligente IA en tercio izquierdo (21%)"
       },
       {
         "id": "clip-34-1794442731497-4xpp",
