@@ -1,6 +1,6 @@
 # Directorio Oficial de Motores y Roles de `Huellas Master` (Escalera de 9 Niveles)
 
-> Fuente canónica de protocolos y triaje: `~/.gemini/config/GEMINI.md` (`user_global`) y `./GEMINI.md`. Este archivo define los IDs verificados de Antigravity/`localhost:4200` y el rol técnico de cada motor.
+> Fuente canónica de protocolos y triaje: `.agents/plugins/raydel-global-rules/rules/AGENTS.md` (sincronizado con `~/.gemini/config/plugins/raydel-global-rules/rules/AGENTS.md`) y `./GEMINI.md`. Este archivo define los IDs verificados de Antigravity/`localhost:4200` y el rol técnico de cada motor.
 
 ## 1. Catálogo de 8 Motores Distintos (+ Upgrade `XHigh` en Nivel 9 / MÁXIMO y Perspectivas Manuales Pre-Fase 0 `Copilot` / `Claude`)
 
