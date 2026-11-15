@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Huellas Master — Puente Web Gratis (Gemini, ChatGPT, Copilot, Google Flow & Flow Music)",
-  "version": "2.9.1",
-  "description": "Conecta Huellas Master con Gemini Web, ChatGPT Web, Microsoft Copilot Web (MODO CINCO), Google Flow y Flow Music.",
+  "name": "Huellas Master — Puente Web Gratis (Gemini, ChatGPT, Claude, Copilot, Google Flow & Flow Music)",
+  "version": "2.9.2",
+  "description": "Conecta Huellas Master con Gemini Web, ChatGPT Web, Claude Web (MODO OCHO y MODO NUEVE MÁXIMO), Microsoft Copilot Web (MODO CINCO), Google Flow y Flow Music.",
   "permissions": [
     "tabs",
     "scripting",
@@ -15,6 +15,8 @@
     "https://chatgpt.com/*",
     "https://*.chatgpt.com/*",
     "https://chat.openai.com/*",
+    "https://claude.ai/*",
+    "https://*.claude.ai/*",
     "https://copilot.microsoft.com/*",
     "https://*.copilot.microsoft.com/*",
     "https://copilot.com/*",
@@ -71,6 +73,14 @@
         "https://chat.openai.com/*"
       ],
       "js": ["chatgpt-content.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://claude.ai/*",
+        "https://*.claude.ai/*"
+      ],
+      "js": ["claude-content.js"],
       "run_at": "document_idle"
     },
     {

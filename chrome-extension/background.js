@@ -6125,6 +6125,44 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message.type === 'EXTERNAL_CLAUDE_ASK_RESULT') {
+    (async () => {
+      const reqId = String(message.requestId || '').trim();
+      const memEntry = reqId ? activeExternalAskMap.get(reqId) : null;
+      const tabIdFromSender = sender?.tab?.id || null;
+      const reusedExisting = Boolean(
+        (memEntry && memEntry.keepOpenOnCleanup) ||
+          (tabIdFromSender && reusedExternalTabIds.has(tabIdFromSender))
+      );
+      if (trySettleExternalAsk(reqId)) {
+        await fetch('http://localhost:4200/api/claude-web/ask-external-result', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...message,
+            tabId: tabIdFromSender,
+            reusedExisting,
+          }),
+        }).catch(() => {});
+      }
+      await cleanupActiveExternalAskWindow(reqId, null, tabIdFromSender, {
+        keepOpen: reusedExisting,
+      });
+    })();
+    sendResponse({ ok: true });
+    return false;
+  }
+
+  if (message.type === 'CLAUDE_MAIN_WORLD_INJECT_AND_SUBMIT' && sender?.tab?.id) {
+    const tabId = sender.tab.id;
+    const rawPrompt = String(message.prompt || '');
+    (async () => {
+      const ok = await forceSubmitPromptInClaudeTab(tabId, rawPrompt);
+      sendResponse({ ok });
+    })();
+    return true;
+  }
+
   if (message.type === 'REMOTE_RENAME_COMPLETED') {
     fetch('http://localhost:4200/api/system/confirm-remote-rename', {
       method: 'POST',
@@ -6149,7 +6187,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 // ============================================================================
-// AUTO-RELOAD WATCHER & EXTERNAL GEMINI / CHATGPT BRIDGE (MODO DUO / TRIO / CUATRO)
+// AUTO-RELOAD WATCHER & EXTERNAL GEMINI / CHATGPT / CLAUDE BRIDGE (9 MODOS)
 // ============================================================================
 let currentExtFingerprint = '';
 let isCheckingExtFingerprint = false;
@@ -6160,8 +6198,21 @@ const activeExternalAskMap = new Map();
 const verifiedExternalGeminiModels = new Map();
 const reusedExternalTabIds = new Set();
 const claimedExternalAskIds = new Set();
+const settledExternalAskIds = new Set();
 const claimedGeminiCommandIds = new Set();
 let externalAskStorageChain = Promise.resolve();
+
+function trySettleExternalAsk(requestId) {
+  const id = String(requestId || '').trim();
+  if (!id) return true;
+  if (settledExternalAskIds.has(id)) return false;
+  settledExternalAskIds.add(id);
+  if (settledExternalAskIds.size > 400) {
+    const oldest = settledExternalAskIds.values().next().value;
+    if (oldest) settledExternalAskIds.delete(oldest);
+  }
+  return true;
+}
 
 function withExternalAskStorageLock(fn) {
   const next = externalAskStorageChain.then(fn, fn);
@@ -6284,6 +6335,11 @@ async function cleanupActiveExternalAskWindow(requestId, fallbackWinId, fallback
             })
             .catch(() => []);
           if (allCop.length <= 1) canCloseSingleWin = false;
+        } else if (/claude\.ai/i.test(u0)) {
+          const allClaude = await chrome.tabs
+            .query({ url: ['https://claude.ai/*', 'https://*.claude.ai/*'] })
+            .catch(() => []);
+          if (allClaude.length <= 1) canCloseSingleWin = false;
         }
       }
       if (canCloseSingleWin) {
@@ -6294,7 +6350,7 @@ async function cleanupActiveExternalAskWindow(requestId, fallbackWinId, fallback
       for (let attempt = 0; attempt < 4; attempt++) {
         const stillOpen = await chrome.tabs.get(tId).catch(() => null);
         if (!stillOpen) break;
-        // Never close the user's Huellas Master or Notebook tab, and NEVER close the last remaining Gemini, ChatGPT, or Copilot tab
+        // Never close the user's Huellas Master or Notebook tab, and NEVER close the last remaining Gemini, ChatGPT, Copilot, or Claude tab
         const stillUrl = String(stillOpen.url || '');
         if (isHuellasUrl(stillUrl, stillOpen.title) || /\/notebook\//i.test(stillUrl)) {
           break;
@@ -6319,6 +6375,11 @@ async function cleanupActiveExternalAskWindow(requestId, fallbackWinId, fallback
             })
             .catch(() => []);
           if (allCop.length <= 1) break;
+        } else if (/claude\.ai/i.test(stillUrl)) {
+          const allClaude = await chrome.tabs
+            .query({ url: ['https://claude.ai/*', 'https://*.claude.ai/*'] })
+            .catch(() => []);
+          if (allClaude.length <= 1) break;
         }
         await chrome.tabs.remove(tId).catch(() => {});
         await sleep(180);
@@ -8105,12 +8166,950 @@ async function ensureResidentGeminiAndChatGptTabs(presence) {
         reusedExternalTabIds.add(createdGpt.id);
         await chrome.tabs.update(createdGpt.id, { autoDiscardable: false }).catch(() => {});
       }
-    } else if (chatGptTabs[0] && chatGptTabs[0].id && chatGptTabs[0].autoDiscardable !== false) {
-      await chrome.tabs.update(chatGptTabs[0].id, { autoDiscardable: false }).catch(() => {});
+    } else if (chatGptTabs[0] && chatGptTabs[0].id) {
+      reusedExternalTabIds.add(chatGptTabs[0].id);
+      if (chatGptTabs[0].autoDiscardable !== false) {
+        await chrome.tabs.update(chatGptTabs[0].id, { autoDiscardable: false }).catch(() => {});
+      }
+    }
+
+    // 3. Always keep at least 1 Claude tab open and alive (autoDiscardable: false)
+    const claudeTabs = await chrome.tabs
+      .query({ url: ['https://claude.ai/*', 'https://*.claude.ai/*'] })
+      .catch(() => []);
+    if (claudeTabs.length === 0) {
+      const createdClaude = await chrome.tabs
+        .create({
+          url: 'https://claude.ai/new',
+          active: false,
+          ...winOpt,
+        })
+        .catch(() => null);
+      if (createdClaude && createdClaude.id) {
+        reusedExternalTabIds.add(createdClaude.id);
+        await chrome.tabs.update(createdClaude.id, { autoDiscardable: false }).catch(() => {});
+      }
+    } else if (claudeTabs[0] && claudeTabs[0].id) {
+      reusedExternalTabIds.add(claudeTabs[0].id);
+      if (claudeTabs[0].autoDiscardable !== false) {
+        await chrome.tabs.update(claudeTabs[0].id, { autoDiscardable: false }).catch(() => {});
+      }
     }
   } catch {
   } finally {
     isEnsuringResidentTabs = false;
+  }
+}
+
+const CLAUDE_TAB_URL_PATTERNS = ['https://claude.ai/*', 'https://*.claude.ai/*'];
+
+async function inspectClaudeTabLatestResponse(tabId) {
+  try {
+    const res = await chrome.scripting.executeScript({
+      target: { tabId },
+      world: 'MAIN',
+      func: () => {
+        if (!window.__HUELLAS_BG_RAF_PATCHED__) {
+          window.__HUELLAS_BG_RAF_PATCHED__ = true;
+          const nativeRAF = window.requestAnimationFrame.bind(window);
+          window.requestAnimationFrame = (cb) => {
+            if (document.visibilityState === 'hidden') {
+              return window.setTimeout(() => cb(performance.now()), 16);
+            }
+            return nativeRAF(cb);
+          };
+        }
+        const isVis = (el) => {
+          if (!el) return false;
+          const r = el.getBoundingClientRect();
+          return r.width > 0 && r.height > 0;
+        };
+        const url = window.location.href || '';
+        let blockReason = '';
+        if (/\/login|\/signup|\/onboarding|auth\.anthropic\.com/i.test(url)) {
+          blockReason = 'Claude Web requiere iniciar sesión en Google Chrome (https://claude.ai/new).';
+        } else if (
+          document.querySelector(
+            'iframe[src*="challenges.cloudflare.com" i], iframe[src*="turnstile" i], #challenge-running, #cf-challenge-running, #challenge-form, [data-testid*="captcha" i]'
+          ) ||
+          /just a moment\.\.\.|checking your browser|verify you are human|verificaci[oó]n/i.test(document.title || '')
+        ) {
+          blockReason =
+            'Claude Web mostró una verificación de seguridad / Cloudflare Turnstile en el navegador. Complétala manualmente o usa el prompt copiable.';
+        }
+
+        const composerSelectors = [
+          'div.ProseMirror[contenteditable="true"]',
+          'fieldset div.ProseMirror[contenteditable="true"]',
+          'div[contenteditable="true"][data-placeholder]',
+          '[data-testid="chat-input"]',
+          'fieldset div[contenteditable="true"]',
+          'div[contenteditable="true"][role="textbox"]',
+          'textarea',
+        ];
+        let composer = null;
+        for (const s of composerSelectors) {
+          const el = document.querySelector(s);
+          if (isVis(el)) {
+            composer = el;
+            break;
+          }
+        }
+
+        if (!blockReason && !composer) {
+          const loginBtn = Array.from(document.querySelectorAll('button, a')).find((el) => {
+            if (!isVis(el)) return false;
+            const t = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+            return /^(log\s*in|sign\s*in|iniciar\s+sesi[oó]n|continue\s+with\s+google|continuar\s+con\s+google)$/i.test(
+              t
+            );
+          });
+          if (loginBtn) {
+            blockReason =
+              'No hay sesión iniciada en Claude Web dentro del navegador donde está abierto Huellas Master (https://claude.ai/new). Inicia sesión allí e inténtalo de nuevo.';
+          }
+        }
+
+        const stopSelectors = [
+          'button[aria-label*="Stop" i]',
+          'button[aria-label*="Detener" i]',
+          'button[aria-label*="Stop generating" i]',
+          'button[data-testid="stop-button"]',
+        ];
+        let hasExplicitStopBtn = false;
+        for (const s of stopSelectors) {
+          const stopEls = document.querySelectorAll(s);
+          for (const stEl of stopEls) {
+            if (isVis(stEl)) {
+              hasExplicitStopBtn = true;
+              break;
+            }
+          }
+          if (hasExplicitStopBtn) break;
+        }
+        let generating = hasExplicitStopBtn;
+        if (!generating && document.querySelector('[data-is-streaming="true"], .result-streaming')) {
+          generating = true;
+        }
+
+        let verifiedModel = 'Claude Web';
+        const modelSelectors = [
+          '[data-testid="model-selector-dropdown"]',
+          'button[data-testid*="model-selector" i]',
+          'button[aria-label*="Model" i]',
+          'button[aria-label*="Modelo" i]',
+        ];
+        for (const ms of modelSelectors) {
+          const mBtn = document.querySelector(ms);
+          if (isVis(mBtn)) {
+            const txt = (mBtn.innerText || mBtn.textContent || '').replace(/\s+/g, ' ').trim();
+            if (txt) {
+              verifiedModel = txt;
+              break;
+            }
+          }
+        }
+        if (verifiedModel === 'Claude Web') {
+          const fallbackModelBtn = Array.from(document.querySelectorAll('fieldset button, header button')).find((b) => {
+            if (!isVis(b)) return false;
+            const t = (b.innerText || b.textContent || '').replace(/\s+/g, ' ').trim();
+            return /\b(claude|sonnet|opus|haiku)\b/i.test(t) && t.length <= 48;
+          });
+          if (fallbackModelBtn) {
+            verifiedModel = (fallbackModelBtn.innerText || fallbackModelBtn.textContent || '')
+              .replace(/\s+/g, ' ')
+              .trim();
+          }
+        }
+
+        let rawNodes = Array.from(document.querySelectorAll('.font-claude-message, .font-claude-response'));
+        if (rawNodes.length === 0) {
+          rawNodes = Array.from(
+            document.querySelectorAll(
+              '[data-testid="assistant-message"], div[data-message-author-role="assistant"], [data-is-streaming] .standard-markdown'
+            )
+          );
+        }
+        const uniqueNodes = rawNodes.filter((el, idx, arr) => el && arr.indexOf(el) === idx);
+        const nodes = uniqueNodes.filter(
+          (el, _i, arr) => !arr.some((other) => other !== el && other.contains(el))
+        );
+
+        const extractCleanText = (rootEl) => {
+          if (!rootEl) return '';
+          const clone = rootEl.cloneNode(true);
+          // 1. Remove thinking accordions and reasoning blocks BEFORE stripping generic buttons
+          clone.querySelectorAll('button[aria-expanded]').forEach((btn) => {
+            const label = ((btn.innerText || btn.textContent || '') + ' ' + (btn.getAttribute('aria-label') || ''))
+              .replace(/\s+/g, ' ')
+              .trim();
+            if (/\b(thought|thinking|pensando|razonamiento|razonando|pens[oó])\b/i.test(label)) {
+              const wrapper = btn.closest('div.rounded-lg, div.border, details') || btn.parentElement;
+              if (wrapper && wrapper !== clone && !wrapper.querySelector('.standard-markdown')) {
+                wrapper.remove();
+              } else {
+                if (btn.nextElementSibling) btn.nextElementSibling.remove();
+                btn.remove();
+              }
+            }
+          });
+          clone
+            .querySelectorAll(
+              '[data-testid*="thinking" i], [data-testid*="thought" i], [data-testid*="reasoning" i], [class*="thinking" i], [class*="thought" i], [class*="reasoning" i], [aria-label*="thought" i], [aria-label*="thinking" i], [aria-label*="razonamiento" i], details, summary'
+            )
+            .forEach((el) => el.remove());
+          // 2. Remove UI action controls while preserving code blocks inside role="button" containers
+          clone
+            .querySelectorAll(
+              '.sr-only, button, [role="button"]:not(:has(pre)), [role="checkbox"], .copy-code-button, [data-testid*="copy" i], [data-testid*="action-bar" i], script, style, svg'
+            )
+            .forEach((el) => el.remove());
+          clone.querySelectorAll('br').forEach((el) => el.replaceWith('\n'));
+          clone
+            .querySelectorAll('h1, h2, h3, h4, h5, h6, p, li, pre, tr, blockquote, hr')
+            .forEach((el) => {
+              el.prepend('\n');
+              el.append('\n');
+            });
+          return (clone.textContent || '')
+            .replace(/[ \t]+\n/g, '\n')
+            .replace(/\n{3,}/g, '\n\n')
+            .trim();
+        };
+
+        let text = '';
+        let hasFinishActions = false;
+        let hasMarkdown = false;
+        if (nodes.length > 0) {
+          const lastNode = nodes[nodes.length - 1];
+          const turnContainer =
+            lastNode.closest('[data-is-streaming], [data-test-render-count], article') ||
+            lastNode.parentElement ||
+            lastNode;
+          const streamingAttr = (turnContainer.getAttribute('data-is-streaming') || '').trim().toLowerCase();
+          hasFinishActions =
+            streamingAttr === 'false' ||
+            Boolean(
+              turnContainer.querySelector(
+                'button[aria-label*="Copy" i], button[aria-label*="Copiar" i], button[aria-label*="Retry" i], button[aria-label*="Reintentar" i], [data-testid*="action-bar" i], button[data-testid*="copy" i]'
+              )
+            );
+          const mdSelector = '.standard-markdown, .grid-cols-1.markdown, .markdown, .prose';
+          const rawMd = [
+            ...(lastNode.matches && lastNode.matches(mdSelector) ? [lastNode] : []),
+            ...Array.from(lastNode.querySelectorAll(mdSelector)),
+          ];
+          const markdownBlocks = rawMd.filter(
+            (n, _i, arr) => !arr.some((other) => other !== n && other.contains(n))
+          );
+          hasMarkdown = markdownBlocks.length > 0;
+          if (markdownBlocks.length > 0) {
+            text = markdownBlocks
+              .map((b) => extractCleanText(b))
+              .filter(Boolean)
+              .join('\n\n')
+              .trim();
+          }
+          if (!text) {
+            text = extractCleanText(lastNode);
+          }
+          if (
+            /^(?:\d{1,6}|thinking\.{0,3}|pensando\.{0,3}|razonando\.{0,3}|thought\s+for\s+[^\n]{1,40}|pens[oó]\s+durante\s+[^\n]{1,40})$/i.test(
+              text
+            )
+          ) {
+            text = '';
+          }
+        }
+
+        const userQueries = document.querySelectorAll(
+          '[data-testid="user-message"], .font-user-message, div[data-message-author-role="user"]'
+        ).length;
+        if (hasFinishActions && !hasExplicitStopBtn) {
+          generating = false;
+        } else if (!generating && userQueries > 0 && (nodes.length === 0 || !text)) {
+          generating = true;
+        }
+
+        return {
+          url,
+          blockReason,
+          hasComposer: Boolean(composer),
+          userQueries,
+          generating,
+          verifiedModel,
+          count: nodes.length,
+          hasFinishActions,
+          hasMarkdown,
+          text,
+        };
+      },
+    });
+    return (res && res[0] && res[0].result) || null;
+  } catch {
+    return null;
+  }
+}
+
+async function forceSubmitPromptInClaudeTab(tabId, promptText) {
+  try {
+    const snapBefore = await inspectClaudeTabLatestResponse(tabId);
+    const beforeUrl = (snapBefore && snapBefore.url) || '';
+    const beforeUserQueries = (snapBefore && snapBefore.userQueries) || 0;
+    const beforeCount = (snapBefore && snapBefore.count) || 0;
+
+    await chrome.scripting
+      .executeScript({
+        target: { tabId },
+        world: 'MAIN',
+        args: [String(promptText || '')],
+        func: async (rawText) => {
+          if (!window.__HUELLAS_BG_RAF_PATCHED__) {
+            window.__HUELLAS_BG_RAF_PATCHED__ = true;
+            const nativeRAF = window.requestAnimationFrame.bind(window);
+            window.requestAnimationFrame = (cb) => {
+              if (document.visibilityState === 'hidden') {
+                return window.setTimeout(() => cb(performance.now()), 16);
+              }
+              return nativeRAF(cb);
+            };
+          }
+          const yieldMacrotask = () =>
+            new Promise((resolve) => {
+              try {
+                const mc = new MessageChannel();
+                mc.port1.onmessage = () => resolve();
+                mc.port2.postMessage(0);
+              } catch {
+                setTimeout(resolve, 16);
+              }
+            });
+          const waitTick = async (ms) => {
+            if (document.visibilityState === 'hidden') {
+              const loops = Math.max(2, Math.min(8, Math.ceil(ms / 15)));
+              for (let k = 0; k < loops; k++) {
+                await yieldMacrotask();
+              }
+              return;
+            }
+            await new Promise((r) => setTimeout(r, ms));
+          };
+          const isVis = (el) => {
+            if (!el) return false;
+            const r = el.getBoundingClientRect();
+            return r.width > 0 && r.height > 0;
+          };
+          const composerSelectors = [
+            'div.ProseMirror[contenteditable="true"]',
+            'fieldset div.ProseMirror[contenteditable="true"]',
+            'div[contenteditable="true"][data-placeholder]',
+            '[data-testid="chat-input"]',
+            'fieldset div[contenteditable="true"]',
+            'div[contenteditable="true"][role="textbox"]',
+            'textarea',
+          ];
+          let inputEl = null;
+          for (const s of composerSelectors) {
+            const el = document.querySelector(s);
+            if (isVis(el)) {
+              inputEl = el;
+              break;
+            }
+          }
+          if (!inputEl) return { ok: false };
+          inputEl.focus();
+
+          const normalizedTarget = String(rawText || '').replace(/\s+/g, ' ').trim();
+          const expectedPrefix = normalizedTarget.slice(0, Math.min(28, normalizedTarget.length));
+
+          if (inputEl.tagName === 'TEXTAREA' || inputEl.tagName === 'INPUT') {
+            const setter = Object.getOwnPropertyDescriptor(
+              window.HTMLTextAreaElement.prototype,
+              'value'
+            )?.set;
+            if (setter) setter.call(inputEl, rawText);
+            else inputEl.value = rawText;
+            inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+            inputEl.dispatchEvent(new Event('change', { bubbles: true }));
+          } else {
+            // 1. Primary path in MAIN world (100% silent in active: false tabs without chrome.debugger): direct ProseMirror transaction
+            let pmApplied = false;
+            try {
+              const pmHost =
+                (inputEl.pmViewDesc && inputEl) ||
+                inputEl.closest('.ProseMirror') ||
+                inputEl.querySelector('.ProseMirror');
+              const pmView = pmHost && pmHost.pmViewDesc && pmHost.pmViewDesc.view;
+              if (pmView && pmView.state && pmView.dispatch) {
+                const { state } = pmView;
+                const schema = state.schema;
+                let tr = state.tr;
+                if (schema && schema.nodes && schema.nodes.paragraph) {
+                  const lines = String(rawText || '').split('\n');
+                  const paras = lines.map((line) =>
+                    line.length > 0
+                      ? schema.nodes.paragraph.create(null, schema.text(line))
+                      : schema.nodes.paragraph.create()
+                  );
+                  tr = state.tr.replaceWith(0, state.doc.content.size, paras);
+                } else {
+                  tr = state.tr.insertText(String(rawText || ''), 0, state.doc.content.size);
+                }
+                pmView.dispatch(tr);
+                inputEl.dispatchEvent(
+                  new InputEvent('input', { bubbles: true, inputType: 'insertText', data: rawText })
+                );
+                await waitTick(45);
+                const afterPm = (inputEl.innerText || inputEl.textContent || '').replace(/\s+/g, ' ').trim();
+                if (afterPm && (!expectedPrefix || afterPm.startsWith(expectedPrefix))) {
+                  pmApplied = true;
+                }
+              }
+            } catch {}
+
+            if (!pmApplied) {
+              try {
+                const sel = window.getSelection();
+                const range = document.createRange();
+                range.selectNodeContents(inputEl);
+                sel.removeAllRanges();
+                sel.addRange(range);
+                document.execCommand('delete', false);
+              } catch {}
+              if (((inputEl.innerText || inputEl.textContent || '').trim()).length > 0) {
+                inputEl.innerHTML = '<p><br></p>';
+                inputEl.dispatchEvent(
+                  new InputEvent('input', { bubbles: true, inputType: 'deleteContentBackward' })
+                );
+                await waitTick(45);
+              }
+
+              try {
+                inputEl.focus();
+                const sel = window.getSelection();
+                const range = document.createRange();
+                range.selectNodeContents(inputEl);
+                sel.removeAllRanges();
+                sel.addRange(range);
+                const dt = new DataTransfer();
+                dt.setData('text/plain', String(rawText || ''));
+                const pasteEvt = new ClipboardEvent('paste', {
+                  bubbles: true,
+                  cancelable: true,
+                  clipboardData: dt,
+                });
+                inputEl.dispatchEvent(pasteEvt);
+                await waitTick(60);
+              } catch {}
+
+              let curNorm = (inputEl.innerText || inputEl.textContent || '').replace(/\s+/g, ' ').trim();
+              if (!curNorm || (expectedPrefix && !curNorm.startsWith(expectedPrefix))) {
+                try {
+                  const sel = window.getSelection();
+                  const range = document.createRange();
+                  range.selectNodeContents(inputEl);
+                  sel.removeAllRanges();
+                  sel.addRange(range);
+                  document.execCommand('insertText', false, rawText);
+                } catch {}
+                curNorm = (inputEl.innerText || inputEl.textContent || '').replace(/\s+/g, ' ').trim();
+              }
+
+              if (!curNorm || (expectedPrefix && !curNorm.startsWith(expectedPrefix))) {
+                inputEl.innerHTML = '';
+                for (const line of String(rawText || '').split('\n')) {
+                  const p = document.createElement('p');
+                  if (line.length > 0) p.textContent = line;
+                  else p.appendChild(document.createElement('br'));
+                  inputEl.appendChild(p);
+                }
+                inputEl.dispatchEvent(
+                  new InputEvent('input', { bubbles: true, inputType: 'insertText', data: rawText })
+                );
+              }
+            }
+          }
+
+          // Strict send button finder: NEVER click generic fieldset button:has(svg) (which hits +, model selector, or Extended Thinking)
+          const findClaudeSendButton = () => {
+            const sels = [
+              'button[aria-label*="Send message" i]',
+              'button[aria-label="Send" i]',
+              'button[aria-label*="Enviar mensaje" i]',
+              'button[aria-label="Enviar" i]',
+              'button[data-testid="send-button"]',
+            ];
+            for (const s of sels) {
+              const b = document.querySelector(s);
+              if (!b || !isVis(b)) continue;
+              if (b.disabled || b.getAttribute('aria-disabled') === 'true') continue;
+              if (b.getAttribute('aria-haspopup') === 'menu' || b.getAttribute('aria-haspopup') === 'true') continue;
+              if (b.hasAttribute('aria-expanded')) continue;
+              const aria = (b.getAttribute('aria-label') || '').toLowerCase();
+              if (/model|modelo|style|estilo|attach|adjuntar|upload|subir|file|archivo|thinking|pensamiento|search|voice|voz|stop|detener|setting/i.test(aria)) {
+                continue;
+              }
+              return b;
+            }
+            return null;
+          };
+
+          let clickedSend = false;
+          let sendBtn = findClaudeSendButton();
+          for (let w = 0; w < 10 && !sendBtn; w++) {
+            await waitTick(30);
+            sendBtn = findClaudeSendButton();
+          }
+          if (sendBtn) {
+            sendBtn.click();
+            clickedSend = true;
+          } else {
+            inputEl.focus();
+            inputEl.dispatchEvent(
+              new KeyboardEvent('keydown', {
+                key: 'Enter',
+                code: 'Enter',
+                keyCode: 13,
+                which: 13,
+                bubbles: true,
+                cancelable: true,
+              })
+            );
+          }
+
+          return { ok: true, clickedSend };
+        },
+      })
+      .catch(() => null);
+
+    for (const waitMs of [550, 750]) {
+      await sleep(waitMs);
+      const snapAfterMain = await inspectClaudeTabLatestResponse(tabId);
+      if (
+        snapAfterMain &&
+        (snapAfterMain.generating ||
+          snapAfterMain.userQueries > beforeUserQueries ||
+          snapAfterMain.count > beforeCount ||
+          (snapAfterMain.url && snapAfterMain.url !== beforeUrl && /\/chat\/[a-z0-9-]+/i.test(snapAfterMain.url)))
+      ) {
+        return true;
+      }
+      const composerRemainingRes = await chrome.scripting
+        .executeScript({
+          target: { tabId },
+          world: 'MAIN',
+          func: () => {
+            const el =
+              document.querySelector('div.ProseMirror[contenteditable="true"]') ||
+              document.querySelector('[data-testid="chat-input"]') ||
+              document.querySelector('fieldset div[contenteditable="true"]') ||
+              document.querySelector('div[contenteditable="true"][role="textbox"]');
+            if (!el) return -1;
+            const val = el.tagName === 'TEXTAREA' || el.tagName === 'INPUT' ? el.value : el.innerText || el.textContent;
+            return String(val || '').trim().length;
+          },
+        })
+        .catch(() => null);
+      const remainingLen =
+        composerRemainingRes && composerRemainingRes[0] && typeof composerRemainingRes[0].result === 'number'
+          ? composerRemainingRes[0].result
+          : -1;
+      if (remainingLen === 0) {
+        return true;
+      }
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+let claudeAcquireLockChain = Promise.resolve();
+function withClaudeAcquireLock(fn) {
+  const next = claudeAcquireLockChain.then(fn, fn);
+  claudeAcquireLockChain = next.catch(() => {});
+  return next;
+}
+
+async function acquireClaudeTabForExternalAsk(requestId) {
+  return withClaudeAcquireLock(async () => {
+    const presence = await getHuellasBrowserProfilePresence();
+    if (!presence.hasAppWindow && !presence.hasWorkspace) {
+      throw new Error('Este navegador/perfil no contiene la ventana abierta de Huellas Master.');
+    }
+
+    const busyTabIds = new Set();
+    for (const [reqId, v] of activeExternalAskMap.entries()) {
+      if (reqId !== requestId && v && v.tabId) busyTabIds.add(v.tabId);
+    }
+    const storedMap = await getStoredExternalAskMap();
+    const nowMs = Date.now();
+    for (const [reqId, v] of Object.entries(storedMap)) {
+      if (!v || !v.tabId || reqId === requestId) continue;
+      const ageMs = nowMs - Number(v.startedAt || 0);
+      if (
+        ageMs < 360000 &&
+        ((latestServerActiveExternalAskIds && latestServerActiveExternalAskIds.has(reqId)) || ageMs < 20000)
+      ) {
+        busyTabIds.add(v.tabId);
+      }
+    }
+
+    const openClaudeTabs = (await chrome.tabs.query({ url: CLAUDE_TAB_URL_PATTERNS }).catch(() => [])).filter(
+      (t) => t && t.id && !busyTabIds.has(t.id)
+    );
+
+    if (openClaudeTabs.length > 0) {
+      const winTabCounts = new Map();
+      for (const t of openClaudeTabs) {
+        if (typeof t.windowId === 'number' && !winTabCounts.has(t.windowId)) {
+          const wTabs = await chrome.tabs.query({ windowId: t.windowId }).catch(() => []);
+          winTabCounts.set(t.windowId, wTabs.length || 99);
+        }
+      }
+      openClaudeTabs.sort((a, b) => {
+        const aStandalone = winTabCounts.get(a.windowId) === 1 ? 1 : 0;
+        const bStandalone = winTabCounts.get(b.windowId) === 1 ? 1 : 0;
+        if (bStandalone !== aStandalone) return bStandalone - aStandalone;
+        if (Boolean(a.active) !== Boolean(b.active)) return Number(Boolean(a.active)) - Number(Boolean(b.active));
+        const aInAppWin = a.windowId === presence.anchorWindowId ? 1 : 0;
+        const bInAppWin = b.windowId === presence.anchorWindowId ? 1 : 0;
+        if (bInAppWin !== aInAppWin) return bInAppWin - aInAppWin;
+        return (b.lastAccessed || b.id || 0) - (a.lastAccessed || a.id || 0);
+      });
+
+      for (const candidateTab of openClaudeTabs) {
+        const tabId = candidateTab.id;
+        const curSnap = await inspectClaudeTabLatestResponse(tabId);
+        if (curSnap && curSnap.generating) {
+          continue;
+        }
+
+        await chrome.tabs.update(tabId, { autoDiscardable: false }).catch(() => {});
+
+        let currentPathname = '';
+        try {
+          currentPathname = new URL((curSnap && curSnap.url) || candidateTab.url || '').pathname;
+        } catch {}
+        const isAlreadyFreshNewChat =
+          (currentPathname === '/new' || currentPathname === '/' || currentPathname === '') &&
+          curSnap &&
+          curSnap.userQueries === 0 &&
+          curSnap.count === 0 &&
+          !curSnap.generating;
+
+        if (!isAlreadyFreshNewChat) {
+          const clickedNewChatRes = await chrome.scripting
+            .executeScript({
+              target: { tabId },
+              world: 'MAIN',
+              func: () => {
+                const isVis = (el) => {
+                  if (!el) return false;
+                  const r = el.getBoundingClientRect();
+                  return r.width > 0 && r.height > 0;
+                };
+                const exactSelectors = [
+                  'a[href="/new"]',
+                  'button[data-testid="new-chat-button"]',
+                  'a[aria-label*="New chat" i]',
+                  'a[aria-label*="Nuevo chat" i]',
+                  'button[aria-label*="New chat" i]',
+                  'button[aria-label*="Nuevo chat" i]',
+                ];
+                for (const sel of exactSelectors) {
+                  const el = document.querySelector(sel);
+                  if (isVis(el)) {
+                    el.click();
+                    return true;
+                  }
+                }
+                return false;
+              },
+            })
+            .catch(() => null);
+
+          const clickedNewChat = Boolean(clickedNewChatRes && clickedNewChatRes[0] && clickedNewChatRes[0].result);
+          let switchedCleanly = false;
+          if (clickedNewChat) {
+            for (let poll = 0; poll < 7; poll++) {
+              await sleep(220);
+              const s = await inspectClaudeTabLatestResponse(tabId);
+              let pName = '';
+              try {
+                pName = new URL((s && s.url) || '').pathname;
+              } catch {}
+              if (s && (pName === '/new' || pName === '/') && s.userQueries === 0 && s.count === 0 && !s.generating) {
+                switchedCleanly = true;
+                break;
+              }
+            }
+          }
+
+          if (!switchedCleanly) {
+            await chrome.tabs.update(tabId, { url: 'https://claude.ai/new' }).catch(() => {});
+          }
+        }
+
+        if (requestId) {
+          await registerActiveExternalAskWindow(requestId, null, tabId, {
+            keepOpenOnCleanup: true,
+          });
+        }
+        return {
+          createdWindowId: null,
+          tabId,
+          reusedExisting: true,
+          hasAppWindow: presence.hasAppWindow,
+        };
+      }
+    }
+
+    const opened = await createTemporaryTabInAppWindow('https://claude.ai/new');
+    if (requestId) {
+      await registerActiveExternalAskWindow(requestId, opened.createdWindowId, opened.tabId, {
+        keepOpenOnCleanup: false,
+      });
+    }
+    return {
+      createdWindowId: opened.createdWindowId,
+      tabId: opened.tabId,
+      reusedExisting: false,
+      hasAppWindow: opened.hasAppWindow,
+    };
+  });
+}
+
+async function runExternalClaudeAskOrder(task) {
+  if (!task || !task.id || !task.prompt) return;
+  if (task.prompt === '__READ_CURRENT__') {
+    const claudeTabs = await chrome.tabs.query({ url: CLAUDE_TAB_URL_PATTERNS }).catch(() => []);
+    const preferredTab = claudeTabs[claudeTabs.length - 1] || claudeTabs[0] || null;
+    if (!preferredTab || !preferredTab.id) {
+      await fetch('http://localhost:4200/api/claude-web/ask-external-result', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requestId: task.id, ok: false, error: 'No hay pestaña de Claude abierta.' }),
+      }).catch(() => {});
+      return;
+    }
+    const snap = await inspectClaudeTabLatestResponse(preferredTab.id);
+    await fetch('http://localhost:4200/api/claude-web/ask-external-result', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        requestId: task.id,
+        ok: Boolean(snap && snap.text),
+        reusedExisting: true,
+        verifiedModel: (snap && snap.verifiedModel) || 'Claude Web',
+        response: (snap && snap.text) || '',
+        chatUrl: (snap && snap.url) || preferredTab.url || '',
+        error: snap && !snap.text ? 'Respuesta vacía en la pestaña actual de Claude.' : undefined,
+      }),
+    }).catch(() => {});
+    return;
+  }
+
+  activeExternalAskCount += 1;
+  let createdWindowId = null;
+  let tabId = null;
+  let reusedExisting = false;
+  try {
+    await registerActiveExternalAskWindow(task.id, null, null, {
+      keepOpenOnCleanup: true,
+    });
+    const opened = await acquireClaudeTabForExternalAsk(task.id);
+    createdWindowId = opened.createdWindowId;
+    tabId = opened.tabId;
+    reusedExisting = Boolean(opened.reusedExisting);
+
+    await registerActiveExternalAskWindow(task.id, createdWindowId, tabId, {
+      keepOpenOnCleanup: reusedExisting,
+    });
+    await fetch('http://localhost:4200/api/claude-web/ask-external-claim', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: task.id,
+        windowId: createdWindowId,
+        tabId,
+        reusedExisting,
+        hasAppWindow: opened.hasAppWindow,
+        hasWorkspace: true,
+      }),
+    }).catch(() => {});
+
+    for (let w = 0; w < 35; w++) {
+      await sleep(400);
+      const tInfo = await chrome.tabs.get(tabId).catch(() => null);
+      if (tInfo && tInfo.status === 'complete' && /^https:\/\/([a-z0-9-]+\.)?claude\.ai/i.test(tInfo.url || '')) {
+        const snapReady = await inspectClaudeTabLatestResponse(tabId);
+        if (snapReady && snapReady.blockReason && w >= 4) {
+          if (trySettleExternalAsk(task.id)) {
+            await fetch('http://localhost:4200/api/claude-web/ask-external-result', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                requestId: task.id,
+                ok: false,
+                tabId,
+                windowId: createdWindowId,
+                reusedExisting,
+                chatUrl: snapReady.url || tInfo.url || '',
+                error: snapReady.blockReason,
+              }),
+            }).catch(() => {});
+          }
+          return;
+        }
+        if (snapReady && snapReady.hasComposer) {
+          break;
+        }
+      }
+    }
+    await sleep(450);
+
+    const checkBlock = await inspectClaudeTabLatestResponse(tabId);
+    if (checkBlock && checkBlock.blockReason) {
+      if (trySettleExternalAsk(task.id)) {
+        await fetch('http://localhost:4200/api/claude-web/ask-external-result', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            requestId: task.id,
+            ok: false,
+            tabId,
+            windowId: createdWindowId,
+            reusedExisting,
+            chatUrl: checkBlock.url || '',
+            error: checkBlock.blockReason,
+          }),
+        }).catch(() => {});
+      }
+      return;
+    }
+
+    const baselineCount = (checkBlock && checkBlock.count) || 0;
+    const baselineText = ((checkBlock && checkBlock.text) || '').trim();
+
+    const orderPayload = {
+      target: 'CLAUDE',
+      action: 'ASK_EXTERNAL_CLAUDE',
+      requestId: task.id,
+      prompt: task.prompt,
+    };
+    let deliveredAck = false;
+    for (let tryIdx = 0; tryIdx < 8; tryIdx++) {
+      await ensureScriptInjected(tabId, 'claude-content.js');
+      await sleep(350);
+      const ack = await chrome.tabs.sendMessage(tabId, orderPayload).catch(() => null);
+      if (ack && ack.handled) {
+        deliveredAck = true;
+        break;
+      }
+      await sleep(400);
+    }
+
+    if (!deliveredAck) {
+      await forceSubmitPromptInClaudeTab(tabId, task.prompt);
+    }
+
+    let stableDoneTicks = 0;
+    let lastText = '';
+    for (let i = 0; i < 150; i++) {
+      await sleep(2000);
+      await chrome.runtime.getPlatformInfo().catch(() => null);
+      if (settledExternalAskIds.has(task.id) || !pendingExternalCheckActive(task.id)) break;
+      const tStillExists = await chrome.tabs.get(tabId).catch(() => null);
+      if (!tStillExists) break;
+      const snap = await inspectClaudeTabLatestResponse(tabId);
+      if (!snap) continue;
+      if (snap.blockReason) {
+        if (trySettleExternalAsk(task.id)) {
+          await fetch('http://localhost:4200/api/claude-web/ask-external-result', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              requestId: task.id,
+              ok: false,
+              tabId,
+              windowId: createdWindowId,
+              reusedExisting,
+              chatUrl: snap.url || '',
+              error: snap.blockReason,
+            }),
+          }).catch(() => {});
+        }
+        return;
+      }
+      if (snap.userQueries === 0 && snap.count === 0 && !snap.generating && (i === 5 || i === 10)) {
+        const composerRemainingRes = await chrome.scripting
+          .executeScript({
+            target: { tabId },
+            world: 'MAIN',
+            func: () => {
+              const el =
+                document.querySelector('div.ProseMirror[contenteditable="true"]') ||
+                document.querySelector('[data-testid="chat-input"]') ||
+                document.querySelector('fieldset div[contenteditable="true"]') ||
+                document.querySelector('div[contenteditable="true"][role="textbox"]');
+              if (!el) return -1;
+              const val =
+                el.tagName === 'TEXTAREA' || el.tagName === 'INPUT' ? el.value : el.innerText || el.textContent;
+              return String(val || '').trim().length;
+            },
+          })
+          .catch(() => null);
+        const remLen =
+          composerRemainingRes && composerRemainingRes[0] && typeof composerRemainingRes[0].result === 'number'
+            ? composerRemainingRes[0].result
+            : -1;
+        if (remLen > 0) {
+          await forceSubmitPromptInClaudeTab(tabId, task.prompt);
+          continue;
+        }
+      }
+      const trimmedSnapText = (snap.text || '').trim();
+      const isNewTurn =
+        snap.count > baselineCount || (trimmedSnapText.length > 0 && trimmedSnapText !== baselineText);
+      const readyEnough = (snap.hasFinishActions || snap.hasMarkdown) && trimmedSnapText.length >= 2;
+      const neededStableTicks = snap.hasFinishActions ? 2 : 3;
+      if (isNewTurn && !snap.generating && readyEnough) {
+        if (snap.text === lastText) {
+          stableDoneTicks += 1;
+        } else {
+          lastText = snap.text;
+          stableDoneTicks = 1;
+        }
+        if (stableDoneTicks >= neededStableTicks) {
+          if (trySettleExternalAsk(task.id)) {
+            await fetch('http://localhost:4200/api/claude-web/ask-external-result', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                requestId: task.id,
+                ok: true,
+                tabId,
+                windowId: createdWindowId,
+                reusedExisting,
+                verifiedModel: snap.verifiedModel || 'Claude Web',
+                response: snap.text,
+                chatUrl: snap.url,
+              }),
+            }).catch(() => {});
+          }
+          return;
+        }
+      } else {
+        lastText = snap.text || '';
+        stableDoneTicks = 0;
+      }
+    }
+  } finally {
+    activeExternalAskCount = Math.max(0, activeExternalAskCount - 1);
+    await cleanupActiveExternalAskWindow(task.id, createdWindowId, tabId, {
+      keepOpen: reusedExisting,
+    });
   }
 }
 
@@ -9379,6 +10378,44 @@ async function checkExtensionAutoReloadFromLocalServer(isStartup = false) {
           });
         } else {
           claimedExternalAskIds.delete(chatGptTask.id);
+        }
+      }
+
+      const claudeTasks = Array.isArray(data?.pendingExternalClaudeAsks)
+        ? data.pendingExternalClaudeAsks
+        : data?.pendingExternalClaudeAsk
+          ? [data.pendingExternalClaudeAsk]
+          : [];
+      for (const claudeTask of claudeTasks) {
+        if (!claudeTask || !claudeTask.id || claimedExternalAskIds.has(claudeTask.id)) continue;
+        claimedExternalAskIds.add(claudeTask.id);
+        const claimRes = await fetch('http://localhost:4200/api/claude-web/ask-external-claim', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: claudeTask.id,
+            hasAppWindow: presence.hasAppWindow,
+            hasWorkspace: presence.hasWorkspace,
+          }),
+        })
+          .then((r) => r.json())
+          .catch(() => null);
+        if (claimRes && claimRes.ok) {
+          runExternalClaudeAskOrder(claudeTask).catch((err) => {
+            if (trySettleExternalAsk(claudeTask.id)) {
+              fetch('http://localhost:4200/api/claude-web/ask-external-result', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  requestId: claudeTask.id,
+                  ok: false,
+                  error: String(err?.message || err),
+                }),
+              }).catch(() => {});
+            }
+          });
+        } else {
+          claimedExternalAskIds.delete(claudeTask.id);
         }
       }
     }
