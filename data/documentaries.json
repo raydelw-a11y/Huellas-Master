@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-11-08T12:13:00.000Z",
-    "updatedAt": "2026-11-14T18:09:29.893Z",
+    "updatedAt": "2026-11-15T01:32:03.143Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -61,7 +61,7 @@
       "REMOTE_GEMINI_STAGE_COMMAND_JSON": "{\"type\":\"REMOTE_GEMINI_STAGE\",\"commandId\":\"rgs_thumb_1794402632127_q8jih\",\"docId\":\"doc-video-77-huellas\",\"stageNumber\":505,\"requestedAt\":1794402632127,\"prompt\":\"Thumbnail: Create an image in 16:9 horizontal aspect ratio featuring an ultra-clean three-element composition with zero visual clutter, dominated on the right sixty percent of the frame by a dramatic medium close-up of a young British male physician in his late twenties with tousled dark hair, sweat beads, visible skin pores, and wide-open anguished eyes showing crisp white sclera making direct piercing eye contact into the camera lens, portrayed by an anonymous historical reenactment actor in authentic period attire (no real public figures or prominent people) wearing a 1941 white clinical coat over a tweed vest, holding up in the foreground a completely dry empty vintage glass medicine vial with tiny traces of yellow powder clinging to its inner walls, set against a cold midnight cyan-blue darkened 1941 British hospital ward with heavy black wartime blackout curtains in deep abyssal shadow, lit by dramatic chiaroscuro warm golden-amber key light across his face and a sharp rim light separating him from the cold dark background. In the bottom-left area of the image, a bold high-contrast cinematic documentary typography text overlay stacked across 2 exact separate lines reads (Line 1: \\\"FALTÓ UNA GOTA\\\" / Line 2: \\\"Y SE APAGÓ\\\"). In the top-right corner, a small discreet 5% scale logo displays \\\"8K\\\" in metallic gold. In the top-left corner, the official page logo from the provided reference image is cleanly integrated at 5% scale, strictly preserving and visibly rendering both the logo emblem and the exact text underneath it \\\"Huellas de la Humanidad\\\" without cropping, blurring, or omitting the sub-text. The scene has cinematic documentary realism, 8k resolution, sharp focus, safe framing composition, no modern objects, no CGI look, no unintended floating text, no music.\",\"taskType\":\"THUMBNAIL_IMAGE_GENERATION\",\"enableCreateImage\":true,\"standaloneNewChat\":true,\"noNotebook\":true,\"mediaType\":\"THUMBNAILS\",\"optionLabel\":\"A\",\"aspectRatio\":\"16:9\",\"enableHighModel\":false,\"enableArgonLow\":true,\"enableCarbonLow\":true,\"preferredModel\":\"CARBON_4_LOW\",\"thinkingLevel\":\"LOW\",\"enableDeepResearch\":false,\"videoName\":\"\",\"deepResearchVideoName\":\"\",\"geminiChatUrl\":\"\",\"geminiDeepResearchChatUrl\":\"\",\"notebookName\":\"\"}",
       "REMOTE_GEMINI_STAGE_ACK_ID": "rgs_1794399996476_23q8n",
       "GEMINI_CHAT_URL": "https://gemini.google.com/app/03cabb86628532c8",
-      "PROMPTS_RESTORED_AT": "1794679769893",
+      "PROMPTS_RESTORED_AT": "1794706323143",
       "FIELD_CLEARED_AT_rawClipsText": "0"
     },
     "compiledMasterPrompt": "",
@@ -1314,7 +1314,9 @@
         "reframeFocusXEnd": 50,
         "reframeFocusY": 50,
         "reframeConfidence": 0.55,
-        "reframeReason": "Encuadre central simétrico IA (50%)"
+        "reframeReason": "Encuadre central simétrico IA (50%)",
+        "discardedVideoFileName": "02_create_a_cinematic_8_second_582c5ae1_4K.mp4",
+        "videoDiscardedAt": 1794641982559
       },
       {
         "id": "clip-3-1794442731175-5puj",
@@ -1615,7 +1617,9 @@
         "reframeFocusXEnd": 24,
         "reframeFocusY": 50,
         "reframeConfidence": 0.93,
-        "reframeReason": "Paneo dinámico IA (78% → 24%) desde sujeto derecho hacia escena izquierda (Der → Izq)"
+        "reframeReason": "Paneo dinámico IA (78% → 24%) desde sujeto derecho hacia escena izquierda (Der → Izq)",
+        "discardedVideoFileName": "12_create_a_cinematic_8_second_29f8b781_4K.mp4",
+        "videoDiscardedAt": 1794641982559
       },
       {
         "id": "clip-13-1794442731279-62ej",
@@ -1730,10 +1734,10 @@
         "videoFrames": [],
         "videoAuditStatus": "approved",
         "videoAuditReason": "",
-        "videoSavedAt": 1794677478253,
+        "videoSavedAt": 1794677478501,
         "imagePreviewUrl": "",
-        "reviewedUpdatedAt": 1794641982559,
-        "videoDiscardOverriddenAt": 1794677478253,
+        "reviewedUpdatedAt": 1794677478501,
+        "videoDiscardOverriddenAt": 1794677478501,
         "videoAttempts": 2,
         "videoAuditIssues": []
       },
@@ -1847,14 +1851,14 @@
         "reviewedForEditor": false,
         "recreated": false,
         "videoSavedFileName": "20_create_a_cinematic_8_second_da4c71cf_4K.mp4",
-        "videoFrames": [],
         "videoAuditStatus": "approved",
         "videoAuditReason": "",
-        "videoSavedAt": 1794677508366,
+        "videoSavedAt": 1794677508406,
         "imagePreviewUrl": "",
         "reviewedUpdatedAt": 1794641982559,
-        "videoDiscardOverriddenAt": 1794677508366,
-        "videoAuditIssues": []
+        "videoDiscardOverriddenAt": 1794677508406,
+        "videoAuditIssues": [],
+        "videoFrames": []
       },
       {
         "id": "clip-21-1794442731362-gggd",
@@ -2023,14 +2027,14 @@
         "reviewedForEditor": false,
         "recreated": false,
         "videoSavedFileName": "26_create_a_cinematic_8_second_video_a13cda38_4K.mp4",
-        "videoFrames": [],
         "videoAuditStatus": "approved",
         "videoAuditReason": "",
-        "videoSavedAt": 1794677501264,
+        "videoSavedAt": 1794677501307,
         "imagePreviewUrl": "",
         "reviewedUpdatedAt": 1794641982559,
-        "videoDiscardOverriddenAt": 1794677501264,
-        "videoAuditIssues": []
+        "videoDiscardOverriddenAt": 1794677501307,
+        "videoAuditIssues": [],
+        "videoFrames": []
       },
       {
         "id": "clip-27-1794442731423-3exw",
@@ -2194,24 +2198,24 @@
         "imagePrompt": "Image 32: Create an image in 16:9 horizontal aspect ratio a somber medium wide angle across the dark polished mahogany paneling and tiered oak benches of @Sala_Medica_Londres in 1929 as silent physicians close their notebooks without raising a single hand while @Alexander_Fleming wearing his white cotton laboratory coat over a medium-gray British three-piece wool suit and dark navy polka-dot bow tie gathers his papers alone at the wooden lectern, clean uncluttered composition with rigid architectural perspective, stationary period props, portrayed by anonymous historical reenactment actors in authentic period costume (no real public figures or prominent people), 8k photorealistic cinematic lighting, historical accuracy, sharp focus, strictly no text, no watermarks, no speech, no music. fix the name",
         "videoPrompt": "Clip 32 (04:16 - 04:24): Create a cinematic 8-second video showing a slow lateral tracking glide past the motionless seated audience inside the paneled wood lecture hall as the silver-haired Scottish scientist wearing his white cotton laboratory coat over a medium-gray British three-piece wool suit and dark navy polka-dot bow tie quietly closes his leather folder on the wooden lectern amid complete unyielding silence across the full 8 seconds, holding a natural composed frame through the final second. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous action across the full 8 seconds, holding a natural composed posture through the final frame. Fixed subject count from 0s to 8s (no new people appearing out of nowhere, vanishing, or morphing; background figures stationary in shallow optical bokeh). Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects. Cinematic historical drama reenactment featuring anonymous fictionalized theatre actors in period costume (no real public figures or prominent people, steady continuous lighting with zero sudden flashes). Ambient Foley: hollow click of a brass briefcase latch in motionless auditorium silence, muted rain against leaded windows, single continuous shot, strictly no shot changes, no music, no speech, no text. [Duration: 8s] [Model: Omni 1.1 Flash] fix the name",
         "narrationSegment": "colega en la sala de paneles de caoba formuló una sola pregunta. [pausa: 1.0s] Corría el año 1938 en la Escuela Sir William Dunn de Patología, en",
-        "imageReady": false,
-        "videoReady": false,
-        "auditStatus": "mismatch",
-        "auditReason": "❌ Mutaba de traje a bata blanca a mitad del plano (prompt #32 ya corregido y alineado con @Alexander_Fleming).",
+        "imageReady": true,
+        "videoReady": true,
+        "auditStatus": "ok",
+        "auditReason": "Sincronizado con el tramo de voz narrativa.",
         "pauseNotes": "Contiene [pausa: 1.0s] en la locución",
         "reviewedForEditor": false,
-        "recreated": false,
-        "videoSavedFileName": "",
+        "recreated": true,
+        "videoSavedFileName": "32_create_a_cinematic_8_second_cde23c68_4K.mp4",
         "videoFrames": [],
-        "videoAuditStatus": "rejected",
-        "videoAuditReason": "❌ Mutaba de traje a bata blanca a mitad del plano (prompt #32 ya corregido y alineado con @Alexander_Fleming).",
-        "discardedVideoFileName": "32_create_a_cinematic_8_second_video_88f264df_4K.mp4",
-        "videoDiscardedAt": 1794641982559,
-        "videoSavedAt": 0,
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoSavedAt": 1794678280589,
         "promptUpdatedAt": 1794572688032,
         "flowClipEngine": "OMNI_1_1_FLASH",
         "imagePreviewUrl": "",
-        "reviewedUpdatedAt": 1794641982559
+        "reviewedUpdatedAt": 1794678280589,
+        "videoAuditIssues": [],
+        "videoDiscardOverriddenAt": 1794678280589
       },
       {
         "id": "clip-33-1794442731487-7ng7",
@@ -2222,21 +2226,22 @@
         "imagePrompt": "Image 33: Create an image in 16:9 horizontal aspect ratio a crisp cinematic medium shot inside a bright upstairs biochemistry laboratory of @Escuela_Dunn_Oxford in 1938 showing @Howard_Florey in gold wire-rimmed spectacles standing beside @Ernst_Chain with his dark wavy hair and prominent dark mustache over glass flasks and biochemical apparatus, clean uncluttered composition with rigid architectural perspective, stationary period props, portrayed by anonymous historical reenactment actors in authentic period costume (no real public figures or prominent people), 8k photorealistic cinematic lighting, historical accuracy, sharp focus, strictly no text, no watermarks, no speech, no music. fix the name",
         "videoPrompt": "Clip 33 (04:24 - 04:32): Create a cinematic 8-second video showing a smooth fluid-head dolly-in inside the vintage Oxford research laboratory as the dark-haired biochemist in the white lab coat gestures animatedly toward a rack of glass test tubes while the bespectacled senior professor in the tweed suit listens with an intense pragmatic gaze behind his round gold spectacles across the full 8 seconds, holding a natural composed frame through the final second. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous action across the full 8 seconds, holding a natural composed posture through the final frame. Fixed subject count from 0s to 8s (no new people appearing out of nowhere, vanishing, or morphing; background figures stationary in shallow optical bokeh). Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects. Cinematic historical drama reenactment featuring anonymous fictionalized theatre actors in period costume (no real public figures or prominent people, steady continuous lighting with zero sudden flashes). Ambient Foley: soft clink of glass test tubes in a wooden rack, quiet footsteps on laboratory linoleum, distant Oxford bells, single continuous shot, strictly no shot changes, no music, no speech, no text. [Duration: 8s] [Model: Omni 1.1 Flash] fix the name",
         "narrationSegment": "la Universidad de Oxford. A su lado investigaba Ernst Chain, un bioquímico de origen judío nacido",
-        "imageReady": false,
-        "videoReady": false,
-        "auditStatus": "mismatch",
-        "auditReason": "⛔ Clip faltante: Google Flow se saltó la escena #33 en el lote anterior.",
+        "imageReady": true,
+        "videoReady": true,
+        "auditStatus": "ok",
+        "auditReason": "Sincronizado con el tramo de voz narrativa.",
         "pauseNotes": "",
         "reviewedForEditor": false,
-        "recreated": false,
+        "recreated": true,
         "videoFrames": [],
-        "videoAuditStatus": "rejected",
-        "videoAuditReason": "⛔ Clip faltante: Google Flow se saltó la escena #33 en el lote anterior.",
-        "videoSavedFileName": "",
-        "videoDiscardedAt": 1794641982559,
-        "videoSavedAt": 0,
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoSavedFileName": "33_create_a_cinematic_8_second_a164be7a_4K.mp4",
+        "videoSavedAt": 1794678785398,
         "imagePreviewUrl": "",
-        "reviewedUpdatedAt": 1794641982559
+        "reviewedUpdatedAt": 1794678785398,
+        "videoAuditIssues": [],
+        "videoDiscardOverriddenAt": 1794678785398
       },
       {
         "id": "clip-34-1794442731497-4xpp",
@@ -3267,7 +3272,9 @@
         "reframeReason": "Enfoque inteligente IA en tercio izquierdo (16%)",
         "videoFrames": [],
         "videoAuditReason": "",
-        "videoAuditIssues": []
+        "videoAuditIssues": [],
+        "discardedVideoFileName": "68_68_Macro_shot_of_vintage_0fd04ec1_4K.mp4",
+        "videoDiscardedAt": 1794572688032
       },
       {
         "id": "clip-69-1794442731885-nk42",
@@ -5291,7 +5298,8 @@
         "category": "persona",
         "description": "Image @Ricardo_Ruiz_Balbin",
         "prompt": "Create an image in 16:9 horizontal aspect ratio of an adult historical figure in authentic period wardrobe, portrayed by an anonymous historical reenactment actor, an adult in their mid-twenties Spanish farmer from Asturias in 1885, Santander, Spain, lean build, pale face with sun-reddened cheekbones, shaved temples, tense dark eyes, wearing a black wool beret, dark ribbed corduroy jacket, and coarse white shirt, 8k photorealistic, 35mm film grain, chiaroscuro lighting, cinematic documentary realism, safe framing composition, no modern objects, no CGI look, no text, no speech, no music. Portrayed by an anonymous historical reenactment actor in authentic period wardrobe (no real public figures or prominent people).",
-        "isCreated": false
+        "isCreated": false,
+        "imageUrl": ""
       },
       {
         "id": "ref-1793467561409-2",
@@ -5299,7 +5307,8 @@
         "category": "persona",
         "description": "Image @Frank_Menocal",
         "prompt": "Create an image in 16:9 horizontal aspect ratio of an adult historical figure in authentic period wardrobe, portrayed by an anonymous historical reenactment actor, a adult in their mid-twenties quarantine physician and immigration commissioner, historical period 1885 to 1905 connected to the Spanish exodus from Santander, Spain to Havana, Cuba, stern oval face, thick trimmed mustache, fine wire-rimmed glasses, wearing an immaculate starched white linen medical uniform with high collar and gold buttons and a white pith helmet, 8k photorealistic, cinematic documentary realism, safe framing composition, no modern objects, no CGI look, no text, no speech, no music. Portrayed by an anonymous historical reenactment actor in authentic period wardrobe (no real public figures or prominent people).",
-        "isCreated": false
+        "isCreated": false,
+        "imageUrl": ""
       },
       {
         "id": "ref-1793467561409-3",
@@ -5307,7 +5316,8 @@
         "category": "persona",
         "description": "Image @Pedro_Garfias_Zurita",
         "prompt": "Create an image in 16:9 horizontal aspect ratio of an adult historical figure in authentic period wardrobe, portrayed by an anonymous historical reenactment actor, a adult in their mid-twenties Spanish exiled poet, historical period 1885 to 1939 connected to the transatlantic exodus from Santander, Spain to Veracruz, Mexico, pale gaunt face, silver-gray temples, a gray lock of hair on his forehead, thick tortoiseshell glasses, black wool beret, worn dark suit and heavy shepherd jacket, holding a knotted wooden cane, 8k photorealistic, cinematic documentary realism, safe framing composition, no modern objects, no CGI look, no text, no speech, no music. Portrayed by an anonymous historical reenactment actor in authentic period wardrobe (no real public figures or prominent people).",
-        "isCreated": false
+        "isCreated": false,
+        "imageUrl": ""
       },
       {
         "id": "ref-1793467561409-4",
@@ -5315,7 +5325,8 @@
         "category": "lugar",
         "description": "Image Muelle de Maliaño Santander",
         "prompt": "Create an image in 16:9 horizontal aspect ratio of the stone dock of Maliaño in Santander, Spain, Year 1885, wet granite cobblestones glistening under coastal rain, cast-iron port sheds, a towering black riveted-steel transatlantic steamship with a red-and-black funnel venting coal smoke, wooden trunks tied with hemp rope stacked on the pier, 8k photorealistic, cinematic documentary realism, safe framing composition, no modern objects, no CGI look, no text, no speech, no music.",
-        "isCreated": false
+        "isCreated": false,
+        "imageUrl": ""
       },
       {
         "id": "ref-1793467561409-5",
@@ -5323,7 +5334,8 @@
         "category": "lugar",
         "description": "Image Aldea de Lué Asturias",
         "prompt": "Create an image in 16:9 horizontal aspect ratio of the rural stone village of Lué in Asturias and northern Spain, Year 1885, compact unplastered granite cottages covered in moss with heavy black slate roofs, a traditional raised stone horreo granary, muddy cobblestone lane under cold mist and drizzle, dark smoky interior lareira hearth with an iron pot, 8k photorealistic, cinematic documentary realism, safe framing composition, no modern objects, no CGI look, no text, no speech, no music.",
-        "isCreated": false
+        "isCreated": false,
+        "imageUrl": ""
       },
       {
         "id": "ref-1793467561409-6",
@@ -5331,7 +5343,8 @@
         "category": "lugar",
         "description": "Image Entreponte de Vapor Trasatlántico",
         "prompt": "Create an image in 16:9 horizontal aspect ratio of the cramped third-class steerage hold below the waterline of a Spanish steamship departing Santander, Spain, Year 1885, low riveted steel ceilings dripping with condensation, three-tiered galvanized iron pipe bunks with straw canvas mattresses, narrow aisle crowded with rope-tied wooden trunks, dim yellow caged filament bulbs, 8k photorealistic, cinematic documentary realism, safe framing composition, no modern objects, no CGI look, no text, no speech, no music.",
-        "isCreated": false
+        "isCreated": false,
+        "imageUrl": ""
       },
       {
         "id": "ref-1793467561409-7",
