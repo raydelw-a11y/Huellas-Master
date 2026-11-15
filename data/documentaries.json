@@ -1620,9 +1620,7 @@
         "reframeFocusXEnd": 24,
         "reframeFocusY": 50,
         "reframeConfidence": 0.93,
-        "reframeReason": "Paneo dinámico IA (78% → 24%) desde sujeto derecho hacia escena izquierda (Der → Izq)",
-        "discardedVideoFileName": "12_create_a_cinematic_8_second_29f8b781_4K.mp4",
-        "videoDiscardedAt": 1794641982559
+        "reframeReason": "Paneo dinámico IA (78% → 24%) desde sujeto derecho hacia escena izquierda (Der → Izq)"
       },
       {
         "id": "clip-13-1794442731279-62ej",
@@ -3319,9 +3317,7 @@
         "reframeReason": "Enfoque inteligente IA en tercio izquierdo (16%)",
         "videoFrames": [],
         "videoAuditReason": "",
-        "videoAuditIssues": [],
-        "discardedVideoFileName": "68_68_Macro_shot_of_vintage_0fd04ec1_4K.mp4",
-        "videoDiscardedAt": 1794572688032
+        "videoAuditIssues": []
       },
       {
         "id": "clip-69-1794442731885-nk42",
@@ -3350,7 +3346,8 @@
         "brollCameraMotion": "pan_left",
         "promptUpdatedAt": 1794785728722,
         "videoDiscardOverriddenAt": 1794785728722,
-        "videoAuditIssues": []
+        "videoAuditIssues": [],
+        "videoFrames": []
       },
       {
         "id": "clip-70-1794442731896-6f4i",
@@ -5348,8 +5345,7 @@
         "category": "persona",
         "description": "Image @Ricardo_Ruiz_Balbin",
         "prompt": "Create an image in 16:9 horizontal aspect ratio of an adult historical figure in authentic period wardrobe, portrayed by an anonymous historical reenactment actor, an adult in their mid-twenties Spanish farmer from Asturias in 1885, Santander, Spain, lean build, pale face with sun-reddened cheekbones, shaved temples, tense dark eyes, wearing a black wool beret, dark ribbed corduroy jacket, and coarse white shirt, 8k photorealistic, 35mm film grain, chiaroscuro lighting, cinematic documentary realism, safe framing composition, no modern objects, no CGI look, no text, no speech, no music. Portrayed by an anonymous historical reenactment actor in authentic period wardrobe (no real public figures or prominent people).",
-        "isCreated": false,
-        "imageUrl": ""
+        "isCreated": false
       },
       {
         "id": "ref-1793467561409-2",
@@ -5357,8 +5353,7 @@
         "category": "persona",
         "description": "Image @Frank_Menocal",
         "prompt": "Create an image in 16:9 horizontal aspect ratio of an adult historical figure in authentic period wardrobe, portrayed by an anonymous historical reenactment actor, a adult in their mid-twenties quarantine physician and immigration commissioner, historical period 1885 to 1905 connected to the Spanish exodus from Santander, Spain to Havana, Cuba, stern oval face, thick trimmed mustache, fine wire-rimmed glasses, wearing an immaculate starched white linen medical uniform with high collar and gold buttons and a white pith helmet, 8k photorealistic, cinematic documentary realism, safe framing composition, no modern objects, no CGI look, no text, no speech, no music. Portrayed by an anonymous historical reenactment actor in authentic period wardrobe (no real public figures or prominent people).",
-        "isCreated": false,
-        "imageUrl": ""
+        "isCreated": false
       },
       {
         "id": "ref-1793467561409-3",
@@ -5366,8 +5361,7 @@
         "category": "persona",
         "description": "Image @Pedro_Garfias_Zurita",
         "prompt": "Create an image in 16:9 horizontal aspect ratio of an adult historical figure in authentic period wardrobe, portrayed by an anonymous historical reenactment actor, a adult in their mid-twenties Spanish exiled poet, historical period 1885 to 1939 connected to the transatlantic exodus from Santander, Spain to Veracruz, Mexico, pale gaunt face, silver-gray temples, a gray lock of hair on his forehead, thick tortoiseshell glasses, black wool beret, worn dark suit and heavy shepherd jacket, holding a knotted wooden cane, 8k photorealistic, cinematic documentary realism, safe framing composition, no modern objects, no CGI look, no text, no speech, no music. Portrayed by an anonymous historical reenactment actor in authentic period wardrobe (no real public figures or prominent people).",
-        "isCreated": false,
-        "imageUrl": ""
+        "isCreated": false
       },
       {
         "id": "ref-1793467561409-4",
@@ -5375,8 +5369,7 @@
         "category": "lugar",
         "description": "Image Muelle de Maliaño Santander",
         "prompt": "Create an image in 16:9 horizontal aspect ratio of the stone dock of Maliaño in Santander, Spain, Year 1885, wet granite cobblestones glistening under coastal rain, cast-iron port sheds, a towering black riveted-steel transatlantic steamship with a red-and-black funnel venting coal smoke, wooden trunks tied with hemp rope stacked on the pier, 8k photorealistic, cinematic documentary realism, safe framing composition, no modern objects, no CGI look, no text, no speech, no music.",
-        "isCreated": false,
-        "imageUrl": ""
+        "isCreated": false
       },
       {
         "id": "ref-1793467561409-5",
@@ -5384,8 +5377,7 @@
         "category": "lugar",
         "description": "Image Aldea de Lué Asturias",
         "prompt": "Create an image in 16:9 horizontal aspect ratio of the rural stone village of Lué in Asturias and northern Spain, Year 1885, compact unplastered granite cottages covered in moss with heavy black slate roofs, a traditional raised stone horreo granary, muddy cobblestone lane under cold mist and drizzle, dark smoky interior lareira hearth with an iron pot, 8k photorealistic, cinematic documentary realism, safe framing composition, no modern objects, no CGI look, no text, no speech, no music.",
-        "isCreated": false,
-        "imageUrl": ""
+        "isCreated": false
       },
       {
         "id": "ref-1793467561409-6",
@@ -5393,8 +5385,7 @@
         "category": "lugar",
         "description": "Image Entreponte de Vapor Trasatlántico",
         "prompt": "Create an image in 16:9 horizontal aspect ratio of the cramped third-class steerage hold below the waterline of a Spanish steamship departing Santander, Spain, Year 1885, low riveted steel ceilings dripping with condensation, three-tiered galvanized iron pipe bunks with straw canvas mattresses, narrow aisle crowded with rope-tied wooden trunks, dim yellow caged filament bulbs, 8k photorealistic, cinematic documentary realism, safe framing composition, no modern objects, no CGI look, no text, no speech, no music.",
-        "isCreated": false,
-        "imageUrl": ""
+        "isCreated": false
       },
       {
         "id": "ref-1793467561409-7",

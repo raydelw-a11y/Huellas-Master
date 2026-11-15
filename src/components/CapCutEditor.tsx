@@ -1350,6 +1350,13 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             captionBottomPct: 10,
           };
         }
+        if (!parsed._v6_16x9_captionOriginalDefault && parsed?.['16:9']) {
+          parsed['16:9'] = {
+            ...parsed['16:9'],
+            captionLineMode: 'original',
+            captionWordsPerLine: 0,
+          };
+        }
         return parsed?.[aspectRatio] || null;
       }
     } catch {}
@@ -2010,6 +2017,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const [captionMaxChars, setCaptionMaxChars] = useState<number>(() => {
     const fromDoc = Number(activeDoc?.promptConfig?.CAPTION_MAX_CHARS);
     if (Number.isFinite(fromDoc) && fromDoc >= 0) return fromDoc;
+    const fromProfile = Number(initialFormatProfileForRatio?.captionMaxChars);
+    if (Number.isFinite(fromProfile) && fromProfile >= 0) return fromProfile;
     const fromSaved = Number(initialOverlayStyles.captionMaxChars);
     if (Number.isFinite(fromSaved) && fromSaved >= 0) return fromSaved;
     return 32;
@@ -2017,9 +2026,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const [captionLineMode, setCaptionLineMode] = useState<'subdivide' | 'wrap' | 'original'>(() => {
     const fromDoc = activeDoc?.promptConfig?.CAPTION_LINE_MODE;
     if (fromDoc === 'subdivide' || fromDoc === 'wrap' || fromDoc === 'original') return fromDoc;
+    if (aspectRatio === '16:9' && !initialOverlayStyles.captionOriginal16x9V1) {
+      return 'original';
+    }
+    const fromProfile = initialFormatProfileForRatio?.captionLineMode;
+    if (fromProfile === 'subdivide' || fromProfile === 'wrap' || fromProfile === 'original') return fromProfile;
     const fromSaved = initialOverlayStyles.captionLineMode;
     if (fromSaved === 'subdivide' || fromSaved === 'wrap' || fromSaved === 'original') return fromSaved;
-    return 'subdivide';
+    return aspectRatio === '16:9' ? 'original' : 'subdivide';
   });
   const [captionFontSize16x9, setCaptionFontSize16x9] = useState<number>(() => {
     const fromDoc = Number(activeDoc?.promptConfig?.CAPTION_FONT_SIZE_16X9);
@@ -2058,12 +2072,15 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       const raw = localStorage.getItem('huellas_editor_format_profiles_v1');
       if (raw) {
         const parsed = JSON.parse(raw);
+        if (!parsed._v6_16x9_captionOriginalDefault) {
+          return 0;
+        }
         if (typeof parsed?.['16:9']?.captionWordsPerLine === 'number') {
           return parsed['16:9'].captionWordsPerLine;
         }
       }
     } catch {}
-    return 6;
+    return 0;
   });
   const [captionWordsPerLine9x16, setCaptionWordsPerLine9x16] = useState<number>(() => {
     const fromDoc = Number(activeDoc?.promptConfig?.CAPTION_WORDS_PER_LINE_9X16);
@@ -2351,6 +2368,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           captionWordsPerLine9x16,
           captionMaxChars,
           captionLineMode,
+          captionOriginal16x9V1: true,
           captionFontSizeV25: true,
           captionBottomPct,
           captionBottom16x9V10: true,
@@ -2451,6 +2469,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     captionFontSize: number;
     captionWordsPerLine?: number;
     captionBottomPct: number;
+    captionLineMode?: 'subdivide' | 'wrap' | 'original';
+    captionMaxChars?: number;
   }
 
   const formatProfilesRef = useRef<Record<'16:9' | '9:16', FormatOverlayProfile>>((() => {
@@ -2466,8 +2486,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       hookTopPct: 50,
       hookBoxWidthPct: 82,
       captionFontSize: 25,
-      captionWordsPerLine: 6,
+      captionWordsPerLine: 0,
       captionBottomPct: 10,
+      captionLineMode: 'original',
+      captionMaxChars: 32,
     };
     const default9x16: FormatOverlayProfile = {
       exportResolution: '2K_1440P',
@@ -2483,6 +2505,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       captionFontSize: 21,
       captionWordsPerLine: 4,
       captionBottomPct: 15,
+      captionLineMode: 'subdivide',
+      captionMaxChars: 32,
     };
     try {
       const raw = localStorage.getItem('huellas_editor_format_profiles_v1');
@@ -2505,6 +2529,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         }
         if (!parsed._v5_16x9_captionBottom10) {
           saved16x9.captionBottomPct = 10;
+        }
+        if (!parsed._v6_16x9_captionOriginalDefault) {
+          saved16x9.captionLineMode = 'original';
+          saved16x9.captionWordsPerLine = 0;
         }
         return {
           '16:9': { ...default16x9, ...saved16x9 },
@@ -2532,6 +2560,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             hookTopPct,
             hookBoxWidthPct,
             captionBottomPct,
+            captionLineMode,
+            captionMaxChars,
           }
         : {}),
       captionFontSize: captionFontSize16x9,
@@ -2552,6 +2582,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             hookTopPct,
             hookBoxWidthPct,
             captionBottomPct,
+            captionLineMode,
+            captionMaxChars,
           }
         : {}),
       captionFontSize: captionFontSize9x16,
@@ -2566,6 +2598,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           _v3_res_by_ratio: true,
           _v4_16x9_logoDefault5: true,
           _v5_16x9_captionBottom10: true,
+          _v6_16x9_captionOriginalDefault: true,
         })
       );
       const serverOrigin = getEditorPrimaryServerOrigin();
@@ -2880,6 +2913,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       captionFontSize: aspectRatio === '9:16' ? captionFontSize9x16 : captionFontSize16x9,
       captionWordsPerLine: aspectRatio === '9:16' ? captionWordsPerLine9x16 : captionWordsPerLine16x9,
       captionBottomPct,
+      captionLineMode,
+      captionMaxChars,
     };
     const targetProfile = formatProfilesRef.current[nextRatio];
     setAspectRatio(nextRatio);
@@ -2900,6 +2935,12 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       setHookTopPct(targetProfile.hookTopPct);
       setHookBoxWidthPct(targetProfile.hookBoxWidthPct);
       setCaptionBottomPct(targetProfile.captionBottomPct);
+      if (targetProfile.captionLineMode) {
+        setCaptionLineMode(targetProfile.captionLineMode);
+      }
+      if (typeof targetProfile.captionMaxChars === 'number') {
+        setCaptionMaxChars(targetProfile.captionMaxChars);
+      }
     }
     setCaptionFontSize(nextRatio === '9:16' ? captionFontSize9x16 : captionFontSize16x9);
     if (nextRatio === '9:16') {
@@ -3156,6 +3197,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     setCaptionLineMode(nextMode);
     setCaptionWordsPerLine16x9(nextWords16x9);
     setCaptionWordsPerLine9x16(nextWords9x16);
+    formatProfilesRef.current[aspectRatio].captionLineMode = nextMode;
+    formatProfilesRef.current[aspectRatio].captionMaxChars = nextMax;
 
     if (activeDoc) {
       updateActiveDoc({
@@ -3172,6 +3215,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
   const handleSetCaptionLineMode = (nextMode: 'subdivide' | 'wrap' | 'original') => {
     setCaptionLineMode(nextMode);
+    formatProfilesRef.current[aspectRatio].captionLineMode = nextMode;
     if (activeDoc) {
       updateActiveDoc({
         promptConfig: {
