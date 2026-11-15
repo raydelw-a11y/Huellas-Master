@@ -6163,6 +6163,44 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message.type === 'EXTERNAL_GROK_ASK_RESULT') {
+    (async () => {
+      const reqId = String(message.requestId || '').trim();
+      const memEntry = reqId ? activeExternalAskMap.get(reqId) : null;
+      const tabIdFromSender = sender?.tab?.id || null;
+      const reusedExisting = Boolean(
+        (memEntry && memEntry.keepOpenOnCleanup) ||
+          (tabIdFromSender && reusedExternalTabIds.has(tabIdFromSender))
+      );
+      if (trySettleExternalAsk(reqId)) {
+        await fetch('http://localhost:4200/api/grok-web/ask-external-result', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...message,
+            tabId: tabIdFromSender,
+            reusedExisting,
+          }),
+        }).catch(() => {});
+      }
+      await cleanupActiveExternalAskWindow(reqId, null, tabIdFromSender, {
+        keepOpen: reusedExisting,
+      });
+    })();
+    sendResponse({ ok: true });
+    return false;
+  }
+
+  if (message.type === 'GROK_MAIN_WORLD_INJECT_AND_SUBMIT' && sender?.tab?.id) {
+    const tabId = sender.tab.id;
+    const rawPrompt = String(message.prompt || '');
+    (async () => {
+      const ok = await forceSubmitPromptInGrokTab(tabId, rawPrompt);
+      sendResponse({ ok });
+    })();
+    return true;
+  }
+
   if (message.type === 'REMOTE_RENAME_COMPLETED') {
     fetch('http://localhost:4200/api/system/confirm-remote-rename', {
       method: 'POST',
@@ -6340,6 +6378,11 @@ async function cleanupActiveExternalAskWindow(requestId, fallbackWinId, fallback
             .query({ url: ['https://claude.ai/*', 'https://*.claude.ai/*'] })
             .catch(() => []);
           if (allClaude.length <= 1) canCloseSingleWin = false;
+        } else if (/grok\.com/i.test(u0)) {
+          const allGrok = await chrome.tabs
+            .query({ url: ['https://grok.com/*', 'https://*.grok.com/*'] })
+            .catch(() => []);
+          if (allGrok.length <= 1) canCloseSingleWin = false;
         }
       }
       if (canCloseSingleWin) {
@@ -6350,7 +6393,7 @@ async function cleanupActiveExternalAskWindow(requestId, fallbackWinId, fallback
       for (let attempt = 0; attempt < 4; attempt++) {
         const stillOpen = await chrome.tabs.get(tId).catch(() => null);
         if (!stillOpen) break;
-        // Never close the user's Huellas Master or Notebook tab, and NEVER close the last remaining Gemini, ChatGPT, Copilot, or Claude tab
+        // Never close the user's Huellas Master or Notebook tab, and NEVER close the last remaining Gemini, ChatGPT, Copilot, Claude, or Grok tab
         const stillUrl = String(stillOpen.url || '');
         if (isHuellasUrl(stillUrl, stillOpen.title) || /\/notebook\//i.test(stillUrl)) {
           break;
@@ -6380,6 +6423,11 @@ async function cleanupActiveExternalAskWindow(requestId, fallbackWinId, fallback
             .query({ url: ['https://claude.ai/*', 'https://*.claude.ai/*'] })
             .catch(() => []);
           if (allClaude.length <= 1) break;
+        } else if (/grok\.com/i.test(stillUrl)) {
+          const allGrok = await chrome.tabs
+            .query({ url: ['https://grok.com/*', 'https://*.grok.com/*'] })
+            .catch(() => []);
+          if (allGrok.length <= 1) break;
         }
         await chrome.tabs.remove(tId).catch(() => {});
         await sleep(180);
@@ -6596,6 +6644,29 @@ async function inspectGeminiTabLatestResponse(tabId) {
             'rich-textarea div.ql-editor[contenteditable="true"], div[contenteditable="true"][role="textbox"], textarea'
           )
         );
+        let blockReason = '';
+        const curUrl = window.location.href || '';
+        if (/accounts\.google\.com|\/ServiceLogin/i.test(curUrl)) {
+          blockReason = 'Gemini Web requiere iniciar sesión en Google Chrome (https://gemini.google.com/app).';
+        } else if (
+          document.querySelector(
+            'iframe[src*="recaptcha" i], iframe[src*="challenges.cloudflare.com" i], iframe[src*="turnstile" i], #challenge-running, #cf-challenge-running, [data-testid*="captcha" i]'
+          )
+        ) {
+          blockReason =
+            'Gemini Web mostró una verificación de seguridad / CAPTCHA en el navegador. Complétala manualmente en Chrome.';
+        } else if (!hasComposer) {
+          const signInBtn = Array.from(document.querySelectorAll('a, button')).find((el) => {
+            const r = el.getBoundingClientRect();
+            if (r.width <= 0 || r.height <= 0) return false;
+            const t = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+            return /^(sign\s*in|iniciar\s+sesi[oó]n|acceder)$/i.test(t);
+          });
+          if (signInBtn) {
+            blockReason =
+              'No hay sesión iniciada en Gemini Web dentro del navegador donde está abierto Huellas Master (https://gemini.google.com/app).';
+          }
+        }
         let modeLabel = '';
         const modeBtn =
           document.querySelector(
@@ -6611,6 +6682,7 @@ async function inspectGeminiTabLatestResponse(tabId) {
           count,
           userQueries,
           hasComposer,
+          blockReason,
           modeLabel,
           text,
           hasActionBar,
@@ -6963,10 +7035,38 @@ async function runExternalGeminiAskOrder(task) {
     for (let w = 0; w < 35; w++) {
       await sleep(400);
       const tInfo = await chrome.tabs.get(tabId).catch(() => null);
-      if (tInfo && tInfo.status === 'complete' && /^https:\/\/gemini\.google\.com\/app/.test(tInfo.url || '')) {
-        const snapReady = await inspectGeminiTabLatestResponse(tabId);
-        if (snapReady && snapReady.hasComposer) {
-          break;
+      if (tInfo && tInfo.status === 'complete') {
+        if (/accounts\.google\.com|\/ServiceLogin/i.test(tInfo.url || '') && w >= 4) {
+          await fetch('http://localhost:4200/api/gemini-web/ask-external-result', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              requestId: task.id,
+              ok: false,
+              chatUrl: tInfo.url || '',
+              error: 'Gemini Web requiere iniciar sesión en Google Chrome (https://gemini.google.com/app).',
+            }),
+          }).catch(() => {});
+          return;
+        }
+        if (/^https:\/\/gemini\.google\.com\/app/.test(tInfo.url || '')) {
+          const snapReady = await inspectGeminiTabLatestResponse(tabId);
+          if (snapReady && snapReady.blockReason && w >= 4) {
+            await fetch('http://localhost:4200/api/gemini-web/ask-external-result', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                requestId: task.id,
+                ok: false,
+                chatUrl: snapReady.url || tInfo.url || '',
+                error: snapReady.blockReason,
+              }),
+            }).catch(() => {});
+            return;
+          }
+          if (snapReady && snapReady.hasComposer) {
+            break;
+          }
         }
       }
     }
@@ -8195,6 +8295,29 @@ async function ensureResidentGeminiAndChatGptTabs(presence) {
         await chrome.tabs.update(claudeTabs[0].id, { autoDiscardable: false }).catch(() => {});
       }
     }
+
+    // 4. Always keep at least 1 Grok tab open and alive (autoDiscardable: false)
+    const grokTabs = await chrome.tabs
+      .query({ url: ['https://grok.com/*', 'https://*.grok.com/*'] })
+      .catch(() => []);
+    if (grokTabs.length === 0) {
+      const createdGrok = await chrome.tabs
+        .create({
+          url: 'https://grok.com/',
+          active: false,
+          ...winOpt,
+        })
+        .catch(() => null);
+      if (createdGrok && createdGrok.id) {
+        reusedExternalTabIds.add(createdGrok.id);
+        await chrome.tabs.update(createdGrok.id, { autoDiscardable: false }).catch(() => {});
+      }
+    } else if (grokTabs[0] && grokTabs[0].id) {
+      reusedExternalTabIds.add(grokTabs[0].id);
+      if (grokTabs[0].autoDiscardable !== false) {
+        await chrome.tabs.update(grokTabs[0].id, { autoDiscardable: false }).catch(() => {});
+      }
+    }
   } catch {
   } finally {
     isEnsuringResidentTabs = false;
@@ -8517,6 +8640,75 @@ async function forceSubmitPromptInClaudeTab(tabId, promptText) {
             }
           }
           if (!inputEl) return { ok: false };
+
+          // Ensure Claude effort is set to Bajo / Low (and Extended Thinking toggle is off) before submitting
+          try {
+            const thinkingToggles = Array.from(document.querySelectorAll('button[aria-pressed="true"]'));
+            for (const tBtn of thinkingToggles) {
+              if (!isVis(tBtn)) continue;
+              const lbl = ((tBtn.innerText || '') + ' ' + (tBtn.getAttribute('aria-label') || '')).toLowerCase();
+              if (/thinking|pensamiento|extended/i.test(lbl)) {
+                tBtn.click();
+                await waitTick(100);
+              }
+            }
+            const modelBtn =
+              document.querySelector('button[data-testid="model-selector-dropdown"]') ||
+              document.querySelector('[data-testid="model-selector-dropdown"]') ||
+              document.querySelector('button[aria-label^="Modelo:" i]') ||
+              document.querySelector('button[aria-label^="Model:" i]');
+            if (modelBtn && isVis(modelBtn)) {
+              const curLabel = ((modelBtn.innerText || '') + ' ' + (modelBtn.getAttribute('aria-label') || ''))
+                .replace(/\s+/g, ' ')
+                .trim();
+              if (/\b(bajo|low)\b/i.test(curLabel)) {
+                if (modelBtn.getAttribute('aria-expanded') === 'true') {
+                  document.dispatchEvent(
+                    new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', keyCode: 27, bubbles: true })
+                  );
+                  await waitTick(80);
+                }
+              } else {
+                if (modelBtn.getAttribute('aria-expanded') !== 'true') {
+                  modelBtn.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+                  modelBtn.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+                  modelBtn.click();
+                  await waitTick(200);
+                }
+                const effortSub = Array.from(document.querySelectorAll('[role="menu"] [role="menuitem"]')).find((el) => {
+                  if (!isVis(el)) return false;
+                  const t = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+                  return /\b(esfuerzo|effort)\b/i.test(t);
+                });
+                if (effortSub) {
+                  effortSub.dispatchEvent(new PointerEvent('pointermove', { bubbles: true }));
+                  effortSub.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
+                  effortSub.click();
+                  await waitTick(200);
+                }
+                const lowOpt = Array.from(
+                  document.querySelectorAll('[role="menu"] [role="menuitemradio"], [role="menu"] [role="menuitem"]')
+                ).find((el) => {
+                  if (!isVis(el)) return false;
+                  const t = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+                  return /^(bajo|low)\b/i.test(t) && !/\b(esfuerzo|effort)\b/i.test(t);
+                });
+                if (lowOpt) {
+                  lowOpt.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+                  lowOpt.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+                  lowOpt.click();
+                  await waitTick(150);
+                }
+                if (modelBtn.getAttribute('aria-expanded') === 'true') {
+                  document.dispatchEvent(
+                    new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', keyCode: 27, bubbles: true })
+                  );
+                  await waitTick(80);
+                }
+              }
+            }
+          } catch {}
+
           inputEl.focus();
 
           const normalizedTarget = String(rawText || '').replace(/\s+/g, ' ').trim();
@@ -9093,6 +9285,897 @@ async function runExternalClaudeAskOrder(task) {
                 windowId: createdWindowId,
                 reusedExisting,
                 verifiedModel: snap.verifiedModel || 'Claude Web',
+                response: snap.text,
+                chatUrl: snap.url,
+              }),
+            }).catch(() => {});
+          }
+          return;
+        }
+      } else {
+        lastText = snap.text || '';
+        stableDoneTicks = 0;
+      }
+    }
+  } finally {
+    activeExternalAskCount = Math.max(0, activeExternalAskCount - 1);
+    await cleanupActiveExternalAskWindow(task.id, createdWindowId, tabId, {
+      keepOpen: reusedExisting,
+    });
+  }
+}
+
+const GROK_TAB_URL_PATTERNS = ['https://grok.com/*', 'https://*.grok.com/*'];
+
+async function inspectGrokTabLatestResponse(tabId) {
+  try {
+    const res = await chrome.scripting.executeScript({
+      target: { tabId },
+      world: 'MAIN',
+      func: () => {
+        if (!window.__HUELLAS_BG_RAF_PATCHED__) {
+          window.__HUELLAS_BG_RAF_PATCHED__ = true;
+          const nativeRAF = window.requestAnimationFrame.bind(window);
+          window.requestAnimationFrame = (cb) => {
+            if (document.visibilityState === 'hidden') {
+              return window.setTimeout(() => cb(performance.now()), 16);
+            }
+            return nativeRAF(cb);
+          };
+        }
+        const isVis = (el) => {
+          if (!el) return false;
+          const r = el.getBoundingClientRect();
+          return r.width > 0 && r.height > 0;
+        };
+        const url = window.location.href || '';
+        let blockReason = '';
+        if (/\/sign-in|\/sign-up|accounts\.x\.ai|x\.com\/i\/flow\/login/i.test(url)) {
+          blockReason = 'Grok Web requiere iniciar sesión en Google Chrome (https://grok.com/).';
+        } else if (
+          document.querySelector(
+            'iframe[src*="challenges.cloudflare.com" i], iframe[src*="turnstile" i], iframe[src*="hcaptcha" i], iframe[src*="recaptcha" i], #challenge-running, #cf-challenge-running, #challenge-form, [data-testid*="captcha" i]'
+          ) ||
+          /just a moment\.\.\.|attention required|checking your browser|verify you are human|verificaci[oó]n/i.test(
+            document.title || ''
+          )
+        ) {
+          blockReason =
+            'Grok Web mostró una verificación de seguridad / Cloudflare Turnstile en el navegador. Complétala manualmente en Chrome o usa el prompt copiable.';
+        }
+
+        const composerSelectors = [
+          '[data-testid="chat-input"] div.ProseMirror[contenteditable="true"]',
+          'div.tiptap.ProseMirror[contenteditable="true"]',
+          '[data-testid="chat-input"] div[contenteditable="true"][role="textbox"]',
+          'form[data-composer] div[contenteditable="true"]',
+          'div.ProseMirror[contenteditable="true"]',
+          'div[contenteditable="true"][role="textbox"]',
+          'form[data-composer] textarea',
+          'form textarea',
+        ];
+        let composer = null;
+        for (const s of composerSelectors) {
+          const el = document.querySelector(s);
+          if (isVis(el)) {
+            composer = el;
+            break;
+          }
+        }
+
+        if (!blockReason && !composer) {
+          const loginBtn = Array.from(document.querySelectorAll('button, a')).find((el) => {
+            if (!isVis(el)) return false;
+            const t = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+            return /^(log\s*in|sign\s*in|sign\s*up|iniciar\s+sesi[oó]n|registrarse|continue\s+with\s+google|continuar\s+con\s+google)$/i.test(
+              t
+            );
+          });
+          if (loginBtn) {
+            blockReason =
+              'No hay sesión iniciada en Grok Web dentro del navegador donde está abierto Huellas Master (https://grok.com/). Inicia sesión allí e inténtalo de nuevo.';
+          }
+        }
+
+        const stopSelectors = [
+          'button[data-testid="chat-stop"]',
+          'button[data-testid="stop-button"]',
+          'button[aria-label*="Stop" i]',
+          'button[aria-label*="Detener" i]',
+        ];
+        let hasExplicitStopBtn = false;
+        for (const s of stopSelectors) {
+          for (const stEl of document.querySelectorAll(s)) {
+            if (isVis(stEl)) {
+              hasExplicitStopBtn = true;
+              break;
+            }
+          }
+          if (hasExplicitStopBtn) break;
+        }
+        let generating = hasExplicitStopBtn;
+
+        let verifiedModel = 'Grok Web';
+        const modelBtnCandidates = document.querySelectorAll(
+          'button[aria-label^="Modelo:" i], button[aria-label^="Model:" i], form[data-composer] button[aria-haspopup="menu"]'
+        );
+        for (const mBtn of modelBtnCandidates) {
+          if (!isVis(mBtn)) continue;
+          const aria = (mBtn.getAttribute('aria-label') || '').replace(/\s+/g, ' ').trim();
+          const txt = (mBtn.innerText || mBtn.textContent || '').replace(/\s+/g, ' ').trim();
+          if (/attach|agrega|archivo|connect|conectar|cuenta|account|proyecto|project|chat/i.test(aria)) continue;
+          if (/^modelo:|^model:/i.test(aria) || /^(fast|build|auto|expert|heavy|r[aá]pido|grok)\b/i.test(txt)) {
+            verifiedModel =
+              aria && txt && !aria.toLowerCase().includes(txt.toLowerCase())
+                ? `Grok Web (${aria} · ${txt})`
+                : `Grok Web (${aria || txt})`;
+            break;
+          }
+        }
+
+        const rawNodes = Array.from(
+          document.querySelectorAll('[data-testid="assistant-message"], div[data-message-author-role="assistant"]')
+        );
+        const uniqueNodes = rawNodes.filter((el, idx, arr) => el && arr.indexOf(el) === idx);
+        const nodes = uniqueNodes.filter((el, _i, arr) => !arr.some((other) => other !== el && other.contains(el)));
+
+        const extractCleanText = (rootEl) => {
+          if (!rootEl) return '';
+          const clone = rootEl.cloneNode(true);
+          clone
+            .querySelectorAll(
+              '[data-testid="conversation-trace-slot"], [data-testid="response-footer-actions"], [data-testid*="thinking" i], [data-testid*="thought" i], [class*="thinking" i], [class*="thought" i], [class*="reasoning" i], details, summary'
+            )
+            .forEach((el) => el.remove());
+          clone
+            .querySelectorAll(
+              '.sr-only, button, [role="button"]:not(:has(pre)), [role="checkbox"], .copy-code-button, [data-testid*="copy" i], script, style, svg'
+            )
+            .forEach((el) => el.remove());
+          clone.querySelectorAll('br').forEach((el) => el.replaceWith('\n'));
+          clone.querySelectorAll('h1, h2, h3, h4, h5, h6, p, li, pre, tr, blockquote, hr').forEach((el) => {
+            el.prepend('\n');
+            el.append('\n');
+          });
+          return (clone.textContent || '')
+            .replace(/^(?:\s*Grok\s*:?\s*\n)+/i, '')
+            .replace(/[ \t]+\n/g, '\n')
+            .replace(/\n{3,}/g, '\n\n')
+            .trim();
+        };
+
+        let text = '';
+        let hasFinishActions = false;
+        let hasMarkdown = false;
+        if (nodes.length > 0) {
+          const lastNode = nodes[nodes.length - 1];
+          const turnContainer =
+            lastNode.closest('[id^="response-"], article') || lastNode.parentElement || lastNode;
+          const footerActions = turnContainer.querySelector('[data-testid="response-footer-actions"]');
+          hasFinishActions = Boolean(
+            (footerActions && isVis(footerActions)) ||
+              turnContainer.querySelector(
+                'button[aria-label*="Copy" i], button[aria-label*="Copiar" i], button[aria-label*="Regenerate" i], button[aria-label*="Regenerar" i]'
+              )
+          );
+          const mdSelector = '.response-content-markdown, .markdown, .prose';
+          const rawMd = [
+            ...(lastNode.matches && lastNode.matches(mdSelector) ? [lastNode] : []),
+            ...Array.from(lastNode.querySelectorAll(mdSelector)),
+          ];
+          const markdownBlocks = rawMd.filter(
+            (n, _i, arr) => !arr.some((other) => other !== n && other.contains(n))
+          );
+          hasMarkdown = markdownBlocks.length > 0;
+          if (markdownBlocks.length > 0) {
+            text = markdownBlocks
+              .map((b) => extractCleanText(b))
+              .filter(Boolean)
+              .join('\n\n')
+              .trim();
+          }
+          if (!text) {
+            text = extractCleanText(lastNode);
+          }
+          if (/^(?:thinking\.{0,3}|pensando\.{0,3}|razonando\.{0,3}|grok)$/i.test(text)) {
+            text = '';
+          }
+        }
+
+        const userQueries = document.querySelectorAll(
+          '[data-testid="user-message"], div[data-message-author-role="user"]'
+        ).length;
+        if (hasFinishActions && !hasExplicitStopBtn) {
+          generating = false;
+        } else if (!generating && userQueries > 0 && (nodes.length === 0 || !text)) {
+          generating = true;
+        }
+
+        return {
+          url,
+          blockReason,
+          hasComposer: Boolean(composer),
+          userQueries,
+          generating,
+          verifiedModel,
+          count: nodes.length,
+          hasFinishActions,
+          hasMarkdown,
+          text,
+        };
+      },
+    });
+    return (res && res[0] && res[0].result) || null;
+  } catch {
+    return null;
+  }
+}
+
+async function forceSubmitPromptInGrokTab(tabId, promptText) {
+  try {
+    const snapBefore = await inspectGrokTabLatestResponse(tabId);
+    const beforeUrl = (snapBefore && snapBefore.url) || '';
+    const beforeUserQueries = (snapBefore && snapBefore.userQueries) || 0;
+    const beforeCount = (snapBefore && snapBefore.count) || 0;
+
+    await chrome.scripting
+      .executeScript({
+        target: { tabId },
+        world: 'MAIN',
+        args: [String(promptText || '')],
+        func: async (rawText) => {
+          if (!window.__HUELLAS_BG_RAF_PATCHED__) {
+            window.__HUELLAS_BG_RAF_PATCHED__ = true;
+            const nativeRAF = window.requestAnimationFrame.bind(window);
+            window.requestAnimationFrame = (cb) => {
+              if (document.visibilityState === 'hidden') {
+                return window.setTimeout(() => cb(performance.now()), 16);
+              }
+              return nativeRAF(cb);
+            };
+          }
+          const yieldMacrotask = () =>
+            new Promise((resolve) => {
+              try {
+                const mc = new MessageChannel();
+                mc.port1.onmessage = () => resolve();
+                mc.port2.postMessage(0);
+              } catch {
+                setTimeout(resolve, 16);
+              }
+            });
+          const waitTick = async (ms) => {
+            if (document.visibilityState === 'hidden') {
+              const loops = Math.max(2, Math.min(8, Math.ceil(ms / 15)));
+              for (let k = 0; k < loops; k++) {
+                await yieldMacrotask();
+              }
+              return;
+            }
+            await new Promise((r) => setTimeout(r, ms));
+          };
+          const isVis = (el) => {
+            if (!el) return false;
+            const r = el.getBoundingClientRect();
+            return r.width > 0 && r.height > 0;
+          };
+          const composerSelectors = [
+            '[data-testid="chat-input"] div.ProseMirror[contenteditable="true"]',
+            'div.tiptap.ProseMirror[contenteditable="true"]',
+            '[data-testid="chat-input"] div[contenteditable="true"][role="textbox"]',
+            'form[data-composer] div[contenteditable="true"]',
+            'div.ProseMirror[contenteditable="true"]',
+            'div[contenteditable="true"][role="textbox"]',
+            'form[data-composer] textarea',
+          ];
+          let inputEl = null;
+          for (const s of composerSelectors) {
+            const el = document.querySelector(s);
+            if (isVis(el)) {
+              inputEl = el;
+              break;
+            }
+          }
+          if (!inputEl) return { ok: false };
+
+          // Ensure Grok mode is set to Fast before submitting
+          try {
+            let grokModelBtn = null;
+            const mCands = document.querySelectorAll(
+              'button[aria-label^="Modelo:" i], button[aria-label^="Model:" i], form[data-composer] button[aria-haspopup="menu"]'
+            );
+            for (const b of mCands) {
+              if (!isVis(b)) continue;
+              const aria = (b.getAttribute('aria-label') || '').trim();
+              const txt = (b.innerText || b.textContent || '').replace(/\s+/g, ' ').trim();
+              if (/attach|agrega|archivo|connect|conectar|cuenta|account|proyecto|project|chat/i.test(aria)) continue;
+              if (/^modelo:|^model:/i.test(aria) || /^(fast|build|auto|expert|heavy|r[aá]pido|grok)\b/i.test(txt)) {
+                grokModelBtn = b;
+                break;
+              }
+            }
+            if (grokModelBtn) {
+              const curLabel = (
+                (grokModelBtn.innerText || '') +
+                ' ' +
+                (grokModelBtn.getAttribute('aria-label') || '')
+              )
+                .replace(/\s+/g, ' ')
+                .trim();
+              if (/\b(fast|r[aá]pido)\b/i.test(curLabel)) {
+                if (grokModelBtn.getAttribute('aria-expanded') === 'true') {
+                  document.dispatchEvent(
+                    new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', keyCode: 27, bubbles: true })
+                  );
+                  await waitTick(80);
+                  if (grokModelBtn.getAttribute('aria-expanded') === 'true') {
+                    grokModelBtn.click();
+                    await waitTick(80);
+                  }
+                }
+              } else {
+                if (grokModelBtn.getAttribute('aria-expanded') !== 'true') {
+                  grokModelBtn.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+                  grokModelBtn.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+                  grokModelBtn.click();
+                  await waitTick(200);
+                }
+                const fastOpt = Array.from(
+                  document.querySelectorAll(
+                    '[role="menu"] [role="menuitemcheckbox"], [role="menu"] [role="menuitemradio"], [role="menu"] [role="menuitem"], [role="listbox"] [role="option"]'
+                  )
+                ).find((el) => {
+                  if (!isVis(el)) return false;
+                  const t = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+                  return /^(fast|r[aá]pido)\b/i.test(t);
+                });
+                if (fastOpt) {
+                  fastOpt.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+                  fastOpt.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+                  fastOpt.click();
+                  await waitTick(150);
+                }
+                if (grokModelBtn.getAttribute('aria-expanded') === 'true') {
+                  document.dispatchEvent(
+                    new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', keyCode: 27, bubbles: true })
+                  );
+                  await waitTick(80);
+                }
+              }
+            }
+          } catch {}
+
+          inputEl.focus();
+          const normalizedTarget = String(rawText || '').replace(/\s+/g, ' ').trim();
+          const expectedPrefix = normalizedTarget.slice(0, Math.min(28, normalizedTarget.length));
+
+          if (inputEl.tagName === 'TEXTAREA' || inputEl.tagName === 'INPUT') {
+            const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set;
+            if (setter) setter.call(inputEl, rawText);
+            else inputEl.value = rawText;
+            inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+            inputEl.dispatchEvent(new Event('change', { bubbles: true }));
+          } else {
+            let pmApplied = false;
+            try {
+              const pmHost =
+                (inputEl.pmViewDesc && inputEl) ||
+                inputEl.closest('.ProseMirror') ||
+                inputEl.querySelector('.ProseMirror');
+              const pmView = pmHost && pmHost.pmViewDesc && pmHost.pmViewDesc.view;
+              if (pmView && pmView.state && pmView.dispatch) {
+                const { state } = pmView;
+                const schema = state.schema;
+                let tr = state.tr;
+                if (schema && schema.nodes && schema.nodes.paragraph) {
+                  const lines = String(rawText || '').split('\n');
+                  const paras = lines.map((line) =>
+                    line.length > 0
+                      ? schema.nodes.paragraph.create(null, schema.text(line))
+                      : schema.nodes.paragraph.create()
+                  );
+                  tr = state.tr.replaceWith(0, state.doc.content.size, paras);
+                } else {
+                  tr = state.tr.insertText(String(rawText || ''), 0, state.doc.content.size);
+                }
+                pmView.dispatch(tr);
+                inputEl.dispatchEvent(
+                  new InputEvent('input', { bubbles: true, inputType: 'insertText', data: rawText })
+                );
+                await waitTick(45);
+                const afterPm = (inputEl.innerText || inputEl.textContent || '').replace(/\s+/g, ' ').trim();
+                if (afterPm && (!expectedPrefix || afterPm.startsWith(expectedPrefix))) {
+                  pmApplied = true;
+                }
+              }
+            } catch {}
+
+            if (!pmApplied) {
+              try {
+                const sel = window.getSelection();
+                const range = document.createRange();
+                range.selectNodeContents(inputEl);
+                sel.removeAllRanges();
+                sel.addRange(range);
+                document.execCommand('delete', false);
+              } catch {}
+              if (((inputEl.innerText || inputEl.textContent || '').trim()).length > 0) {
+                inputEl.innerHTML = '<p><br></p>';
+                inputEl.dispatchEvent(
+                  new InputEvent('input', { bubbles: true, inputType: 'deleteContentBackward' })
+                );
+                await waitTick(45);
+              }
+              try {
+                inputEl.focus();
+                const sel = window.getSelection();
+                const range = document.createRange();
+                range.selectNodeContents(inputEl);
+                sel.removeAllRanges();
+                sel.addRange(range);
+                const dt = new DataTransfer();
+                dt.setData('text/plain', String(rawText || ''));
+                inputEl.dispatchEvent(
+                  new ClipboardEvent('paste', {
+                    bubbles: true,
+                    cancelable: true,
+                    clipboardData: dt,
+                  })
+                );
+                await waitTick(60);
+              } catch {}
+
+              let curNorm = (inputEl.innerText || inputEl.textContent || '').replace(/\s+/g, ' ').trim();
+              if (!curNorm || (expectedPrefix && !curNorm.startsWith(expectedPrefix))) {
+                try {
+                  const sel = window.getSelection();
+                  const range = document.createRange();
+                  range.selectNodeContents(inputEl);
+                  sel.removeAllRanges();
+                  sel.addRange(range);
+                  document.execCommand('insertText', false, rawText);
+                } catch {}
+                curNorm = (inputEl.innerText || inputEl.textContent || '').replace(/\s+/g, ' ').trim();
+              }
+
+              if (!curNorm || (expectedPrefix && !curNorm.startsWith(expectedPrefix))) {
+                inputEl.innerHTML = '';
+                for (const line of String(rawText || '').split('\n')) {
+                  const p = document.createElement('p');
+                  if (line.length > 0) p.textContent = line;
+                  else p.appendChild(document.createElement('br'));
+                  inputEl.appendChild(p);
+                }
+                inputEl.dispatchEvent(
+                  new InputEvent('input', { bubbles: true, inputType: 'insertText', data: rawText })
+                );
+              }
+            }
+          }
+
+          const findGrokSendButton = () => {
+            const sels = [
+              'button[data-testid="chat-submit"]',
+              'form[data-composer] button[type="submit"]',
+              'button[aria-label="Enviar" i]',
+              'button[aria-label*="Enviar mensaje" i]',
+              'button[aria-label="Send" i]',
+              'button[aria-label*="Send message" i]',
+              'button[aria-label*="Submit" i]',
+            ];
+            for (const s of sels) {
+              const b = document.querySelector(s);
+              if (!b || !isVis(b)) continue;
+              if (b.disabled || b.getAttribute('aria-disabled') === 'true') continue;
+              if (b.getAttribute('aria-haspopup') === 'menu' || b.getAttribute('aria-haspopup') === 'true') continue;
+              const aria = (b.getAttribute('aria-label') || '').toLowerCase();
+              if (/model|modelo|attach|agrega|dictar|dictate|voz|voice|stop|detener/i.test(aria)) continue;
+              return b;
+            }
+            return null;
+          };
+
+          let clickedSend = false;
+          let sendBtn = findGrokSendButton();
+          for (let w = 0; w < 12 && !sendBtn; w++) {
+            await waitTick(35);
+            sendBtn = findGrokSendButton();
+          }
+          if (sendBtn) {
+            sendBtn.click();
+            clickedSend = true;
+          } else {
+            inputEl.focus();
+            inputEl.dispatchEvent(
+              new KeyboardEvent('keydown', {
+                key: 'Enter',
+                code: 'Enter',
+                keyCode: 13,
+                which: 13,
+                bubbles: true,
+                cancelable: true,
+              })
+            );
+          }
+
+          return { ok: true, clickedSend };
+        },
+      })
+      .catch(() => null);
+
+    for (const waitMs of [550, 750]) {
+      await sleep(waitMs);
+      const snapAfterMain = await inspectGrokTabLatestResponse(tabId);
+      if (
+        snapAfterMain &&
+        (snapAfterMain.generating ||
+          snapAfterMain.userQueries > beforeUserQueries ||
+          snapAfterMain.count > beforeCount ||
+          (snapAfterMain.url && snapAfterMain.url !== beforeUrl && /\/c\/[a-z0-9-]+/i.test(snapAfterMain.url)))
+      ) {
+        return true;
+      }
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+let grokAcquireLockChain = Promise.resolve();
+function withGrokAcquireLock(fn) {
+  const next = grokAcquireLockChain.then(fn, fn);
+  grokAcquireLockChain = next.catch(() => {});
+  return next;
+}
+
+async function acquireGrokTabForExternalAsk(requestId) {
+  return withGrokAcquireLock(async () => {
+    const presence = await getHuellasBrowserProfilePresence();
+    if (!presence.hasAppWindow && !presence.hasWorkspace) {
+      throw new Error('Este navegador/perfil no contiene la ventana abierta de Huellas Master.');
+    }
+
+    const busyTabIds = new Set();
+    for (const [reqId, v] of activeExternalAskMap.entries()) {
+      if (reqId !== requestId && v && v.tabId) busyTabIds.add(v.tabId);
+    }
+    const storedMap = await getStoredExternalAskMap();
+    const nowMs = Date.now();
+    for (const [reqId, v] of Object.entries(storedMap)) {
+      if (!v || !v.tabId || reqId === requestId) continue;
+      const ageMs = nowMs - Number(v.startedAt || 0);
+      if (
+        ageMs < 360000 &&
+        ((latestServerActiveExternalAskIds && latestServerActiveExternalAskIds.has(reqId)) || ageMs < 20000)
+      ) {
+        busyTabIds.add(v.tabId);
+      }
+    }
+
+    const openGrokTabs = (await chrome.tabs.query({ url: GROK_TAB_URL_PATTERNS }).catch(() => [])).filter(
+      (t) => t && t.id && !busyTabIds.has(t.id)
+    );
+
+    if (openGrokTabs.length > 0) {
+      const winTabCounts = new Map();
+      for (const t of openGrokTabs) {
+        if (typeof t.windowId === 'number' && !winTabCounts.has(t.windowId)) {
+          const wTabs = await chrome.tabs.query({ windowId: t.windowId }).catch(() => []);
+          winTabCounts.set(t.windowId, wTabs.length || 99);
+        }
+      }
+      openGrokTabs.sort((a, b) => {
+        const aStandalone = winTabCounts.get(a.windowId) === 1 ? 1 : 0;
+        const bStandalone = winTabCounts.get(b.windowId) === 1 ? 1 : 0;
+        if (bStandalone !== aStandalone) return bStandalone - aStandalone;
+        if (Boolean(a.active) !== Boolean(b.active)) return Number(Boolean(a.active)) - Number(Boolean(b.active));
+        const aInAppWin = a.windowId === presence.anchorWindowId ? 1 : 0;
+        const bInAppWin = b.windowId === presence.anchorWindowId ? 1 : 0;
+        if (bInAppWin !== aInAppWin) return bInAppWin - aInAppWin;
+        return (b.lastAccessed || b.id || 0) - (a.lastAccessed || a.id || 0);
+      });
+
+      for (const candidateTab of openGrokTabs) {
+        const tabId = candidateTab.id;
+        const curSnap = await inspectGrokTabLatestResponse(tabId);
+        if (curSnap && curSnap.generating) {
+          continue;
+        }
+
+        await chrome.tabs.update(tabId, { autoDiscardable: false }).catch(() => {});
+
+        let currentPathname = '';
+        try {
+          currentPathname = new URL((curSnap && curSnap.url) || candidateTab.url || '').pathname;
+        } catch {}
+        const isAlreadyFreshNewChat =
+          (currentPathname === '/' || currentPathname === '') &&
+          curSnap &&
+          curSnap.userQueries === 0 &&
+          curSnap.count === 0 &&
+          !curSnap.generating;
+
+        if (!isAlreadyFreshNewChat) {
+          const clickedNewChatRes = await chrome.scripting
+            .executeScript({
+              target: { tabId },
+              world: 'MAIN',
+              func: () => {
+                const isVis = (el) => {
+                  if (!el) return false;
+                  const r = el.getBoundingClientRect();
+                  return r.width > 0 && r.height > 0;
+                };
+                const exactSelectors = [
+                  'button[aria-label="Nuevo chat" i]',
+                  'button[aria-label="New chat" i]',
+                  'a[href="/"]',
+                ];
+                for (const sel of exactSelectors) {
+                  const el = document.querySelector(sel);
+                  if (isVis(el)) {
+                    el.click();
+                    return true;
+                  }
+                }
+                const newBtn = Array.from(document.querySelectorAll('button')).find((b) => {
+                  if (!isVis(b)) return false;
+                  const aria = (b.getAttribute('aria-label') || '').trim();
+                  if (/in\s+/i.test(aria)) return false;
+                  const t = (b.innerText || b.textContent || '').replace(/\s+/g, ' ').trim();
+                  return /^(nuevo\s+chat|new\s+chat)\b/i.test(t);
+                });
+                if (newBtn) {
+                  newBtn.click();
+                  return true;
+                }
+                return false;
+              },
+            })
+            .catch(() => null);
+
+          const clickedNewChat = Boolean(clickedNewChatRes && clickedNewChatRes[0] && clickedNewChatRes[0].result);
+          let switchedCleanly = false;
+          if (clickedNewChat) {
+            for (let poll = 0; poll < 7; poll++) {
+              await sleep(220);
+              const s = await inspectGrokTabLatestResponse(tabId);
+              let pName = '';
+              try {
+                pName = new URL((s && s.url) || '').pathname;
+              } catch {}
+              if (s && (pName === '/' || pName === '') && s.userQueries === 0 && s.count === 0 && !s.generating) {
+                switchedCleanly = true;
+                break;
+              }
+            }
+          }
+
+          if (!switchedCleanly) {
+            await chrome.tabs.update(tabId, { url: 'https://grok.com/' }).catch(() => {});
+          }
+        }
+
+        if (requestId) {
+          await registerActiveExternalAskWindow(requestId, null, tabId, {
+            keepOpenOnCleanup: true,
+          });
+        }
+        return {
+          createdWindowId: null,
+          tabId,
+          reusedExisting: true,
+          hasAppWindow: presence.hasAppWindow,
+        };
+      }
+    }
+
+    const opened = await createTemporaryTabInAppWindow('https://grok.com/');
+    if (requestId) {
+      await registerActiveExternalAskWindow(requestId, opened.createdWindowId, opened.tabId, {
+        keepOpenOnCleanup: false,
+      });
+    }
+    return {
+      createdWindowId: opened.createdWindowId,
+      tabId: opened.tabId,
+      reusedExisting: false,
+      hasAppWindow: opened.hasAppWindow,
+    };
+  });
+}
+
+async function runExternalGrokAskOrder(task) {
+  if (!task || !task.id || !task.prompt) return;
+  if (task.prompt === '__READ_CURRENT__') {
+    const grokTabs = await chrome.tabs.query({ url: GROK_TAB_URL_PATTERNS }).catch(() => []);
+    const preferredTab = grokTabs[grokTabs.length - 1] || grokTabs[0] || null;
+    if (!preferredTab || !preferredTab.id) {
+      await fetch('http://localhost:4200/api/grok-web/ask-external-result', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requestId: task.id, ok: false, error: 'No hay pestaña de Grok abierta.' }),
+      }).catch(() => {});
+      return;
+    }
+    const snap = await inspectGrokTabLatestResponse(preferredTab.id);
+    await fetch('http://localhost:4200/api/grok-web/ask-external-result', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        requestId: task.id,
+        ok: Boolean(snap && snap.text),
+        reusedExisting: true,
+        verifiedModel: (snap && snap.verifiedModel) || 'Grok Web',
+        response: (snap && snap.text) || '',
+        chatUrl: (snap && snap.url) || preferredTab.url || '',
+        error: snap && !snap.text ? 'Respuesta vacía en la pestaña actual de Grok.' : undefined,
+      }),
+    }).catch(() => {});
+    return;
+  }
+
+  activeExternalAskCount += 1;
+  let createdWindowId = null;
+  let tabId = null;
+  let reusedExisting = false;
+  try {
+    await registerActiveExternalAskWindow(task.id, null, null, {
+      keepOpenOnCleanup: true,
+    });
+    const opened = await acquireGrokTabForExternalAsk(task.id);
+    createdWindowId = opened.createdWindowId;
+    tabId = opened.tabId;
+    reusedExisting = Boolean(opened.reusedExisting);
+
+    await registerActiveExternalAskWindow(task.id, createdWindowId, tabId, {
+      keepOpenOnCleanup: reusedExisting,
+    });
+    await fetch('http://localhost:4200/api/grok-web/ask-external-claim', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: task.id,
+        windowId: createdWindowId,
+        tabId,
+        reusedExisting,
+        hasAppWindow: opened.hasAppWindow,
+        hasWorkspace: true,
+      }),
+    }).catch(() => {});
+
+    for (let w = 0; w < 35; w++) {
+      await sleep(400);
+      const tInfo = await chrome.tabs.get(tabId).catch(() => null);
+      if (tInfo && tInfo.status === 'complete' && /^https:\/\/([a-z0-9-]+\.)?grok\.com/i.test(tInfo.url || '')) {
+        const snapReady = await inspectGrokTabLatestResponse(tabId);
+        if (snapReady && snapReady.blockReason && w >= 4) {
+          if (trySettleExternalAsk(task.id)) {
+            await fetch('http://localhost:4200/api/grok-web/ask-external-result', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                requestId: task.id,
+                ok: false,
+                tabId,
+                windowId: createdWindowId,
+                reusedExisting,
+                chatUrl: snapReady.url || tInfo.url || '',
+                error: snapReady.blockReason,
+              }),
+            }).catch(() => {});
+          }
+          return;
+        }
+        if (snapReady && snapReady.hasComposer) {
+          break;
+        }
+      }
+    }
+    await sleep(450);
+
+    const checkBlock = await inspectGrokTabLatestResponse(tabId);
+    if (checkBlock && checkBlock.blockReason) {
+      if (trySettleExternalAsk(task.id)) {
+        await fetch('http://localhost:4200/api/grok-web/ask-external-result', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            requestId: task.id,
+            ok: false,
+            tabId,
+            windowId: createdWindowId,
+            reusedExisting,
+            chatUrl: checkBlock.url || '',
+            error: checkBlock.blockReason,
+          }),
+        }).catch(() => {});
+      }
+      return;
+    }
+
+    const baselineCount = (checkBlock && checkBlock.count) || 0;
+    const baselineText = ((checkBlock && checkBlock.text) || '').trim();
+
+    const orderPayload = {
+      target: 'GROK',
+      action: 'ASK_EXTERNAL_GROK',
+      requestId: task.id,
+      prompt: task.prompt,
+    };
+    let deliveredAck = false;
+    for (let tryIdx = 0; tryIdx < 8; tryIdx++) {
+      await ensureScriptInjected(tabId, 'grok-content.js');
+      await sleep(350);
+      const ack = await chrome.tabs.sendMessage(tabId, orderPayload).catch(() => null);
+      if (ack && ack.handled) {
+        deliveredAck = true;
+        break;
+      }
+      await sleep(400);
+    }
+
+    if (!deliveredAck) {
+      await forceSubmitPromptInGrokTab(tabId, task.prompt);
+    }
+
+    let stableDoneTicks = 0;
+    let lastText = '';
+    for (let i = 0; i < 150; i++) {
+      await sleep(2000);
+      await chrome.runtime.getPlatformInfo().catch(() => null);
+      if (settledExternalAskIds.has(task.id) || !pendingExternalCheckActive(task.id)) break;
+      const tStillExists = await chrome.tabs.get(tabId).catch(() => null);
+      if (!tStillExists) break;
+      const snap = await inspectGrokTabLatestResponse(tabId);
+      if (!snap) continue;
+      if (snap.blockReason) {
+        if (trySettleExternalAsk(task.id)) {
+          await fetch('http://localhost:4200/api/grok-web/ask-external-result', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              requestId: task.id,
+              ok: false,
+              tabId,
+              windowId: createdWindowId,
+              reusedExisting,
+              chatUrl: snap.url || '',
+              error: snap.blockReason,
+            }),
+          }).catch(() => {});
+        }
+        return;
+      }
+      if (snap.userQueries === 0 && snap.count === 0 && !snap.generating && (i === 5 || i === 10)) {
+        await forceSubmitPromptInGrokTab(tabId, task.prompt);
+        continue;
+      }
+      const trimmedSnapText = (snap.text || '').trim();
+      const isNewTurn =
+        snap.count > baselineCount || (trimmedSnapText.length > 0 && trimmedSnapText !== baselineText);
+      const readyEnough = (snap.hasFinishActions || snap.hasMarkdown) && trimmedSnapText.length >= 2;
+      const neededStableTicks = snap.hasFinishActions ? 2 : 3;
+      if (isNewTurn && !snap.generating && readyEnough) {
+        if (snap.text === lastText) {
+          stableDoneTicks += 1;
+        } else {
+          lastText = snap.text;
+          stableDoneTicks = 1;
+        }
+        if (stableDoneTicks >= neededStableTicks) {
+          if (trySettleExternalAsk(task.id)) {
+            await fetch('http://localhost:4200/api/grok-web/ask-external-result', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                requestId: task.id,
+                ok: true,
+                tabId,
+                windowId: createdWindowId,
+                reusedExisting,
+                verifiedModel: snap.verifiedModel || 'Grok Web',
                 response: snap.text,
                 chatUrl: snap.url,
               }),
@@ -10416,6 +11499,44 @@ async function checkExtensionAutoReloadFromLocalServer(isStartup = false) {
           });
         } else {
           claimedExternalAskIds.delete(claudeTask.id);
+        }
+      }
+
+      const grokTasks = Array.isArray(data?.pendingExternalGrokAsks)
+        ? data.pendingExternalGrokAsks
+        : data?.pendingExternalGrokAsk
+          ? [data.pendingExternalGrokAsk]
+          : [];
+      for (const grokTask of grokTasks) {
+        if (!grokTask || !grokTask.id || claimedExternalAskIds.has(grokTask.id)) continue;
+        claimedExternalAskIds.add(grokTask.id);
+        const claimRes = await fetch('http://localhost:4200/api/grok-web/ask-external-claim', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: grokTask.id,
+            hasAppWindow: presence.hasAppWindow,
+            hasWorkspace: presence.hasWorkspace,
+          }),
+        })
+          .then((r) => r.json())
+          .catch(() => null);
+        if (claimRes && claimRes.ok) {
+          runExternalGrokAskOrder(grokTask).catch((err) => {
+            if (trySettleExternalAsk(grokTask.id)) {
+              fetch('http://localhost:4200/api/grok-web/ask-external-result', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  requestId: grokTask.id,
+                  ok: false,
+                  error: String(err?.message || err),
+                }),
+              }).catch(() => {});
+            }
+          });
+        } else {
+          claimedExternalAskIds.delete(grokTask.id);
         }
       }
     }

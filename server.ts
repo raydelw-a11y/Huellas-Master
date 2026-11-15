@@ -21261,6 +21261,7 @@ interface PendingExternalGeminiAsk {
 const pendingExternalGeminiAsks = new Map<string, PendingExternalGeminiAsk>();
 const pendingExternalChatGptAsks = new Map<string, PendingExternalGeminiAsk>();
 const pendingExternalClaudeAsks = new Map<string, PendingExternalGeminiAsk>();
+const pendingExternalGrokAsks = new Map<string, PendingExternalGeminiAsk>();
 const pendingExternalCopilotAsks = new Map<string, PendingExternalGeminiAsk>();
 let lastHuellasAppWindowPollAt = 0;
 
@@ -21534,6 +21535,54 @@ function closeTemporaryClaudeWindowFailsafe(opts: {
   }, 2500);
 }
 
+function closeTemporaryGrokWindowFailsafe(opts: {
+  windowId?: number | null;
+  tabId?: number | null;
+  chatUrl?: string;
+}) {
+  if (process.platform !== 'darwin') return;
+  const winIdNum = Number(opts.windowId) || 0;
+  const tabIdNum = Number(opts.tabId) || 0;
+  const cleanChatUrl = String(opts.chatUrl || '')
+    .trim()
+    .replace(/["'\\]/g, '');
+  if (!winIdNum && !tabIdNum && !cleanChatUrl) return;
+
+  setTimeout(() => {
+    runAppleScriptInRunningChromiumBrowsers(
+      (browserApp) => `tell application "${browserApp}"
+        set totalGrokTabs to 0
+        repeat with w in windows
+          repeat with t in tabs of w
+            set tu to URL of t
+            if (tu starts with "https://grok.com") or (tu contains ".grok.com/") then
+              set totalGrokTabs to totalGrokTabs + 1
+            end if
+          end repeat
+        end repeat
+        if totalGrokTabs <= 1 then return "KEEP_LAST_GROK_OPEN"
+        repeat with w in windows
+          set tabCount to (count of tabs of w)
+          repeat with t in tabs of w
+            set u to URL of t
+            if u starts with "https://grok.com" or u contains ".grok.com/" then
+              if (${tabIdNum} > 0 and (id of t as text) is "${tabIdNum}") or (${winIdNum} > 0 and (id of w as text) is "${winIdNum}" and tabCount is 1) or ("${cleanChatUrl}" is not "" and "${cleanChatUrl}" is not "https://grok.com" and "${cleanChatUrl}" is not "https://grok.com/" and u is "${cleanChatUrl}") then
+                if tabCount is 1 then
+                  close w
+                else
+                  close t
+                end if
+                return "MATCHED"
+              end if
+            end if
+          end repeat
+        end repeat
+        return "NO_MATCH"
+      end tell`
+    );
+  }, 2500);
+}
+
 app.get('/api/extension/fingerprint', (req, res) => {
   const fp = computeChromeExtensionFingerprint();
   const now = Date.now();
@@ -21556,6 +21605,7 @@ app.get('/api/extension/fingerprint', (req, res) => {
   } | null = null;
   let nextExternalChatGptAsk: { id: string; prompt: string } | null = null;
   let nextExternalClaudeAsk: { id: string; prompt: string } | null = null;
+  let nextExternalGrokAsk: { id: string; prompt: string } | null = null;
   let nextExternalCopilotAsk: { id: string; prompt: string } | null = null;
   const unclaimedGeminiAsks: Array<{
     id: string;
@@ -21564,6 +21614,7 @@ app.get('/api/extension/fingerprint', (req, res) => {
   }> = [];
   const unclaimedChatGptAsks: Array<{ id: string; prompt: string }> = [];
   const unclaimedClaudeAsks: Array<{ id: string; prompt: string }> = [];
+  const unclaimedGrokAsks: Array<{ id: string; prompt: string }> = [];
   const unclaimedCopilotAsks: Array<{ id: string; prompt: string }> = [];
   if (canDeliverOrdersToCaller) {
     for (const item of pendingExternalGeminiAsks.values()) {
@@ -21589,6 +21640,12 @@ app.get('/api/extension/fingerprint', (req, res) => {
         unclaimedClaudeAsks.push({ id: item.id, prompt: item.prompt });
       }
     }
+    for (const item of pendingExternalGrokAsks.values()) {
+      if (!item.claimed) {
+        if (!nextExternalGrokAsk) nextExternalGrokAsk = { id: item.id, prompt: item.prompt };
+        unclaimedGrokAsks.push({ id: item.id, prompt: item.prompt });
+      }
+    }
     for (const item of pendingExternalCopilotAsks.values()) {
       if (!item.claimed) {
         if (!nextExternalCopilotAsk) nextExternalCopilotAsk = { id: item.id, prompt: item.prompt };
@@ -21600,6 +21657,7 @@ app.get('/api/extension/fingerprint', (req, res) => {
     ...Array.from(pendingExternalGeminiAsks.keys()),
     ...Array.from(pendingExternalChatGptAsks.keys()),
     ...Array.from(pendingExternalClaudeAsks.keys()),
+    ...Array.from(pendingExternalGrokAsks.keys()),
     ...Array.from(pendingExternalCopilotAsks.keys()),
   ];
   const pendingCommandsList: PendingGeminiCommandItem[] = [];
@@ -21632,6 +21690,8 @@ app.get('/api/extension/fingerprint', (req, res) => {
     pendingExternalChatGptAsks: unclaimedChatGptAsks,
     pendingExternalClaudeAsk: nextExternalClaudeAsk,
     pendingExternalClaudeAsks: unclaimedClaudeAsks,
+    pendingExternalGrokAsk: nextExternalGrokAsk,
+    pendingExternalGrokAsks: unclaimedGrokAsks,
     pendingExternalCopilotAsk: nextExternalCopilotAsk,
     pendingExternalCopilotAsks: unclaimedCopilotAsks,
     activeExternalAskIds,
@@ -23055,6 +23115,141 @@ app.post('/api/claude-web/ask-external', async (req, res) => {
 
     setTimeout(() => {
       const current = pendingExternalClaudeAsks.get(id);
+      if (current && !current.claimed && Date.now() - lastHuellasAppWindowPollAt > 5000) {
+        wakeExtensionInHuellasAppBrowser();
+      }
+    }, 2200);
+  });
+
+  const outcome = await resultPromise;
+  res.status(outcome.ok ? 200 : 504).json(outcome);
+});
+
+app.post('/api/grok-web/ask-external-claim', (req, res) => {
+  const id = String(req.body?.id || '').trim();
+  const item = pendingExternalGrokAsks.get(id);
+  if (!item) {
+    res.json({ ok: false, error: 'not_found' });
+    return;
+  }
+  const isAttachingWindow = req.body?.windowId !== undefined || req.body?.tabId !== undefined;
+  if (!isAttachingWindow) {
+    const hasAppWindow = Boolean(req.body?.hasAppWindow);
+    const hasWorkspace = Boolean(req.body?.hasWorkspace);
+    const allowFallback = Date.now() - lastHuellasAppWindowPollAt > 15000;
+    if (!hasAppWindow && !(allowFallback && hasWorkspace)) {
+      res.status(409).json({ ok: false, error: 'wrong_browser_profile' });
+      return;
+    }
+    if (item.claimed) {
+      res.status(409).json({ ok: false, error: 'already_claimed' });
+      return;
+    }
+    item.claimed = true;
+  } else {
+    item.claimed = true;
+    if (req.body?.windowId) item.windowId = Number(req.body.windowId) || null;
+    if (req.body?.tabId) item.tabId = Number(req.body.tabId) || null;
+    if (req.body?.reusedExisting !== undefined) {
+      item.reusedExisting = Boolean(req.body.reusedExisting);
+    }
+  }
+  res.json({ ok: true, id });
+});
+
+app.post('/api/grok-web/ask-external-result', (req, res) => {
+  const id = String(req.body?.requestId || req.body?.id || '').trim();
+  const chatUrl = String(req.body?.chatUrl || '').trim();
+  const bodyTabId = Number(req.body?.tabId) || null;
+  const bodyWinId = Number(req.body?.windowId) || null;
+  const bodyReused = Boolean(req.body?.reusedExisting);
+  const item = pendingExternalGrokAsks.get(id);
+  if (!item) {
+    if (!bodyReused && (chatUrl || bodyTabId || bodyWinId)) {
+      closeTemporaryGrokWindowFailsafe({ windowId: bodyWinId, tabId: bodyTabId, chatUrl });
+    }
+    res.json({ ok: false, error: 'already_resolved_or_not_found' });
+    return;
+  }
+  clearTimeout(item.timer);
+  pendingExternalGrokAsks.delete(id);
+  item.chatUrl = chatUrl || item.chatUrl;
+  const keepOpen = Boolean(item.reusedExisting || bodyReused);
+  if (!keepOpen) {
+    closeTemporaryGrokWindowFailsafe({
+      windowId: item.windowId || bodyWinId,
+      tabId: item.tabId || bodyTabId,
+      chatUrl: item.chatUrl,
+    });
+  }
+  item.resolve({
+    ok: Boolean(req.body?.ok !== false),
+    verifiedModel: req.body?.verifiedModel ? String(req.body.verifiedModel) : undefined,
+    response: String(req.body?.response || req.body?.text || ''),
+    chatUrl,
+    error: req.body?.error ? String(req.body.error) : undefined,
+  });
+  res.json({ ok: true });
+});
+
+app.post('/api/grok-web/ask-external', async (req, res) => {
+  const prompt = String(req.body?.prompt || '').trim();
+  if (!prompt) {
+    res.status(400).json({ ok: false, error: 'Falta el campo prompt.' });
+    return;
+  }
+  const timeoutMs = Math.min(Math.max(Number(req.body?.timeoutMs) || 300000, 15000), 360000);
+  const id = `ext_grok_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+  const resultPromise = new Promise<{
+    ok: boolean;
+    verifiedModel?: string;
+    response?: string;
+    chatUrl?: string;
+    error?: string;
+  }>((resolve) => {
+    const timer = setTimeout(() => {
+      const expired = pendingExternalGrokAsks.get(id);
+      pendingExternalGrokAsks.delete(id);
+      if (expired && !expired.reusedExisting) {
+        closeTemporaryGrokWindowFailsafe({
+          windowId: expired.windowId,
+          tabId: expired.tabId,
+          chatUrl: expired.chatUrl,
+        });
+      }
+      resolve({
+        ok: false,
+        error: `Timeout esperando respuesta de Grok Web tras ${Math.round(timeoutMs / 1000)}s.`,
+      });
+    }, timeoutMs);
+    pendingExternalGrokAsks.set(id, {
+      id,
+      prompt,
+      createdAt: Date.now(),
+      claimed: false,
+      resolve,
+      timer,
+    });
+
+    res.on('close', () => {
+      if (res.writableEnded) return;
+      const aborted = pendingExternalGrokAsks.get(id);
+      if (aborted) {
+        clearTimeout(aborted.timer);
+        pendingExternalGrokAsks.delete(id);
+        if (!aborted.reusedExisting) {
+          closeTemporaryGrokWindowFailsafe({
+            windowId: aborted.windowId,
+            tabId: aborted.tabId,
+            chatUrl: aborted.chatUrl,
+          });
+        }
+      }
+    });
+
+    setTimeout(() => {
+      const current = pendingExternalGrokAsks.get(id);
       if (current && !current.claimed && Date.now() - lastHuellasAppWindowPollAt > 5000) {
         wakeExtensionInHuellasAppBrowser();
       }

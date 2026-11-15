@@ -120,6 +120,8 @@
     const selectors = [
       'button[data-testid="model-selector-dropdown"]',
       '[data-testid="model-selector-dropdown"]',
+      'button[aria-label^="Modelo:" i]',
+      'button[aria-label^="Model:" i]',
       'button[aria-haspopup="menu"]',
       'button[aria-label*="model" i]',
     ];
@@ -129,10 +131,87 @@
         const txt = (el.innerText || el.textContent || el.getAttribute('aria-label') || '')
           .replace(/\s+/g, ' ')
           .trim();
-        if (/claude|sonnet|opus|haiku/i.test(txt)) return txt;
+        if (/claude|sonnet|opus|haiku|bajo|low/i.test(txt)) return txt;
       }
     }
     return 'Claude Web (claude.ai)';
+  }
+
+  async function ensureClaudeLowEffortMode() {
+    try {
+      // Turn off standalone Extended Thinking toggle if present and pressed
+      const thinkingToggles = Array.from(document.querySelectorAll('button[aria-pressed="true"]'));
+      for (const tBtn of thinkingToggles) {
+        if (!isVisible(tBtn)) continue;
+        const lbl = ((tBtn.innerText || '') + ' ' + (tBtn.getAttribute('aria-label') || '')).toLowerCase();
+        if (/thinking|pensamiento|extended/i.test(lbl)) {
+          try {
+            tBtn.click();
+            await sleep(140);
+          } catch {}
+        }
+      }
+
+      const modelBtn =
+        document.querySelector('button[data-testid="model-selector-dropdown"]') ||
+        document.querySelector('[data-testid="model-selector-dropdown"]') ||
+        document.querySelector('button[aria-label^="Modelo:" i]') ||
+        document.querySelector('button[aria-label^="Model:" i]');
+      if (!modelBtn || !isVisible(modelBtn)) return;
+
+      const curLabel = ((modelBtn.innerText || '') + ' ' + (modelBtn.getAttribute('aria-label') || ''))
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (/\b(bajo|low)\b/i.test(curLabel)) {
+        if (modelBtn.getAttribute('aria-expanded') === 'true') {
+          document.dispatchEvent(
+            new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', keyCode: 27, bubbles: true })
+          );
+          await sleep(120);
+        }
+        return;
+      }
+
+      if (modelBtn.getAttribute('aria-expanded') !== 'true') {
+        modelBtn.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+        modelBtn.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+        modelBtn.click();
+        await sleep(220);
+      }
+
+      const effortSubTrigger = Array.from(document.querySelectorAll('[role="menu"] [role="menuitem"]')).find((el) => {
+        if (!isVisible(el)) return false;
+        const t = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+        return /\b(esfuerzo|effort)\b/i.test(t);
+      });
+      if (effortSubTrigger) {
+        effortSubTrigger.dispatchEvent(new PointerEvent('pointermove', { bubbles: true }));
+        effortSubTrigger.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
+        effortSubTrigger.click();
+        await sleep(220);
+      }
+
+      const lowOption = Array.from(
+        document.querySelectorAll('[role="menu"] [role="menuitemradio"], [role="menu"] [role="menuitem"]')
+      ).find((el) => {
+        if (!isVisible(el)) return false;
+        const t = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+        return /^(bajo|low)\b/i.test(t) && !/\b(esfuerzo|effort)\b/i.test(t);
+      });
+      if (lowOption) {
+        lowOption.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+        lowOption.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+        lowOption.click();
+        await sleep(180);
+      }
+
+      if (modelBtn.getAttribute('aria-expanded') === 'true') {
+        document.dispatchEvent(
+          new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', keyCode: 27, bubbles: true })
+        );
+        await sleep(120);
+      }
+    } catch {}
   }
 
   function getClaudeAssistantTurnElements() {
@@ -349,6 +428,7 @@
             return;
           }
 
+          await ensureClaudeLowEffortMode();
           const verifiedModel = readDetectedModelLabel();
           const initialCount = getClaudeAssistantTurnElements().length;
           const initialLastText = (extractLatestClaudeResponse().text || '').trim();
