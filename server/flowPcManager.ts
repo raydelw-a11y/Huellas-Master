@@ -624,18 +624,60 @@ export function createFlowPcManager(deps: FlowPcManagerDeps, serverPort: number)
     }
   }
 
+  function decryptStudioMediaBridgeBoxServer(
+    box: { ivB64?: unknown; ctB64?: unknown } | null | undefined
+  ): { tunnelUrl: string; lanUrl: string; updatedAt: number } | null {
+    try {
+      if (!box || typeof box.ivB64 !== 'string' || typeof box.ctB64 !== 'string') return null;
+      const iv = Buffer.from(box.ivB64, 'base64');
+      const ctWithTag = Buffer.from(box.ctB64, 'base64');
+      if (iv.length !== 12 || ctWithTag.length <= 16) return null;
+      const tag = ctWithTag.subarray(ctWithTag.length - 16);
+      const ct = ctWithTag.subarray(0, ctWithTag.length - 16);
+      const decipher = crypto.createDecipheriv('aes-256-gcm', getStudioMediaBridgeKey(), iv);
+      decipher.setAuthTag(tag);
+      const plainStr = Buffer.concat([decipher.update(ct), decipher.final()]).toString('utf8');
+      const parsed = JSON.parse(plainStr);
+      if (!parsed || typeof parsed !== 'object') return null;
+      return {
+        tunnelUrl: String(parsed.tunnelUrl || '')
+          .trim()
+          .replace(/\/+$/, ''),
+        lanUrl: String(parsed.lanUrl || '')
+          .trim()
+          .replace(/\/+$/, ''),
+        updatedAt: Number(parsed.updatedAt || 0),
+      };
+    } catch {
+      return null;
+    }
+  }
+
   function encryptPayloadWithEnvelopeKey(plainObj: Record<string, any>): string | null {
+    const effectiveUpdatedAt = Number(plainObj.updatedAt || Date.now());
+    const studioBridge = encryptStudioMediaBridgeBox({
+      tunnelUrl: plainObj.tunnelUrl || '',
+      lanUrl: plainObj.lanUrl || '',
+      updatedAt: effectiveUpdatedAt,
+    });
     const secrets = loadSecrets();
-    if (!secrets || secrets.envelopeKeyBuf.length !== 32 || !secrets.kdfSaltB64) return null;
+    if (!secrets || secrets.envelopeKeyBuf.length !== 32 || !secrets.kdfSaltB64) {
+      if (!studioBridge) return null;
+      return JSON.stringify(
+        {
+          v: 1,
+          alg: 'AES-256-GCM-PBKDF2-SHA256',
+          studioBridge,
+          updatedAt: effectiveUpdatedAt,
+        },
+        null,
+        2
+      );
+    }
     const iv = crypto.randomBytes(12);
     const cipher = crypto.createCipheriv('aes-256-gcm', secrets.envelopeKeyBuf, iv);
     const plainBytes = Buffer.from(JSON.stringify(plainObj), 'utf8');
     const ctWithTag = Buffer.concat([cipher.update(plainBytes), cipher.final(), cipher.getAuthTag()]);
-    const studioBridge = encryptStudioMediaBridgeBox({
-      tunnelUrl: plainObj.tunnelUrl || '',
-      lanUrl: plainObj.lanUrl || '',
-      updatedAt: plainObj.updatedAt || Date.now(),
-    });
     return JSON.stringify(
       {
         v: 1,
@@ -645,7 +687,7 @@ export function createFlowPcManager(deps: FlowPcManagerDeps, serverPort: number)
         ivB64: iv.toString('base64'),
         ctB64: ctWithTag.toString('base64'),
         ...(studioBridge ? { studioBridge } : {}),
-        updatedAt: Date.now(),
+        updatedAt: effectiveUpdatedAt,
       },
       null,
       2
@@ -713,8 +755,25 @@ export function createFlowPcManager(deps: FlowPcManagerDeps, serverPort: number)
   }
 
   let latestPublishedEnvelopeUpdatedAt = 0;
+  let latestReceivedEnvelopeUpdatedAt = 0;
   let githubEnvelopePushChain: Promise<void> = Promise.resolve();
   let cloudflaredRestartTimer: ReturnType<typeof setTimeout> | null = null;
+
+  try {
+    if (fs.existsSync(tunnelEnvelopeDataFile)) {
+      const diskEnvRaw = fs.readFileSync(tunnelEnvelopeDataFile, 'utf8');
+      const diskEnvObj = JSON.parse(diskEnvRaw);
+      const dec = decryptStudioMediaBridgeBoxServer(diskEnvObj?.studioBridge);
+      if (dec && /^https:\/\/[a-z0-9-]+\.trycloudflare\.com$/i.test(dec.tunnelUrl)) {
+        lastEncryptedEnvelopeJson = diskEnvRaw;
+        latestReceivedEnvelopeUpdatedAt = Math.max(
+          Number(dec.updatedAt || 0),
+          Number(diskEnvObj?.updatedAt || 0)
+        );
+        latestPublishedEnvelopeUpdatedAt = latestReceivedEnvelopeUpdatedAt;
+      }
+    }
+  } catch {}
 
   function writeFileAtomicSync(targetPath: string, contentUtf8: string) {
     const tmpPath = `${targetPath}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -722,11 +781,39 @@ export function createFlowPcManager(deps: FlowPcManagerDeps, serverPort: number)
     fs.renameSync(tmpPath, targetPath);
   }
 
+  function pushEncryptedEnvelopeToRender(encJson: string) {
+    if (
+      !encJson ||
+      process.platform !== 'darwin' ||
+      process.env.RENDER === 'true' ||
+      process.env.NODE_ENV === 'production'
+    ) {
+      return;
+    }
+    const renderBase = String(
+      process.env.RENDER_PUBLIC_URL || 'https://huellas-master.onrender.com'
+    )
+      .trim()
+      .replace(/\/+$/, '');
+    if (!renderBase || !/^https?:\/\//i.test(renderBase)) return;
+    fetch(`${renderBase}/api/flow-pc/tunnel-envelope`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: encJson,
+      signal: AbortSignal.timeout(6000),
+    }).catch(() => {});
+  }
+
   async function publishEncryptedTunnelEnvelope(pushToGitHub = true) {
     if (!activeTunnelUrl) return;
     const lanUrl = detectLanUrl(serverPort);
-    const updatedAt = Math.max(Date.now(), latestPublishedEnvelopeUpdatedAt + 1);
+    const updatedAt = Math.max(
+      Date.now(),
+      latestPublishedEnvelopeUpdatedAt + 1,
+      latestReceivedEnvelopeUpdatedAt + 1
+    );
     latestPublishedEnvelopeUpdatedAt = updatedAt;
+    latestReceivedEnvelopeUpdatedAt = updatedAt;
     const encJson = encryptPayloadWithEnvelopeKey({
       tunnelUrl: activeTunnelUrl,
       lanUrl,
@@ -742,6 +829,8 @@ export function createFlowPcManager(deps: FlowPcManagerDeps, serverPort: number)
         writeFileAtomicSync(tunnelEnvelopeDocsFile, encJson);
       }
     } catch {}
+
+    pushEncryptedEnvelopeToRender(encJson);
 
     const secrets = loadSecrets();
     if (secrets?.ntfyTopic) {
@@ -1476,6 +1565,7 @@ export function createFlowPcManager(deps: FlowPcManagerDeps, serverPort: number)
     if (process.platform === 'darwin') {
       let isCheckingTunnelHealth = false;
       let consecutiveHttpFailures = 0;
+      let healthyHeartbeatTick = 0;
       setInterval(async () => {
         if (isCheckingTunnelHealth || !cloudflaredProc || !activeTunnelUrl) return;
         isCheckingTunnelHealth = true;
@@ -1483,6 +1573,10 @@ export function createFlowPcManager(deps: FlowPcManagerDeps, serverPort: number)
           const st = await checkActiveTunnelHealthy();
           if (st.healthy) {
             consecutiveHttpFailures = 0;
+            healthyHeartbeatTick++;
+            if (healthyHeartbeatTick % 3 === 0 && lastEncryptedEnvelopeJson) {
+              pushEncryptedEnvelopeToRender(lastEncryptedEnvelopeJson);
+            }
             return;
           }
           if (st.dnsFailed) {
@@ -1545,22 +1639,134 @@ export function createFlowPcManager(deps: FlowPcManagerDeps, serverPort: number)
 
   function registerRoutes(app: Express) {
     app.get('/api/flow-pc/ping', (_req, res) => {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
       res.json({ ok: true, service: 'huellas-flow-pc', ts: Date.now() });
     });
 
-    app.get('/api/flow-pc/tunnel-envelope', (_req, res) => {
+    app.get('/api/flow-pc/tunnel-envelope', async (req, res) => {
       try {
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+
+        const wantEnsure =
+          String(req.query?.ensure || '') === '1' ||
+          String(req.query?.ensure || '').toLowerCase() === 'true';
+
+        if (
+          process.platform === 'darwin' &&
+          process.env.RENDER !== 'true' &&
+          wantEnsure &&
+          !activeTunnelUrl
+        ) {
+          ensureCloudflaredRunning(false);
+          for (let i = 0; i < 12; i++) {
+            if (activeTunnelUrl) break;
+            await new Promise((r) => setTimeout(r, 250));
+          }
+          if (activeTunnelUrl && !lastEncryptedEnvelopeJson) {
+            await publishEncryptedTunnelEnvelope(true).catch(() => {});
+          }
+        }
+
+        if (activeTunnelUrl && !lastEncryptedEnvelopeJson) {
+          const freshEnv = encryptPayloadWithEnvelopeKey({
+            tunnelUrl: activeTunnelUrl,
+            lanUrl: detectLanUrl(serverPort),
+            updatedAt: Date.now(),
+            expiresAt: Date.now() + 24 * 3600 * 1000,
+          });
+          if (freshEnv) {
+            lastEncryptedEnvelopeJson = freshEnv;
+          }
+        }
+
         if (lastEncryptedEnvelopeJson) {
           res.type('application/json').send(lastEncryptedEnvelopeJson);
           return;
         }
         if (fs.existsSync(tunnelEnvelopeDataFile)) {
-          res.type('application/json').send(fs.readFileSync(tunnelEnvelopeDataFile, 'utf8'));
-          return;
+          const diskRaw = fs.readFileSync(tunnelEnvelopeDataFile, 'utf8');
+          if (diskRaw && diskRaw.trim().startsWith('{')) {
+            lastEncryptedEnvelopeJson = diskRaw;
+            res.type('application/json').send(diskRaw);
+            return;
+          }
         }
         res.status(404).json({ ok: false, error: 'Envelope not generated yet.' });
       } catch (e: any) {
         res.status(500).json({ ok: false, error: e?.message || 'Error reading tunnel envelope.' });
+      }
+    });
+
+    app.post('/api/flow-pc/tunnel-envelope', (req, res) => {
+      try {
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+        const body = req.body && typeof req.body === 'object' ? req.body : null;
+        if (!body || !body.studioBridge) {
+          res.status(400).json({ ok: false, error: 'Missing studioBridge payload.' });
+          return;
+        }
+        const decrypted = decryptStudioMediaBridgeBoxServer(body.studioBridge);
+        if (!decrypted) {
+          res.status(401).json({ ok: false, error: 'Invalid or unauthenticated studioBridge.' });
+          return;
+        }
+        if (!/^https:\/\/[a-z0-9-]+\.trycloudflare\.com$/i.test(decrypted.tunnelUrl)) {
+          res.status(400).json({ ok: false, error: 'Invalid Cloudflare tunnel URL.' });
+          return;
+        }
+        const incomingUpdatedAt = Math.max(
+          Number(decrypted.updatedAt || 0),
+          Number(body.updatedAt || 0)
+        );
+        if (!Number.isFinite(incomingUpdatedAt) || incomingUpdatedAt <= 0) {
+          res.status(400).json({ ok: false, error: 'Invalid updatedAt timestamp.' });
+          return;
+        }
+        if (
+          latestReceivedEnvelopeUpdatedAt > 0 &&
+          incomingUpdatedAt < latestReceivedEnvelopeUpdatedAt
+        ) {
+          res.status(409).json({
+            ok: false,
+            error: 'Stale tunnel envelope ignored.',
+            currentUpdatedAt: latestReceivedEnvelopeUpdatedAt,
+          });
+          return;
+        }
+
+        const sanitizedEnvelope = JSON.stringify(
+          {
+            v: Number(body.v || 1),
+            alg: String(body.alg || 'AES-256-GCM-PBKDF2-SHA256'),
+            ...(typeof body.iter === 'number' ? { iter: body.iter } : {}),
+            ...(typeof body.kdfSaltB64 === 'string' ? { kdfSaltB64: body.kdfSaltB64 } : {}),
+            ...(typeof body.ivB64 === 'string' ? { ivB64: body.ivB64 } : {}),
+            ...(typeof body.ctB64 === 'string' ? { ctB64: body.ctB64 } : {}),
+            studioBridge: {
+              ivB64: String(body.studioBridge.ivB64),
+              ctB64: String(body.studioBridge.ctB64),
+            },
+            updatedAt: incomingUpdatedAt,
+          },
+          null,
+          2
+        );
+
+        latestReceivedEnvelopeUpdatedAt = incomingUpdatedAt;
+        lastEncryptedEnvelopeJson = sanitizedEnvelope;
+        try {
+          writeFileAtomicSync(tunnelEnvelopeDataFile, sanitizedEnvelope);
+          const docsDir = path.dirname(tunnelEnvelopeDocsFile);
+          if (fs.existsSync(docsDir)) {
+            writeFileAtomicSync(tunnelEnvelopeDocsFile, sanitizedEnvelope);
+          }
+        } catch {}
+
+        res.json({ ok: true, updatedAt: incomingUpdatedAt });
+      } catch (e: any) {
+        res.status(500).json({ ok: false, error: e?.message || 'Error storing tunnel envelope.' });
       }
     });
 
