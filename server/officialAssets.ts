@@ -3,7 +3,7 @@ import fs from 'fs';
 import fsp from 'fs/promises';
 import path from 'path';
 import crypto from 'crypto';
-import { spawn } from 'child_process';
+import { spawn, type ChildProcess } from 'child_process';
 
 export type OfficialAssetKind = 'intro' | 'outro';
 export type OfficialAssetTier = 'icloud_hydrated' | 'custom_uploaded' | 'fallback';
@@ -69,7 +69,8 @@ export type ExportAssetResolution =
     };
 
 // ============================================================================
-// BOUNDED CHILD-PROCESS READABILITY PROBE (DEFEATS KERNEL fileproviderd HANGS)
+// PERSISTENT BOUNDED PROBE WORKER POOL (DEFEATS KERNEL fileproviderd HANGS
+// AND AMORTIZES macOS 26.7+ 10.0s Sandbox.kext PER-PID APPROVAL WATCHDOG)
 // ============================================================================
 const positiveReadProbeCache = new Map<
   string,
@@ -82,8 +83,222 @@ const negativeReadProbeCache = new Map<
 const inFlightReadProbes = new Map<string, Promise<BoundedReadProbeResult>>();
 const lastBrctlKickByPath = new Map<string, number>();
 
-const POSITIVE_PROBE_TTL_MS = 60_000;
+const POSITIVE_PROBE_TTL_MS = 10 * 60_000;
 const DEFAULT_NEGATIVE_COOLDOWN_MS = 4_000;
+const PROBE_POOL_SIZE = 4;
+const MAX_INFLIGHT_PER_WORKER = 32;
+
+const PERSISTENT_PROBE_WORKER_SCRIPT = [
+  'const fsp=require("fs/promises"),path=require("path"),rl=require("readline");',
+  'const iface=rl.createInterface({input:process.stdin,crlfDelay:Infinity});',
+  'const reply=(id,obj)=>{try{process.stdout.write(JSON.stringify(Object.assign({id},obj))+"\\n");}catch{}};',
+  'iface.on("line",async(line)=>{',
+  '  if(!line)return;',
+  '  let msg;try{msg=JSON.parse(line);}catch{return;}',
+  '  const id=msg.id,op=msg.op,target=String(msg.path||"");',
+  '  let fh=null;',
+  '  try{',
+  '    if(op==="dir"){',
+  '      await fsp.readdir(target);',
+  '      const subs=Array.isArray(msg.subdirs)?msg.subdirs:[];',
+  '      if(subs.length>0){',
+  '        await Promise.all(subs.map(async(sub)=>{',
+  '          const fullSub=path.join(target,String(sub||""));',
+  '          try{await fsp.readdir(fullSub);}catch(e){if(e&&e.code!=="ENOENT"&&e.code!=="ENOTDIR")throw e;}',
+  '        }));',
+  '      }',
+  '      reply(id,{ok:true});return;',
+  '    }',
+  '    const preSt=await fsp.stat(target);',
+  '    if(!preSt.isFile()){reply(id,{ok:false,error:"NOT_A_FILE"});return;}',
+  '    if(preSt.size<=0||(typeof preSt.blocks==="number"&&preSt.blocks<=0)){reply(id,{ok:false,error:"DATALESS"});return;}',
+  '    fh=await fsp.open(target,"r");',
+  '    const st=await fh.stat();',
+  '    if(st.size>0){',
+  '      const b=Buffer.allocUnsafe(16);',
+  '      const rd=await fh.read(b,0,Math.min(16,st.size),0);',
+  '      if(!rd||rd.bytesRead<=0){await fh.close();fh=null;reply(id,{ok:false,error:"ZERO_READ"});return;}',
+  '    }',
+  '    await fh.close();fh=null;',
+  '    reply(id,{ok:true,size:st.size,mtimeMs:st.mtimeMs});',
+  '  }catch(e){',
+  '    if(fh){try{await fh.close();}catch{}}',
+  '    reply(id,{ok:false,error:String((e&&e.code)||(e&&e.message)||"OPEN_ERR")});',
+  '  }',
+  '});',
+].join('\n');
+
+interface PersistentProbeWorker {
+  proc: ChildProcess;
+  alive: boolean;
+  hungCount: number;
+  stdoutBuf: string;
+  activeReqs: Map<
+    number,
+    {
+      timer: ReturnType<typeof setTimeout>;
+      resolve: (res: {
+        ok: boolean;
+        timedOut?: boolean;
+        size?: number;
+        mtimeMs?: number;
+        error?: string;
+      }) => void;
+    }
+  >;
+}
+
+const probeWorkers: PersistentProbeWorker[] = [];
+let nextProbeReqId = 1;
+let rrWorkerIdx = 0;
+
+function destroyProbeWorker(worker: PersistentProbeWorker, reasonError = 'WORKER_CLOSED'): void {
+  if (!worker.alive) return;
+  worker.alive = false;
+  const idx = probeWorkers.indexOf(worker);
+  if (idx >= 0) probeWorkers.splice(idx, 1);
+  try {
+    worker.proc.kill('SIGKILL');
+  } catch {}
+  for (const [, req] of worker.activeReqs.entries()) {
+    clearTimeout(req.timer);
+    req.resolve({ ok: false, timedOut: reasonError.startsWith('TIMEOUT_'), error: reasonError });
+  }
+  worker.activeReqs.clear();
+}
+
+function createPersistentProbeWorker(): PersistentProbeWorker | null {
+  try {
+    const proc = spawn(process.execPath, ['-e', PERSISTENT_PROBE_WORKER_SCRIPT], {
+      stdio: ['pipe', 'pipe', 'ignore'],
+      env: { ...process.env, UV_THREADPOOL_SIZE: '64' },
+    });
+    if (typeof proc.unref === 'function') proc.unref();
+
+    const worker: PersistentProbeWorker = {
+      proc,
+      alive: true,
+      hungCount: 0,
+      stdoutBuf: '',
+      activeReqs: new Map(),
+    };
+
+    proc.stdout?.on('data', (chunk: Buffer) => {
+      worker.stdoutBuf += chunk.toString('utf8');
+      let nlIdx = worker.stdoutBuf.indexOf('\n');
+      while (nlIdx >= 0) {
+        const line = worker.stdoutBuf.slice(0, nlIdx).trim();
+        worker.stdoutBuf = worker.stdoutBuf.slice(nlIdx + 1);
+        nlIdx = worker.stdoutBuf.indexOf('\n');
+        if (!line) continue;
+        try {
+          const parsed = JSON.parse(line);
+          const reqId = Number(parsed?.id);
+          const req = worker.activeReqs.get(reqId);
+          if (req) {
+            worker.activeReqs.delete(reqId);
+            clearTimeout(req.timer);
+            req.resolve({
+              ok: Boolean(parsed.ok),
+              size: Number(parsed.size ?? 0),
+              mtimeMs: Number(parsed.mtimeMs ?? 0),
+              error: parsed.error ? String(parsed.error) : undefined,
+            });
+          }
+        } catch {}
+      }
+    });
+
+    proc.on('error', () => {
+      destroyProbeWorker(worker, 'SPAWN_ERROR');
+    });
+
+    proc.on('close', (code) => {
+      destroyProbeWorker(worker, `EXIT_${code}`);
+    });
+
+    probeWorkers.push(worker);
+    return worker;
+  } catch {
+    return null;
+  }
+}
+
+function ensureProbeWorkerPool(): void {
+  while (probeWorkers.length < PROBE_POOL_SIZE) {
+    const created = createPersistentProbeWorker();
+    if (!created) break;
+  }
+}
+
+export function warmUpIcloudProbePool(): void {
+  if (process.platform !== 'darwin') return;
+  ensureProbeWorkerPool();
+}
+
+export function primePositiveReadProbeCache(filePath: string, size: number, mtimeMs: number): void {
+  if (!filePath || !Number.isFinite(size) || size < 0) return;
+  positiveReadProbeCache.set(path.resolve(filePath), {
+    expiresAt: Date.now() + POSITIVE_PROBE_TTL_MS,
+    size,
+    mtimeMs,
+  });
+}
+
+function runProbePoolJob(
+  payload: { op: 'file' | 'dir'; path: string; subdirs?: string[] },
+  timeoutMs: number
+): Promise<{ ok: boolean; timedOut?: boolean; size?: number; mtimeMs?: number; error?: string }> {
+  return new Promise((resolve) => {
+    ensureProbeWorkerPool();
+    let chosen: PersistentProbeWorker | null = null;
+    for (let i = 0; i < probeWorkers.length; i++) {
+      const cand = probeWorkers[(rrWorkerIdx + i) % probeWorkers.length];
+      if (cand && cand.alive && cand.activeReqs.size < MAX_INFLIGHT_PER_WORKER) {
+        chosen = cand;
+        rrWorkerIdx = (rrWorkerIdx + i + 1) % Math.max(1, probeWorkers.length);
+        break;
+      }
+    }
+    if (!chosen) {
+      chosen = createPersistentProbeWorker() || probeWorkers[0] || null;
+    }
+    if (!chosen || !chosen.alive) {
+      resolve({ ok: false, error: 'NO_PROBE_WORKER' });
+      return;
+    }
+
+    const worker = chosen;
+    const id = nextProbeReqId++;
+    // macOS 26.7+ Sandbox.kext FileProviderDomain watchdog is 5.003s per uncached vnode component (~30.1s cold walk)
+    const effectiveTimeoutMs = Math.max(45_000, timeoutMs);
+    const timer = setTimeout(() => {
+      const pending = worker.activeReqs.get(id);
+      if (!pending) return;
+      worker.activeReqs.delete(id);
+      worker.hungCount++;
+      pending.resolve({ ok: false, timedOut: true, error: `TIMEOUT_${effectiveTimeoutMs}MS` });
+      if (worker.hungCount >= 12) {
+        destroyProbeWorker(worker, `TIMEOUT_${effectiveTimeoutMs}MS`);
+        ensureProbeWorkerPool();
+      }
+    }, effectiveTimeoutMs);
+    if (typeof (timer as any).unref === 'function') {
+      (timer as any).unref();
+    }
+
+    worker.activeReqs.set(id, { timer, resolve });
+    try {
+      worker.proc.stdin?.write(JSON.stringify({ id, ...payload }) + '\n');
+    } catch (err: any) {
+      clearTimeout(timer);
+      worker.activeReqs.delete(id);
+      destroyProbeWorker(worker, err?.message || 'STDIN_WRITE_ERR');
+      ensureProbeWorkerPool();
+      resolve({ ok: false, error: err?.message || 'STDIN_WRITE_ERR' });
+    }
+  });
+}
 
 export function kickIcloudDownloadDetached(targetPath: string, minIntervalMs = 15_000): void {
   if (process.platform !== 'darwin' || !targetPath) return;
@@ -101,9 +316,21 @@ export function kickIcloudDownloadDetached(targetPath: string, minIntervalMs = 1
   } catch {}
 }
 
+export async function probeDocRootOpenableBounded(
+  dirPath: string,
+  subdirs: string[] = ['05_Clips_Video'],
+  timeoutMs = 60_000
+): Promise<boolean> {
+  const raw = String(dirPath || '').trim();
+  if (!raw) return false;
+  const resolved = path.resolve(raw);
+  const res = await runProbePoolJob({ op: 'dir', path: resolved, subdirs }, Math.max(45_000, timeoutMs));
+  return Boolean(res.ok);
+}
+
 export function probeFileReadableBounded(
   filePath: string,
-  timeoutMs = 1500,
+  timeoutMs = 45_000,
   failCooldownMs = DEFAULT_NEGATIVE_COOLDOWN_MS
 ): Promise<BoundedReadProbeResult> {
   const raw = String(filePath || '').trim();
@@ -143,30 +370,16 @@ export function probeFileReadableBounded(
   const inflight = inFlightReadProbes.get(resolved);
   if (inflight) return inflight;
 
-  const probeScript = [
-    'const fs=require("fs");',
-    'const p=process.argv[1];',
-    'try{',
-    'const fd=fs.openSync(p,"r");',
-    'const st=fs.fstatSync(fd);',
-    'if(!st.isFile()){fs.closeSync(fd);process.stderr.write("NOT_A_FILE");process.exit(2);}',
-    'if(st.size>0){const b=Buffer.alloc(16);const n=fs.readSync(fd,b,0,Math.min(16,st.size),0);if(n<=0){fs.closeSync(fd);process.stderr.write("ZERO_READ");process.exit(3);}}',
-    'fs.closeSync(fd);',
-    'process.stdout.write(JSON.stringify({size:st.size,mtimeMs:st.mtimeMs}));',
-    'process.exit(0);',
-    '}catch(e){process.stderr.write(String((e&&e.code)||(e&&e.message)||"OPEN_ERR"));process.exit(4);}',
-  ].join('');
-
-  const task = new Promise<BoundedReadProbeResult>((resolve) => {
-    let settled = false;
-    let timedOut = false;
-    let stdout = '';
-    let stderr = '';
-
-    const finish = (res: BoundedReadProbeResult) => {
-      if (settled) return;
-      settled = true;
+  const task = runProbePoolJob({ op: 'file', path: resolved }, Math.max(1_500, timeoutMs)).then(
+    (rawRes): BoundedReadProbeResult => {
       inFlightReadProbes.delete(resolved);
+      const res: BoundedReadProbeResult = {
+        ok: Boolean(rawRes.ok),
+        timedOut: Boolean(rawRes.timedOut),
+        size: Number(rawRes.size ?? 0),
+        mtimeMs: Number(rawRes.mtimeMs ?? 0),
+        error: rawRes.error,
+      };
       if (res.ok) {
         positiveReadProbeCache.set(resolved, {
           expiresAt: Date.now() + POSITIVE_PROBE_TTL_MS,
@@ -181,77 +394,9 @@ export function probeFileReadableBounded(
           error: res.error,
         });
       }
-      resolve(res);
-    };
-
-    try {
-      const child = spawn(process.execPath, ['-e', probeScript, resolved], {
-        stdio: ['ignore', 'pipe', 'pipe'],
-      });
-      const killTimer = setTimeout(() => {
-        timedOut = true;
-        try {
-          child.kill('SIGKILL');
-        } catch {}
-      }, Math.max(250, timeoutMs));
-
-      child.stdout?.on('data', (chunk) => {
-        stdout += chunk.toString();
-      });
-      child.stderr?.on('data', (chunk) => {
-        stderr += chunk.toString();
-      });
-      child.on('error', (err) => {
-        clearTimeout(killTimer);
-        finish({
-          ok: false,
-          timedOut,
-          size: 0,
-          mtimeMs: 0,
-          error: err.message || 'SPAWN_ERROR',
-        });
-      });
-      child.on('close', (code) => {
-        clearTimeout(killTimer);
-        if (timedOut) {
-          finish({
-            ok: false,
-            timedOut: true,
-            size: 0,
-            mtimeMs: 0,
-            error: `TIMEOUT_${timeoutMs}MS`,
-          });
-          return;
-        }
-        if (code === 0) {
-          try {
-            const parsed = JSON.parse(stdout.trim());
-            const size = Number(parsed?.size ?? 0);
-            const mtimeMs = Number(parsed?.mtimeMs ?? 0);
-            if (Number.isFinite(size) && size >= 0) {
-              finish({ ok: true, timedOut: false, size, mtimeMs });
-              return;
-            }
-          } catch {}
-        }
-        finish({
-          ok: false,
-          timedOut: false,
-          size: 0,
-          mtimeMs: 0,
-          error: stderr.trim() || `EXIT_${code}`,
-        });
-      });
-    } catch (err: any) {
-      finish({
-        ok: false,
-        timedOut: false,
-        size: 0,
-        mtimeMs: 0,
-        error: err?.message || 'PROBE_EXCEPTION',
-      });
+      return res;
     }
-  });
+  );
 
   inFlightReadProbes.set(resolved, task);
   return task;
@@ -294,6 +439,7 @@ interface DiscoveredIcloudCandidate {
   mtimeMs: number;
   materialized: boolean;
   isEvictedStub: boolean;
+  stagedPath?: string;
 }
 
 interface DiscoveredKindSources {
@@ -311,10 +457,11 @@ interface DiscoverIntroOutroResult {
 }
 
 const DISCOVER_INTRO_OUTRO_SCRIPT = [
-  'const fs = require("fs");',
+  'const fsp = require("fs/promises");',
   'const path = require("path");',
   'const { spawn } = require("child_process");',
   'const rawTarget = String(process.argv[1] || "");',
+  'const stagingOutDir = String(process.argv[2] || "");',
   'function kickBrctl(p) {',
   '  if (process.platform !== "darwin" || !p) return;',
   '  try {',
@@ -323,113 +470,172 @@ const DISCOVER_INTRO_OUTRO_SCRIPT = [
   '    c.unref();',
   '  } catch {}',
   '}',
-  'function resolveTargetDir(target) {',
-  '  const direct = [target, target.normalize("NFC"), target.normalize("NFD")];',
-  '  for (const cand of direct) {',
-  '    if (!cand) continue;',
-  '    try {',
-  '      if (fs.statSync(cand).isDirectory()) return cand;',
-  '    } catch {}',
-  '  }',
+  'async function resolveTargetDirAndEntries(target) {',
+  '  const direct = Array.from(new Set([target, target.normalize("NFC"), target.normalize("NFD")].filter(Boolean)));',
+  '  const directHits = await Promise.all(direct.map(async (cand) => {',
+  '    try { const ents = await fsp.readdir(cand, { withFileTypes: true }); return { dir: cand, ents }; } catch { return null; }',
+  '  }));',
+  '  const foundDirect = directHits.find(Boolean);',
+  '  if (foundDirect) return foundDirect;',
   '  const parentRaw = path.dirname(target);',
-  '  for (const pCand of [parentRaw, parentRaw.normalize("NFC"), parentRaw.normalize("NFD")]) {',
-  '    try {',
-  '      if (!fs.statSync(pCand).isDirectory()) continue;',
-  '      const entries = fs.readdirSync(pCand);',
-  '      for (const e of entries) {',
-  '        const norm = String(e || "").normalize("NFC").toLowerCase();',
-  '        if (norm === "intro:outro" || norm === "intro_outro" || norm === "intro-outro") {',
-  '          const full = path.join(pCand, e);',
-  '          try { if (fs.statSync(full).isDirectory()) return full; } catch {}',
+  '  const parents = Array.from(new Set([parentRaw, parentRaw.normalize("NFC"), parentRaw.normalize("NFD")].filter(Boolean)));',
+  '  const parentHits = await Promise.all(parents.map(async (pCand) => {',
+  '    try { const ents = await fsp.readdir(pCand, { withFileTypes: true }); return { dir: pCand, ents }; } catch { return null; }',
+  '  }));',
+  '  for (const pHit of parentHits) {',
+  '    if (!pHit) continue;',
+  '    for (const d of pHit.ents) {',
+  '      if (d.isFile() || d.isSymbolicLink()) continue;',
+  '      const norm = String(d.name || "").normalize("NFC").toLowerCase();',
+  '      if (norm === "intro:outro" || norm === "intro_outro" || norm === "intro-outro") {',
+  '        const full = path.join(pHit.dir, d.name);',
+  '        try { const subEnts = await fsp.readdir(full, { withFileTypes: true }); return { dir: full, ents: subEnts }; } catch {}',
+  '      }',
+  '    }',
+  '  }',
+  '  return null;',
+  '}',
+  'async function stageRelativeFile(relName, destPath, minBytes) {',
+  '  let fhIn = null, fhOut = null;',
+  '  try {',
+  '    fhIn = await fsp.open(relName, "r");',
+  '    const st = await fhIn.stat();',
+  '    if (!st.isFile() || st.size < minBytes || (typeof st.blocks === "number" && st.blocks <= 0)) {',
+  '      await fhIn.close(); fhIn = null; return false;',
+  '    }',
+  '    fhOut = await fsp.open(destPath, "w");',
+  '    const buf = Buffer.allocUnsafe(1024 * 1024);',
+  '    let pos = 0;',
+  '    while (pos < st.size) {',
+  '      const { bytesRead } = await fhIn.read(buf, 0, buf.length, pos);',
+  '      if (bytesRead <= 0) break;',
+  '      let written = 0;',
+  '      while (written < bytesRead) {',
+  '        const w = await fhOut.write(buf, written, bytesRead - written, pos + written);',
+  '        written += w.bytesWritten;',
+  '      }',
+  '      pos += bytesRead;',
+  '    }',
+  '    await fhOut.close(); fhOut = null;',
+  '    await fhIn.close(); fhIn = null;',
+  '    return pos >= minBytes;',
+  '  } catch {',
+  '    if (fhOut) { try { await fhOut.close(); } catch {} try { await fsp.rm(destPath, { force: true }); } catch {} }',
+  '    if (fhIn) { try { await fhIn.close(); } catch {} }',
+  '    return false;',
+  '  }',
+  '}',
+  '(async () => {',
+  '  try {',
+  '    const hit = await resolveTargetDirAndEntries(rawTarget);',
+  '    if (!hit) {',
+  '      process.stdout.write(JSON.stringify({ ok: false, resolvedDir: "", error: "ICLOUD_DIR_NOT_AVAILABLE" }));',
+  '      process.exit(0);',
+  '    }',
+  '    const resolvedDir = hit.dir;',
+  '    let chdirOk = false;',
+  '    try { process.chdir(resolvedDir); chdirOk = true; } catch {}',
+  '    const byLogical = new Map();',
+  '    const toStat = [];',
+  '    for (const dirent of hit.ents) {',
+  '      const entry = dirent.name;',
+  '      if (!entry || entry === ".DS_Store") continue;',
+  '      const stubMatch = entry.match(/^\\.(.+)\\.icloud$/i);',
+  '      if (stubMatch) {',
+  '        const logicalName = stubMatch[1];',
+  '        const key = logicalName.normalize("NFC");',
+  '        if (!byLogical.has(key)) {',
+  '          byLogical.set(key, {',
+  '            logicalName,',
+  '            fullPath: path.join(resolvedDir, logicalName),',
+  '            size: 0,',
+  '            mtimeMs: 0,',
+  '            materialized: false,',
+  '            isEvictedStub: true,',
+  '          });',
+  '        }',
+  '        continue;',
+  '      }',
+  '      if (!dirent.isDirectory()) toStat.push(entry);',
+  '    }',
+  '    await Promise.all(toStat.map(async (entry) => {',
+  '      const fullPath = path.join(resolvedDir, entry);',
+  '      const statTarget = chdirOk ? entry : fullPath;',
+  '      try {',
+  '        const st = await fsp.stat(statTarget);',
+  '        if (!st.isFile()) return;',
+  '        const blocks = typeof st.blocks === "number" ? st.blocks : 1;',
+  '        const materialized = st.size > 0 && blocks > 0;',
+  '        const key = entry.normalize("NFC");',
+  '        byLogical.set(key, {',
+  '          logicalName: entry,',
+  '          fullPath,',
+  '          size: Number(st.size || 0),',
+  '          mtimeMs: Number(st.mtimeMs || 0),',
+  '          materialized,',
+  '          isEvictedStub: false,',
+  '        });',
+  '      } catch {}',
+  '    }));',
+  '    const items = Array.from(byLogical.values());',
+  '    function pickForKind(kind) {',
+  '      const posterRe = new RegExp("^\\\\.?" + kind + "[_ -]?poster\\\\.(?:jpg|jpeg|png|webp)$", "i");',
+  '      const webRe = new RegExp("^\\\\.?" + kind + "[_ -]?webpreview\\\\.(?:mp4|mov|m4v)$", "i");',
+  '      const exactMasterRe = new RegExp("^" + kind + "\\\\.(?:mp4|mov|m4v)$", "i");',
+  '      const flexMasterRe = new RegExp("^(?:00[_ -]?)?" + kind + "(?![_ -]?webpreview)(?!.*fallback).*\\\\.(?:mp4|mov|m4v)$", "i");',
+  '      const dotMasterRe = new RegExp("^\\\\." + kind + "(?![_ -]?webpreview)(?!.*fallback).*\\\\.(?:mp4|mov|m4v)$", "i");',
+  '      const sortBest = (arr, exactTest) => arr.sort((a, b) => {',
+  '        if (a.materialized !== b.materialized) return a.materialized ? -1 : 1;',
+  '        const aEx = exactTest ? (exactTest(a.logicalName.normalize("NFC")) ? 1 : 0) : 0;',
+  '        const bEx = exactTest ? (exactTest(b.logicalName.normalize("NFC")) ? 1 : 0) : 0;',
+  '        if (aEx !== bEx) return bEx - aEx;',
+  '        if (b.size !== a.size) return b.size - a.size;',
+  '        return b.mtimeMs - a.mtimeMs;',
+  '      })[0] || null;',
+  '      const posters = items.filter((it) => posterRe.test(it.logicalName.normalize("NFC")));',
+  '      const webs = items.filter((it) => webRe.test(it.logicalName.normalize("NFC")));',
+  '      const masters = items.filter((it) => {',
+  '        const n = it.logicalName.normalize("NFC");',
+  '        return exactMasterRe.test(n) || flexMasterRe.test(n) || dotMasterRe.test(n);',
+  '      });',
+  '      const poster = sortBest(posters, (n) => n.startsWith("."));',
+  '      const webPreview = sortBest(webs, (n) => n.startsWith("."));',
+  '      const master = sortBest(masters, (n) => exactMasterRe.test(n));',
+  '      for (const c of [poster, webPreview, master]) {',
+  '        if (c && !c.materialized) kickBrctl(c.fullPath);',
+  '      }',
+  '      return { poster, webPreview, master };',
+  '    }',
+  '    const introPicked = pickForKind("intro");',
+  '    const outroPicked = pickForKind("outro");',
+  '    if (stagingOutDir) {',
+  '      try { await fsp.mkdir(stagingOutDir, { recursive: true }); } catch {}',
+  '      const jobs = [];',
+  '      for (const [kName, picked] of [["intro", introPicked], ["outro", outroPicked]]) {',
+  '        for (const [slot, minB] of [["poster", 512], ["webPreview", 10000], ["master", 50000]]) {',
+  '          const cand = picked[slot];',
+  '          if (cand && cand.materialized) {',
+  '            const ext = path.extname(cand.logicalName) || (slot === "poster" ? ".jpg" : ".mp4");',
+  '            const dest = path.join(stagingOutDir, "batch_" + kName + "_" + slot + ext);',
+  '            const openRef = chdirOk ? cand.logicalName : cand.fullPath;',
+  '            jobs.push(stageRelativeFile(openRef, dest, minB).then((ok) => { if (ok) cand.stagedPath = dest; }));',
+  '          }',
   '        }',
   '      }',
-  '    } catch {}',
-  '  }',
-  '  return "";',
-  '}',
-  'try {',
-  '  const resolvedDir = resolveTargetDir(rawTarget);',
-  '  if (!resolvedDir) {',
-  '    process.stdout.write(JSON.stringify({ ok: false, resolvedDir: "", error: "ICLOUD_DIR_NOT_AVAILABLE" }));',
+  '      await Promise.all(jobs);',
+  '    }',
+  '    process.stdout.write(JSON.stringify({',
+  '      ok: true,',
+  '      resolvedDir,',
+  '      intro: introPicked,',
+  '      outro: outroPicked,',
+  '    }));',
   '    process.exit(0);',
+  '  } catch (e) {',
+  '    process.stderr.write(String((e && e.code) || (e && e.message) || "DISCOVER_ERR"));',
+  '    process.exit(2);',
   '  }',
-  '  const rawEntries = fs.readdirSync(resolvedDir);',
-  '  const byLogical = new Map();',
-  '  for (const entry of rawEntries) {',
-  '    if (!entry || entry === ".DS_Store") continue;',
-  '    const stubMatch = entry.match(/^\\.(.+)\\.icloud$/i);',
-  '    if (stubMatch) {',
-  '      const logicalName = stubMatch[1];',
-  '      const key = logicalName.normalize("NFC");',
-  '      if (!byLogical.has(key)) {',
-  '        byLogical.set(key, {',
-  '          logicalName,',
-  '          fullPath: path.join(resolvedDir, logicalName),',
-  '          size: 0,',
-  '          mtimeMs: 0,',
-  '          materialized: false,',
-  '          isEvictedStub: true,',
-  '        });',
-  '      }',
-  '      continue;',
-  '    }',
-  '    const fullPath = path.join(resolvedDir, entry);',
-  '    try {',
-  '      const st = fs.statSync(fullPath);',
-  '      if (!st.isFile()) continue;',
-  '      const blocks = typeof st.blocks === "number" ? st.blocks : 1;',
-  '      const materialized = st.size > 0 && blocks > 0;',
-  '      const key = entry.normalize("NFC");',
-  '      byLogical.set(key, {',
-  '        logicalName: entry,',
-  '        fullPath,',
-  '        size: Number(st.size || 0),',
-  '        mtimeMs: Number(st.mtimeMs || 0),',
-  '        materialized,',
-  '        isEvictedStub: false,',
-  '      });',
-  '    } catch {}',
-  '  }',
-  '  const items = Array.from(byLogical.values());',
-  '  function pickForKind(kind) {',
-  '    const posterRe = new RegExp("^\\\\.?" + kind + "[_ -]?poster\\\\.(?:jpg|jpeg|png|webp)$", "i");',
-  '    const webRe = new RegExp("^\\\\.?" + kind + "[_ -]?webpreview\\\\.(?:mp4|mov|m4v)$", "i");',
-  '    const exactMasterRe = new RegExp("^" + kind + "\\\\.(?:mp4|mov|m4v)$", "i");',
-  '    const flexMasterRe = new RegExp("^(?:00[_ -]?)?" + kind + "(?![_ -]?webpreview)(?!.*fallback).*\\\\.(?:mp4|mov|m4v)$", "i");',
-  '    const dotMasterRe = new RegExp("^\\\\." + kind + "(?![_ -]?webpreview)(?!.*fallback).*\\\\.(?:mp4|mov|m4v)$", "i");',
-  '    const sortBest = (arr, exactTest) => arr.sort((a, b) => {',
-  '      if (a.materialized !== b.materialized) return a.materialized ? -1 : 1;',
-  '      const aEx = exactTest ? (exactTest(a.logicalName.normalize("NFC")) ? 1 : 0) : 0;',
-  '      const bEx = exactTest ? (exactTest(b.logicalName.normalize("NFC")) ? 1 : 0) : 0;',
-  '      if (aEx !== bEx) return bEx - aEx;',
-  '      if (b.size !== a.size) return b.size - a.size;',
-  '      return b.mtimeMs - a.mtimeMs;',
-  '    })[0] || null;',
-  '    const posters = items.filter((it) => posterRe.test(it.logicalName.normalize("NFC")));',
-  '    const webs = items.filter((it) => webRe.test(it.logicalName.normalize("NFC")));',
-  '    const masters = items.filter((it) => {',
-  '      const n = it.logicalName.normalize("NFC");',
-  '      return exactMasterRe.test(n) || flexMasterRe.test(n) || dotMasterRe.test(n);',
-  '    });',
-  '    const poster = sortBest(posters, (n) => n.startsWith("."));',
-  '    const webPreview = sortBest(webs, (n) => n.startsWith("."));',
-  '    const master = sortBest(masters, (n) => exactMasterRe.test(n));',
-  '    for (const c of [poster, webPreview, master]) {',
-  '      if (c && !c.materialized) kickBrctl(c.fullPath);',
-  '    }',
-  '    return { poster, webPreview, master };',
-  '  }',
-  '  process.stdout.write(JSON.stringify({',
-  '    ok: true,',
-  '    resolvedDir,',
-  '    intro: pickForKind("intro"),',
-  '    outro: pickForKind("outro"),',
-  '  }));',
-  '  process.exit(0);',
-  '} catch (e) {',
-  '  process.stderr.write(String((e && e.code) || (e && e.message) || "DISCOVER_ERR"));',
-  '  process.exit(2);',
-  '}',
+  '})();',
 ].join('\n');
 
 const CHUNKED_COPY_FROM_ICLOUD_SCRIPT = [
@@ -467,31 +673,23 @@ const CHUNKED_COPY_FROM_ICLOUD_SCRIPT = [
   'let fdIn = -1;',
   'let fdOut = -1;',
   'try {',
-  '  try {',
-  '    const preSt = fs.statSync(src);',
-  '    if (typeof preSt.blocks === "number" && preSt.blocks === 0) kickBrctl(src);',
-  '  } catch {',
-  '    kickBrctl(src);',
-  '  }',
-  '  const deadline = Date.now() + 70000;',
+  '  const deadline = Date.now() + 90000;',
   '  while (true) {',
   '    try {',
   '      fdIn = fs.openSync(src, "r");',
   '      break;',
   '    } catch (openErr) {',
   '      if (openErr && openErr.code === "ENOENT" && Date.now() < deadline) {',
-  '        const stubPath = path.join(path.dirname(src), "." + path.basename(src) + ".icloud");',
-  '        if (fs.existsSync(stubPath)) {',
-  '          kickBrctl(src);',
-  '          sleepMs(400);',
-  '          continue;',
-  '        }',
+  '        kickBrctl(src);',
+  '        sleepMs(1000);',
+  '        continue;',
   '      }',
   '      throw openErr;',
   '    }',
   '  }',
   '  const st = fs.fstatSync(fdIn);',
   '  if (!st.isFile()) throw new Error("NOT_REGULAR_FILE");',
+  '  if (typeof st.blocks === "number" && st.blocks === 0) kickBrctl(src);',
   '  fdOut = fs.openSync(dst, "w");',
   '  const chunkBuf = Buffer.allocUnsafe(1024 * 1024);',
   '  const hdr = Buffer.alloc(32);',
@@ -573,43 +771,9 @@ function runSubprocessBounded(
   });
 }
 
-function probeDirectoryExistsBounded(dirPath: string, timeoutMs = 1500): Promise<boolean> {
+function probeDirectoryExistsBounded(dirPath: string, timeoutMs = 3_000): Promise<boolean> {
   if (!dirPath) return Promise.resolve(false);
-  return new Promise((resolve) => {
-    let settled = false;
-    const finish = (ok: boolean) => {
-      if (settled) return;
-      settled = true;
-      resolve(ok);
-    };
-    try {
-      const child = spawn(
-        process.execPath,
-        [
-          '-e',
-          'const fs=require("fs");try{const s=fs.statSync(process.argv[1]);process.exit(s.isDirectory()?0:2);}catch{process.exit(3);}',
-          path.resolve(dirPath),
-        ],
-        { stdio: 'ignore' }
-      );
-      const timer = setTimeout(() => {
-        try {
-          child.kill('SIGKILL');
-        } catch {}
-        finish(false);
-      }, timeoutMs);
-      child.on('error', () => {
-        clearTimeout(timer);
-        finish(false);
-      });
-      child.on('close', (code) => {
-        clearTimeout(timer);
-        finish(code === 0);
-      });
-    } catch {
-      finish(false);
-    }
-  });
+  return probeDocRootOpenableBounded(dirPath, [], timeoutMs);
 }
 
 async function inspectLocalVideoFile(
@@ -1155,7 +1319,7 @@ export function createOfficialAssetsManager(options: OfficialAssetsManagerOption
 
   function discoverIntroOutroSourcesBounded(
     targetDir: string,
-    timeoutMs = 8_000
+    timeoutMs = 120_000
   ): Promise<DiscoverIntroOutroResult> {
     const emptyKind = (): DiscoveredKindSources => ({
       poster: null,
@@ -1187,15 +1351,18 @@ export function createOfficialAssetsManager(options: OfficialAssetsManagerOption
         settled = true;
         inFlightDiscoveryPromise = null;
         if (res.ok) {
-          lastDiscoveryCache = { expiresAt: Date.now() + 2_000, result: res };
+          lastDiscoveryCache = { expiresAt: Date.now() + 90_000, result: res };
         }
         resolve(res);
       };
       try {
         const child = spawn(
           process.execPath,
-          ['-e', DISCOVER_INTRO_OUTRO_SCRIPT, path.resolve(targetDir)],
-          { stdio: ['ignore', 'pipe', 'pipe'] }
+          ['-e', DISCOVER_INTRO_OUTRO_SCRIPT, path.resolve(targetDir), path.resolve(stagingDir)],
+          {
+            stdio: ['ignore', 'pipe', 'pipe'],
+            env: { ...process.env, UV_THREADPOOL_SIZE: '64' },
+          }
         );
         const timer = setTimeout(() => {
           timedOut = true;
@@ -1433,7 +1600,7 @@ export function createOfficialAssetsManager(options: OfficialAssetsManagerOption
         return true;
       }
 
-      const discovery = await discoverIntroOutroSourcesBounded(introOutroIcloudDir, 8_000);
+      const discovery = await discoverIntroOutroSourcesBounded(introOutroIcloudDir, 120_000);
       if (!discovery.ok) {
         manifest[kind].lastError = discovery.error || 'ICLOUD_DIR_NOT_AVAILABLE';
         await saveManifest();
@@ -1442,10 +1609,37 @@ export function createOfficialAssetsManager(options: OfficialAssetsManagerOption
 
       const cand = discovery[kind];
       const copyBudgetMs = opts?.onDemandTimeoutMs
-        ? Math.min(90_000, Math.max(15_000, opts.onDemandTimeoutMs))
-        : 75_000;
+        ? Math.min(180_000, Math.max(45_000, opts.onDemandTimeoutMs))
+        : 160_000;
 
       let lastCopyError = '';
+
+      const resolveLocalOrCopyFromIcloud = async (
+        srcCand: DiscoveredIcloudCandidate,
+        destTmp: string,
+        budgetMs: number,
+        minBytes: number,
+        mediaKind: 'video' | 'image'
+      ): Promise<{ ok: boolean; size: number; mtimeMs: number; error?: string }> => {
+        if (srcCand.stagedPath) {
+          const stagedSt = await fileNonEmptyAsync(srcCand.stagedPath, minBytes);
+          if (stagedSt) {
+            await fsp.copyFile(srcCand.stagedPath, destTmp);
+            return {
+              ok: true,
+              size: stagedSt.size,
+              mtimeMs: srcCand.mtimeMs || stagedSt.mtimeMs,
+            };
+          }
+        }
+        return copyFromIcloudSubprocessChunked(
+          srcCand.fullPath,
+          destTmp,
+          budgetMs,
+          minBytes,
+          mediaKind
+        );
+      };
 
       const tryHydratePosterFromIcloud = async (budgetMs: number): Promise<void> => {
         if (!cand.poster || (hasRealPoster && !opts?.force)) return;
@@ -1453,8 +1647,8 @@ export function createOfficialAssetsManager(options: OfficialAssetsManagerOption
           stagingDir,
           `${kind}_icloud_poster_${crypto.randomUUID()}${path.extname(cand.poster.logicalName) || '.jpg'}`
         );
-        const posterCopy = await copyFromIcloudSubprocessChunked(
-          cand.poster.fullPath,
+        const posterCopy = await resolveLocalOrCopyFromIcloud(
+          cand.poster,
           tmpPosterCopy,
           budgetMs,
           1024,
@@ -1500,8 +1694,8 @@ export function createOfficialAssetsManager(options: OfficialAssetsManagerOption
       const hydrateFromWebPreview = async (): Promise<boolean> => {
         if (!cand.webPreview) return false;
         const tmpRawWeb = path.join(stagingDir, `${kind}_icloud_webpreview_${crypto.randomUUID()}.mp4`);
-        const webCopy = await copyFromIcloudSubprocessChunked(
-          cand.webPreview.fullPath,
+        const webCopy = await resolveLocalOrCopyFromIcloud(
+          cand.webPreview,
           tmpRawWeb,
           copyBudgetMs,
           10_000,
@@ -1536,8 +1730,8 @@ export function createOfficialAssetsManager(options: OfficialAssetsManagerOption
       const hydrateFromMaster = async (): Promise<boolean> => {
         if (!cand.master) return false;
         const tmpMasterVerify = path.join(stagingDir, `${kind}_icloud_master_${crypto.randomUUID()}.mp4`);
-        const masterCopy = await copyFromIcloudSubprocessChunked(
-          cand.master.fullPath,
+        const masterCopy = await resolveLocalOrCopyFromIcloud(
+          cand.master,
           tmpMasterVerify,
           copyBudgetMs,
           50_000,
@@ -1583,7 +1777,7 @@ export function createOfficialAssetsManager(options: OfficialAssetsManagerOption
       };
 
       if (cand.poster?.materialized) {
-        await tryHydratePosterFromIcloud(15_000);
+        await tryHydratePosterFromIcloud(35_000);
       }
 
       // Smart hydration order:
@@ -1611,7 +1805,7 @@ export function createOfficialAssetsManager(options: OfficialAssetsManagerOption
       }
 
       if (!hasRealPoster && cand.poster) {
-        await tryHydratePosterFromIcloud(30_000);
+        await tryHydratePosterFromIcloud(40_000);
         if (hasRealPoster) {
           manifest[kind].version = nextMonotonicVersion();
           await saveManifest();
@@ -1680,6 +1874,7 @@ export function createOfficialAssetsManager(options: OfficialAssetsManagerOption
   }
 
   function init(): void {
+    warmUpIcloudProbePool();
     void cleanupOrphanStagingFiles()
       .then(() => ensureColdBootFallbacks())
       .then(() => {

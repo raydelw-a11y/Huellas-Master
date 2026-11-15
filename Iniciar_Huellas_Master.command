@@ -42,18 +42,25 @@ if [ -n "$EXISTING_PIDS" ]; then
   fi
 fi
 
-# 3. Intentar LaunchAgent hasta 7s; si el binario aislado carece de TCC en macOS, descargar y pasar a Terminal.app
+# 3. Intentar LaunchAgent hasta 12s; salir al instante si verifica iCloud o si termina la sonda sin TCC
 if [ -f "$LAUNCHD_PLIST" ]; then
   launchctl print "$LAUNCHD_DOMAIN/$LAUNCHD_LABEL" >/dev/null 2>&1 || launchctl bootstrap "$LAUNCHD_DOMAIN" "$LAUNCHD_PLIST" 2>/dev/null || true
   launchctl kickstart -k "$LAUNCHD_DOMAIN/$LAUNCHD_LABEL" 2>/dev/null || true
 
-  for _ in $(seq 1 7); do
+  SAW_HTTP=0
+  for _ in $(seq 1 12); do
     sleep 1
     STATUS_AFTER_KICK="$(curl -s --max-time 2 http://127.0.0.1:4200/api/flow/process-clips-status 2>/dev/null || true)"
     if printf '%s' "$STATUS_AFTER_KICK" | grep -q '"icloudDriveVerifiedReady":true'; then
       echo "✅ Huellas Master activado vía LaunchAgent con acceso verificado a iCloud Drive."
       open_app_url
       exit 0
+    fi
+    if [ -n "$STATUS_AFTER_KICK" ]; then
+      SAW_HTTP=1
+      if printf '%s' "$STATUS_AFTER_KICK" | grep -q '"icloudProbeInFlight":false'; then
+        break
+      fi
     fi
   done
 
@@ -73,7 +80,7 @@ fi
 
 # Fallback con TCC heredado de Terminal.app
 export PATH="$HOME/.huellas-runtime/node/bin:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
-export UV_THREADPOOL_SIZE=32
+export UV_THREADPOOL_SIZE=128
 echo "🎬 Iniciando Huellas Master en http://localhost:4200 ..."
 if [ "$NO_OPEN_BROWSER" != "1" ]; then
   (sleep 2 && open "http://localhost:4200") &

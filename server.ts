@@ -12,6 +12,8 @@ import { createFlowPcManager } from './server/flowPcManager';
 import {
   createOfficialAssetsManager,
   probeFileReadableBounded,
+  probeDocRootOpenableBounded,
+  primePositiveReadProbeCache,
   mayBeOfficialIntroOutroIcloudPath,
   kickIcloudDownloadDetached,
 } from './server/officialAssets';
@@ -8730,7 +8732,7 @@ function refreshIcloudVideosDirCacheAsync(icloudVideosDir: string) {
       try {
         proc.kill('SIGKILL');
       } catch {}
-    }, 5000);
+    }, 65000);
     proc.on('close', (code) => {
       clearTimeout(killTimer);
       icloudDirEnumInFlight = false;
@@ -8808,84 +8810,23 @@ function probeIcloudDriveReadyAsync(icloudVideosDir: string): Promise<boolean> {
     }
   } catch {}
   const probeScript = [
-    'const fs=require("fs"),path=require("path");',
+    'const fsp=require("fs/promises");',
     'const base=process.argv[1];',
-    'const subs=JSON.parse(process.argv[2]||"[]");',
     'const checkErr=(e)=>{if(e&&(e.code==="EPERM"||e.code==="EACCES"))process.exit(2);};',
-    'let baseEntries=[];',
-    'try{if(!fs.statSync(base).isDirectory())process.exit(1);baseEntries=fs.readdirSync(base);}catch(e){checkErr(e);process.exit(1);}',
-    'const parentRaw=path.dirname(base);',
-    'let parentDir="";',
-    'for(const cand of [parentRaw,parentRaw.normalize("NFC"),parentRaw.normalize("NFD")]){try{if(fs.statSync(cand).isDirectory()){parentDir=cand;break;}}catch(e){checkErr(e);}}',
-    'let introOutroDir="";',
-    'if(parentDir){',
-    '  for(const rawName of ["Intro:Outro","Intro_Outro"]){',
-    '    for(const form of [rawName,rawName.normalize("NFC"),rawName.normalize("NFD")]){',
-    '      const p=path.join(parentDir,form);',
-    '      try{if(fs.statSync(p).isDirectory()){introOutroDir=p;break;}}catch(e){checkErr(e);}',
-    '    }',
-    '    if(introOutroDir)break;',
-    '  }',
-    '  if(!introOutroDir){',
-    '    try{',
-    '      for(const ent of fs.readdirSync(parentDir)){',
-    '        const norm=String(ent).normalize("NFC").toLowerCase();',
-    '        if(norm==="intro:outro"||norm==="intro_outro"){',
-    '          const p=path.join(parentDir,ent);',
-    '          if(fs.statSync(p).isDirectory()){introOutroDir=p;break;}',
-    '        }',
-    '      }',
-    '    }catch(e){checkErr(e);}',
-    '  }',
-    '}',
-    'if(introOutroDir){try{fs.readdirSync(introOutroDir);}catch(e){checkErr(e);process.exit(1);}}',
-    'let materializedFound=0,readVerified=false;',
-    'const tryProbeFile=(fp)=>{',
-    '  if(readVerified)return true;',
-    '  const bn=path.basename(fp);',
-    '  if(!bn||bn===".DS_Store"||bn.endsWith(".icloud"))return false;',
-    '  try{',
-    '    const st=fs.statSync(fp);',
-    '    if(!st.isFile()||st.size<=0)return false;',
-    '    if(typeof st.blocks==="number"&&st.blocks<=0)return false;',
-    '    materializedFound++;',
-    '    const fd=fs.openSync(fp,"r");',
-    '    const b=Buffer.alloc(16);',
-    '    const n=fs.readSync(fd,b,0,Math.min(16,st.size),0);',
-    '    fs.closeSync(fd);',
-    '    if(n>0){readVerified=true;return true;}',
-    '  }catch(e){checkErr(e);}',
-    '  return false;',
-    '};',
-    'const scanDirForFile=(dir,maxSub)=>{',
-    '  if(!dir||readVerified)return;',
-    '  let list=[];',
-    '  try{list=fs.readdirSync(dir);}catch(e){checkErr(e);return;}',
-    '  const subDirs=[];',
-    '  for(const item of list){',
-    '    if(readVerified)return;',
-    '    const full=path.join(dir,item);',
-    '    try{',
-    '      const st=fs.statSync(full);',
-    '      if(st.isFile())tryProbeFile(full);',
-    '      else if(maxSub>0&&st.isDirectory()&&!item.startsWith("."))subDirs.push(full);',
-    '    }catch(e){checkErr(e);}',
-    '  }',
-    '  for(const sd of subDirs.slice(0,4)){if(readVerified)return;scanDirForFile(sd,maxSub-1);}',
-    '};',
-    'if(introOutroDir)scanDirForFile(introOutroDir,0);',
-    'if(!readVerified&&parentDir)scanDirForFile(parentDir,0);',
-    'for(const s of subs){if(readVerified)break;scanDirForFile(s,1);}',
-    'for(const ent of baseEntries.slice(0,6)){if(readVerified)break;scanDirForFile(path.join(base,ent),1);}',
-    'if(materializedFound>0&&!readVerified)process.exit(3);',
-    'process.stdout.write(JSON.stringify(baseEntries));',
-    'process.exit(0);',
+    '(async()=>{',
+    '  const baseDirents=await fsp.readdir(base,{withFileTypes:true}).catch((e)=>{checkErr(e);process.exit(1);});',
+    '  if(!baseDirents)process.exit(1);',
+    '  const baseDirs=baseDirents.filter((d)=>d&&d.name&&!d.name.startsWith(".")&&(d.isDirectory()||(!d.isFile()&&!d.isSymbolicLink()))).map((d)=>d.name);',
+    '  process.stdout.write(JSON.stringify(baseDirs));',
+    '  process.exit(0);',
+    '})().catch((e)=>{checkErr(e);process.exit(1);});',
   ].join('\n');
   icloudDriveProbePromise = new Promise<boolean>((resolve) => {
     let settled = false;
     const finish = (ok: boolean) => {
       if (settled) return;
       settled = true;
+      if (!ok) lastIcloudProbeAttemptAt = Date.now();
       icloudDriveProbeInFlight = false;
       icloudDriveProbePromise = null;
       resolve(ok);
@@ -8893,8 +8834,11 @@ function probeIcloudDriveReadyAsync(icloudVideosDir: string): Promise<boolean> {
     try {
       const proc = spawn(
         process.execPath,
-        ['-e', probeScript, icloudVideosDir, JSON.stringify(candidateSubdirs)],
-        { stdio: ['ignore', 'pipe', 'ignore'] }
+        ['-e', probeScript, icloudVideosDir],
+        {
+          stdio: ['ignore', 'pipe', 'ignore'],
+          env: { ...process.env, UV_THREADPOOL_SIZE: '64' },
+        }
       );
       const chunks: Buffer[] = [];
       proc.stdout?.on('data', (chunk: Buffer) => chunks.push(Buffer.from(chunk)));
@@ -8902,7 +8846,7 @@ function probeIcloudDriveReadyAsync(icloudVideosDir: string): Promise<boolean> {
         try {
           proc.kill('SIGKILL');
         } catch {}
-      }, 4500);
+      }, 15000);
       proc.on('close', (code) => {
         clearTimeout(killTimer);
         if (code === 0) {
@@ -9043,25 +8987,31 @@ function resolveLocalDocumentaryFolder(
   const titleVidNum = extractVideoNumberFromText(rawTitle);
   const pathVidNum = extractVideoNumberFromText(rawPath);
   const nameVidNum = extractVideoNumberFromText(rawName);
+  const realIcloudEntries = cachedIcloudVideosEntries.length > 0
+    ? cachedIcloudVideosEntries
+    : listIcloudVideosDirCached(icloudVideosDir);
 
-  // 1. Prioridad absoluta al número de Video del documental activo (docTitleQuery) para que nunca se crucen carpetas entre Video 75 y Video 76
-  if (
-    titleVidNum &&
-    fs.existsSync(icloudVideosDir) &&
-    fs.statSync(icloudVideosDir).isDirectory()
-  ) {
-    const prefixRegex = new RegExp(`^video\\s*0*${titleVidNum}\\b`, 'i');
-    const checkedFull = new Set<string>();
-    for (const entry of listIcloudVideosDirCached(icloudVideosDir)) {
+  const matchInCachedIcloudByVideoNum = (vidNum: string): string => {
+    if (!vidNum) return '';
+    const prefixRegex = new RegExp(`^video\\s*0*${vidNum}\\b`, 'i');
+    // Prefer exact disk-enumerated entries first (zero main-thread statSync)
+    for (const entry of cachedIcloudVideosEntries) {
       if (prefixRegex.test(entry.normalize('NFC'))) {
-        for (const variant of [entry, entry.normalize('NFC'), entry.normalize('NFD')]) {
-          const full = path.join(icloudVideosDir, variant);
-          if (checkedFull.has(full)) continue;
-          checkedFull.add(full);
-          if (fs.existsSync(full) && fs.statSync(full).isDirectory()) return full;
-        }
+        return path.join(icloudVideosDir, entry);
       }
     }
+    for (const entry of realIcloudEntries) {
+      if (prefixRegex.test(entry.normalize('NFC'))) {
+        return path.join(icloudVideosDir, entry);
+      }
+    }
+    return '';
+  };
+
+  // 1. Prioridad absoluta al número de Video del documental activo (docTitleQuery) para que nunca se crucen carpetas entre Video 75 y Video 76
+  if (titleVidNum) {
+    const matchedByTitleNum = matchInCachedIcloudByVideoNum(titleVidNum);
+    if (matchedByTitleNum) return matchedByTitleNum;
   }
 
   // 2. Usar rawPath o rawName solo si no contradicen el número de Video de docTitleQuery
@@ -9072,6 +9022,18 @@ function resolveLocalDocumentaryFolder(
     rawPath &&
     (!pathRequiresTcc || downloadsDirVerifiedReady)
   ) {
+    if (rawPath.includes('Mobile Documents')) {
+      const rawBaseNorm = path.basename(rawPath).normalize('NFC').toLowerCase();
+      const exactEntry = cachedIcloudVideosEntries.find(
+        (e) => e.normalize('NFC').toLowerCase() === rawBaseNorm
+      );
+      if (exactEntry) return path.join(icloudVideosDir, exactEntry);
+      if (pathVidNum) {
+        const byNum = matchInCachedIcloudByVideoNum(pathVidNum);
+        if (byNum) return byNum;
+      }
+      return rawPath;
+    }
     for (const pathVariant of Array.from(new Set([rawPath, rawPath.normalize('NFC'), rawPath.normalize('NFD')]))) {
       if (fs.existsSync(pathVariant) && fs.statSync(pathVariant).isDirectory()) {
         return pathVariant;
@@ -9087,14 +9049,17 @@ function resolveLocalDocumentaryFolder(
     .trim()
     .slice(0, 90);
   if (!nameContradictsTitle && (rawName || titleLabel)) {
-    const directNames = Array.from(
-      new Set([
-        ...(rawName ? [rawName, rawName.normalize('NFD'), rawName.normalize('NFC')] : []),
-        ...(titleLabel ? [titleLabel, titleLabel.normalize('NFD'), titleLabel.normalize('NFC')] : []),
-      ])
+    const wantedNorms = new Set(
+      [rawName, titleLabel]
+        .filter(Boolean)
+        .map((s) => s.normalize('NFC').toLowerCase())
     );
-    const candidates = [
-      ...directNames.map((n) => path.join(icloudVideosDir, n)),
+    for (const entry of cachedIcloudVideosEntries) {
+      if (wantedNorms.has(entry.normalize('NFC').toLowerCase())) {
+        return path.join(icloudVideosDir, entry);
+      }
+    }
+    const localCandidates = [
       ...(downloadsDirVerifiedReady && rawName
         ? [
             path.join(homeDir, 'Desktop', rawName),
@@ -9104,45 +9069,24 @@ function resolveLocalDocumentaryFolder(
         : []),
       ...(rawName ? [path.join(homeDir, rawName)] : []),
     ];
-    for (const c of candidates) {
+    for (const c of localCandidates) {
       if (fs.existsSync(c) && fs.statSync(c).isDirectory()) {
         return c;
-      }
-    }
-    if (rawName && fs.existsSync(icloudVideosDir) && fs.statSync(icloudVideosDir).isDirectory()) {
-      const targetNorm = rawName.normalize('NFC').toLowerCase();
-      for (const entry of listIcloudVideosDirCached(icloudVideosDir)) {
-        if (entry.normalize('NFC').toLowerCase() === targetNorm) {
-          for (const variant of [entry, entry.normalize('NFC'), entry.normalize('NFD')]) {
-            const full = path.join(icloudVideosDir, variant);
-            if (fs.existsSync(full) && fs.statSync(full).isDirectory()) return full;
-          }
-        }
       }
     }
   }
 
   // 3. Match by Video number from combined hint if titleVidNum was empty
-  if (!titleVidNum && fs.existsSync(icloudVideosDir) && fs.statSync(icloudVideosDir).isDirectory()) {
+  if (!titleVidNum) {
     const combinedVidNum = nameVidNum || pathVidNum;
     if (combinedVidNum) {
-      const prefixRegex = new RegExp(`^video\\s*0*${combinedVidNum}\\b`, 'i');
-      const checkedFull = new Set<string>();
-      for (const entry of listIcloudVideosDirCached(icloudVideosDir)) {
-        if (prefixRegex.test(entry.normalize('NFC'))) {
-          for (const variant of [entry, entry.normalize('NFC'), entry.normalize('NFD')]) {
-            const full = path.join(icloudVideosDir, variant);
-            if (checkedFull.has(full)) continue;
-            checkedFull.add(full);
-            if (fs.existsSync(full) && fs.statSync(full).isDirectory()) return full;
-          }
-        }
-      }
+      const byCombined = matchInCachedIcloudByVideoNum(combinedVidNum);
+      if (byCombined) return byCombined;
     }
   }
 
-  // 4. Auto-create documentary folder in iCloud Videos if docTitle has a canonical "Video XX..." name
-  if (titleVidNum && rawTitle && fs.existsSync(icloudVideosDir) && fs.statSync(icloudVideosDir).isDirectory()) {
+  // 4. Fallback canonical path in iCloud Videos if docTitle has a canonical "Video XX..." name
+  if (titleVidNum && rawTitle) {
     const baseLabel = rawTitle
       .split(/\r?\n/)[0]
       .replace(/[\\/:*?"<>|]+/g, '-')
@@ -9151,10 +9095,11 @@ function resolveLocalDocumentaryFolder(
       .slice(0, 90);
     if (baseLabel) {
       const autoDir = path.join(icloudVideosDir, baseLabel);
-      try {
-        ensureDocumentarySubfolders(autoDir);
-        return autoDir;
-      } catch {}
+      if (!cachedIcloudVideosEntries.includes(baseLabel)) {
+        cachedIcloudVideosEntries.push(baseLabel);
+      }
+      void fsp.mkdir(path.join(autoDir, '05_Clips_Video'), { recursive: true }).catch(() => {});
+      return autoDir;
     }
   }
 
@@ -9357,6 +9302,500 @@ app.post('/api/gemini-web/fail-captured-thumbnail', async (req, res) => {
   }
 });
 
+interface ScannedDirFileEntry {
+  name: string;
+  fullPath: string;
+  stats: fs.Stats;
+}
+
+interface ScannedDirCacheRecord {
+  exists: boolean;
+  entries: ScannedDirFileEntry[];
+  expiresAt: number;
+}
+
+const cachedMaterializedFileStats = new Map<string, { st: fs.Stats; expiresAt: number }>();
+const dirScanCache = new Map<string, ScannedDirCacheRecord>();
+const inFlightDirScans = new Map<string, Promise<{ exists: boolean; entries: ScannedDirFileEntry[] }>>();
+const textFileReadCache = new Map<string, { text: string | null; expiresAt: number }>();
+const inFlightTextReads = new Map<string, Promise<string | null>>();
+
+function rememberMaterializedFileStat(filePath: string, st: fs.Stats, ttlMs = 60_000) {
+  const key = path.resolve(filePath);
+  if (cachedMaterializedFileStats.size >= 4096 && !cachedMaterializedFileStats.has(key)) {
+    const oldest = cachedMaterializedFileStats.keys().next().value;
+    if (oldest) cachedMaterializedFileStats.delete(oldest);
+  }
+  cachedMaterializedFileStats.set(key, { st, expiresAt: Date.now() + ttlMs });
+  primePositiveReadProbeCache(key, st.size, st.mtimeMs);
+}
+
+function getCachedMaterializedFileStat(filePath: string): fs.Stats | null {
+  const key = path.resolve(filePath);
+  const rec = cachedMaterializedFileStats.get(key);
+  if (!rec) return null;
+  if (rec.expiresAt <= Date.now()) {
+    cachedMaterializedFileStats.delete(key);
+    return null;
+  }
+  return rec.st;
+}
+
+function invalidateDirScanCache(dirOrFilePath: string) {
+  if (!dirOrFilePath) return;
+  const resolved = path.resolve(dirOrFilePath);
+  dirScanCache.delete(resolved);
+  dirScanCache.delete(path.dirname(resolved));
+  cachedMaterializedFileStats.delete(resolved);
+}
+
+const serverBootStartedAtMs = Date.now();
+const MAX_CONCURRENT_ICLOUD_IO = 6;
+let activeIcloudIoCount = 0;
+const icloudIoWaitQueue: Array<() => void> = [];
+const datalessNegativeCache = new Map<string, number>();
+
+async function withBoundedIcloudIo<T>(fn: () => Promise<T>): Promise<T> {
+  if (activeIcloudIoCount >= MAX_CONCURRENT_ICLOUD_IO) {
+    await new Promise<void>((r) => icloudIoWaitQueue.push(r));
+  }
+  activeIcloudIoCount += 1;
+  try {
+    return await fn();
+  } finally {
+    activeIcloudIoCount = Math.max(0, activeIcloudIoCount - 1);
+    const next = icloudIoWaitQueue.shift();
+    if (next) next();
+  }
+}
+
+function scanDirStatsParallelCachedAsync(
+  dirPath: string,
+  ttlMs = 12_000
+): Promise<{ exists: boolean; entries: ScannedDirFileEntry[] }> {
+  if (!dirPath) return Promise.resolve({ exists: false, entries: [] });
+  const key = path.resolve(dirPath);
+  const now = Date.now();
+  const cached = dirScanCache.get(key);
+  if (cached && cached.expiresAt > now) {
+    return Promise.resolve({ exists: cached.exists, entries: cached.entries });
+  }
+  const existing = inFlightDirScans.get(key);
+  if (existing) return existing;
+
+  const task = (async () => {
+    let dirents: fs.Dirent[];
+    try {
+      dirents = await withBoundedIcloudIo(() => fsp.readdir(key, { withFileTypes: true }));
+    } catch (err: any) {
+      const code = String(err?.code || '');
+      const negTtl = code === 'ENOENT' || code === 'ENOTDIR' ? Math.min(ttlMs, 6_000) : 1_500;
+      dirScanCache.set(key, { exists: false, entries: [], expiresAt: Date.now() + negTtl });
+      return { exists: false, entries: [] };
+    }
+
+    const candidates = dirents.filter((d) => d && d.name && !d.isDirectory());
+    const statted = await Promise.all(
+      candidates.map((d) =>
+        withBoundedIcloudIo(async () => {
+          const fullPath = path.join(key, d.name);
+          try {
+            const st = await fsp.stat(fullPath);
+            if (!st.isFile()) return null;
+            if (isMaterializedLocalFile(st)) {
+              rememberMaterializedFileStat(fullPath, st);
+              datalessNegativeCache.delete(path.resolve(fullPath));
+            } else {
+              datalessNegativeCache.set(path.resolve(fullPath), Date.now() + 20_000);
+            }
+            return { name: d.name, fullPath, stats: st } as ScannedDirFileEntry;
+          } catch {
+            return null;
+          }
+        })
+      )
+    );
+    const entries = statted.filter((x): x is ScannedDirFileEntry => Boolean(x));
+    dirScanCache.set(key, { exists: true, entries, expiresAt: Date.now() + ttlMs });
+    return { exists: true, entries };
+  })().finally(() => {
+    inFlightDirScans.delete(key);
+  });
+
+  inFlightDirScans.set(key, task);
+  return task;
+}
+
+function readTextFileCachedAsync(filePath: string, ttlMs = 15_000): Promise<string | null> {
+  if (!filePath) return Promise.resolve(null);
+  const key = path.resolve(filePath);
+  const now = Date.now();
+  const cached = textFileReadCache.get(key);
+  if (cached && cached.expiresAt > now) {
+    return Promise.resolve(cached.text);
+  }
+  const existing = inFlightTextReads.get(key);
+  if (existing) return existing;
+
+  const task = (async () => {
+    let fh: fs.promises.FileHandle | null = null;
+    try {
+      const stPre = await withBoundedIcloudIo(() => fsp.stat(key));
+      if (!stPre.isFile() || !isMaterializedLocalFile(stPre) || stPre.size > 4 * 1024 * 1024) {
+        textFileReadCache.set(key, { text: null, expiresAt: Date.now() + 6_000 });
+        return null;
+      }
+      fh = await withBoundedIcloudIo(() => fsp.open(key, 'r'));
+      const buf = Buffer.allocUnsafe(stPre.size);
+      let total = 0;
+      while (total < stPre.size) {
+        const { bytesRead } = await fh.read(buf, total, stPre.size - total, total);
+        if (bytesRead <= 0) break;
+        total += bytesRead;
+      }
+      await fh.close().catch(() => {});
+      fh = null;
+      const text = buf.subarray(0, total).toString('utf8');
+      textFileReadCache.set(key, { text, expiresAt: Date.now() + ttlMs });
+      return text;
+    } catch {
+      if (fh) await fh.close().catch(() => {});
+      textFileReadCache.set(key, { text: null, expiresAt: Date.now() + 6_000 });
+      return null;
+    }
+  })().finally(() => {
+    inFlightTextReads.delete(key);
+  });
+
+  inFlightTextReads.set(key, task);
+  return task;
+}
+
+interface CachedOpenMediaFd {
+  fh: fs.promises.FileHandle;
+  size: number;
+  mtimeMs: number;
+  expiresAt: number;
+  activeReaders: number;
+  closed: boolean;
+}
+
+const openIcloudReadFdCache = new Map<string, CachedOpenMediaFd>();
+const inFlightIcloudFdOpens = new Map<
+  string,
+  Promise<{ status: 'ok'; entry: CachedOpenMediaFd } | { status: 'dataless' | 'not_found' }>
+>();
+const MAX_OPEN_ICLOUD_FDS = 96;
+const OPEN_ICLOUD_FD_TTL_MS = 3 * 60_000;
+
+function evictOpenIcloudFdKey(key: string) {
+  const rec = openIcloudReadFdCache.get(key);
+  if (!rec) return;
+  openIcloudReadFdCache.delete(key);
+  rec.closed = true;
+  if (rec.activeReaders <= 0) {
+    rec.fh.close().catch(() => {});
+  }
+}
+
+function acquireIcloudReadFdBounded(
+  filePath: string,
+  expectedVersionMs?: number,
+  timeoutMs = 45_000
+): Promise<{ status: 'ok'; entry: CachedOpenMediaFd } | { status: 'dataless' | 'not_found' }> {
+  const key = path.resolve(filePath);
+  const now = Date.now();
+  const cached = openIcloudReadFdCache.get(key);
+  if (cached) {
+    const versionMismatch =
+      typeof expectedVersionMs === 'number' &&
+      Number.isFinite(expectedVersionMs) &&
+      expectedVersionMs > 0 &&
+      Math.floor(cached.mtimeMs) !== Math.floor(expectedVersionMs);
+    if (!cached.closed && cached.expiresAt > now && !versionMismatch) {
+      cached.expiresAt = now + OPEN_ICLOUD_FD_TTL_MS;
+      openIcloudReadFdCache.delete(key);
+      openIcloudReadFdCache.set(key, cached);
+      return Promise.resolve({ status: 'ok', entry: cached });
+    }
+    evictOpenIcloudFdKey(key);
+  }
+
+  const negUntil = datalessNegativeCache.get(key) || 0;
+  if (negUntil > now) {
+    return Promise.resolve({ status: 'dataless' });
+  }
+  if (negUntil > 0) datalessNegativeCache.delete(key);
+
+  const inflight = inFlightIcloudFdOpens.get(key);
+  if (inflight) return inflight;
+
+  const task = new Promise<
+    { status: 'ok'; entry: CachedOpenMediaFd } | { status: 'dataless' | 'not_found' }
+  >((resolve) => {
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      datalessNegativeCache.set(key, Date.now() + 12_000);
+      resolve({ status: 'dataless' });
+    }, Math.max(8_000, timeoutMs));
+
+    (async () => {
+      let fh: fs.promises.FileHandle | null = null;
+      try {
+        // CRITICAL: Always verify st.blocks > 0 via stat BEFORE calling open() so fileproviderd NEVER blocks inside open() downloading an evicted file
+        let st = getCachedMaterializedFileStat(key);
+        if (!st) {
+          st = await withBoundedIcloudIo(() => fsp.stat(key));
+          if (!st.isFile()) {
+            if (!settled) {
+              settled = true;
+              clearTimeout(timer);
+              resolve({ status: 'not_found' });
+            }
+            return;
+          }
+          if (!isMaterializedLocalFile(st)) {
+            datalessNegativeCache.set(key, Date.now() + 20_000);
+            if (!settled) {
+              settled = true;
+              clearTimeout(timer);
+              resolve({ status: 'dataless' });
+            }
+            return;
+          }
+          rememberMaterializedFileStat(key, st);
+        }
+
+        if (settled) return;
+        fh = await withBoundedIcloudIo(() => fsp.open(key, 'r'));
+        if (settled) {
+          await fh.close().catch(() => {});
+          return;
+        }
+        const fSt = await fh.stat();
+        if (!isMaterializedLocalFile(fSt)) {
+          await fh.close().catch(() => {});
+          datalessNegativeCache.set(key, Date.now() + 20_000);
+          if (!settled) {
+            settled = true;
+            clearTimeout(timer);
+            resolve({ status: 'dataless' });
+          }
+          return;
+        }
+        if (fSt.size > 0) {
+          const probeBuf = Buffer.allocUnsafe(Math.min(16, fSt.size));
+          const { bytesRead } = await fh.read(probeBuf, 0, probeBuf.length, 0);
+          if (bytesRead <= 0) {
+            await fh.close().catch(() => {});
+            datalessNegativeCache.set(key, Date.now() + 20_000);
+            if (!settled) {
+              settled = true;
+              clearTimeout(timer);
+              resolve({ status: 'dataless' });
+            }
+            return;
+          }
+        }
+        if (settled) {
+          await fh.close().catch(() => {});
+          return;
+        }
+        settled = true;
+        clearTimeout(timer);
+        datalessNegativeCache.delete(key);
+        rememberMaterializedFileStat(key, fSt);
+        while (openIcloudReadFdCache.size >= MAX_OPEN_ICLOUD_FDS) {
+          const oldestKey = openIcloudReadFdCache.keys().next().value;
+          if (!oldestKey) break;
+          evictOpenIcloudFdKey(oldestKey);
+        }
+        const entry: CachedOpenMediaFd = {
+          fh,
+          size: fSt.size,
+          mtimeMs: fSt.mtimeMs,
+          expiresAt: Date.now() + OPEN_ICLOUD_FD_TTL_MS,
+          activeReaders: 0,
+          closed: false,
+        };
+        openIcloudReadFdCache.set(key, entry);
+        resolve({ status: 'ok', entry });
+      } catch (err: any) {
+        if (fh) await fh.close().catch(() => {});
+        if (!settled) {
+          settled = true;
+          clearTimeout(timer);
+          const code = String(err?.code || '');
+          resolve({
+            status: code === 'ENOENT' || code === 'ENOTDIR' ? 'not_found' : 'dataless',
+          });
+        }
+      }
+    })();
+  }).finally(() => {
+    inFlightIcloudFdOpens.delete(key);
+  });
+
+  inFlightIcloudFdOpens.set(key, task);
+  return task;
+}
+
+function getStreamableMediaMimeType(filePath: string): string | null {
+  const ext = path.extname(filePath).toLowerCase();
+  switch (ext) {
+    case '.mp4':
+    case '.m4v':
+      return 'video/mp4';
+    case '.webm':
+      return 'video/webm';
+    case '.mov':
+      return 'video/quicktime';
+    case '.mp3':
+      return 'audio/mpeg';
+    case '.wav':
+      return 'audio/wav';
+    case '.m4a':
+      return 'audio/mp4';
+    case '.ogg':
+      return 'audio/ogg';
+    case '.jpg':
+    case '.jpeg':
+      return 'image/jpeg';
+    case '.png':
+      return 'image/png';
+    case '.webp':
+      return 'image/webp';
+    case '.gif':
+      return 'image/gif';
+    default:
+      return null;
+  }
+}
+
+async function streamFromCachedFd(
+  req: express.Request,
+  res: express.Response,
+  entry: CachedOpenMediaFd,
+  resolvedFilePath: string,
+  mimeType: string,
+  cacheControlHeader: string
+): Promise<void> {
+  const fileSize = entry.size;
+  res.setHeader('Content-Type', mimeType);
+  res.setHeader('Accept-Ranges', 'bytes');
+  res.setHeader('Last-Modified', new Date(entry.mtimeMs).toUTCString());
+  res.setHeader(
+    'ETag',
+    `W/"${fileSize.toString(16)}-${Math.floor(entry.mtimeMs).toString(16)}"`
+  );
+  res.setHeader('Cache-Control', cacheControlHeader);
+  if (req.query.frameProbe && !res.getHeader('Access-Control-Allow-Origin')) {
+    res.setHeader('Access-Control-Allow-Origin', String(req.headers.origin || '*'));
+  }
+
+  if (fileSize === 0) {
+    res.status(200).setHeader('Content-Length', '0').end();
+    return;
+  }
+
+  const rangeHeader = req.headers.range;
+  let start = 0;
+  let end = fileSize - 1;
+  let isPartial = false;
+
+  if (typeof rangeHeader === 'string' && rangeHeader.trim()) {
+    const m = rangeHeader.match(/bytes=(\d*)-(\d*)/);
+    if (!m || (!m[1] && !m[2])) {
+      res.setHeader('Content-Range', `bytes */${fileSize}`);
+      res.status(416).end();
+      return;
+    }
+    if (!m[1] && m[2]) {
+      const suffixLen = parseInt(m[2], 10);
+      if (!Number.isFinite(suffixLen) || suffixLen <= 0) {
+        res.setHeader('Content-Range', `bytes */${fileSize}`);
+        res.status(416).end();
+        return;
+      }
+      start = Math.max(0, fileSize - suffixLen);
+      end = fileSize - 1;
+    } else {
+      start = parseInt(m[1], 10);
+      const parsedEnd = m[2] ? parseInt(m[2], 10) : fileSize - 1;
+      if (
+        !Number.isFinite(start) ||
+        start < 0 ||
+        start >= fileSize ||
+        !Number.isFinite(parsedEnd) ||
+        parsedEnd < start
+      ) {
+        res.setHeader('Content-Range', `bytes */${fileSize}`);
+        res.status(416).end();
+        return;
+      }
+      end = Math.min(parsedEnd, fileSize - 1);
+    }
+    isPartial = true;
+  }
+
+  const chunkLength = end - start + 1;
+  if (isPartial) {
+    res.status(206);
+    res.setHeader('Content-Range', `bytes ${start}-${end}/${fileSize}`);
+  } else {
+    res.status(200);
+  }
+  res.setHeader('Content-Length', String(chunkLength));
+
+  if (req.method === 'HEAD') {
+    res.end();
+    return;
+  }
+
+  let aborted = false;
+  const onClose = () => {
+    aborted = true;
+  };
+  req.once('close', onClose);
+  res.once('close', onClose);
+
+  entry.activeReaders += 1;
+  try {
+    const buf = Buffer.allocUnsafe(Math.min(256 * 1024, chunkLength));
+    let offset = start;
+    while (offset <= end && !aborted && !res.writableEnded && !res.destroyed) {
+      const toRead = Math.min(buf.length, end - offset + 1);
+      const { bytesRead } = await entry.fh.read(buf, 0, toRead, offset);
+      if (bytesRead <= 0 || aborted || res.writableEnded || res.destroyed) break;
+      offset += bytesRead;
+      const slice = bytesRead === buf.length ? buf : buf.subarray(0, bytesRead);
+      if (!res.write(slice)) {
+        await new Promise<void>((r) => {
+          const done = () => {
+            res.off('drain', done);
+            res.off('close', done);
+            r();
+          };
+          res.once('drain', done);
+          res.once('close', done);
+        });
+      }
+    }
+    if (!aborted && !res.writableEnded && !res.destroyed) {
+      res.end();
+    }
+  } finally {
+    req.off('close', onClose);
+    res.off('close', onClose);
+    entry.activeReaders = Math.max(0, entry.activeReaders - 1);
+    if (entry.closed && entry.activeReaders === 0) {
+      entry.fh.close().catch(() => {});
+    }
+  }
+}
+
 app.get('/api/flow/list-folder-media', async (req, res) => {
   try {
     const reqDocId = String(req.query.docId || '').trim();
@@ -9365,7 +9804,7 @@ app.get('/api/flow/list-folder-media', async (req, res) => {
     let docTitle = String(req.query.docTitle || '');
 
     if (!icloudDriveVerifiedReady) {
-      await waitForIcloudDriveReady(2800);
+      await waitForIcloudDriveReady(45000);
     }
 
     if (reqDocId && (!folderPath || !folderName || !docTitle)) {
@@ -9394,8 +9833,9 @@ app.get('/api/flow/list-folder-media', async (req, res) => {
                   if (
                     rootFromPreview &&
                     rootFromPreview !== decodedFp &&
-                    fs.existsSync(rootFromPreview) &&
-                    fs.statSync(rootFromPreview).isDirectory()
+                    (rootFromPreview.includes('Mobile Documents')
+                      ? icloudDriveVerifiedReady
+                      : fs.existsSync(rootFromPreview) && fs.statSync(rootFromPreview).isDirectory())
                   ) {
                     folderPath = rootFromPreview;
                     break;
@@ -9410,9 +9850,15 @@ app.get('/api/flow/list-folder-media', async (req, res) => {
     }
 
     const rawResolvedRoot = resolveLocalDocumentaryFolder(folderPath, folderName, docTitle);
-    const rootOpenable = rawResolvedRoot
-      ? await ensureDocRootOpenable(rawResolvedRoot, 3000, 3000)
-      : false;
+    const bootAssetsStatus = await officialAssetsManager.getStatusPayload();
+    const deferIcloudScanForBootHydration =
+      Boolean(rawResolvedRoot && rawResolvedRoot.includes('Mobile Documents')) &&
+      Date.now() - serverBootStartedAtMs < 75_000 &&
+      (bootAssetsStatus.intro.hydrating || bootAssetsStatus.outro.hydrating);
+    const rootOpenable =
+      rawResolvedRoot && !deferIcloudScanForBootHydration
+        ? await ensureDocRootOpenable(rawResolvedRoot, 60000, 3000)
+        : false;
     const resolvedRoot = rootOpenable ? rawResolvedRoot : '';
 
     const clipVideos: Array<{ clipNumber: number; fileName: string; url: string; mtimeMs: number }> = [];
@@ -9432,38 +9878,75 @@ app.get('/api/flow/list-folder-media', async (req, res) => {
     const voiceoverFiles: Array<{ fileName: string; url: string }> = [];
     const sunoFiles: Array<{ trackNumber: number; fileName: string; url: string }> = [];
     const pending4kSet = new Set<number>();
+    let loadedPromptsTxt: string | null = null;
 
     if (resolvedRoot) {
       rememberWatchedStage6Folder(resolvedRoot, docTitle);
       const clipsDir = path.join(resolvedRoot, '05_Clips_Video');
-      if (!fs.existsSync(clipsDir)) {
-        try {
-          fs.mkdirSync(clipsDir, { recursive: true });
-        } catch {}
+      const aprobadosDir = path.join(resolvedRoot, 'Clips_Aprobados');
+      const discardedDir = path.join(resolvedRoot, '05_Clips_Video', '_Descartados_Auditoria');
+      const audio02Dir = path.join(resolvedRoot, '02_Audio');
+      const audioLegacyDir = path.join(resolvedRoot, 'Audio');
+      const wantPrompts = String(req.query.includePrompts || '') !== '0';
+      const promptsTxtPath = path.join(resolvedRoot, '01_Guion_y_SEO', 'Prompts_Clips_Flow.txt');
+
+      // Fan out all iCloud directory scans + Prompts_Clips_Flow.txt open in a single parallel batch
+      const [
+        rootScan,
+        clipsScan,
+        aprobadosScan,
+        discardedScan,
+        audio02Scan,
+        audioLegacyScan,
+        promptsTxtResult,
+      ] = await Promise.all([
+        scanDirStatsParallelCachedAsync(resolvedRoot),
+        scanDirStatsParallelCachedAsync(clipsDir),
+        scanDirStatsParallelCachedAsync(aprobadosDir),
+        scanDirStatsParallelCachedAsync(discardedDir),
+        scanDirStatsParallelCachedAsync(audio02Dir),
+        scanDirStatsParallelCachedAsync(audioLegacyDir),
+        wantPrompts ? readTextFileCachedAsync(promptsTxtPath) : Promise.resolve(null),
+      ]);
+      loadedPromptsTxt = promptsTxtResult;
+
+      if (!clipsScan.exists) {
+        fsp.mkdir(clipsDir, { recursive: true })
+          .then(() => invalidateDirScanCache(clipsDir))
+          .catch(() => {});
       }
 
-      // Move any loose stable clip videos dropped in the project root into 05_Clips_Video first
-      try {
-        for (const rootEntry of fs.readdirSync(resolvedRoot)) {
-          if (
-            isTransientStagingEntry(rootEntry) ||
-            /^Documental_|_Master|_Final/i.test(rootEntry)
-          ) {
-            continue;
-          }
-          if (
-            /^(?:(?:clip|broll|b[\-_]?roll|video|scene|escena)[_\-\s.]*)?0*\d+[_\-\s.(].*\.(mp4|webm|mov)$/i.test(
-              rootEntry
-            )
-          ) {
-            const srcLoose = path.join(resolvedRoot, rootEntry);
-            const looseSt = fs.statSync(srcLoose);
-            if (isMaterializedLocalFile(looseSt) && Date.now() - looseSt.mtimeMs >= 1500) {
-              fs.renameSync(srcLoose, path.join(clipsDir, rootEntry));
-            }
+      // Move any loose stable clip videos dropped in the project root into 05_Clips_Video asynchronously
+      const rootEntriesMutable = [...rootScan.entries];
+      const clipsEntriesMutable = [...clipsScan.entries];
+      for (let i = rootEntriesMutable.length - 1; i >= 0; i--) {
+        const item = rootEntriesMutable[i];
+        const rootEntry = item.name;
+        if (
+          isTransientStagingEntry(rootEntry) ||
+          /^Documental_|_Master|_Final/i.test(rootEntry)
+        ) {
+          continue;
+        }
+        if (
+          /^(?:(?:clip|broll|b[\-_]?roll|video|scene|escena)[_\-\s.]*)?0*\d+[_\-\s.(].*\.(mp4|webm|mov)$/i.test(
+            rootEntry
+          )
+        ) {
+          if (isMaterializedLocalFile(item.stats) && Date.now() - item.stats.mtimeMs >= 1500) {
+            const destLoose = path.join(clipsDir, rootEntry);
+            try {
+              await fsp.mkdir(clipsDir, { recursive: true });
+              await fsp.rename(item.fullPath, destLoose);
+              invalidateDirScanCache(resolvedRoot);
+              invalidateDirScanCache(clipsDir);
+              rememberMaterializedFileStat(destLoose, item.stats);
+              rootEntriesMutable.splice(i, 1);
+              clipsEntriesMutable.push({ name: rootEntry, fullPath: destLoose, stats: item.stats });
+            } catch {}
           }
         }
-      } catch {}
+      }
 
       const hydratedMeta = resolveDocPipelineContext(resolvedRoot, reqDocId, docTitle);
       const hydratedMetaClipsByNum = new Map<number, any>();
@@ -9478,137 +9961,124 @@ app.get('/api/flow/list-folder-media', async (req, res) => {
         }
       }
 
-      // Fast non-blocking scan: inspect if any raw clip, B-Roll image, or ZIP needs background 4K processing
+      // Fast non-blocking scan over in-memory statted entries
       let needsBackground4k = false;
       const verified4kClipsInDir = new Set<number>();
       const pendingBrollImageClips = new Set<number>();
       const rawNon4kMtimes = new Map<number, number>();
-      if (fs.existsSync(clipsDir) && fs.statSync(clipsDir).isDirectory()) {
-        try {
-          const allDirEntries = fs.readdirSync(clipsDir);
-          const dirNameSet = new Set(allDirEntries);
-          for (const entry of allDirEntries) {
+      if (clipsScan.exists || clipsEntriesMutable.length > 0) {
+        const dirNameSet = new Set(clipsEntriesMutable.map((e) => e.name));
+        for (const item of clipsEntriesMutable) {
+          const entry = item.name;
+          const full = item.fullPath;
+          const st = item.stats;
+          if (
+            isTransientStagingEntry(entry) ||
+            dirNameSet.has(`${entry}.crdownload`) ||
+            dirNameSet.has(`${entry}.part`)
+          ) {
+            continue;
+          }
+          if (!st.isFile()) continue;
+          if (typeof (st as any).blocks === 'number' && (st as any).blocks === 0 && st.size > 0) {
+            continue;
+          }
+
+          if (/\.zip$/i.test(entry)) {
+            needsBackground4k = true;
+            continue;
+          }
+
+          if (isEligibleBrollImageEntry(entry)) {
+            const explicitBrollNum = parseExplicitBrollClipNumFromImageName(entry);
+            const inferredBrollNum =
+              explicitBrollNum > 0
+                ? explicitBrollNum
+                : inferClipNumberFromFileName(entry, hydratedMeta.clips);
             if (
-              isTransientStagingEntry(entry) ||
-              dirNameSet.has(`${entry}.crdownload`) ||
-              dirNameSet.has(`${entry}.part`)
+              inferredBrollNum > 0 &&
+              !isClipLifecycleLocked(resolvedRoot, inferredBrollNum) &&
+              (explicitBrollNum > 0 || brollClipNumsSet.has(inferredBrollNum))
             ) {
-              continue;
-            }
-            const full = path.join(clipsDir, entry);
-            let st: fs.Stats;
-            try {
-              st = fs.statSync(full);
-            } catch {
-              continue;
-            }
-            if (!st.isFile()) continue;
-            if (typeof (st as any).blocks === 'number' && (st as any).blocks === 0 && st.size > 0) {
-              continue;
-            }
-
-            if (/\.zip$/i.test(entry)) {
+              brollClipNumsSet.add(inferredBrollNum);
+              pendingBrollImageClips.add(inferredBrollNum);
               needsBackground4k = true;
-              continue;
-            }
-
-            if (isEligibleBrollImageEntry(entry)) {
-              const explicitBrollNum = parseExplicitBrollClipNumFromImageName(entry);
-              const inferredBrollNum =
-                explicitBrollNum > 0
-                  ? explicitBrollNum
-                  : inferClipNumberFromFileName(entry, hydratedMeta.clips);
-              if (
-                inferredBrollNum > 0 &&
-                !isClipLifecycleLocked(resolvedRoot, inferredBrollNum) &&
-                (explicitBrollNum > 0 || brollClipNumsSet.has(inferredBrollNum))
-              ) {
-                brollClipNumsSet.add(inferredBrollNum);
-                pendingBrollImageClips.add(inferredBrollNum);
-                needsBackground4k = true;
-                pending4kSet.add(inferredBrollNum);
-              }
-            }
-
-            const mVid = entry.match(
-              /^(?:(?:clip|broll|b[\-_]?roll|video|scene|escena)[_\-\s.]*)?0*(\d+)[_\-\s.(].*\.(mp4|webm|mov)$/i
-            );
-            if (mVid) {
-              const cNum = parseInt(mVid[1], 10);
-              if (cNum <= 0 || isClipLifecycleLocked(resolvedRoot, cNum)) continue;
-              const isReal4k = isVerified4kClipOnDisk(entry, st.size, full, st.mtimeMs);
-              if (isReal4k) {
-                verified4kClipsInDir.add(cNum);
-              } else if (st.size > 10000) {
-                needsBackground4k = true;
-                pending4kSet.add(cNum);
-                const prevRaw = rawNon4kMtimes.get(cNum) || 0;
-                if (st.mtimeMs > prevRaw) rawNon4kMtimes.set(cNum, st.mtimeMs);
-              }
+              pending4kSet.add(inferredBrollNum);
             }
           }
-        } catch {}
+
+          const mVid = entry.match(
+            /^(?:(?:clip|broll|b[\-_]?roll|video|scene|escena)[_\-\s.]*)?0*(\d+)[_\-\s.(].*\.(mp4|webm|mov)$/i
+          );
+          if (mVid) {
+            const cNum = parseInt(mVid[1], 10);
+            if (cNum <= 0 || isClipLifecycleLocked(resolvedRoot, cNum)) continue;
+            const isReal4k = isVerified4kClipOnDisk(entry, st.size, full, st.mtimeMs);
+            if (isReal4k) {
+              verified4kClipsInDir.add(cNum);
+            } else if (st.size > 10000) {
+              needsBackground4k = true;
+              pending4kSet.add(cNum);
+              const prevRaw = rawNon4kMtimes.get(cNum) || 0;
+              if (st.mtimeMs > prevRaw) rawNon4kMtimes.set(cNum, st.mtimeMs);
+            }
+          }
+        }
       }
       // Also detect root-level ZIPs or B-Roll images not yet moved into 05_Clips_Video
       if (!needsBackground4k) {
-        try {
-          for (const rootEntry of fs.readdirSync(resolvedRoot)) {
-            if (isTransientStagingEntry(rootEntry) || /^Documental_|_Master|_Final/i.test(rootEntry)) continue;
-            if (/\.zip$/i.test(rootEntry)) {
+        for (const item of rootEntriesMutable) {
+          const rootEntry = item.name;
+          if (isTransientStagingEntry(rootEntry) || /^Documental_|_Master|_Final/i.test(rootEntry)) continue;
+          if (/\.zip$/i.test(rootEntry)) {
+            needsBackground4k = true;
+            break;
+          }
+          if (isEligibleBrollImageEntry(rootEntry)) {
+            const explicitBrollNum = parseExplicitBrollClipNumFromImageName(rootEntry);
+            const inferred =
+              explicitBrollNum > 0
+                ? explicitBrollNum
+                : inferClipNumberFromFileName(rootEntry, hydratedMeta.clips);
+            if (inferred > 0 && (explicitBrollNum > 0 || brollClipNumsSet.has(inferred))) {
+              brollClipNumsSet.add(inferred);
+              pendingBrollImageClips.add(inferred);
               needsBackground4k = true;
-              break;
-            }
-            if (isEligibleBrollImageEntry(rootEntry)) {
-              const explicitBrollNum = parseExplicitBrollClipNumFromImageName(rootEntry);
-              const inferred =
-                explicitBrollNum > 0
-                  ? explicitBrollNum
-                  : inferClipNumberFromFileName(rootEntry, hydratedMeta.clips);
-              if (inferred > 0 && (explicitBrollNum > 0 || brollClipNumsSet.has(inferred))) {
-                brollClipNumsSet.add(inferred);
-                pendingBrollImageClips.add(inferred);
-                needsBackground4k = true;
-                pending4kSet.add(inferred);
-              }
+              pending4kSet.add(inferred);
             }
           }
-        } catch {}
+        }
       }
 
       if (needsBackground4k) {
         triggerAutonomousClips4kForFolder(resolvedRoot, docTitle, 'list_media');
       }
 
-      const videoSubfolders = ['05_Clips_Video', 'Clips_Aprobados', ''];
+      const videoSubScans: ScannedDirFileEntry[][] = [
+        clipsEntriesMutable,
+        aprobadosScan.entries,
+        rootEntriesMutable,
+      ];
       const seenVideoClips = new Set<number>();
       const bestActiveFrameByClip = new Map<
         number,
         { clipNumber: number; fileName: string; url: string; mtimeMs: number; tier: number }
       >();
-      for (const sub of videoSubfolders) {
-        const dir = sub ? path.join(resolvedRoot, sub) : resolvedRoot;
-        if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) continue;
-        const entries = fs.readdirSync(dir).sort((a, b) => {
-          const a4k = /[_\-]4k\.(mp4|webm|mov)$/i.test(a) ? 1 : 0;
-          const b4k = /[_\-]4k\.(mp4|webm|mov)$/i.test(b) ? 1 : 0;
+      for (const rawEntries of videoSubScans) {
+        if (!rawEntries || rawEntries.length === 0) continue;
+        const sortedItems = [...rawEntries].sort((a, b) => {
+          const a4k = /[_\-]4k\.(mp4|webm|mov)$/i.test(a.name) ? 1 : 0;
+          const b4k = /[_\-]4k\.(mp4|webm|mov)$/i.test(b.name) ? 1 : 0;
           if (b4k !== a4k) return b4k - a4k;
-          try {
-            return fs.statSync(path.join(dir, b)).mtimeMs - fs.statSync(path.join(dir, a)).mtimeMs;
-          } catch {
-            return 0;
-          }
+          return b.stats.mtimeMs - a.stats.mtimeMs;
         });
-        for (const entry of entries) {
+        for (const item of sortedItems) {
+          const entry = item.name;
           if (isTransientStagingEntry(entry)) {
             continue;
           }
-          const full = path.join(dir, entry);
-          let st: fs.Stats;
-          try {
-            st = fs.statSync(full);
-          } catch {
-            continue;
-          }
+          const full = item.fullPath;
+          const st = item.stats;
           if (!isMaterializedLocalFile(st)) continue;
           const mtimeMs = Math.floor(st.mtimeMs);
           const mVid = entry.match(
@@ -9683,149 +10153,139 @@ app.get('/api/flow/list-folder-media', async (req, res) => {
       }
 
       // Scan 05_Clips_Video/_Descartados_Auditoria for discarded preview videos/posters (Stage 6 viewer only)
-      const discardedDir = path.join(resolvedRoot, '05_Clips_Video', '_Descartados_Auditoria');
-      if (fs.existsSync(discardedDir)) {
-        try {
-          if (fs.statSync(discardedDir).isDirectory()) {
-            const bestDiscardedVideoByClip = new Map<
-              number,
-              {
-                clipNumber: number;
-                fileName: string;
-                url: string;
-                mtimeMs: number;
-                isExact: boolean;
-                is4k: boolean;
-              }
-            >();
-            const bestDiscardedFrameByClip = new Map<
-              number,
-              { clipNumber: number; fileName: string; url: string; mtimeMs: number; tier: number }
-            >();
-            for (const entry of fs.readdirSync(discardedDir)) {
-              if (
-                !entry ||
-                entry.startsWith('.') ||
-                entry.startsWith('__rendering_') ||
-                entry.startsWith('__incoming_') ||
-                entry.startsWith('~incoming_') ||
-                /\.(?:tmp|part|crdownload|download)(?:\.(?:mp4|webm|mov|jpg|jpeg|png|webp))?$/i.test(
-                  entry
-                ) ||
-                /\.meta\.json$/i.test(entry)
-              ) {
-                continue;
-              }
-              const full = path.join(discardedDir, entry);
-              let st: fs.Stats;
-              try {
-                st = fs.statSync(full);
-              } catch {
-                continue;
-              }
-              if (!isMaterializedLocalFile(st)) continue;
-              const mtimeMs = Math.floor(st.mtimeMs);
-              const mVid = entry.match(
-                /^(?:(?:clip|broll|b[\-_]?roll|video|scene|escena)[_\-\s.]*)?0*(\d+)[_\-\s.(].*\.(mp4|webm|mov)$/i
+      if (discardedScan.exists && discardedScan.entries.length > 0) {
+        const bestDiscardedVideoByClip = new Map<
+          number,
+          {
+            clipNumber: number;
+            fileName: string;
+            url: string;
+            mtimeMs: number;
+            isExact: boolean;
+            is4k: boolean;
+          }
+        >();
+        const bestDiscardedFrameByClip = new Map<
+          number,
+          { clipNumber: number; fileName: string; url: string; mtimeMs: number; tier: number }
+        >();
+        for (const item of discardedScan.entries) {
+          const entry = item.name;
+          if (
+            !entry ||
+            entry.startsWith('.') ||
+            entry.startsWith('__rendering_') ||
+            entry.startsWith('__incoming_') ||
+            entry.startsWith('~incoming_') ||
+            /\.(?:tmp|part|crdownload|download)(?:\.(?:mp4|webm|mov|jpg|jpeg|png|webp))?$/i.test(
+              entry
+            ) ||
+            /\.meta\.json$/i.test(entry)
+          ) {
+            continue;
+          }
+          const full = item.fullPath;
+          const st = item.stats;
+          if (!isMaterializedLocalFile(st)) continue;
+          const mtimeMs = Math.floor(st.mtimeMs);
+          const mVid = entry.match(
+            /^(?:(?:clip|broll|b[\-_]?roll|video|scene|escena)[_\-\s.]*)?0*(\d+)[_\-\s.(].*\.(mp4|webm|mov)$/i
+          );
+          if (mVid) {
+            const num = parseInt(mVid[1], 10);
+            if (num > 0) {
+              const expectedDiscName = getServerEffectiveDiscardedFileName(
+                hydratedMetaClipsByNum.get(num)
               );
-              if (mVid) {
-                const num = parseInt(mVid[1], 10);
-                if (num > 0) {
-                  const expectedDiscName = getServerEffectiveDiscardedFileName(
-                    hydratedMetaClipsByNum.get(num)
-                  );
-                  const isExact = Boolean(expectedDiscName && entry === expectedDiscName);
-                  const is4k = /[_\-]4k\.(mp4|webm|mov)$/i.test(entry);
-                  const prev = bestDiscardedVideoByClip.get(num);
-                  const shouldTake =
-                    !prev ||
-                    (isExact && !prev.isExact) ||
-                    (isExact === prev.isExact && is4k && !prev.is4k) ||
-                    (isExact === prev.isExact && is4k === prev.is4k && mtimeMs > prev.mtimeMs);
-                  if (shouldTake) {
-                    bestDiscardedVideoByClip.set(num, {
-                      clipNumber: num,
-                      fileName: entry,
-                      url: `/api/flow/serve-folder-file?filePath=${encodeURIComponent(full)}&v=${mtimeMs}`,
-                      mtimeMs,
-                      isExact,
-                      is4k,
-                    });
-                  }
-                }
-                continue;
-              }
-              const mFrameImg =
-                entry.match(/^0*(\d+)_Imagen_Inicial_.*\.(png|jpg|jpeg|webp)$/i) ||
-                entry.match(/^(?:inicial|initial)[_\-\s.]*0*(\d+)[_\-\s.(].*\.(png|jpg|jpeg|webp)$/i);
-              if (mFrameImg) {
-                const num = parseInt(mFrameImg[1], 10);
-                if (num > 0) {
-                  const prev = bestDiscardedFrameByClip.get(num);
-                  if (!prev || 2 > prev.tier || (prev.tier === 2 && mtimeMs > prev.mtimeMs)) {
-                    bestDiscardedFrameByClip.set(num, {
-                      clipNumber: num,
-                      fileName: entry,
-                      url: `/api/flow/serve-folder-file?filePath=${encodeURIComponent(full)}&v=${mtimeMs}`,
-                      mtimeMs,
-                      tier: 2,
-                    });
-                  }
-                }
-              } else if (!/(?:_broll_source\.|\.meta\.json$)/i.test(entry)) {
-                const mLooseImg = entry.match(
-                  /^(?:(?:broll|b[\-_]?roll|image|imagen|clip)[_\-\s.]*)?0*(\d+)[_\-\s.(].*\.(png|jpg|jpeg|webp)$/i
-                );
-                if (mLooseImg) {
-                  const num = parseInt(mLooseImg[1], 10);
-                  if (num > 0) {
-                    const prev = bestDiscardedFrameByClip.get(num);
-                    if (!prev || (prev.tier === 1 && mtimeMs > prev.mtimeMs)) {
-                      bestDiscardedFrameByClip.set(num, {
-                        clipNumber: num,
-                        fileName: entry,
-                        url: `/api/flow/serve-folder-file?filePath=${encodeURIComponent(full)}&v=${mtimeMs}`,
-                        mtimeMs,
-                        tier: 1,
-                      });
-                    }
-                  }
-                }
+              const isExact = Boolean(expectedDiscName && entry === expectedDiscName);
+              const is4k = /[_\-]4k\.(mp4|webm|mov)$/i.test(entry);
+              const prev = bestDiscardedVideoByClip.get(num);
+              const shouldTake =
+                !prev ||
+                (isExact && !prev.isExact) ||
+                (isExact === prev.isExact && is4k && !prev.is4k) ||
+                (isExact === prev.isExact && is4k === prev.is4k && mtimeMs > prev.mtimeMs);
+              if (shouldTake) {
+                bestDiscardedVideoByClip.set(num, {
+                  clipNumber: num,
+                  fileName: entry,
+                  url: `/api/flow/serve-folder-file?filePath=${encodeURIComponent(full)}&v=${mtimeMs}`,
+                  mtimeMs,
+                  isExact,
+                  is4k,
+                });
               }
             }
-            for (const vItem of bestDiscardedVideoByClip.values()) {
-              discardedClipVideos.push({
-                clipNumber: vItem.clipNumber,
-                fileName: vItem.fileName,
-                url: vItem.url,
-                mtimeMs: vItem.mtimeMs,
-              });
+            continue;
+          }
+          const mFrameImg =
+            entry.match(/^0*(\d+)_Imagen_Inicial_.*\.(png|jpg|jpeg|webp)$/i) ||
+            entry.match(/^(?:inicial|initial)[_\-\s.]*0*(\d+)[_\-\s.(].*\.(png|jpg|jpeg|webp)$/i);
+          if (mFrameImg) {
+            const num = parseInt(mFrameImg[1], 10);
+            if (num > 0) {
+              const prev = bestDiscardedFrameByClip.get(num);
+              if (!prev || 2 > prev.tier || (prev.tier === 2 && mtimeMs > prev.mtimeMs)) {
+                bestDiscardedFrameByClip.set(num, {
+                  clipNumber: num,
+                  fileName: entry,
+                  url: `/api/flow/serve-folder-file?filePath=${encodeURIComponent(full)}&v=${mtimeMs}`,
+                  mtimeMs,
+                  tier: 2,
+                });
+              }
             }
-            for (const fItem of bestDiscardedFrameByClip.values()) {
-              discardedClipFrames.push({
-                clipNumber: fItem.clipNumber,
-                fileName: fItem.fileName,
-                url: fItem.url,
-                mtimeMs: fItem.mtimeMs,
-              });
+          } else if (!/(?:_broll_source\.|\.meta\.json$)/i.test(entry)) {
+            const mLooseImg = entry.match(
+              /^(?:(?:broll|b[\-_]?roll|image|imagen|clip)[_\-\s.]*)?0*(\d+)[_\-\s.(].*\.(png|jpg|jpeg|webp)$/i
+            );
+            if (mLooseImg) {
+              const num = parseInt(mLooseImg[1], 10);
+              if (num > 0) {
+                const prev = bestDiscardedFrameByClip.get(num);
+                if (!prev || (prev.tier === 1 && mtimeMs > prev.mtimeMs)) {
+                  bestDiscardedFrameByClip.set(num, {
+                    clipNumber: num,
+                    fileName: entry,
+                    url: `/api/flow/serve-folder-file?filePath=${encodeURIComponent(full)}&v=${mtimeMs}`,
+                    mtimeMs,
+                    tier: 1,
+                  });
+                }
+              }
             }
           }
-        } catch {}
+        }
+        for (const vItem of bestDiscardedVideoByClip.values()) {
+          discardedClipVideos.push({
+            clipNumber: vItem.clipNumber,
+            fileName: vItem.fileName,
+            url: vItem.url,
+            mtimeMs: vItem.mtimeMs,
+          });
+        }
+        for (const fItem of bestDiscardedFrameByClip.values()) {
+          discardedClipFrames.push({
+            clipNumber: fItem.clipNumber,
+            fileName: fItem.fileName,
+            url: fItem.url,
+            mtimeMs: fItem.mtimeMs,
+          });
+        }
       }
 
-      const audioSubfolders = ['02_Audio', 'Audio', ''];
-      for (const sub of audioSubfolders) {
-        const dir = sub ? path.join(resolvedRoot, sub) : resolvedRoot;
-        if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) continue;
-        const entries = fs.readdirSync(dir);
+      const audioSubScans: Array<{ dirPath: string; entries: ScannedDirFileEntry[] }> = [
+        { dirPath: audio02Dir, entries: audio02Scan.entries },
+        { dirPath: audioLegacyDir, entries: audioLegacyScan.entries },
+        { dirPath: resolvedRoot, entries: rootEntriesMutable },
+      ];
+      for (const { dirPath: dir, entries: audioEntries } of audioSubScans) {
+        if (!audioEntries || audioEntries.length === 0) continue;
         const hasFlowMusicByNum = new Set<number>();
         const hasTitledFlowMusicByNum = new Set<number>();
-        for (const entry of entries) {
-          const fullCheck = path.join(dir, entry);
-          let stCheck: fs.Stats | null = null;
-          try {
-            stCheck = fs.statSync(fullCheck);
-          } catch {}
+        for (const item of audioEntries) {
+          const entry = item.name;
+          const stCheck = item.stats;
           if (!stCheck || !stCheck.isFile() || stCheck.size < 1024) continue;
           const fm = entry.match(/^(?:flowmusic|flow_music)[_\-\s]*0*(\d+)/i);
           if (fm) {
@@ -9836,38 +10296,28 @@ app.get('/api/flow/list-folder-media', async (req, res) => {
             }
           }
         }
-        for (const entry of entries) {
-          const full = path.join(dir, entry);
-          let st: fs.Stats;
-          try {
-            st = fs.statSync(full);
-          } catch {
-            continue;
-          }
+        for (const item of audioEntries) {
+          const entry = item.name;
+          const full = item.fullPath;
+          const st = item.stats;
           if (!st.isFile()) continue;
           if (!/\.(mp3|wav|m4a|ogg)$/i.test(entry)) continue;
-          // Auto-remove 0-byte / corrupted audio files
+          // Auto-remove 0-byte / corrupted audio files asynchronously
           if (st.size < 1024) {
-            try {
-              fs.unlinkSync(full);
-            } catch {}
+            fsp.unlink(full).then(() => invalidateDirScanCache(dir)).catch(() => {});
             continue;
           }
           // Auto-clean duplicate legacy Suno_0X.mp3 when FlowMusic_0X...mp3 exists in the same folder
           const legacySunoMatch = entry.match(/^suno[_\-\s]*0*(\d+)\.(mp3|wav|m4a|ogg)$/i);
           if (legacySunoMatch && hasFlowMusicByNum.has(parseInt(legacySunoMatch[1], 10) || 1)) {
-            try {
-              fs.unlinkSync(full);
-              continue;
-            } catch {}
+            fsp.unlink(full).then(() => invalidateDirScanCache(dir)).catch(() => {});
+            continue;
           }
           // Auto-clean untitled duplicate FlowMusic_0X.mp3 when titled FlowMusic_0X_Title.mp3 exists
           const untitledFlowMatch = entry.match(/^(?:flowmusic|flow_music)[_\-\s]*0*(\d+)\.(mp3|wav|m4a|ogg)$/i);
           if (untitledFlowMatch && hasTitledFlowMusicByNum.has(parseInt(untitledFlowMatch[1], 10) || 1)) {
-            try {
-              fs.unlinkSync(full);
-              continue;
-            } catch {}
+            fsp.unlink(full).then(() => invalidateDirScanCache(dir)).catch(() => {});
+            continue;
           }
           const sunoMatch = entry.match(
             /(?:flowmusic|flow_music|suno|musica|pista|track)[_\-\s]*0*(\d+)/i
@@ -9921,36 +10371,32 @@ app.get('/api/flow/list-folder-media', async (req, res) => {
         brollCameraMotion?: string;
       }
     > = {};
-    if (resolvedRoot && String(req.query.includePrompts || '') !== '0') {
-      const promptsTxtPath = path.join(resolvedRoot, '01_Guion_y_SEO', 'Prompts_Clips_Flow.txt');
-      const txt = readTextFileIfMaterializedSafe(promptsTxtPath);
-      if (txt) {
-        for (const rawLine of txt.split(/\r?\n/)) {
-          const line = rawLine.trim();
-          const mImg = line.match(/^(?:Image|Imagen)\s+\[?0*(\d+)\]?(?:\s*\([^)]*\))?\s*:\s*(.+)$/i);
-          if (mImg) {
-            const num = parseInt(mImg[1], 10);
-            if (num > 0) {
-              const parsedBroll = parseServerBrollMotionFromText(line);
-              clipPrompts[num] = {
-                ...(clipPrompts[num] || {}),
-                imagePrompt: line,
-                ...(parsedBroll.isStaticBroll
-                  ? {
-                      isStaticBroll: true,
-                      brollCameraMotion: parsedBroll.brollCameraMotion || 'zoom_in',
-                    }
-                  : {}),
-              };
-            }
-            continue;
+    if (loadedPromptsTxt) {
+      for (const rawLine of loadedPromptsTxt.split(/\r?\n/)) {
+        const line = rawLine.trim();
+        const mImg = line.match(/^(?:Image|Imagen)\s+\[?0*(\d+)\]?(?:\s*\([^)]*\))?\s*:\s*(.+)$/i);
+        if (mImg) {
+          const num = parseInt(mImg[1], 10);
+          if (num > 0) {
+            const parsedBroll = parseServerBrollMotionFromText(line);
+            clipPrompts[num] = {
+              ...(clipPrompts[num] || {}),
+              imagePrompt: line,
+              ...(parsedBroll.isStaticBroll
+                ? {
+                    isStaticBroll: true,
+                    brollCameraMotion: parsedBroll.brollCameraMotion || 'zoom_in',
+                  }
+                : {}),
+            };
           }
-          const mClip = line.match(/^Clip\s+\[?0*(\d+)\]?(?:\s*\([^)]*\))?\s*:\s*(.+)$/i);
-          if (mClip) {
-            const num = parseInt(mClip[1], 10);
-            if (num > 0) {
-              clipPrompts[num] = { ...(clipPrompts[num] || {}), videoPrompt: line };
-            }
+          continue;
+        }
+        const mClip = line.match(/^Clip\s+\[?0*(\d+)\]?(?:\s*\([^)]*\))?\s*:\s*(.+)$/i);
+        if (mClip) {
+          const num = parseInt(mClip[1], 10);
+          if (num > 0) {
+            clipPrompts[num] = { ...(clipPrompts[num] || {}), videoPrompt: line };
           }
         }
       }
@@ -10477,9 +10923,15 @@ app.post('/api/flow/sync-reference-downloads', async (req, res) => {
 
 app.get('/api/flow/serve-folder-file', async (req, res) => {
   const statFileIfExistsAsync = async (target: string): Promise<fs.Stats | null> => {
+    const cached = getCachedMaterializedFileStat(target);
+    if (cached) return cached;
     try {
       const st = await fsp.stat(target);
-      return st.isFile() ? st : null;
+      if (!st.isFile()) return null;
+      if (isMaterializedLocalFile(st)) {
+        rememberMaterializedFileStat(target, st);
+      }
+      return st;
     } catch {
       return null;
     }
@@ -10491,6 +10943,19 @@ app.get('/api/flow/serve-folder-file', async (req, res) => {
     } catch {
       return false;
     }
+  };
+  const buildCacheControlForResolvedFile = (resolvedFilePath: string): string => {
+    const isTransientRawVideo =
+      /\.(?:mp4|webm|mov)$/i.test(resolvedFilePath) &&
+      !/[_\-]4k\.(?:mp4|webm|mov)$/i.test(resolvedFilePath) &&
+      !/(?:_WebPreview|_foley_v\d+|Intro|Outro)\.mp4$/i.test(resolvedFilePath);
+    const isMutableClipFolderAsset =
+      /(?:^|\/|\\)05_Clips_Video(?:\/|\\)/i.test(resolvedFilePath);
+    return isTransientRawVideo
+      ? 'no-store, no-cache, must-revalidate'
+      : isMutableClipFolderAsset
+        ? 'private, no-cache, must-revalidate'
+        : 'private, max-age=3600';
   };
 
   try {
@@ -10515,6 +10980,20 @@ app.get('/api/flow/serve-folder-file', async (req, res) => {
         await officialAssetsManager.handleStream(matchedOfficialAsset.kind, req, res);
       }
       return;
+    }
+
+    // Immediate startup priority gate: keep Sandbox.kext 100% uncongested while TCC probe & Official Intro/Outro hydration complete
+    if (filePath.includes('com~apple~CloudDocs')) {
+      const assetsStatus = await officialAssetsManager.getStatusPayload();
+      const assetsBootHydrating =
+        Date.now() - serverBootStartedAtMs < 75_000 &&
+        (assetsStatus.intro.hydrating || assetsStatus.outro.hydrating);
+      if (!icloudDriveVerifiedReady || assetsBootHydrating) {
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+        res.setHeader('Retry-After', '4');
+        res.status(503).send('Inicializando caché local de iCloud Drive...');
+        return;
+      }
     }
 
     // Redirect legacy destructive _foley_only.mp4 or _foley_v2.mp4 (FFT warble) requests to _foley_v3.mp4 or the pristine source MP4
@@ -10548,7 +11027,41 @@ app.get('/api/flow/serve-folder-file', async (req, res) => {
       }
     }
 
-    let stTarget = await statFileIfExistsAsync(filePath);
+    const reqVersionMs = Number(req.query.v || 0);
+    const directMime = getStreamableMediaMimeType(filePath);
+
+    // Fast single-open pread path for iCloud Drive media: 1x open on cold miss, 0.3ms on cached Range requests
+    if (filePath.includes('com~apple~CloudDocs') && directMime) {
+      const directResolved = path.resolve(filePath);
+      const fdRes = await acquireIcloudReadFdBounded(
+        directResolved,
+        Number.isFinite(reqVersionMs) && reqVersionMs > 0 ? reqVersionMs : undefined,
+        45_000
+      );
+      if (fdRes.status === 'ok') {
+        await streamFromCachedFd(
+          req,
+          res,
+          fdRes.entry,
+          directResolved,
+          directMime,
+          buildCacheControlForResolvedFile(directResolved)
+        );
+        return;
+      }
+      if (fdRes.status === 'dataless') {
+        kickIcloudDownloadDetached(directResolved);
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+        res.setHeader('Retry-After', '3');
+        res.status(503).send('Archivo en sincronización de iCloud Drive.');
+        return;
+      }
+      // status === 'not_found' -> fall through to _4K / _Broll_4K / audio extension fallback below
+    }
+
+    let stTarget = filePath.includes('com~apple~CloudDocs') && directMime
+      ? null
+      : await statFileIfExistsAsync(filePath);
     if (!stTarget) {
       // Fallback: if non-4K clip path was requested after upgrading to _4K.mp4 or _Broll_4K.mp4, redirect safely via 302 only on initial byte ranges
       const ext = path.extname(filePath);
@@ -10570,23 +11083,19 @@ app.get('/api/flow/serve-folder-file', async (req, res) => {
       } else if (stBroll4k) {
         matched4kFull = candidateBroll4k;
         matched4kStat = stBroll4k;
-      } else if (/^\.(?:mp4|mov|webm)$/i.test(ext) && (await statDirIfExistsAsync(dir))) {
+      } else if (/^\.(?:mp4|mov|webm)$/i.test(ext)) {
         const mNum = path
           .basename(filePath)
           .match(/^(?:(?:clip|broll|b[\-_]?roll|video|scene|escena)[_\-\s.]*)?0*(\d+)[_\-\s.(]/i);
         if (mNum) {
           const clipNum = parseInt(mNum[1], 10);
           const re4k = new RegExp(`^0*${clipNum}_.*(?:_Broll)?_4K\\.(?:mp4|mov|webm)$`, 'i');
-          const entries = await fsp.readdir(dir).catch(() => [] as string[]);
-          for (const dEntry of entries) {
-            if (!isTransientStagingEntry(dEntry) && re4k.test(dEntry)) {
-              const cand = path.join(dir, dEntry);
-              const candSt = await statFileIfExistsAsync(cand);
-              if (candSt) {
-                matched4kFull = cand;
-                matched4kStat = candSt;
-                break;
-              }
+          const dirScan = await scanDirStatsParallelCachedAsync(dir);
+          for (const dItem of dirScan.entries) {
+            if (!isTransientStagingEntry(dItem.name) && re4k.test(dItem.name)) {
+              matched4kFull = dItem.fullPath;
+              matched4kStat = dItem.stats;
+              break;
             }
           }
         }
@@ -10626,14 +11135,42 @@ app.get('/api/flow/serve-folder-file', async (req, res) => {
           res.status(404).send('Archivo no encontrado');
           return;
         }
+      } else if (await statDirIfExistsAsync(path.dirname(filePath))) {
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+        res.status(404).send('Archivo no encontrado');
+        return;
       } else {
         res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
         res.status(404).send('Archivo no encontrado');
         return;
       }
     }
+
     // Allow browser to cache final 4K MP4 range chunks in memory; never cache transient non-4K clips
     const resolvedFilePath = path.resolve(filePath);
+    const resolvedMime = getStreamableMediaMimeType(resolvedFilePath);
+    const cacheControlHeader = buildCacheControlForResolvedFile(resolvedFilePath);
+
+    if (resolvedFilePath.includes('com~apple~CloudDocs') && resolvedMime) {
+      const fdRes = await acquireIcloudReadFdBounded(resolvedFilePath, undefined, 45_000);
+      if (fdRes.status === 'ok') {
+        await streamFromCachedFd(
+          req,
+          res,
+          fdRes.entry,
+          resolvedFilePath,
+          resolvedMime,
+          cacheControlHeader
+        );
+        return;
+      }
+      kickIcloudDownloadDetached(resolvedFilePath);
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+      res.setHeader('Retry-After', '3');
+      res.status(503).send('Archivo en sincronización de iCloud Drive.');
+      return;
+    }
+
     const stFinal = stTarget || (await statFileIfExistsAsync(resolvedFilePath));
     if (!isMaterializedLocalFile(stFinal)) {
       kickIcloudDownloadDetached(resolvedFilePath);
@@ -10642,9 +11179,9 @@ app.get('/api/flow/serve-folder-file', async (req, res) => {
       res.status(503).send('Archivo en sincronización de iCloud Drive.');
       return;
     }
-    // Defeat macOS fileproviderd open()+read() kernel hangs on iCloud Drive paths before handing fd to res.sendFile
+    // Defeat macOS fileproviderd open()+read() kernel hangs on non-media iCloud Drive paths before handing fd to res.sendFile
     if (resolvedFilePath.includes('com~apple~CloudDocs')) {
-      const readProbe = await probeFileReadableBounded(resolvedFilePath, 1500);
+      const readProbe = await probeFileReadableBounded(resolvedFilePath, 12_000);
       if (!readProbe.ok) {
         kickIcloudDownloadDetached(resolvedFilePath);
         res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
@@ -10695,20 +11232,7 @@ app.get('/api/flow/serve-folder-file', async (req, res) => {
         }
       }
     }
-    const isTransientRawVideo =
-      /\.(?:mp4|webm|mov)$/i.test(resolvedFilePath) &&
-      !/[_\-]4k\.(?:mp4|webm|mov)$/i.test(resolvedFilePath) &&
-      !/(?:_WebPreview|_foley_v\d+|Intro|Outro)\.mp4$/i.test(resolvedFilePath);
-    const isMutableClipFolderAsset =
-      /(?:^|\/|\\)05_Clips_Video(?:\/|\\)/i.test(resolvedFilePath);
-    res.setHeader(
-      'Cache-Control',
-      isTransientRawVideo
-        ? 'no-store, no-cache, must-revalidate'
-        : isMutableClipFolderAsset
-          ? 'private, no-cache, must-revalidate'
-          : 'private, max-age=3600'
-    );
+    res.setHeader('Cache-Control', cacheControlHeader);
     res.sendFile(resolvedFilePath, { dotfiles: 'allow' }, (err: any) => {
       if (err && !res.headersSent) {
         if (err.statusCode === 416) {
@@ -12661,7 +13185,7 @@ function readTextFileIfMaterializedSafe(filePath: string): string {
 
 function ensureDocRootOpenable(
   resolvedRoot: string,
-  timeoutMs = 1500,
+  timeoutMs = 60000,
   failCooldownMs = 3000
 ): Promise<boolean> {
   if (!resolvedRoot) return Promise.resolve(false);
@@ -12677,53 +13201,26 @@ function ensureDocRootOpenable(
     return Promise.resolve(false);
   }
 
-  const probePromise = new Promise<boolean>((resolve) => {
-    let settled = false;
-    const finish = (ok: boolean) => {
-      if (settled) return;
-      settled = true;
-      inFlightDocRootProbePromises.delete(key);
-      if (ok) {
-        verifiedOpenableDocRoots.set(key, Date.now() + 5 * 60 * 1000);
-        lastDocRootFailAt.delete(key);
-      } else {
-        lastDocRootFailAt.set(key, Date.now());
-      }
-      resolve(ok);
-    };
-    try {
-      const proc = spawn(
-        process.execPath,
-        [
-          '-e',
-          'const fs=require("fs"),p=require("path"),r=process.argv[1];fs.readdirSync(r);const c=p.join(r,"05_Clips_Video");if(fs.existsSync(c))fs.readdirSync(c);process.exit(0);',
-          key,
-        ],
-        { stdio: 'ignore' }
-      );
-      const kt = setTimeout(() => {
-        try {
-          proc.kill('SIGKILL');
-        } catch {}
-      }, timeoutMs);
-      proc.on('close', (code) => {
-        clearTimeout(kt);
-        finish(code === 0);
-      });
-      proc.on('error', () => {
-        clearTimeout(kt);
-        finish(false);
-      });
-    } catch {
-      finish(false);
+  const probePromise = probeDocRootOpenableBounded(
+    key,
+    ['05_Clips_Video'],
+    Math.max(45000, timeoutMs)
+  ).then((ok) => {
+    inFlightDocRootProbePromises.delete(key);
+    if (ok) {
+      verifiedOpenableDocRoots.set(key, Date.now() + 5 * 60 * 1000);
+      lastDocRootFailAt.delete(key);
+    } else {
+      lastDocRootFailAt.set(key, Date.now());
     }
+    return ok;
   });
   inFlightDocRootProbePromises.set(key, probePromise);
   return probePromise;
 }
 
 async function hasPendingRawClipsInFolder(resolvedRoot: string): Promise<boolean> {
-  if (!resolvedRoot || !(await ensureDocRootOpenable(resolvedRoot, 1500, 15000)) || !fs.existsSync(resolvedRoot)) {
+  if (!resolvedRoot || !(await ensureDocRootOpenable(resolvedRoot, 15000, 15000))) {
     return false;
   }
   const clipsDir = path.join(resolvedRoot, '05_Clips_Video');
@@ -12738,7 +13235,12 @@ async function hasPendingRawClipsInFolder(resolvedRoot: string): Promise<boolean
     if (c.isStaticBroll || parsed.isStaticBroll) brollNums.add(cNum);
   }
   const promptsTxtFallback = path.join(resolvedRoot, '01_Guion_y_SEO', 'Prompts_Clips_Flow.txt');
-  const rawTxt = readTextFileIfMaterializedSafe(promptsTxtFallback);
+  const [clipsScan, rootScan, rawTxt] = await Promise.all([
+    scanDirStatsParallelCachedAsync(clipsDir),
+    scanDirStatsParallelCachedAsync(resolvedRoot),
+    readTextFileCachedAsync(promptsTxtFallback),
+  ]);
+  if (!rootScan.exists) return false;
   if (rawTxt) {
     for (const line of rawTxt.split(/\r?\n/)) {
       const mImg = line.trim().match(/^(?:Image|Imagen)\s+0*(\d+)(?:\s*\([^)]*\))?\s*:\s*(.+)$/i);
@@ -12750,31 +13252,27 @@ async function hasPendingRawClipsInFolder(resolvedRoot: string): Promise<boolean
     }
   }
 
-  for (const dir of [clipsDir, resolvedRoot]) {
-    if (!fs.existsSync(dir)) continue;
-    let entries: string[] = [];
-    try {
-      entries = fs.readdirSync(dir);
-    } catch {
-      continue;
-    }
-    for (const entry of entries) {
+  const nowCheckMs = Date.now();
+  for (const { isRoot, items } of [
+    { isRoot: false, items: clipsScan.entries },
+    { isRoot: true, items: rootScan.entries },
+  ]) {
+    for (const item of items) {
+      const entry = item.name;
+      const full = item.fullPath;
+      const st = item.stats;
       if (isTransientStagingEntry(entry)) continue;
-      if (dir === resolvedRoot && /^Documental_|_Master|_Final/i.test(entry)) continue;
-      const full = path.join(dir, entry);
-      if (!isFileStableForAutoPipeline(full, 'watcher')) continue;
+      if (isRoot && /^Documental_|_Master|_Final/i.test(entry)) continue;
+      if (!isMaterializedLocalFile(st) || nowCheckMs - st.mtimeMs < 2500) continue;
       const vidClipNum = matchVideoEntryClipNumber(entry);
       const explicitBrollClipNum = parseExplicitBrollClipNumFromImageName(entry);
       if (vidClipNum > 0 && isClipLifecycleLocked(resolvedRoot, vidClipNum)) continue;
       if (explicitBrollClipNum > 0 && isClipLifecycleLocked(resolvedRoot, explicitBrollClipNum)) continue;
       if (/\.zip$/i.test(entry)) return true;
       if (/\.(mp4|mov|webm)$/i.test(entry)) {
-        try {
-          const st = fs.statSync(full);
-          if (st.size > 10000 && !isVerified4kClipOnDisk(entry, st.size, full, st.mtimeMs)) {
-            return true;
-          }
-        } catch {}
+        if (st.size > 10000 && !isVerified4kClipOnDisk(entry, st.size, full, st.mtimeMs)) {
+          return true;
+        }
       }
       if (explicitBrollClipNum > 0) return true;
       if (brollNums.size > 0 && isEligibleBrollImageEntry(entry)) {
@@ -20324,47 +20822,68 @@ app.post('/api/instagram/webhook', async (req, res) => {
 
 // Auto-initialize newly created iCloud Drive documentary folders (e.g., created from iPhone Files app)
 // with the 6 standard subfolders and a root marker file so iOS Safari's folder picker never sees "Folder is Empty"
+const initializedIcloudFolderNames = new Set<string>();
+let isInitializingIcloudFolders = false;
+
 function ensureIcloudVideoFoldersInitialized() {
-  try {
-    const icloudVideosDir =
-      '/Users/raydelsantana/Library/Mobile Documents/com~apple~CloudDocs/0YouTube/Huellas de la Humanidad/Videos';
-    probeIcloudDriveReadyAsync(icloudVideosDir);
-    if (!icloudDriveVerifiedReady) return;
-    if (!fs.existsSync(icloudVideosDir)) return;
-    const subfolders = [
-      '01_Guion_y_SEO',
-      '02_Audio',
-      '03_Miniaturas',
-      '04_Referencias',
-      '05_Clips_Video',
-      '06_Video_Final',
-    ];
-    for (const entryName of listIcloudVideosDirCached(icloudVideosDir)) {
-      if (!entryName || entryName.startsWith('.')) continue;
-      if (!/^(?:video|ep\.?|documental)\s*\d+/i.test(entryName)) continue;
+  if (isInitializingIcloudFolders) return;
+  const icloudVideosDir =
+    '/Users/raydelsantana/Library/Mobile Documents/com~apple~CloudDocs/0YouTube/Huellas de la Humanidad/Videos';
+  probeIcloudDriveReadyAsync(icloudVideosDir);
+  if (!icloudDriveVerifiedReady) return;
+
+  const pendingEntries = listIcloudVideosDirCached(icloudVideosDir).filter(
+    (entryName) =>
+      entryName &&
+      !entryName.startsWith('.') &&
+      /^(?:video|ep\.?|documental)\s*\d+/i.test(entryName) &&
+      !initializedIcloudFolderNames.has(entryName)
+  );
+  if (pendingEntries.length === 0) return;
+
+  // On cold startup, mark existing folders initialized without hammering 77 folders; only initialize newly created ones (>1st pass) or process 1 per tick asynchronously
+  if (initializedIcloudFolderNames.size === 0 && pendingEntries.length > 3) {
+    for (const e of pendingEntries) initializedIcloudFolderNames.add(e);
+    return;
+  }
+
+  isInitializingIcloudFolders = true;
+  const subfolders = [
+    '01_Guion_y_SEO',
+    '02_Audio',
+    '03_Miniaturas',
+    '04_Referencias',
+    '05_Clips_Video',
+    '06_Video_Final',
+  ];
+  (async () => {
+    for (const entryName of pendingEntries.slice(0, 2)) {
+      initializedIcloudFolderNames.add(entryName);
       const folderFull = path.join(icloudVideosDir, entryName);
       try {
-        if (!fs.existsSync(folderFull) || !fs.statSync(folderFull).isDirectory()) continue;
-      } catch {
-        continue;
-      }
-      const markerPath = path.join(folderFull, '00_Carpeta_Raiz_Huellas.txt');
-      if (!fs.existsSync(markerPath)) {
-        for (const sub of subfolders) {
-          try {
-            fs.mkdirSync(path.join(folderFull, sub), { recursive: true });
-          } catch {}
+        const st = await withBoundedIcloudIo(() => fsp.stat(folderFull));
+        if (!st.isDirectory()) continue;
+        const markerPath = path.join(folderFull, '00_Carpeta_Raiz_Huellas.txt');
+        const hasMarker = await withBoundedIcloudIo(() =>
+          fsp.stat(markerPath).then(() => true).catch(() => false)
+        );
+        if (!hasMarker) {
+          for (const sub of subfolders) {
+            await fsp.mkdir(path.join(folderFull, sub), { recursive: true }).catch(() => {});
+          }
+          await fsp
+            .writeFile(
+              markerPath,
+              `Carpeta raíz del documental: ${entryName}\nSubcarpetas listas: ${subfolders.join(', ')}\n`,
+              'utf8'
+            )
+            .catch(() => {});
         }
-        try {
-          fs.writeFileSync(
-            markerPath,
-            `Carpeta raíz del documental: ${entryName}\nSubcarpetas listas: ${subfolders.join(', ')}\n`,
-            'utf8'
-          );
-        } catch {}
-      }
+      } catch {}
     }
-  } catch {}
+  })().finally(() => {
+    isInitializingIcloudFolders = false;
+  });
 }
 ensureIcloudVideoFoldersInitialized();
 setInterval(ensureIcloudVideoFoldersInitialized, 15000);
