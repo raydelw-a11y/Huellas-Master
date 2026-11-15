@@ -2,12 +2,19 @@ import express from 'express';
 import http from 'http';
 import path from 'path';
 import fs from 'fs';
+import fsp from 'fs/promises';
 import os from 'os';
 import { exec, execFile, execFileSync, execSync, spawn, ChildProcess } from 'child_process';
 import multer from 'multer';
 import dotenv from 'dotenv';
 import cors from 'cors';
 import { createFlowPcManager } from './server/flowPcManager';
+import {
+  createOfficialAssetsManager,
+  probeFileReadableBounded,
+  mayBeOfficialIntroOutroIcloudPath,
+  kickIcloudDownloadDetached,
+} from './server/officialAssets';
 import { GoogleGenAI, Type } from '@google/genai';
 import speech from '@google-cloud/speech';
 import textToSpeech from '@google-cloud/text-to-speech';
@@ -79,7 +86,7 @@ app.use((req, res, next) => {
   );
   res.setHeader(
     'Access-Control-Expose-Headers',
-    'Content-Range, Accept-Ranges, Content-Length'
+    'Content-Range, Accept-Ranges, Content-Length, ETag, Last-Modified, X-Official-Asset-Tier'
   );
   res.setHeader('Access-Control-Allow-Private-Network', 'true');
   res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
@@ -87,7 +94,10 @@ app.use((req, res, next) => {
     req.method === 'GET' &&
     !req.path.startsWith('/api/flow/serve-folder-file') &&
     !req.path.startsWith('/flow-cap/') &&
-    !req.path.startsWith('/api/assets/official-intro-stream')
+    !req.path.startsWith('/api/assets/official-intro-stream') &&
+    !req.path.startsWith('/api/assets/official-outro-stream') &&
+    !req.path.startsWith('/api/assets/official-intro-poster') &&
+    !req.path.startsWith('/api/assets/official-outro-poster')
   ) {
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     res.setHeader('Pragma', 'no-cache');
@@ -4727,6 +4737,12 @@ function resolveFfmpegBin(): string {
   return 'ffmpeg';
 }
 
+const officialAssetsManager = createOfficialAssetsManager({
+  dataDir: DATA_DIR,
+  getFfmpegBin: () => resolveFfmpegBin(),
+});
+officialAssetsManager.init();
+
 async function upscaleMp4BufferTo4K(inputBuffer: Buffer): Promise<Buffer> {
   const tmpDir = os.tmpdir();
   const stamp = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -5919,11 +5935,18 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
     if (overlays?.burnInLogo !== false) {
       const clientPrebakedOpacity = Boolean(overlays?.logo?.pngDataUrl);
       let logoDataUrl = overlays?.logo?.pngDataUrl || '';
-      if (!logoDataUrl && fs.existsSync(OFFICIAL_LOGO_FILE)) {
-        try {
-          const parsedLogo = JSON.parse(fs.readFileSync(OFFICIAL_LOGO_FILE, 'utf8'));
-          logoDataUrl = parsedLogo.logoDataUrl || '';
-        } catch {}
+      if (!logoDataUrl) {
+        for (const logoJsonCandidate of [OFFICIAL_LOGO_ASSETS_FILE, OFFICIAL_LOGO_FILE]) {
+          if (fs.existsSync(logoJsonCandidate)) {
+            try {
+              const parsedLogo = JSON.parse(fs.readFileSync(logoJsonCandidate, 'utf8'));
+              if (parsedLogo?.logoDataUrl) {
+                logoDataUrl = parsedLogo.logoDataUrl;
+                break;
+              }
+            } catch {}
+          }
+        }
       }
       const useMigrated16x9Defaults =
         targetFormatKey === '16:9' &&
@@ -6162,11 +6185,6 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
     const clipsSubdir = path.join(targetRoot, 'Clips_Aprobados');
     const foleyCacheSubdir = path.join(clipsVideoSubdir, '.foley_only_cache');
 
-    const introOutroDir = path.join(
-      process.env.HOME || '/Users/raydelsantana',
-      'Library/Mobile Documents/com~apple~CloudDocs/0YouTube/Huellas de la Humanidad/Intro:Outro'
-    );
-
     const reframeCacheByClipNum = new Map<
       number,
       {
@@ -6203,18 +6221,45 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       const fileName = c.fileName || `${String(c.clipNumber || i + 1).padStart(2, '0')}_Clip.mp4`;
       let sourceMp4 = '';
 
-      const isIntroClip = Number(c.clipNumber) === 0 || /intro_huellas/i.test(fileName);
-      const isOutroClip = Number(c.clipNumber) === 999 || /outro_huellas/i.test(fileName);
+      const isIntroClip =
+        Number(c.clipNumber) === 0 ||
+        c.id === 'fixed-doc-intro' ||
+        /intro_huellas/i.test(fileName);
+      const isOutroClip =
+        Number(c.clipNumber) === 999 ||
+        c.id === 'fixed-doc-outro' ||
+        /outro_huellas/i.test(fileName);
 
       const candidate0 = path.join(clipsVideoSubdir, fileName);
       const candidate1 = path.join(targetRoot, fileName);
       const candidate2 = path.join(clipsSubdir, fileName);
-      if (isIntroClip) {
-        const introPath = path.join(introOutroDir, 'Intro.mp4');
-        if (fs.existsSync(introPath)) sourceMp4 = introPath;
-      } else if (isOutroClip) {
-        const outroPath = path.join(introOutroDir, 'Outro.mp4');
-        if (fs.existsSync(outroPath)) sourceMp4 = outroPath;
+      if (isIntroClip || isOutroClip) {
+        const officialKind = isIntroClip ? 'intro' : 'outro';
+        const resolvedOfficial = await officialAssetsManager.resolveForExport(officialKind, {
+          timeoutMs: 25_000,
+        });
+        if (!resolvedOfficial.ok) {
+          const officialErrMsg = 'error' in resolvedOfficial ? resolvedOfficial.error : 'Error resolviendo activo oficial.';
+          const officialErrStatus = 'status' in resolvedOfficial ? resolvedOfficial.status : 500;
+          try {
+            fs.rmSync(workDir, { recursive: true, force: true });
+          } catch {}
+          activeRenderJobState = {
+            running: false,
+            progressPct: 0,
+            currentStep: 0,
+            totalSteps: 0,
+            stageLabel: '',
+            startedAt: 0,
+            error: officialErrMsg,
+          };
+          res.status(officialErrStatus).json({
+            ok: false,
+            error: officialErrMsg,
+          });
+          return;
+        }
+        sourceMp4 = resolvedOfficial.filePath;
       }
       if (sourceMp4) {
         // Already resolved Intro/Outro
@@ -6313,14 +6358,27 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
 
       const probedSegDur = !usingPrebakedOpticalFlow
         ? await new Promise<number>((resolve) => {
+            let settled = false;
+            const done = (val: number) => {
+              if (settled) return;
+              settled = true;
+              resolve(val);
+            };
             const p = spawn(ffmpegBin, ['-i', sourceMp4], {
               stdio: ['ignore', 'ignore', 'pipe'],
             });
+            const probeKillTimer = setTimeout(() => {
+              try {
+                p.kill('SIGKILL');
+              } catch {}
+              done(0);
+            }, 15_000);
             let se = '';
             p.stderr?.on('data', (d) => {
-              se += d.toString();
+              if (se.length < 32_768) se += d.toString();
             });
             p.on('close', () => {
+              clearTimeout(probeKillTimer);
               const m = se.match(/Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/);
               if (m) {
                 const sec =
@@ -6328,13 +6386,16 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
                   parseInt(m[2], 10) * 60 +
                   parseFloat(m[3]);
                 if (Number.isFinite(sec) && sec > 0.3) {
-                  resolve(Math.max(0.3, sec - 0.04));
+                  done(Math.max(0.3, sec - 0.04));
                   return;
                 }
               }
-              resolve(0);
+              done(0);
             });
-            p.on('error', () => resolve(0));
+            p.on('error', () => {
+              clearTimeout(probeKillTimer);
+              done(0);
+            });
           })
         : 0;
 
@@ -8559,80 +8620,65 @@ app.post('/api/assets/official-logo', (req, res) => {
 });
 
 // ============================================================================
-// PERMANENT OFFICIAL INTRO VIDEO (4s STINGER "MINIMALISMO EN PIEDRA Y ORO")
-// Uploaded ONCE, stored forever across all documentaries
+// PERMANENT OFFICIAL INTRO & OUTRO ASSETS (LOCAL SSD CACHE + BOUNDED ICLOUD HYDRATION)
+// All routes registered as explicit string literals to satisfy Gate 3 route parity
 // ============================================================================
-const OFFICIAL_INTRO_MP4_FILE = path.join(DATA_DIR, 'official_huellas_intro.mp4');
-const OFFICIAL_INTRO_META_FILE = path.join(DATA_DIR, 'official_huellas_intro.json');
-
-app.get('/api/assets/official-intro', (_req, res) => {
+app.get('/api/assets/official-assets-status', async (_req, res) => {
   try {
-    if (fs.existsSync(OFFICIAL_INTRO_MP4_FILE)) {
-      const stat = fs.statSync(OFFICIAL_INTRO_MP4_FILE);
-      let meta: any = {};
-      if (fs.existsSync(OFFICIAL_INTRO_META_FILE)) {
-        try {
-          meta = JSON.parse(fs.readFileSync(OFFICIAL_INTRO_META_FILE, 'utf8'));
-        } catch {}
-      }
-      res.json({
-        ok: true,
-        hasIntro: true,
-        introUrl: `/api/assets/official-intro-stream?t=${Math.floor(stat.mtimeMs)}`,
-        fileName: meta.fileName || 'Intro_Oficial_Huellas_4s.mp4',
-        updatedAt: meta.updatedAt || new Date(stat.mtimeMs).toISOString(),
-      });
-      return;
-    }
-    res.json({ ok: true, hasIntro: false, introUrl: '' });
-  } catch {
-    res.json({ ok: true, hasIntro: false, introUrl: '' });
+    const payload = await officialAssetsManager.getStatusPayload();
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.json(payload);
+  } catch (err: any) {
+    res.status(500).json({ ok: false, error: err?.message || 'Error consultando estado de assets oficiales.' });
   }
 });
 
-app.get('/api/assets/official-intro-stream', (_req, res) => {
-  try {
-    if (!fs.existsSync(OFFICIAL_INTRO_MP4_FILE)) {
-      res.status(404).json({ error: 'No hay video de Intro Oficial guardado.' });
-      return;
-    }
-    res.setHeader('Content-Type', 'video/mp4');
-    res.setHeader('Accept-Ranges', 'bytes');
-    res.setHeader('Cache-Control', 'private, max-age=3600');
-    res.sendFile(OFFICIAL_INTRO_MP4_FILE);
-  } catch (err: any) {
-    res.status(500).json({ error: err.message || 'Error sirviendo Intro Oficial.' });
-  }
+app.get('/api/assets/official-intro', (req, res) => {
+  void officialAssetsManager.handleGetMetadata('intro', req, res);
 });
 
 app.post('/api/assets/official-intro', (req, res) => {
-  try {
-    const { videoDataUrl, fileName = 'Intro_Oficial_Huellas_4s.mp4' } = req.body || {};
-    if (!videoDataUrl || typeof videoDataUrl !== 'string') {
-      res.status(400).json({ error: 'No se envió el archivo de video del Intro Oficial.' });
-      return;
-    }
-    if (!fs.existsSync(DATA_DIR)) {
-      fs.mkdirSync(DATA_DIR, { recursive: true });
-    }
-    const base64Clean = videoDataUrl.replace(/^data:[^;]+;base64,/, '');
-    const buf = Buffer.from(base64Clean, 'base64');
-    fs.writeFileSync(OFFICIAL_INTRO_MP4_FILE, buf);
-    const meta = {
-      fileName: String(fileName),
-      sizeBytes: buf.length,
-      updatedAt: new Date().toISOString(),
-    };
-    fs.writeFileSync(OFFICIAL_INTRO_META_FILE, JSON.stringify(meta, null, 2), 'utf8');
-    res.json({
-      ok: true,
-      hasIntro: true,
-      introUrl: `/api/assets/official-intro-stream?t=${Date.now()}`,
-      ...meta,
-    });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message || 'Error guardando Intro Oficial.' });
-  }
+  void officialAssetsManager.handleUploadCustom('intro', req, res);
+});
+
+app.get('/api/assets/official-outro', (req, res) => {
+  void officialAssetsManager.handleGetMetadata('outro', req, res);
+});
+
+app.post('/api/assets/official-outro', (req, res) => {
+  void officialAssetsManager.handleUploadCustom('outro', req, res);
+});
+
+app.get('/api/assets/official-intro-stream', (req, res) => {
+  void officialAssetsManager.handleStream('intro', req, res);
+});
+
+app.head('/api/assets/official-intro-stream', (req, res) => {
+  void officialAssetsManager.handleStream('intro', req, res);
+});
+
+app.get('/api/assets/official-outro-stream', (req, res) => {
+  void officialAssetsManager.handleStream('outro', req, res);
+});
+
+app.head('/api/assets/official-outro-stream', (req, res) => {
+  void officialAssetsManager.handleStream('outro', req, res);
+});
+
+app.get('/api/assets/official-intro-poster', (req, res) => {
+  void officialAssetsManager.handlePoster('intro', req, res);
+});
+
+app.head('/api/assets/official-intro-poster', (req, res) => {
+  void officialAssetsManager.handlePoster('intro', req, res);
+});
+
+app.get('/api/assets/official-outro-poster', (req, res) => {
+  void officialAssetsManager.handlePoster('outro', req, res);
+});
+
+app.head('/api/assets/official-outro-poster', (req, res) => {
+  void officialAssetsManager.handlePoster('outro', req, res);
 });
 
 // ============================================================================
@@ -10339,12 +10385,29 @@ app.post('/api/flow/sync-reference-downloads', async (req, res) => {
   }
 });
 
-app.get('/api/flow/serve-folder-file', (req, res) => {
+app.get('/api/flow/serve-folder-file', async (req, res) => {
+  const statFileIfExistsAsync = async (target: string): Promise<fs.Stats | null> => {
+    try {
+      const st = await fsp.stat(target);
+      return st.isFile() ? st : null;
+    } catch {
+      return null;
+    }
+  };
+  const statDirIfExistsAsync = async (target: string): Promise<boolean> => {
+    try {
+      const st = await fsp.stat(target);
+      return st.isDirectory();
+    } catch {
+      return false;
+    }
+  };
+
   try {
     res.setHeader('Accept-Ranges', 'bytes');
     res.setHeader(
       'Access-Control-Expose-Headers',
-      'Content-Range, Accept-Ranges, Content-Length'
+      'Content-Range, Accept-Ranges, Content-Length, ETag, Last-Modified, X-Official-Asset-Tier'
     );
     let filePath = String(req.query.filePath || '').trim();
     if (!filePath) {
@@ -10352,37 +10415,51 @@ app.get('/api/flow/serve-folder-file', (req, res) => {
       res.status(404).send('Archivo no encontrado');
       return;
     }
+
+    // Immediate local SSD short-circuit for any legacy Intro:Outro iCloud path (zero iCloud stat/open)
+    const matchedOfficialAsset = mayBeOfficialIntroOutroIcloudPath(filePath);
+    if (matchedOfficialAsset) {
+      if (matchedOfficialAsset.mediaType === 'poster') {
+        await officialAssetsManager.handlePoster(matchedOfficialAsset.kind, req, res);
+      } else {
+        await officialAssetsManager.handleStream(matchedOfficialAsset.kind, req, res);
+      }
+      return;
+    }
+
     // Redirect legacy destructive _foley_only.mp4 or _foley_v2.mp4 (FFT warble) requests to _foley_v3.mp4 or the pristine source MP4
     if (/_foley_(?:only|v2)\.mp4$/i.test(filePath)) {
       const v3Candidate = filePath.replace(/_foley_(?:only|v2)\.mp4$/i, '_foley_v3.mp4');
-      if (fs.existsSync(v3Candidate) && fs.statSync(v3Candidate).isFile()) {
+      if (await statFileIfExistsAsync(v3Candidate)) {
         filePath = v3Candidate;
       } else if (filePath.includes('.foley_only_cache')) {
         const parentDir = path.dirname(path.dirname(filePath));
         const origName = path.basename(filePath).replace(/_foley_(?:only|v2)\.mp4$/i, '.mp4');
         const origCandidate = path.join(parentDir, origName);
-        if (fs.existsSync(origCandidate) && fs.statSync(origCandidate).isFile()) {
+        if (await statFileIfExistsAsync(origCandidate)) {
           filePath = origCandidate;
         }
       } else {
         const unSuffixed = filePath.replace(/_foley_(?:only|v2)\.mp4$/i, '.mp4');
-        if (fs.existsSync(unSuffixed) && fs.statSync(unSuffixed).isFile()) {
+        if (await statFileIfExistsAsync(unSuffixed)) {
           filePath = unSuffixed;
         }
       }
     }
-    // Serve 1080p H.264 web-preview for 8K HEVC Intro.mp4 / Outro.mp4 so browser live playback never stutters or distorts audio
+    // Serve 1080p H.264 web-preview for 8K HEVC Intro.mp4 / Outro.mp4 outside Intro:Outro if present
     if (/(?:^|[\/\\])(Intro|Outro)\.mp4$/i.test(filePath)) {
       const baseName = path.basename(filePath, '.mp4');
       const webPreviewCandidate = path.join(
         path.dirname(filePath),
         `.${baseName}_WebPreview.mp4`
       );
-      if (fs.existsSync(webPreviewCandidate) && fs.statSync(webPreviewCandidate).isFile()) {
+      if (await statFileIfExistsAsync(webPreviewCandidate)) {
         filePath = webPreviewCandidate;
       }
     }
-    if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+
+    let stTarget = await statFileIfExistsAsync(filePath);
+    if (!stTarget) {
       // Fallback: if non-4K clip path was requested after upgrading to _4K.mp4 or _Broll_4K.mp4, redirect safely via 302 only on initial byte ranges
       const ext = path.extname(filePath);
       const baseNoExt = path
@@ -10393,32 +10470,42 @@ app.get('/api/flow/serve-folder-file', (req, res) => {
       const candidate4k = path.join(dir, `${baseNoExt}_4K${ext}`);
       const candidateBroll4k = path.join(dir, `${baseNoExt}_Broll_4K${ext}`);
       let matched4kFull = '';
-      if (fs.existsSync(candidate4k) && fs.statSync(candidate4k).isFile()) {
+      let matched4kStat: fs.Stats | null = null;
+
+      const st4kDirect = await statFileIfExistsAsync(candidate4k);
+      const stBroll4k = !st4kDirect ? await statFileIfExistsAsync(candidateBroll4k) : null;
+      if (st4kDirect) {
         matched4kFull = candidate4k;
-      } else if (fs.existsSync(candidateBroll4k) && fs.statSync(candidateBroll4k).isFile()) {
+        matched4kStat = st4kDirect;
+      } else if (stBroll4k) {
         matched4kFull = candidateBroll4k;
-      } else if (/^\.(?:mp4|mov|webm)$/i.test(ext) && fs.existsSync(dir)) {
+        matched4kStat = stBroll4k;
+      } else if (/^\.(?:mp4|mov|webm)$/i.test(ext) && (await statDirIfExistsAsync(dir))) {
         const mNum = path
           .basename(filePath)
           .match(/^(?:(?:clip|broll|b[\-_]?roll|video|scene|escena)[_\-\s.]*)?0*(\d+)[_\-\s.(]/i);
         if (mNum) {
           const clipNum = parseInt(mNum[1], 10);
           const re4k = new RegExp(`^0*${clipNum}_.*(?:_Broll)?_4K\\.(?:mp4|mov|webm)$`, 'i');
-          for (const dEntry of fs.readdirSync(dir)) {
+          const entries = await fsp.readdir(dir).catch(() => [] as string[]);
+          for (const dEntry of entries) {
             if (!isTransientStagingEntry(dEntry) && re4k.test(dEntry)) {
               const cand = path.join(dir, dEntry);
-              if (fs.existsSync(cand) && fs.statSync(cand).isFile()) {
+              const candSt = await statFileIfExistsAsync(cand);
+              if (candSt) {
                 matched4kFull = cand;
+                matched4kStat = candSt;
                 break;
               }
             }
           }
         }
       }
-      if (matched4kFull) {
-        const st4k = fs.statSync(matched4kFull);
-        if (!isMaterializedLocalFile(st4k)) {
+      if (matched4kFull && matched4kStat) {
+        if (!isMaterializedLocalFile(matched4kStat)) {
+          kickIcloudDownloadDetached(matched4kFull);
           res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+          res.setHeader('Retry-After', '3');
           res.status(503).send('Archivo 4K en sincronización de iCloud Drive.');
           return;
         }
@@ -10434,14 +10521,16 @@ app.get('/api/flow/serve-folder-file', (req, res) => {
           : '';
         res.redirect(
           302,
-          `/api/flow/serve-folder-file?filePath=${encodeURIComponent(matched4kFull)}&v=${Math.floor(st4k.mtimeMs)}${frameProbeSuffix}`
+          `/api/flow/serve-folder-file?filePath=${encodeURIComponent(matched4kFull)}&v=${Math.floor(matched4kStat.mtimeMs)}${frameProbeSuffix}`
         );
         return;
       } else if (/^\.(?:wav|mp3|m4a)$/i.test(ext)) {
         const altExt = ext.toLowerCase() === '.wav' ? '.mp3' : '.wav';
         const altAudioCandidate = path.join(dir, `${path.basename(filePath, ext)}${altExt}`);
-        if (fs.existsSync(altAudioCandidate) && fs.statSync(altAudioCandidate).isFile()) {
+        const altSt = await statFileIfExistsAsync(altAudioCandidate);
+        if (altSt) {
           filePath = altAudioCandidate;
+          stTarget = altSt;
         } else {
           res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
           res.status(404).send('Archivo no encontrado');
@@ -10455,13 +10544,28 @@ app.get('/api/flow/serve-folder-file', (req, res) => {
     }
     // Allow browser to cache final 4K MP4 range chunks in memory; never cache transient non-4K clips
     const resolvedFilePath = path.resolve(filePath);
-    const stFinal = fs.statSync(resolvedFilePath);
+    const stFinal = stTarget || (await statFileIfExistsAsync(resolvedFilePath));
     if (!isMaterializedLocalFile(stFinal)) {
+      kickIcloudDownloadDetached(resolvedFilePath);
       res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+      res.setHeader('Retry-After', '3');
       res.status(503).send('Archivo en sincronización de iCloud Drive.');
       return;
     }
-    const fileSize = stFinal.size;
+    // Defeat macOS fileproviderd open()+read() kernel hangs on iCloud Drive paths before handing fd to res.sendFile
+    if (resolvedFilePath.includes('com~apple~CloudDocs')) {
+      const readProbe = await probeFileReadableBounded(resolvedFilePath, 1500);
+      if (!readProbe.ok) {
+        kickIcloudDownloadDetached(resolvedFilePath);
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+        res.setHeader('Retry-After', '3');
+        res
+          .status(503)
+          .send('Archivo en sincronización de iCloud Drive (retenido temporalmente por fileproviderd).');
+        return;
+      }
+    }
+    const fileSize = stFinal!.size;
     const rangeHeader = req.headers.range;
     if (typeof rangeHeader === 'string') {
       const m = rangeHeader.match(/bytes=(\d*)-(\d*)/);
@@ -10526,7 +10630,9 @@ app.get('/api/flow/serve-folder-file', (req, res) => {
       }
     });
   } catch (err: any) {
-    res.status(500).send(err.message || 'Error sirviendo archivo');
+    if (!res.headersSent) {
+      res.status(500).send(err.message || 'Error sirviendo archivo');
+    }
   }
 });
 
@@ -22242,6 +22348,21 @@ flowCapEarlyHandler = flowPcManager.earlyMiddleware;
 ensureHealthyMediaTunnelRef = flowPcManager.ensureHealthyMediaTunnel;
 flowPcManager.registerRoutes(app);
 
+// Serve only the AES-256-GCM encrypted media bridge tunnel envelope cleanly (no directory listing)
+app.get('/data/flow_pc_tunnel.enc.json', (_req, res) => {
+  try {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    const encFile = path.join(DATA_DIR, 'flow_pc_tunnel.enc.json');
+    if (fs.existsSync(encFile) && fs.statSync(encFile).isFile()) {
+      res.type('application/json').send(fs.readFileSync(encFile, 'utf8'));
+      return;
+    }
+    res.status(404).json({ ok: false, error: 'Encrypted tunnel envelope not found.' });
+  } catch (err: any) {
+    res.status(500).json({ ok: false, error: err?.message || 'Error reading encrypted tunnel envelope.' });
+  }
+});
+
 // Setup Vite Dev Server or Production static serving
 async function bootstrap() {
   const httpServer = http.createServer(app);
@@ -22263,6 +22384,14 @@ async function bootstrap() {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
     app.get('*', (req, res) => {
+      if (
+        req.path.startsWith('/api/') ||
+        req.path.startsWith('/data/') ||
+        req.path.startsWith('/flow-cap/')
+      ) {
+        res.status(404).json({ ok: false, error: 'Not found' });
+        return;
+      }
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }

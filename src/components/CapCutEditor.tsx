@@ -56,11 +56,15 @@ import {
   getOrderedMediaBridgeBases,
   getMediaBridgeCandidateTimeoutMs,
   evictDeadMediaBridgeOrigin,
+  probeMediaBridgeOrigin,
   refreshLiveMacMediaTunnelUrl,
   stripEphemeralMediaBridgeOrigin,
   rewriteMediaBridgeUrl,
   appendMediaFrameProbeParam,
   persistDiscoveredMacTunnel,
+  isOfficialAssetMedia,
+  verifyMediaBridgeHealthOrRefresh,
+  toCanonicalMediaBridgePath,
 } from '../utils/mediaBridge';
 
 export type ExportResolutionPreset = 'HD_1080P' | '2K_1440P' | '4K_2160P' | '8K_4320P';
@@ -165,28 +169,35 @@ function isEditorFolderItemDiscarded(
   return false;
 }
 
-function buildOfficialIntroOutroUrls() {
-  const introOutroBasePath =
-    '/Users/raydelsantana/Library/Mobile Documents/com~apple~CloudDocs/0YouTube/Huellas de la Humanidad/Intro:Outro';
-  const rawIntroUrl = `/api/flow/serve-folder-file?filePath=${encodeURIComponent(
-    `${introOutroBasePath}/Intro.mp4`
-  )}&v=clean_native_audio_v2`;
-  const rawIntroPosterUrl = `/api/flow/serve-folder-file?filePath=${encodeURIComponent(
-    `${introOutroBasePath}/.Intro_Poster.jpg`
-  )}&v=clean_native_audio_v2`;
-  const rawOutroUrl = `/api/flow/serve-folder-file?filePath=${encodeURIComponent(
-    `${introOutroBasePath}/Outro.mp4`
-  )}&v=clean_native_audio_v2`;
-  const rawOutroPosterUrl = `/api/flow/serve-folder-file?filePath=${encodeURIComponent(
-    `${introOutroBasePath}/.Outro_Poster.jpg`
-  )}&v=clean_native_audio_v2`;
-  const introVideoUrl =
-    rewriteMediaBridgeUrl(rawIntroUrl) ||
-    rewriteMediaBridgeUrl('/api/assets/official-intro-stream') ||
-    '/api/assets/official-intro-stream';
-  const introPosterUrl = rewriteMediaBridgeUrl(rawIntroPosterUrl);
-  const outroVideoUrl = rewriteMediaBridgeUrl(rawOutroUrl);
-  const outroPosterUrl = rewriteMediaBridgeUrl(rawOutroPosterUrl);
+function appendOfficialAssetVersion(rawUrl: string, version?: number): string {
+  const clean = String(rawUrl || '').trim();
+  if (!clean) return '';
+  const ver =
+    typeof version === 'number' && Number.isFinite(version) && version > 0
+      ? Math.floor(version)
+      : 0;
+  if (!ver || clean.startsWith('blob:') || clean.startsWith('data:')) return clean;
+  if (!isOfficialAssetMedia(clean)) return clean;
+  if (/([?&])v=[^&]*/i.test(clean)) {
+    return clean.replace(/([?&])v=[^&]*/i, `$1v=${ver}`);
+  }
+  const sep = clean.includes('?') ? '&' : '?';
+  return `${clean}${sep}v=${ver}`;
+}
+
+function buildOfficialIntroOutroUrls(version?: number) {
+  const introVideoUrl = rewriteMediaBridgeUrl(
+    appendOfficialAssetVersion('/api/assets/official-intro-stream', version)
+  );
+  const introPosterUrl = rewriteMediaBridgeUrl(
+    appendOfficialAssetVersion('/api/assets/official-intro-poster', version)
+  );
+  const outroVideoUrl = rewriteMediaBridgeUrl(
+    appendOfficialAssetVersion('/api/assets/official-outro-stream', version)
+  );
+  const outroPosterUrl = rewriteMediaBridgeUrl(
+    appendOfficialAssetVersion('/api/assets/official-outro-poster', version)
+  );
   return { introVideoUrl, introPosterUrl, outroVideoUrl, outroPosterUrl };
 }
 
@@ -1400,6 +1411,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   // 2B. Permanent Official Intro Stinger Video (8s — Fixed across all documentaries)
   const [officialIntroUrl, setOfficialIntroUrl] = useState<string>('');
   const [officialIntroFileName, setOfficialIntroFileName] = useState<string>('');
+  const [officialAssetsVersion, setOfficialAssetsVersion] = useState<number>(0);
   const [introPlacementMode, setIntroPlacementMode] = useState<'INTRO_POST_SLOGAN' | 'INTRO_INICIO_00'>(() => {
     return activeDoc?.promptConfig?.UBICACION_INTRO_MARCA === 'INTRO_POST_SLOGAN'
       ? 'INTRO_POST_SLOGAN'
@@ -3340,6 +3352,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
   const deckErrorRetryRef = useRef<Record<string, number>>({});
   const triggerEditorFolderMediaRescanRef = useRef<() => void>(() => {});
+  const pendingOfficialAssetsVersionRef = useRef<number>(0);
+  const officialVideoRetryTimersRef = useRef<Set<number>>(new Set());
+  const fetchOfficialAssetsStatusRef = useRef<() => Promise<void>>(async () => {});
+  const isPlayingRef = useRef<boolean>(false);
+  isPlayingRef.current = isPlaying;
 
   const previewVideoRef = useRef<HTMLVideoElement | null>(null);
   const deckAVideoRef = useRef<HTMLVideoElement | null>(null);
@@ -3847,7 +3864,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               /^https?:\/\//i.test(base) &&
               (res.status === 502 || res.status === 503 || res.status === 504 || res.status === 530)
             ) {
-              evictDeadMediaBridgeOrigin(base);
+              void verifyMediaBridgeHealthOrRefresh(base);
             }
             continue;
           }
@@ -3884,7 +3901,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               ) {
                 continue;
               }
-              const resolvedVidUrl = prefix(String(item.url));
+              const resolvedVidUrl =
+                toCanonicalMediaBridgePath(String(item.url || '')) || prefix(String(item.url));
               if (resolvedVidUrl) {
                 nextVids[cNum] = resolvedVidUrl;
               }
@@ -3991,7 +4009,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           }
         } catch {
           if (!cancelled && base && /^https?:\/\//i.test(base)) {
-            evictDeadMediaBridgeOrigin(base);
+            void verifyMediaBridgeHealthOrRefresh(base);
           }
         } finally {
           window.clearTimeout(timer);
@@ -4242,29 +4260,158 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     setVoiceAudioError(false);
   }, [effectiveVoiceoverUrl]);
 
-  // Load permanent official logo from server on mount if not already in localStorage
-  useEffect(() => {
-    fetch('/api/assets/official-logo')
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (data?.logoDataUrl) {
-          setOfficialLogoUrl(data.logoDataUrl);
-          localStorage.setItem(PERMANENT_LOGO_STORAGE_KEY, data.logoDataUrl);
-          if (onOfficialLogoChange) onOfficialLogoChange(data.logoDataUrl);
+  const fetchOfficialAssetsJson = async (
+    endpointPath: string,
+    init?: RequestInit,
+    signal?: AbortSignal
+  ): Promise<any | null> => {
+    const bases = getOrderedMediaBridgeBases();
+    for (const base of bases) {
+      if (signal?.aborted) return null;
+      const ctrl = new AbortController();
+      const timeoutMs = getMediaBridgeCandidateTimeoutMs(base);
+      const timer = window.setTimeout(() => ctrl.abort(), timeoutMs);
+      const onParentAbort = () => ctrl.abort();
+      signal?.addEventListener('abort', onParentAbort, { once: true });
+      try {
+        const res = await fetch(`${base}${endpointPath}`, {
+          ...init,
+          cache: 'no-store',
+          signal: ctrl.signal,
+        });
+        if (!res.ok) {
+          if (
+            base &&
+            /^https?:\/\//i.test(base) &&
+            (res.status === 502 || res.status === 503 || res.status === 504 || res.status === 530)
+          ) {
+            const alive = await probeMediaBridgeOrigin(base, 3500).catch(() => false);
+            if (!alive) {
+              evictDeadMediaBridgeOrigin(base);
+            }
+          }
+          continue;
         }
-      })
-      .catch(() => {});
+        const ctype = res.headers.get('content-type') || '';
+        if (!ctype.includes('application/json')) continue;
+        const data = await res.json().catch(() => null);
+        if (!data) continue;
+        if (base && /^https:\/\//i.test(base)) {
+          persistDiscoveredMacTunnel(base);
+        }
+        return data;
+      } catch {
+        continue;
+      } finally {
+        window.clearTimeout(timer);
+        signal?.removeEventListener('abort', onParentAbort);
+      }
+    }
+    return null;
+  };
 
-    fetch('/api/assets/official-intro')
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (data?.hasIntro && data?.introUrl) {
-          setOfficialIntroUrl(data.introUrl);
-          setOfficialIntroFileName(data.fileName || 'Intro_Oficial_Huellas_4s.mp4');
-        }
-      })
-      .catch(() => {});
+  const applyOrDeferOfficialAssetsVersion = (nextVerRaw: unknown) => {
+    const nextVer = Math.floor(Number(nextVerRaw) || 0);
+    if (nextVer <= 0) return;
+    const playingIntroOrOutro =
+      isPlayingRef.current &&
+      (activePlayingClipIdRef.current === 'fixed-doc-intro' ||
+        activePlayingClipIdRef.current === 'fixed-doc-outro');
+    if (playingIntroOrOutro) {
+      pendingOfficialAssetsVersionRef.current = nextVer;
+      return;
+    }
+    pendingOfficialAssetsVersionRef.current = 0;
+    setOfficialAssetsVersion((prev) => (prev === nextVer ? prev : nextVer));
+  };
+
+  // Cleanup any pending asset retry timers on unmount
+  useEffect(() => {
+    return () => {
+      officialVideoRetryTimersRef.current.forEach((tid) => window.clearTimeout(tid));
+      officialVideoRetryTimersRef.current.clear();
+    };
   }, []);
+
+  // Load permanent official logo, intro, and asset hydration status reactively when Media Bridge updates
+  useEffect(() => {
+    let cancelled = false;
+    const ac = new AbortController();
+    let pollTimer: number | null = null;
+    let pollTicks = 0;
+    let lastCheckedTier = '';
+
+    const loadStatusOnce = async (): Promise<boolean> => {
+      const statusData = await fetchOfficialAssetsJson(
+        '/api/assets/official-assets-status',
+        undefined,
+        ac.signal
+      );
+      if (cancelled || !statusData) return false;
+      applyOrDeferOfficialAssetsVersion(statusData.version);
+      const introTier = String(statusData.intro?.tier || '');
+      const outroTier = String(statusData.outro?.tier || '');
+      const hydrating = Boolean(statusData.intro?.hydrating || statusData.outro?.hydrating);
+      const combinedTier = `${introTier}:${outroTier}`;
+      if (combinedTier !== lastCheckedTier && (introTier === 'icloud_hydrated' || introTier === 'custom_uploaded')) {
+        lastCheckedTier = combinedTier;
+        const introMeta = await fetchOfficialAssetsJson('/api/assets/official-intro', undefined, ac.signal);
+        if (!cancelled && introMeta?.hasIntro && introMeta?.introUrl) {
+          setOfficialIntroUrl(introMeta.introUrl);
+          setOfficialIntroFileName(introMeta.fileName || 'Intro_Oficial_Huellas_8s.mp4');
+        }
+      }
+      return hydrating || introTier === 'fallback' || outroTier === 'fallback';
+    };
+
+    fetchOfficialAssetsStatusRef.current = async () => {
+      await loadStatusOnce();
+    };
+
+    void fetchOfficialAssetsJson('/api/assets/official-logo', undefined, ac.signal).then((data) => {
+      if (cancelled || !data?.logoDataUrl) return;
+      setOfficialLogoUrl(data.logoDataUrl);
+      try {
+        localStorage.setItem(PERMANENT_LOGO_STORAGE_KEY, data.logoDataUrl);
+      } catch {}
+      if (onOfficialLogoChange) onOfficialLogoChange(data.logoDataUrl);
+    });
+
+    void fetchOfficialAssetsJson('/api/assets/official-intro', undefined, ac.signal).then((data) => {
+      if (cancelled || !data?.hasIntro || !data?.introUrl) return;
+      setOfficialIntroUrl(data.introUrl);
+      setOfficialIntroFileName(data.fileName || 'Intro_Oficial_Huellas_8s.mp4');
+    });
+
+    void loadStatusOnce().then((needsPoll) => {
+      if (cancelled || !needsPoll) return;
+      pollTimer = window.setInterval(() => {
+        if (cancelled) return;
+        pollTicks += 1;
+        if (pollTicks > 12) {
+          if (pollTimer !== null) {
+            window.clearInterval(pollTimer);
+            pollTimer = null;
+          }
+          return;
+        }
+        void loadStatusOnce().then((stillNeedsPoll) => {
+          if (!stillNeedsPoll && pollTimer !== null) {
+            window.clearInterval(pollTimer);
+            pollTimer = null;
+          }
+        });
+      }, 5000);
+    });
+
+    return () => {
+      cancelled = true;
+      ac.abort();
+      if (pollTimer !== null) {
+        window.clearInterval(pollTimer);
+      }
+    };
+  }, [mediaBridgeGen]);
 
   // Save permanent official logo (One-time upload for all documentaries)
   const handleUploadPermanentLogo = (file: File) => {
@@ -4276,7 +4423,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       localStorage.setItem(PERMANENT_LOGO_STORAGE_KEY, dataUrl);
       if (onOfficialLogoChange) onOfficialLogoChange(dataUrl);
       try {
-        await fetch('/api/assets/official-logo', {
+        await fetchOfficialAssetsJson('/api/assets/official-logo', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ logoDataUrl: dataUrl }),
@@ -4296,15 +4443,17 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       const dataUrl = typeof reader.result === 'string' ? reader.result : '';
       if (!dataUrl) return;
       try {
-        const resp = await fetch('/api/assets/official-intro', {
+        const data = await fetchOfficialAssetsJson('/api/assets/official-intro', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ videoDataUrl: dataUrl, fileName: file.name }),
         });
-        const data = await resp.json();
         if (data?.ok && data.introUrl) {
           setOfficialIntroUrl(data.introUrl);
           setOfficialIntroFileName(file.name);
+          const nextVer = Math.floor(Number(data.version) || Date.now());
+          pendingOfficialAssetsVersionRef.current = 0;
+          setOfficialAssetsVersion(nextVer);
           setStatusMessage(
             `✅ Video de Intro Oficial "${file.name}" (4s) guardado permanentemente para todos tus documentales.`
           );
@@ -4485,7 +4634,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     );
     const isFullScheduleReviewed =
       !hasStage6ScriptClips || uniqueReviewedBodyNums.size >= allScriptClips.length;
-    const effectiveOutroClip = isFullScheduleReviewed ? fixedOutroClip : null;
+    const effectiveOutroClip = fixedOutroClip ?? null;
 
     // Ensure Clip 1 (all parts with clipNumber === 1) covers the full 8s Hook before Voiceover starts
     // Never kidnap Clip 2+ into the silent Hook slot when Clip 1 has not been marked reviewed yet
@@ -4699,8 +4848,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       introPosterUrl,
       outroVideoUrl,
       outroPosterUrl,
-    } = buildOfficialIntroOutroUrls();
-    const effectiveIntroUrl = officialIntroUrl || defaultIntro8kUrl;
+    } = buildOfficialIntroOutroUrls(officialAssetsVersion);
+    const effectiveIntroUrl =
+      (officialIntroUrl
+        ? rewriteMediaBridgeUrl(appendOfficialAssetVersion(officialIntroUrl, officialAssetsVersion))
+        : '') || defaultIntro8kUrl;
 
     const introClipItem: TimelineClipItem = {
       id: 'fixed-doc-intro',
@@ -4744,7 +4896,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       audioFadeOutSec: 2.5,
       transition: 'crossfade',
       videoUrl: outroVideoUrl,
-      posterUrl: outroPosterUrl,
+      posterUrl: outroPosterUrl || officialLogoUrl || undefined,
       reviewedForEditor: true,
     };
 
@@ -4888,7 +5040,21 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     }
 
     const { introVideoUrl, introPosterUrl, outroVideoUrl, outroPosterUrl } =
-      buildOfficialIntroOutroUrls();
+      buildOfficialIntroOutroUrls(officialAssetsVersion);
+    const resolvedIntroVideoUrl =
+      (officialIntroUrl
+        ? rewriteMediaBridgeUrl(appendOfficialAssetVersion(officialIntroUrl, officialAssetsVersion))
+        : '') || introVideoUrl;
+    const resolvedIntroPosterUrl =
+      rewriteMediaBridgeUrl(firstFrameByClip[0] || '') ||
+      introPosterUrl ||
+      officialLogoUrl ||
+      undefined;
+    const resolvedOutroPosterUrl =
+      rewriteMediaBridgeUrl(firstFrameByClip[999] || '') ||
+      outroPosterUrl ||
+      officialLogoUrl ||
+      undefined;
 
     // 1. Build Clips Track (Track 3) — Stage 6 reviewedForEditor is the sole eligibility gate when documentary clips exist
     const allDocClips = activeDoc.clips || [];
@@ -5179,8 +5345,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           ? savedOrExistingIntro.audioFadeOutSec
           : 2.5,
       transition: 'crossfade',
-      videoUrl: introVideoUrl,
-      posterUrl: introPosterUrl,
+      videoUrl: resolvedIntroVideoUrl,
+      posterUrl: resolvedIntroPosterUrl,
       reviewedForEditor: true,
     };
 
@@ -5213,7 +5379,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           : 2.5,
       transition: 'crossfade',
       videoUrl: outroVideoUrl,
-      posterUrl: outroPosterUrl,
+      posterUrl: resolvedOutroPosterUrl,
       reviewedForEditor: true,
     };
 
@@ -5318,6 +5484,36 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         let anyRegeneratedOrUpdated = false;
         sourceClipsForBuild = survivingCustom.map(
           (tc) => {
+          const isIntroOrOutroRestored =
+            tc.id === 'fixed-doc-intro' ||
+            tc.id === 'fixed-doc-outro' ||
+            tc.clipNumber === 0 ||
+            tc.clipNumber === 999;
+          if (isIntroOrOutroRestored) {
+            const isIntroItem = tc.id === 'fixed-doc-intro' || tc.clipNumber === 0;
+            const cleanVideoUrl = isIntroItem ? resolvedIntroVideoUrl : outroVideoUrl;
+            const cleanPosterUrl =
+              (isIntroItem ? resolvedIntroPosterUrl : resolvedOutroPosterUrl) || '';
+            const hasPoisonedLegacyUrl =
+              !tc.videoUrl ||
+              tc.videoUrl.includes('Intro%3AOutro') ||
+              tc.videoUrl.includes('Intro:Outro') ||
+              tc.videoUrl.includes('/api/flow/serve-folder-file');
+            if (
+              hasPoisonedLegacyUrl ||
+              cleanVideoUrl !== (tc.videoUrl || '') ||
+              cleanPosterUrl !== (tc.posterUrl || '')
+            ) {
+              anyRegeneratedOrUpdated = true;
+            }
+            return {
+              ...tc,
+              transition: normalizeEditorClipTransition(tc.transition),
+              videoUrl: cleanVideoUrl,
+              posterUrl: cleanPosterUrl || undefined,
+              reviewedForEditor: true,
+            };
+          }
           const docClipMatch = activeDoc?.clips?.find((dc) => dc.clipNumber === tc.clipNumber);
           const activeCombinedUrl = combinedClipVideosMap[tc.clipNumber] || '';
           const rewrittenTcVideoUrl = rewriteMediaBridgeUrl(tc.videoUrl);
@@ -5398,11 +5594,6 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               /_broll_4k/i.test(tc.fileName || '') ||
               /_broll_4k/i.test(effectiveVideoUrl || '')
           );
-          const isIntroOrOutroRestored =
-            tc.id === 'fixed-doc-intro' ||
-            tc.id === 'fixed-doc-outro' ||
-            tc.clipNumber === 0 ||
-            tc.clipNumber === 999;
           const isClip1Restored = tc.clipNumber === 1;
           const hasExplicitAudioVolume =
             Boolean(tc.customVolumeSet) ||
@@ -5531,7 +5722,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       sourceClipsForBuild,
       docIntroPlacement,
       fixedIntroClip,
-      isSyncFullScheduleReviewed ? fixedOutroClip : null
+      fixedOutroClip
     );
 
     const builtClips = alignedBuiltClips.map((bc) => {
@@ -6001,7 +6192,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       ...Object.keys(firstFrameByClip).map(Number),
     ])
   )
-    .filter((n) => n > 0)
+    .filter((n) => n >= 0)
     .sort((a, b) => a - b);
 
   const capturedClipVideosSignature = `${mediaBridgeGen}:${getMediaBridgeSnapshot().activeOrigin}|` + allKnownClipNums
@@ -6038,6 +6229,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     folderVoiceoverUrl,
     effectiveVoiceDurationSec,
     sloganSplitAudioSec,
+    officialIntroUrl,
+    officialAssetsVersion,
     mediaBridgeGen,
   ]);
 
@@ -7843,6 +8036,57 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const activeDeckSlot = deckAssignRef.current.activeSlot;
   const deckAUrl = deckAssignRef.current.slotUrls[0];
   const deckBUrl = deckAssignRef.current.slotUrls[1];
+
+  useEffect(() => {
+    const pendingVer = pendingOfficialAssetsVersionRef.current;
+    if (!pendingVer || pendingVer === officialAssetsVersion) return;
+    const isCurrentIntroOrOutro = activeClipAtPlayhead
+      ? activeClipAtPlayhead.id === 'fixed-doc-intro' ||
+        activeClipAtPlayhead.id === 'fixed-doc-outro' ||
+        activeClipAtPlayhead.clipNumber === 0 ||
+        activeClipAtPlayhead.clipNumber === 999
+      : activePlayingClipIdRef.current === 'fixed-doc-intro' ||
+        activePlayingClipIdRef.current === 'fixed-doc-outro';
+    if (!isPlaying || !isCurrentIntroOrOutro) {
+      pendingOfficialAssetsVersionRef.current = 0;
+      setOfficialAssetsVersion(pendingVer);
+    }
+  }, [
+    isPlaying,
+    activeClipAtPlayhead?.id,
+    activeClipAtPlayhead?.clipNumber,
+    officialAssetsVersion,
+  ]);
+
+  const verifyOriginAndMaybeEvict = async (failedUrl: string): Promise<boolean> => {
+    const refreshed = await verifyMediaBridgeHealthOrRefresh(failedUrl);
+    return Boolean(refreshed);
+  };
+
+  const resolvePosterThumbSrc = (
+    clip?: {
+      id?: string;
+      clipNumber?: number;
+      posterUrl?: string;
+    } | null
+  ): string => {
+    if (!clip) return '';
+    const isIntroOrOutro =
+      clip.id === 'fixed-doc-intro' ||
+      clip.id === 'fixed-doc-outro' ||
+      clip.clipNumber === 0 ||
+      clip.clipNumber === 999;
+    const raw =
+      (typeof clip.clipNumber === 'number' ? firstFrameByClip[clip.clipNumber] : '') ||
+      clip.posterUrl ||
+      (isIntroOrOutro ? officialLogoUrl : '') ||
+      '';
+    if (!raw) return '';
+    if (raw.startsWith('data:') || raw.startsWith('blob:')) return raw;
+    const rewritten = rewriteMediaBridgeUrl(raw);
+    if (rewritten) return rewritten;
+    return isIntroOrOutro && officialLogoUrl ? officialLogoUrl : '';
+  };
 
   const activeCaptionAtPlayhead = useMemo(() => {
     return (
@@ -9919,13 +10163,17 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         );
       }
 
+      const canonicalFreshUrl = toCanonicalMediaBridgePath(renderedData.url);
       const freshUrl =
         renderedData.url.startsWith('/') && chosenBase
           ? `${chosenBase}${renderedData.url}`
           : renderedData.url;
       const freshFileName = renderedData.fileName || targetClip.fileName;
 
-      setLocalServerClipVideosMap((prev) => ({ ...prev, [clipNum]: freshUrl }));
+      setLocalServerClipVideosMap((prev) => ({
+        ...prev,
+        [clipNum]: canonicalFreshUrl || freshUrl,
+      }));
       delete extractedVideoUrlByClipRef.current[clipNum];
 
       const docId = activeDoc?.id || 'default';
@@ -12008,13 +12256,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           clipsWithTimelineBounds.find((c) => simTime >= c.start && simTime < c.end) ||
           clipsWithTimelineBounds[0];
 
-        if (clip?.posterUrl) {
+        const simPosterSrc = resolvePosterThumbSrc(clip);
+        if (simPosterSrc) {
           const frameImg = await new Promise<HTMLImageElement | null>((resolve) => {
             const im = new Image();
             im.crossOrigin = 'anonymous';
             im.onload = () => resolve(im);
             im.onerror = () => resolve(null);
-            im.src = clip.posterUrl!;
+            im.src = simPosterSrc;
           });
           if (frameImg) {
             const isSimIntro = clip.id === 'fixed-doc-intro' || clip.clipNumber === 0;
@@ -13531,7 +13780,12 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 const isCurr = currentTime >= clip.start && currentTime < clip.end;
                 const isMultiSel = selectedClipIds.includes(clip.id);
                 const isSelected = isMultiSel || selectedClipId === clip.id;
-                const thumb = firstFrameByClip[clip.clipNumber] || clip.posterUrl;
+                const thumb = resolvePosterThumbSrc(clip);
+                const isCardIntroOrOutro =
+                  clip.id === 'fixed-doc-intro' ||
+                  clip.id === 'fixed-doc-outro' ||
+                  clip.clipNumber === 0 ||
+                  clip.clipNumber === 999;
                 return (
                   <div
                     key={`left-clip-${clip.id}`}
@@ -13599,6 +13853,21 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                           src={thumb}
                           alt={clip.fileName}
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          onError={(e) => {
+                            const imgEl = e.currentTarget;
+                            const failedSrc = imgEl.currentSrc || thumb || '';
+                            if (
+                              isCardIntroOrOutro &&
+                              officialLogoUrl &&
+                              !imgEl.dataset.fbApplied
+                            ) {
+                              imgEl.dataset.fbApplied = '1';
+                              imgEl.src = officialLogoUrl;
+                            }
+                            if (/^https?:\/\//i.test(failedSrc)) {
+                              void verifyMediaBridgeHealthOrRefresh(failedSrc);
+                            }
+                          }}
                         />
                       ) : (
                         <span className="text-xs text-amber-300/90 font-bold">
@@ -14043,7 +14312,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 }
               >
               {/* Layer 1: True Dual-Deck (A/B Ping-Pong) Hardware Video Engine with 85ms Pre-Roll (0ms Decoder Swap, Zero Frozen Last Frame) */}
-              {activeClipAtPlayhead?.videoUrl ? (
+              {activeClipEffectiveUrl ? (
                 <div
                   className="relative w-full h-full overflow-hidden bg-black"
                   style={{
@@ -14220,19 +14489,37 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                             : nextClipAtPlayhead;
                           const clipNum = targetClip?.clipNumber;
                           const failedSrc = slotSrc || targetClip?.videoUrl || '';
+                          const isOfficialUrl =
+                            isOfficialAssetMedia(failedSrc) ||
+                            clipNum === 0 ||
+                            clipNum === 999;
                           const retryKey = `${clipNum ?? slotIdx}:${failedSrc.slice(-64)}`;
                           const attempts = (deckErrorRetryRef.current[retryKey] || 0) + 1;
                           deckErrorRetryRef.current[retryKey] = attempts;
-                          if (attempts > 3) return;
+                          const maxAttempts = isOfficialUrl ? 4 : 3;
+                          if (attempts > maxAttempts) return;
 
                           if (/^https?:\/\//i.test(failedSrc)) {
-                            evictDeadMediaBridgeOrigin(failedSrc);
+                            void verifyMediaBridgeHealthOrRefresh(failedSrc).then((evicted) => {
+                              if (evicted && !isOfficialUrl) {
+                                triggerEditorFolderMediaRescanRef.current();
+                              }
+                            });
                           }
-                          void refreshLiveMacMediaTunnelUrl({ force: true }).then((freshOrigin) => {
-                            if (freshOrigin) {
-                              triggerEditorFolderMediaRescanRef.current();
-                            }
-                          });
+
+                          if (isOfficialUrl) {
+                            const tid = window.setTimeout(() => {
+                              officialVideoRetryTimersRef.current.delete(tid);
+                              void fetchOfficialAssetsStatusRef.current();
+                              if (vidEl.isConnected && vidEl.getAttribute('src')) {
+                                try {
+                                  vidEl.load();
+                                } catch {}
+                              }
+                            }, 2500);
+                            officialVideoRetryTimersRef.current.add(tid);
+                            return;
+                          }
 
                           const docClip = clipNum
                             ? activeDoc?.clips?.find((dc) => dc.clipNumber === clipNum)
@@ -14272,29 +14559,45 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     );
                   })}
                 </div>
-              ) : (
+              ) : (() => {
+                const storyboardPosterSrc = resolvePosterThumbSrc(activeClipAtPlayhead);
+                const isStoryboardIntroOrOutro =
+                  activeClipAtPlayhead?.id === 'fixed-doc-intro' ||
+                  activeClipAtPlayhead?.id === 'fixed-doc-outro' ||
+                  activeClipAtPlayhead?.clipNumber === 0 ||
+                  activeClipAtPlayhead?.clipNumber === 999;
+                return (
                 /* Animated Cinematic Storyboard Canvas (with Poster / Static B-Roll image fallback) when no .MP4 is loaded yet */
                 <div className="w-full h-full relative overflow-hidden bg-gradient-to-br from-[#1b140c] via-[#0c1118] to-[#060504] flex flex-col items-center justify-center p-6 text-center">
-                  {activeClipAtPlayhead?.posterUrl && (
+                  {storyboardPosterSrc && (
                     <img
-                      src={rewriteMediaBridgeUrl(activeClipAtPlayhead.posterUrl)}
-                      alt={activeClipAtPlayhead.fileName || `Escena ${activeClipAtPlayhead.clipNumber}`}
+                      src={storyboardPosterSrc}
+                      alt={activeClipAtPlayhead?.fileName || `Escena ${activeClipAtPlayhead?.clipNumber}`}
                       className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none opacity-85 transition-transform duration-150 ease-linear"
                       style={{
                         transform: `scale(${kenBurnsScale}) translateX(${kenBurnsPanX}%)`,
                       }}
                       onError={(e) => {
-                        const failedImgSrc = e.currentTarget.currentSrc || activeClipAtPlayhead.posterUrl || '';
+                        const imgEl = e.currentTarget;
+                        const failedImgSrc =
+                          imgEl.currentSrc || storyboardPosterSrc || activeClipAtPlayhead?.posterUrl || '';
+                        if (
+                          isStoryboardIntroOrOutro &&
+                          officialLogoUrl &&
+                          !imgEl.dataset.fbApplied
+                        ) {
+                          imgEl.dataset.fbApplied = '1';
+                          imgEl.src = officialLogoUrl;
+                        }
                         if (/^https?:\/\//i.test(failedImgSrc)) {
-                          evictDeadMediaBridgeOrigin(failedImgSrc);
-                          void refreshLiveMacMediaTunnelUrl({ force: true });
+                          void verifyMediaBridgeHealthOrRefresh(failedImgSrc);
                         }
                       }}
                     />
                   )}
                   <div
                     className={`absolute inset-0 ${
-                      activeClipAtPlayhead?.posterUrl ? 'bg-black/35 opacity-60' : 'opacity-35'
+                      storyboardPosterSrc ? 'bg-black/35 opacity-60' : 'opacity-35'
                     } pointer-events-none transition-transform duration-150 ease-linear`}
                     style={{
                       transform: `scale(${kenBurnsScale}) translateX(${kenBurnsPanX}%)`,
@@ -14376,7 +14679,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     )}
                   </div>
                 </div>
-              )}
+                );
+              })()}
 
               {/* Canonical 520p WYSIWYG Overlay Stage: guarantees 100% identical text size, line wrapping & distribution in Normal Mode, Fullscreen & Exported Video */}
               <div
@@ -18306,22 +18610,36 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
                         {useCompactCard ? (
                           <>
-                            {firstFrameByClip[clip.clipNumber] || clip.posterUrl ? (
-                              <img
-                                src={rewriteMediaBridgeUrl(
-                                  firstFrameByClip[clip.clipNumber] || clip.posterUrl
-                                )}
-                                alt={clip.fileName}
-                                className="absolute inset-0 w-full h-full object-cover opacity-65 group-hover:opacity-90 transition"
-                                onError={(e) => {
-                                  const failedThumb = e.currentTarget.currentSrc || '';
-                                  if (/^https?:\/\//i.test(failedThumb)) {
-                                    evictDeadMediaBridgeOrigin(failedThumb);
-                                    void refreshLiveMacMediaTunnelUrl({ force: true });
-                                  }
-                                }}
-                              />
-                            ) : null}
+                            {(() => {
+                              const compactThumbSrc = resolvePosterThumbSrc(clip);
+                              const isCompactIntroOrOutro =
+                                clip.id === 'fixed-doc-intro' ||
+                                clip.id === 'fixed-doc-outro' ||
+                                clip.clipNumber === 0 ||
+                                clip.clipNumber === 999;
+                              return compactThumbSrc ? (
+                                <img
+                                  src={compactThumbSrc}
+                                  alt={clip.fileName}
+                                  className="absolute inset-0 w-full h-full object-cover opacity-65 group-hover:opacity-90 transition"
+                                  onError={(e) => {
+                                    const imgEl = e.currentTarget;
+                                    const failedThumb = imgEl.currentSrc || compactThumbSrc || '';
+                                    if (
+                                      isCompactIntroOrOutro &&
+                                      officialLogoUrl &&
+                                      !imgEl.dataset.fbApplied
+                                    ) {
+                                      imgEl.dataset.fbApplied = '1';
+                                      imgEl.src = officialLogoUrl;
+                                    }
+                                    if (/^https?:\/\//i.test(failedThumb)) {
+                                      void verifyMediaBridgeHealthOrRefresh(failedThumb);
+                                    }
+                                  }}
+                                />
+                              ) : null;
+                            })()}
                             <div className="relative z-10 flex flex-col items-center justify-between h-full w-full text-center pointer-events-none">
                               <span
                                 className={`px-1 py-0.5 rounded font-black text-[9px] leading-none truncate max-w-full ${
@@ -18406,22 +18724,35 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                               </span>
                             </div>
 
-                            {firstFrameByClip[clip.clipNumber] || clip.posterUrl ? (
-                              <div className="relative z-10 h-12 w-full rounded overflow-hidden bg-black border border-slate-800">
-                                <img
-                                  src={rewriteMediaBridgeUrl(
-                                    firstFrameByClip[clip.clipNumber] || clip.posterUrl
-                                  )}
-                                  alt={clip.fileName}
-                                  className="w-full h-full object-cover"
-                                  onError={(e) => {
-                                    const failedThumb = e.currentTarget.currentSrc || '';
-                                    if (/^https?:\/\//i.test(failedThumb)) {
-                                      evictDeadMediaBridgeOrigin(failedThumb);
-                                      void refreshLiveMacMediaTunnelUrl({ force: true });
-                                    }
-                                  }}
-                                />
+                            {(() => {
+                              const expandedThumbSrc = resolvePosterThumbSrc(clip);
+                              const isExpandedIntroOrOutro =
+                                clip.id === 'fixed-doc-intro' ||
+                                clip.id === 'fixed-doc-outro' ||
+                                clip.clipNumber === 0 ||
+                                clip.clipNumber === 999;
+                              return expandedThumbSrc ? (
+                                <div className="relative z-10 h-12 w-full rounded overflow-hidden bg-black border border-slate-800">
+                                  <img
+                                    src={expandedThumbSrc}
+                                    alt={clip.fileName}
+                                    className="w-full h-full object-cover"
+                                    onError={(e) => {
+                                      const imgEl = e.currentTarget;
+                                      const failedThumb = imgEl.currentSrc || expandedThumbSrc || '';
+                                      if (
+                                        isExpandedIntroOrOutro &&
+                                        officialLogoUrl &&
+                                        !imgEl.dataset.fbApplied
+                                      ) {
+                                        imgEl.dataset.fbApplied = '1';
+                                        imgEl.src = officialLogoUrl;
+                                      }
+                                      if (/^https?:\/\//i.test(failedThumb)) {
+                                        void verifyMediaBridgeHealthOrRefresh(failedThumb);
+                                      }
+                                    }}
+                                  />
                                 {clip.speed < 1.0 && clip.smoothSlowMo !== false && (
                                   <span className="absolute top-1 left-1 px-1.5 py-0.5 rounded bg-sky-500/90 text-[8px] font-black text-slate-950 shadow">
                                     🌊 Optical Flow {clip.speed}x {clip.opticalFlowUrl ? '✓' : ''}
@@ -18499,7 +18830,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                                   {stripPauseTags(clip.narrationSegment || clip.videoPrompt || 'Sin .MP4 aún')}
                                 </span>
                               </div>
-                            )}
+                            );
+                          })()}
 
                             <div className="relative z-10 flex items-center justify-between text-[9px] text-slate-400 pt-0.5 border-t border-slate-800/80">
                               <span className={clip.speed < 1.0 ? 'text-sky-300 font-bold' : ''}>

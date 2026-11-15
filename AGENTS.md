@@ -2,7 +2,7 @@
 
 > Fuente canónica de protocolos y triaje: `~/.gemini/config/GEMINI.md` (`user_global`) y `./GEMINI.md`. Este archivo define los IDs verificados de Antigravity/`localhost:4200` y el rol técnico de cada motor.
 
-## 1. Catálogo de 7 Motores Distintos (+ Upgrade `XHigh` en Nivel 8 / MÁXIMO)
+## 1. Catálogo de 7 Motores Distintos (+ Upgrade `XHigh` en Nivel 8 / MÁXIMO y Perspectivas Manuales Pre-Fase 0 `Copilot` / `Claude`)
 
 | Orden | Nombre de Roster / Puente | ID Canónico / Endpoint | Especialidad en el Debate |
 | :--- | :--- | :--- | :--- |
@@ -14,14 +14,15 @@
 | **#5★** | `hydrogen-xhigh` *(Nivel 8 / MÁXIMO)* | `gemini-4-hydrogen-xhigh` | Auditoría Exhaustiva Línea por Línea a máxima potencia de razonamiento (`XHigh`). |
 | **#6** | `ChatGPT Web` *(Fase 0, Nivel 6+)* | `POST /api/chatgpt-web/ask-external` | Primera perspectiva externa independiente en inglés (`https://chatgpt.com/`, `active: false`), ejecutada **antes** de R1. |
 | **#7** | `Gemini Web` *(Fase 0, Niveles 7–8)* | `POST /api/gemini-web/ask-external` | Segunda perspectiva externa limpia fuera de Notebooks (`Quick answers`, `active: false`), ejecutada **antes** de R1. |
+| **#8 / #9** *(Opcionales)* | `Copilot` / `Claude` *(Pre-Fase 0, Niveles 6–8)* | Bloque ```` ```text ... ``` ```` en inglés entregado al usuario | Perspectivas externas manuales opcionales en inglés; el coordinador pregunta al usuario justo antes de Fase 0 y, si acepta, entrega el prompt en inglés y lanza en paralelo las Webs automáticas (`ChatGPT Web` / `Gemini Web`) esperando todas las respuestas antes de abrir R1. |
 
-## 2. Resumen Rápido de los 8 Niveles (`+1 Modelo por Nivel` + Fase 0 Web antes de R1)
+## 2. Resumen Rápido de los 8 Niveles (`+1 Modelo por Nivel` + Pre-Fase 0 `Copilot`/`Claude` + Fase 0 Web antes de R1)
 
 - **`MODO 1` (`SOLO`, `0–1 pts`)**: `Orchestrator` (1 modelo — ejecución directa).
 - **`MODO 2` (`DUO`, `2 pts`)**: `Orchestrator` + `Carbon High` (2 modelos — R1 + R2).
 - **`MODO 3` (`TRIO`, `3 pts`)**: `+ Argon High` (3 modelos — R1 + R2).
 - **`MODO 4` (`CUATRO`, `4 pts`)**: `+ Flash 3.8 High` (4 modelos — R1 + R2).
 - **`MODO 5` (`CINCO`, `5 pts`)**: `+ Hydrogen High` (5 motores internos directos al código, 0 webs — R1 + R2).
-- **`MODO 6` (`SEIS`, `6 pts`)**: `ChatGPT Web` **PRIMERO (Fase 0)** → al recibir respuesta, arranca R1 con los 5 motores internos + R2 (6 modelos).
-- **`MODO 7` (`SIETE`, `7–8 pts`)**: `ChatGPT Web` + `Gemini Web` (`Quick answers`) **PRIMERO en paralelo (Fase 0)** → al recibir ambas respuestas, arranca R1 con los 5 motores internos + R2 (7 modelos).
-- **`MODO 8` (`OCHO` / `MÁXIMO`, `9–10 pts`)**: `ChatGPT Web` + `Gemini Web` **PRIMERO en paralelo (Fase 0)** → al recibir ambas respuestas, arranca R1 con los 5 motores internos elevando `Hydrogen` → **`Hydrogen XHigh`** + **Auditoría Exhaustiva Línea por Línea** + R2 (7 modelos en potencia máxima).
+- **`MODO 6` (`SEIS`, `6 pts`)**: **Pre-Fase 0** (preguntar al usuario si desea consultar manualmente a `Copilot` o `Claude`; si acepta, entregar el mismo prompt 100% en inglés en bloque ```` ```text ... ``` ```` y arrancar en paralelo `ChatGPT Web`) → al reunir todas las respuestas externas (`ChatGPT Web` + manuales si aplican), arranca R1 con los 5 motores internos + R2 (6+ modelos).
+- **`MODO 7` (`SIETE`, `7–8 pts`)**: **Pre-Fase 0** (preguntar al usuario si desea consultar manualmente a `Copilot` o `Claude`; si acepta, entregar el mismo prompt 100% en inglés en bloque ```` ```text ... ``` ```` y arrancar en paralelo `ChatGPT Web` + `Gemini Web` `Quick answers`) → al reunir todas las respuestas externas, arranca R1 con los 5 motores internos + R2 (7+ modelos).
+- **`MODO 8` (`OCHO` / `MÁXIMO`, `9–10 pts`)**: **Pre-Fase 0** (preguntar al usuario si desea consultar manualmente a `Copilot` o `Claude`; si acepta, entregar el mismo prompt 100% en inglés en bloque ```` ```text ... ``` ```` y arrancar en paralelo `ChatGPT Web` + `Gemini Web` `Quick answers`) → al reunir todas las respuestas externas, arranca R1 con los 5 motores internos elevando `Hydrogen` → **`Hydrogen XHigh`** + **Auditoría Exhaustiva Línea por Línea** + R2 (7+ modelos en potencia máxima). *(Aplica igualmente cuando ocurre Auto-Escalado desde Niveles `1..5 → 6..8`)*.
