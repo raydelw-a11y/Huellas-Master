@@ -11637,6 +11637,44 @@ async function checkExtensionAutoReloadFromLocalServer(isStartup = false) {
           claimedExternalAskIds.delete(grokTask.id);
         }
       }
+
+      const copilotTasks = Array.isArray(data?.pendingExternalCopilotAsks)
+        ? data.pendingExternalCopilotAsks
+        : data?.pendingExternalCopilotAsk
+          ? [data.pendingExternalCopilotAsk]
+          : [];
+      for (const copilotTask of copilotTasks) {
+        if (!copilotTask || !copilotTask.id || claimedExternalAskIds.has(copilotTask.id)) continue;
+        claimedExternalAskIds.add(copilotTask.id);
+        const claimRes = await fetch('http://localhost:4200/api/copilot-web/ask-external-claim', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: copilotTask.id,
+            hasAppWindow: presence.hasAppWindow,
+            hasWorkspace: presence.hasWorkspace,
+          }),
+        })
+          .then((r) => r.json())
+          .catch(() => null);
+        if (claimRes && claimRes.ok) {
+          runExternalCopilotAskOrder(copilotTask).catch((err) => {
+            if (trySettleExternalAsk(copilotTask.id)) {
+              fetch('http://localhost:4200/api/copilot-web/ask-external-result', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  requestId: copilotTask.id,
+                  ok: false,
+                  error: String(err?.message || err),
+                }),
+              }).catch(() => {});
+            }
+          });
+        } else {
+          claimedExternalAskIds.delete(copilotTask.id);
+        }
+      }
     }
 
     // Sweep any orphaned temporary Gemini/ChatGPT windows whose server-side ask-external request already finished, timed out, or restarted
