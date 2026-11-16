@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useLayoutEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react';
 import {
   Film,
   Play,
@@ -3489,6 +3489,20 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const activePlayingSeparatedVocalIdRef = useRef<string | null>(null);
   const activePlayingSeparatedMusicIdRef = useRef<string | null>(null);
   const clipEndedHoldRef = useRef<boolean>(false);
+
+  // Decoupled 60fps GPU Playhead & Imperative DOM Refs (Silky Smooth Playback Engine)
+  const playheadNeedleRef = useRef<HTMLDivElement | null>(null);
+  const playheadBadgeTextRef = useRef<HTMLDivElement | null>(null);
+  const timelineToolbarTimeRef = useRef<HTMLSpanElement | null>(null);
+  const viewerTimecodeRef = useRef<HTMLSpanElement | null>(null);
+  const viewerRangeInputRef = useRef<HTMLInputElement | null>(null);
+  const playheadRafIdRef = useRef<number | null>(null);
+  const lastFlushedClipIdRef = useRef<string | null>(null);
+  const lastFlushedCaptionIdRef = useRef<string | null>(null);
+  const lastReactCommitMsRef = useRef<number>(0);
+  const lastDecimaRef = useRef<number>(-1);
+  const lastSecIntRef = useRef<number>(-1);
+  const lastRateNudgeMsRef = useRef<number>(0);
   const timelineScrollContainerRef = useRef<HTMLDivElement | null>(null);
   const timelineRulerScrollRef = useRef<HTMLDivElement | null>(null);
   const timelineRulerLaneRef = useRef<HTMLDivElement | null>(null);
@@ -8902,6 +8916,49 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     vo.volume = baseLinear;
   };
 
+  // Imperative DOM playhead synchronization: updates GPU transform on needle and time displays without React re-render
+  const syncPlayheadDomImperatively = useCallback((t: number) => {
+    const safeT = Math.max(0, Math.min(totalDurationSecRef.current, t));
+    const needleEl = playheadNeedleRef.current;
+    if (needleEl) {
+      let offsetX = 0;
+      if (isFitEntireProjectRef.current) {
+        const laneEl = timelineRulerLaneRef.current;
+        const totalW = laneEl && laneEl.clientWidth > 0 ? laneEl.clientWidth : 1000;
+        const progress = Math.min(1, Math.max(0, safeT / Math.max(1, totalDurationSecRef.current)));
+        offsetX = totalW * progress;
+      } else {
+        offsetX = safeT * timelineZoomRef.current;
+      }
+      needleEl.style.transform = `translate3d(${offsetX.toFixed(2)}px, 0, 0)`;
+    }
+
+    if (!isScrubbingRulerRef.current && viewerRangeInputRef.current) {
+      viewerRangeInputRef.current.value = String(safeT);
+    }
+
+    const decima = Math.floor(safeT * 10);
+    if (decima !== lastDecimaRef.current) {
+      lastDecimaRef.current = decima;
+      const mmss = formatTimeMMSS(safeT);
+      const d = Math.floor((safeT % 1) * 10);
+      if (playheadBadgeTextRef.current) {
+        playheadBadgeTextRef.current.textContent = `${mmss}.${d}`;
+      }
+      if (timelineToolbarTimeRef.current) {
+        timelineToolbarTimeRef.current.textContent = `• ${mmss}.${d}`;
+      }
+    }
+
+    const secInt = Math.floor(safeT);
+    if (secInt !== lastSecIntRef.current) {
+      lastSecIntRef.current = secInt;
+      if (viewerTimecodeRef.current) {
+        viewerTimecodeRef.current.textContent = `00:${formatTimeMMSS(safeT)}`;
+      }
+    }
+  }, []);
+
   // Explicit manual seek helper so user scrubbing immediately updates wall-clock anchor & media players without backward drift
   const seekToTime = (targetSec: number) => {
     const clamped = Math.max(0, Math.min(totalDurationSec, targetSec));
@@ -8910,6 +8967,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     playWallStartMsRef.current = performance.now();
     lastSeekVersionRef.current += 1;
     clipEndedHoldRef.current = false;
+    syncPlayheadDomImperatively(clamped);
     setCurrentTime(clamped);
     const clipAtTarget = clipsWithTimelineBounds.find(
       (c) => clamped >= c.start && clamped < c.end
@@ -9075,8 +9133,15 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const handleTogglePlay = () => {
     const nextPlaying = !isPlaying;
     if (!nextPlaying) {
+      if (playheadRafIdRef.current) {
+        cancelAnimationFrame(playheadRafIdRef.current);
+        playheadRafIdRef.current = null;
+      }
       setIsPlaying(false);
       setCinemaAmbienceActive(false);
+      const pausedSec = currentTimeRef.current;
+      setCurrentTime(pausedSec);
+      syncPlayheadDomImperatively(pausedSec);
       if (deckAVideoRef.current) {
         try {
           deckAVideoRef.current.pause();
@@ -9085,6 +9150,16 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       if (deckBVideoRef.current) {
         try {
           deckBVideoRef.current.pause();
+        } catch {}
+      }
+      if (voiceAudioRef.current) {
+        try {
+          voiceAudioRef.current.pause();
+        } catch {}
+      }
+      if (musicAudioRef.current) {
+        try {
+          musicAudioRef.current.pause();
         } catch {}
       }
       if (naturalClipFoleyAudioRef.current) {
@@ -9306,6 +9381,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   isViewerFullscreenRef.current = isViewerFullscreen;
   const totalDurationSecRef = useRef(totalDurationSec);
   totalDurationSecRef.current = totalDurationSec;
+  const clipsWithTimelineBoundsRef = useRef(clipsWithTimelineBounds);
+  clipsWithTimelineBoundsRef.current = clipsWithTimelineBounds;
+  const captionsRef = useRef(captions);
+  captionsRef.current = captions;
+  const timelineZoomRef = useRef(timelineZoom);
+  timelineZoomRef.current = timelineZoom;
+  const isFitEntireProjectRef = useRef(isFitEntireProject);
+  isFitEntireProjectRef.current = isFitEntireProject;
 
   // Global keyboard shortcuts for the Video Editor viewer:
   // - Space: Play / Pause (when Video Editor is active)
@@ -9364,10 +9447,13 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     postSloganIntroBounds,
   };
 
-  // True Wall-Clock Playback Loop with Damped Audio-Master PLL (performance.now() anchored + soft phase-lock to hardware voiceAudioRef)
+  // True Wall-Clock Playback Loop with 60fps GPU Playhead & Damped Audio-Master PLL
   useEffect(() => {
     if (!isPlaying) {
-      if (playIntervalRef.current) clearInterval(playIntervalRef.current);
+      if (playheadRafIdRef.current) {
+        cancelAnimationFrame(playheadRafIdRef.current);
+        playheadRafIdRef.current = null;
+      }
       if (deckAVideoRef.current) {
         try {
           deckAVideoRef.current.pause();
@@ -9402,21 +9488,30 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
     playTimelineStartSecRef.current = currentTimeRef.current;
     playWallStartMsRef.current = performance.now();
+    lastReactCommitMsRef.current = performance.now();
+    lastFlushedClipIdRef.current = activeClipAtPlayhead?.id || null;
+    lastFlushedCaptionIdRef.current = activeCaptionAtPlayhead?.id || null;
 
-    const stepMs = 33;
-    playIntervalRef.current = setInterval(() => {
+    let isLoopRunning = true;
+
+    const tick = () => {
+      if (!isLoopRunning) return;
+
       const nowMs = performance.now();
       const elapsedSec = (nowMs - playWallStartMsRef.current) / 1000;
       let next = playTimelineStartSecRef.current + elapsedSec;
-      if (next >= totalDurationSec) {
+
+      if (next >= totalDurationSecRef.current) {
         currentTimeRef.current = 0;
         playTimelineStartSecRef.current = 0;
         playWallStartMsRef.current = nowMs;
+        syncPlayheadDomImperatively(0);
         setIsPlaying(false);
         setCurrentTime(0);
         return;
       }
 
+      // Voiceover audio phase-lock (if voiceover audio is active)
       const vo = voiceAudioRef.current;
       const { voiceStartOffsetSec: vStart, postSloganIntroBounds: psBounds } =
         voiceClockBoundsRef.current;
@@ -9438,8 +9533,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               ? vo.currentTime + vStart + psBounds.duration
               : vo.currentTime + vStart;
           const drift = audioTimelineSec - next;
-          if (Math.abs(drift) > 0.045 && Math.abs(drift) <= 0.35) {
-            // Strictly monotonic advance: prevent negative audio buffer drift from jumping backwards across clip cut boundaries
+          if (Math.abs(drift) > 0.040 && Math.abs(drift) <= 0.35) {
             next = Math.max(currentTimeRef.current, next + drift * 0.25);
             playTimelineStartSecRef.current = next;
             playWallStartMsRef.current = nowMs;
@@ -9448,13 +9542,148 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       }
 
       currentTimeRef.current = next;
-      setCurrentTime(next);
-    }, stepMs);
+
+      // 1. Butter-smooth 60fps GPU Playhead Movement
+      syncPlayheadDomImperatively(next);
+
+      // 2. Timeline auto-scroll check (with internal 180ms throttle)
+      const container = timelineScrollContainerRef.current;
+      if (container && !isFitEntireProjectRef.current && !isScrubbingRulerRef.current) {
+        const trackHeaderOffsetPx = 152;
+        const playheadX = trackHeaderOffsetPx + next * timelineZoomRef.current;
+        const viewLeft = container.scrollLeft;
+        const viewWidth = container.clientWidth;
+        if (viewWidth > 240) {
+          const rightThreshold = viewLeft + viewWidth * 0.84;
+          const leftThreshold = viewLeft + trackHeaderOffsetPx * 0.5;
+          if (playheadX > rightThreshold || playheadX < leftThreshold) {
+            if (nowMs - lastAutoScrollMsRef.current >= 180) {
+              lastAutoScrollMsRef.current = nowMs;
+              const targetLeft = Math.max(0, Math.round(playheadX - viewWidth * 0.24));
+              if (Math.abs(container.scrollLeft - targetLeft) > 6) {
+                container.scrollLeft = targetLeft;
+                savedTimelineScrollRef.current.left = targetLeft;
+              }
+            }
+          }
+        }
+      }
+
+      // 3. Smooth PLL video playbackRate synchronization & Dual-deck pre-roll
+      const vid = previewVideoRef.current;
+      const standbyVid = preloadNextVideoRef.current;
+      const currentBoundsClips = clipsWithTimelineBoundsRef.current;
+      const curClip = currentBoundsClips.find((c) => next >= c.start && next < c.end);
+      const curClipId = curClip?.id || null;
+
+      if (vid && curClip?.videoUrl) {
+        const { effectiveRate, clampedOffset } = computeClipVideoSyncParams(
+          vid,
+          curClip,
+          next
+        );
+        const drift = clampedOffset - vid.currentTime; // + = video behind master clock, - = ahead
+        const isOfficial =
+          curClip.clipNumber === 0 ||
+          curClip.clipNumber === 999 ||
+          curClip.id === 'fixed-doc-intro' ||
+          curClip.id === 'fixed-doc-outro';
+
+        // Proportional PLL drift control without flushing hardware decode pipeline
+        if (!isOfficial) {
+          if (Math.abs(drift) <= 0.040) {
+            // Deadband: within ~1 frame, restore nominal effectiveRate if drifted
+            if (Math.abs((vid.playbackRate || 1) - effectiveRate) > 0.008) {
+              vid.defaultPlaybackRate = effectiveRate;
+              vid.playbackRate = effectiveRate;
+            }
+          } else if (Math.abs(drift) <= 0.35 && nowMs - lastRateNudgeMsRef.current >= 120) {
+            lastRateNudgeMsRef.current = nowMs;
+            const rateFactor = Math.max(0.95, Math.min(1.05, 1 + drift * 0.35));
+            const targetRate = Math.max(0.15, Math.min(4.0, effectiveRate * rateFactor));
+            if (Math.abs((vid.playbackRate || 1) - targetRate) > 0.008) {
+              vid.defaultPlaybackRate = targetRate;
+              vid.playbackRate = targetRate;
+            }
+          } else if (
+            Math.abs(drift) > 0.45 &&
+            curClip.end - next > 0.30 &&
+            nowMs - lastPrimaryDriftSeekMsRef.current >= 1000
+          ) {
+            // Emergency seek only on catastrophic drift
+            lastPrimaryDriftSeekMsRef.current = nowMs;
+            try {
+              vid.currentTime = clampedOffset;
+              vid.defaultPlaybackRate = effectiveRate;
+              vid.playbackRate = effectiveRate;
+            } catch {}
+          }
+        }
+
+        // Standby deck warm start / pre-roll in the 110ms window before cut
+        const nextClipIdx = currentBoundsClips.findIndex((c) => c.id === curClipId);
+        const nextClip =
+          nextClipIdx >= 0 && nextClipIdx + 1 < currentBoundsClips.length
+            ? currentBoundsClips[nextClipIdx + 1]
+            : null;
+        if (standbyVid && standbyVid !== vid && nextClip?.videoUrl) {
+          const timeToCut = curClip.end - next;
+          if (timeToCut > 0 && timeToCut <= 0.11) {
+            if (!standbyArmedRef.current.prerolled && standbyVid.paused && standbyVid.readyState >= 2 && !standbyVid.seeking) {
+              try {
+                standbyArmedRef.current.prerolled = true;
+                const nextSync = computeClipVideoSyncParams(standbyVid, nextClip, nextClip.start);
+                standbyVid.defaultPlaybackRate = nextSync.effectiveRate;
+                standbyVid.playbackRate = nextSync.effectiveRate;
+                standbyVid.volume = 0;
+                standbyVid.muted = true;
+                const nextTrimStart = Math.max(0, Number(nextClip.trimStart || 0));
+                if (Math.abs(standbyVid.currentTime - nextTrimStart) > 0.12) {
+                  standbyVid.currentTime = nextTrimStart;
+                }
+                standbyVid.play().catch(() => {});
+              } catch {}
+            }
+          }
+        }
+      }
+
+      // 4. Boundary-Driven Hybrid React Throttling
+      // Check if clip boundary crossed
+      const isClipBoundary = curClipId !== lastFlushedClipIdRef.current;
+      // Check if caption boundary crossed (lead-in -60ms)
+      const currentCaptions = captionsRef.current;
+      const curCaption = currentCaptions.find((cap, idx) => {
+        const prevEnd = idx > 0 ? currentCaptions[idx - 1].end : 0;
+        const leadInStart = Math.max(prevEnd, cap.start - 0.06);
+        const effEnd = Math.max(cap.end, leadInStart + 0.1);
+        return next >= leadInStart && next <= effEnd;
+      });
+      const curCaptionId = curCaption?.id || null;
+      const isCaptionBoundary = curCaptionId !== lastFlushedCaptionIdRef.current;
+
+      const isPeriodicCommit = nowMs - lastReactCommitMsRef.current >= 180; // ~5.5 Hz heartbeat
+
+      if (isClipBoundary || isCaptionBoundary || isPeriodicCommit) {
+        lastReactCommitMsRef.current = nowMs;
+        lastFlushedClipIdRef.current = curClipId;
+        lastFlushedCaptionIdRef.current = curCaptionId;
+        setCurrentTime(next);
+      }
+
+      playheadRafIdRef.current = requestAnimationFrame(tick);
+    };
+
+    playheadRafIdRef.current = requestAnimationFrame(tick);
 
     return () => {
-      if (playIntervalRef.current) clearInterval(playIntervalRef.current);
+      isLoopRunning = false;
+      if (playheadRafIdRef.current) {
+        cancelAnimationFrame(playheadRafIdRef.current);
+        playheadRafIdRef.current = null;
+      }
     };
-  }, [isPlaying, totalDurationSec]);
+  }, [isPlaying]);
 
   // Keep the selected clip automatically synchronized with the clip at the real-time playhead while playing
   useEffect(() => {
@@ -9567,6 +9796,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       timelineRulerScrollRef.current.scrollLeft = nextScrollLeft;
     }
     zoomPlayheadViewportOffsetRef.current = null;
+    syncPlayheadDomImperatively(currentTimeRef.current);
   }, [
     timelineZoom,
     isFitEntireProject,
@@ -9798,7 +10028,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             }
           } catch {}
         }
-        const seekThreshold = isClipSwitch && !isManualSeek && isPlaying ? 0.28 : 0.08;
+        const seekThreshold = isClipSwitch && !isManualSeek && isPlaying ? 0.35 : 0.08;
         if (vid.readyState >= 1 && Math.abs(vid.currentTime - clampedOffset) > seekThreshold) {
           try {
             vid.currentTime = clampedOffset;
@@ -9818,8 +10048,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           !vid.ended &&
           !clipEndedHoldRef.current &&
           timeToClipEnd > 0.25 &&
-          Math.abs(driftSec) > 0.50 &&
-          nowMs - lastPrimaryDriftSeekMsRef.current >= 750
+          Math.abs(driftSec) > 0.60 &&
+          nowMs - lastPrimaryDriftSeekMsRef.current >= 1000
         ) {
           lastPrimaryDriftSeekMsRef.current = nowMs;
           try {
@@ -11589,10 +11819,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       return;
     }
 
+    const liveT = currentTimeRef.current;
     const isPlayheadInside =
-      currentTime > targetBoundClip.start + 0.25 && currentTime < targetBoundClip.end - 0.25;
+      liveT > targetBoundClip.start + 0.25 && liveT < targetBoundClip.end - 0.25;
     const splitTimelineSec = isPlayheadInside
-      ? currentTime
+      ? liveT
       : Number((targetBoundClip.start + targetBoundClip.duration / 2).toFixed(2));
 
     const durA = Number(Math.max(0.3, splitTimelineSec - targetBoundClip.start).toFixed(2));
@@ -11679,8 +11910,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     if (!targetBoundClip || targetBoundClip.clipNumber === 0 || targetBoundClip.clipNumber === 999)
       return;
 
+    const liveT = currentTimeRef.current;
     const isPlayheadInside =
-      currentTime > targetBoundClip.start + 0.25 && currentTime < targetBoundClip.end - 0.25;
+      liveT > targetBoundClip.start + 0.25 && liveT < targetBoundClip.end - 0.25;
     if (!isPlayheadInside) {
       setStatusMessage(
         '⚠️ Coloca la aguja roja dentro del clip en el punto exacto hasta donde quieres cortar el inicio.'
@@ -11688,7 +11920,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       return;
     }
 
-    const elapsedOnTimeline = currentTime - targetBoundClip.start;
+    const elapsedOnTimeline = liveT - targetBoundClip.start;
     const curSpeed = Math.max(0.15, Math.min(4.0, targetBoundClip.speed || 1));
     const srcDur =
       targetBoundClip.sourceDuration && targetBoundClip.sourceDuration > 0.5
@@ -11765,8 +11997,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     if (!targetBoundClip || targetBoundClip.clipNumber === 0 || targetBoundClip.clipNumber === 999)
       return;
 
+    const liveT = currentTimeRef.current;
     const isPlayheadInside =
-      currentTime > targetBoundClip.start + 0.25 && currentTime < targetBoundClip.end - 0.25;
+      liveT > targetBoundClip.start + 0.25 && liveT < targetBoundClip.end - 0.25;
     if (!isPlayheadInside) {
       setStatusMessage(
         '⚠️ Coloca la aguja roja dentro del clip en el punto exacto desde donde quieres borrar hasta el final.'
@@ -11774,7 +12007,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       return;
     }
 
-    const elapsedOnTimeline = currentTime - targetBoundClip.start;
+    const elapsedOnTimeline = liveT - targetBoundClip.start;
     const curSpeed = Math.max(0.15, Math.min(4.0, targetBoundClip.speed || 1));
     const srcDur =
       targetBoundClip.sourceDuration && targetBoundClip.sourceDuration > 0.5
@@ -15674,7 +15907,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               }`}
             >
               {/* Left: CapCut Cyan/Teal Timecode */}
-              <span className="font-mono tabular-nums text-[11px] text-teal-300 font-bold shrink-0">
+              <span ref={viewerTimecodeRef} className="font-mono tabular-nums text-[11px] text-teal-300 font-bold shrink-0">
                 00:{formatTimeMMSS(currentTime)} <span className="text-slate-500">/</span> 00:{formatTimeMMSS(totalDurationSec)}
               </span>
 
@@ -15690,7 +15923,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 </button>
                 <button
                   type="button"
-                  onClick={() => seekToTime(Math.max(0, currentTime - 10))}
+                  onClick={() => seekToTime(Math.max(0, currentTimeRef.current - 10))}
                   className="px-1.5 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700/80 text-slate-200 hover:text-amber-300 font-bold text-[10px] flex items-center gap-0.5 cursor-pointer shrink-0 transition"
                   title="Retroceder 10 segundos (-10s • Flecha Izquierda ⬅️)"
                 >
@@ -15708,7 +15941,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 </button>
                 <button
                   type="button"
-                  onClick={() => seekToTime(Math.min(totalDurationSec, currentTime + 10))}
+                  onClick={() => seekToTime(Math.min(totalDurationSec, currentTimeRef.current + 10))}
                   className="px-1.5 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700/80 text-slate-200 hover:text-amber-300 font-bold text-[10px] flex items-center gap-0.5 cursor-pointer shrink-0 transition"
                   title="Adelantar 10 segundos (+10s • Flecha Derecha ➡️)"
                 >
@@ -15736,11 +15969,18 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               {/* Scrubber Timeline */}
               <div className="flex-1 flex items-center min-w-[80px]">
                 <input
+                  ref={viewerRangeInputRef}
                   type="range"
                   min={0}
                   max={totalDurationSec}
                   step={0.05}
                   value={currentTime}
+                  onPointerDown={() => {
+                    isScrubbingRulerRef.current = true;
+                  }}
+                  onPointerUp={() => {
+                    isScrubbingRulerRef.current = false;
+                  }}
                   onChange={(e) => seekToTime(Number(e.target.value))}
                   className="w-full h-1.5 accent-amber-500 cursor-pointer"
                 />
@@ -18569,7 +18809,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   <span className="truncate">#-- (Clip --)</span>
                 )}
               </span>
-              <span className="shrink-0 tabular-nums">
+              <span ref={timelineToolbarTimeRef} className="shrink-0 tabular-nums">
                 • {formatTimeMMSS(currentTime)}.{Math.floor((currentTime % 1) * 10)}
               </span>
             </span>
@@ -18738,13 +18978,16 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 SINGLE UNIFIED VERTICAL PLAYHEAD NEEDLE (RULER + ALL TRACKS)
             ================================================================= */}
             <div
+              ref={playheadNeedleRef}
               style={{
-                left: isFitEntireProject
-                  ? `calc(var(--tl-header-offset, 9.5rem) + (100% - var(--tl-header-offset, 9.5rem)) * ${Math.min(
+                left: 'var(--tl-header-offset, 9.5rem)',
+                transform: isFitEntireProject
+                  ? `translate3d(calc((100% - var(--tl-header-offset, 9.5rem)) * ${Math.min(
                       1,
                       Math.max(0, currentTime / Math.max(1, totalDurationSec))
-                    ).toFixed(6)})`
-                  : `calc(var(--tl-header-offset, 9.5rem) + ${(currentTime * timelineZoom).toFixed(2)}px)`,
+                    ).toFixed(6)}), 0, 0)`
+                  : `translate3d(${(currentTime * timelineZoom).toFixed(2)}px, 0, 0)`,
+                willChange: 'transform',
               }}
               className="pointer-events-none absolute top-0 bottom-0 z-40 w-0"
             >
@@ -18756,7 +18999,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 title="Arrastra la aguja para moverte por la línea de tiempo"
                 className="sticky top-0 z-50 pointer-events-auto cursor-ew-resize w-max -translate-x-1/2 flex flex-col items-center select-none pt-0.5"
               >
-                <div className="px-1.5 py-0.5 rounded bg-rose-600 border border-amber-300 text-[9px] font-mono font-black text-white shadow-md whitespace-nowrap leading-none">
+                <div
+                  ref={playheadBadgeTextRef}
+                  className="px-1.5 py-0.5 rounded bg-rose-600 border border-amber-300 text-[9px] font-mono font-black text-white shadow-md whitespace-nowrap leading-none"
+                >
                   {formatTimeMMSS(currentTime)}.{Math.floor((currentTime % 1) * 10)}
                 </div>
                 <div className="w-0 h-0 border-l-[5px] border-l-transparent border-r-[5px] border-r-transparent border-t-[6px] border-t-amber-300" />
