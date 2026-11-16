@@ -333,30 +333,95 @@
     return false;
   }
 
+  function isGenuineAudioUrl(url) {
+    if (!url || typeof url !== 'string') return false;
+    const clean = url.trim().toLowerCase();
+    // Strictly block Cloudflare edge endpoints (RUM, beacon, cdn-cgi)
+    if (clean.includes('/cdn-cgi/') || (clean.includes('rum') && clean.includes('cloudflare'))) {
+      return false;
+    }
+    // Block web bundles, styles, scripts, pages, images
+    if (
+      clean.includes('/_next/') ||
+      clean.includes('/static/') ||
+      clean.includes('/api/auth') ||
+      clean.includes('/api/trpc')
+    ) {
+      return false;
+    }
+    const cleanNoQuery = clean.split(/[?#]/)[0];
+    if (
+      cleanNoQuery.endsWith('.js') ||
+      cleanNoQuery.endsWith('.css') ||
+      cleanNoQuery.endsWith('.json') ||
+      cleanNoQuery.endsWith('.html') ||
+      cleanNoQuery.endsWith('.png') ||
+      cleanNoQuery.endsWith('.jpg') ||
+      cleanNoQuery.endsWith('.jpeg') ||
+      cleanNoQuery.endsWith('.svg') ||
+      cleanNoQuery.endsWith('.ico') ||
+      cleanNoQuery.endsWith('.webp') ||
+      cleanNoQuery.endsWith('.map') ||
+      cleanNoQuery.endsWith('.txt')
+    ) {
+      return false;
+    }
+    // Must be valid audio
+    if (
+      cleanNoQuery.endsWith('.mp3') ||
+      cleanNoQuery.endsWith('.m4a') ||
+      cleanNoQuery.endsWith('.wav') ||
+      cleanNoQuery.endsWith('.aac') ||
+      cleanNoQuery.endsWith('.webm') ||
+      cleanNoQuery.endsWith('.ogg') ||
+      cleanNoQuery.endsWith('.flac')
+    ) {
+      return true;
+    }
+    if (clean.startsWith('blob:') && !clean.includes('/cdn-cgi/')) {
+      return true;
+    }
+    if (
+      clean.includes('storage.googleapis.com') &&
+      (clean.includes('/clips/') || clean.includes('/tracks/') || clean.includes('producer-app-public'))
+    ) {
+      return true;
+    }
+    return false;
+  }
+
   function collectAllCurrentMp3Urls() {
     const urls = new Set();
     const audioUrlRegex =
-      /https?:\/\/[^\s"'<>\\]+?\.(?:m4a|mp3|wav|aac|webm|ogg)(?:\?[^\s"'<>\\]*)?/gi;
+      /https?:\/\/[^\s"'<>\\]+?\.(?:m4a|mp3|wav|aac|webm|ogg|flac)(?:\?[^\s"'<>\\]*)?/gi;
     const gcsAudioRegex =
-      /https?:\/\/storage\.googleapis\.com\/[^\s"'<>\\]+?(?:producer|audio|clip|track)[^\s"'<>\\]*/gi;
+      /https?:\/\/storage\.googleapis\.com\/(?:producer-app-public\/[^\s"'<>\\]+|[^\s"'<>\\]+?\.(?:m4a|mp3|wav|aac|webm|ogg|flac)(?:\?[^\s"'<>\\]*)?)/gi;
     const serviceAudioRegex =
-      /https?:\/\/(?:cdn[12]?\.suno\.ai|[a-zA-Z0-9_.-]+\.flowmusic\.app|[a-zA-Z0-9_.-]+\.producer\.ai)\/[^\s"'<>\\]+/gi;
+      /https?:\/\/(?:cdn[12]?\.suno\.ai|[a-zA-Z0-9_.-]+\.flowmusic\.app|[a-zA-Z0-9_.-]+\.producer\.ai)\/[^\s"'<>\\]+?\.(?:m4a|mp3|wav|aac|webm|ogg|flac)(?:\?[^\s"'<>\\]*)?/gi;
     const blobRegex =
       /blob:https?:\/\/[^\s"'<>\\]+/gi;
 
     const addMatchesFromText = (txt) => {
-      if (!txt || typeof txt !== 'string') return;
+      if (!txt || typeof txt !== 'string' || txt.includes('/cdn-cgi/')) return;
       let m;
-      while ((m = audioUrlRegex.exec(txt)) !== null) urls.add(m[0]);
-      while ((m = gcsAudioRegex.exec(txt)) !== null) urls.add(m[0]);
-      while ((m = serviceAudioRegex.exec(txt)) !== null) urls.add(m[0]);
-      while ((m = blobRegex.exec(txt)) !== null) urls.add(m[0]);
+      while ((m = audioUrlRegex.exec(txt)) !== null) {
+        if (isGenuineAudioUrl(m[0])) urls.add(m[0]);
+      }
+      while ((m = gcsAudioRegex.exec(txt)) !== null) {
+        if (isGenuineAudioUrl(m[0])) urls.add(m[0]);
+      }
+      while ((m = serviceAudioRegex.exec(txt)) !== null) {
+        if (isGenuineAudioUrl(m[0])) urls.add(m[0]);
+      }
+      while ((m = blobRegex.exec(txt)) !== null) {
+        if (isGenuineAudioUrl(m[0])) urls.add(m[0]);
+      }
     };
 
     // 1. Check <audio> and <source> elements (including blob: and direct CDN URLs)
     for (const a of Array.from(document.querySelectorAll('audio, source'))) {
       const src = a.currentSrc || a.src || '';
-      if (src && (src.startsWith('http') || src.startsWith('blob:'))) {
+      if (src && isGenuineAudioUrl(src)) {
         urls.add(src);
       }
     }
@@ -368,7 +433,7 @@
         const parsed = JSON.parse(attr);
         if (Array.isArray(parsed)) {
           for (const u of parsed) {
-            if (typeof u === 'string' && (u.startsWith('http') || u.startsWith('blob:'))) {
+            if (typeof u === 'string' && isGenuineAudioUrl(u)) {
               urls.add(u);
             }
           }
@@ -382,15 +447,16 @@
       for (const entry of entries) {
         const name = entry?.name || '';
         if (
-          name.includes('.mp3') ||
-          name.includes('.m4a') ||
-          name.includes('.wav') ||
-          name.includes('.aac') ||
-          name.includes('.webm') ||
-          name.includes('storage.googleapis.com') ||
-          name.includes('producer') ||
-          name.includes('flowmusic') ||
-          name.includes('suno.ai')
+          (name.includes('.mp3') ||
+            name.includes('.m4a') ||
+            name.includes('.wav') ||
+            name.includes('.aac') ||
+            name.includes('.webm') ||
+            name.includes('.ogg') ||
+            name.includes('.flac') ||
+            name.includes('storage.googleapis.com') ||
+            name.includes('producer-app-public')) &&
+          !name.includes('/cdn-cgi/')
         ) {
           addMatchesFromText(name);
         }
@@ -408,7 +474,7 @@
   }
 
   async function fetchAudioAsDataUrl(audioUrl) {
-    if (!audioUrl) return '';
+    if (!audioUrl || !isGenuineAudioUrl(audioUrl)) return '';
     if (audioUrl.startsWith('data:')) return audioUrl;
 
     // A. If blob: URL, fetch directly in the page document context

@@ -2993,39 +2993,52 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                       } catch {}
                     };
 
+                    const isGenuineAudioUrl = (u) => {
+                      if (!u || typeof u !== 'string') return false;
+                      const clean = u.trim().toLowerCase();
+                      if (clean.includes('/cdn-cgi/') || (clean.includes('rum') && clean.includes('cloudflare'))) return false;
+                      if (clean.includes('/_next/') || clean.includes('/static/') || clean.includes('/api/auth') || clean.includes('/api/trpc')) return false;
+                      const noQ = clean.split(/[?#]/)[0];
+                      if (noQ.endsWith('.js') || noQ.endsWith('.css') || noQ.endsWith('.json') || noQ.endsWith('.html') || noQ.endsWith('.png') || noQ.endsWith('.jpg') || noQ.endsWith('.svg') || noQ.endsWith('.ico') || noQ.endsWith('.webp')) return false;
+                      if (noQ.endsWith('.mp3') || noQ.endsWith('.m4a') || noQ.endsWith('.wav') || noQ.endsWith('.aac') || noQ.endsWith('.webm') || noQ.endsWith('.ogg') || noQ.endsWith('.flac')) return true;
+                      if (clean.startsWith('blob:') && !clean.includes('/cdn-cgi/')) return true;
+                      if (clean.includes('storage.googleapis.com') && (clean.includes('/clips/') || clean.includes('/tracks/') || clean.includes('producer-app-public'))) return true;
+                      return false;
+                    };
+
                     const audioUrlRegex =
-                      /https?:\/\/[^\s"'<>\\]+?\.(?:m4a|mp3|wav|aac|webm|ogg)(?:\?[^\s"'<>\\]*)?/gi;
+                      /https?:\/\/[^\s"'<>\\]+?\.(?:m4a|mp3|wav|aac|webm|ogg|flac)(?:\?[^\s"'<>\\]*)?/gi;
                     const gcsAudioRegex =
-                      /https?:\/\/storage\.googleapis\.com\/[^\s"'<>\\]+?(?:producer|audio|clip|track)[^\s"'<>\\]*/gi;
+                      /https?:\/\/storage\.googleapis\.com\/(?:producer-app-public\/[^\s"'<>\\]+|[^\s"'<>\\]+?\.(?:m4a|mp3|wav|aac|webm|ogg|flac)(?:\?[^\s"'<>\\]*)?)/gi;
                     const serviceAudioRegex =
-                      /https?:\/\/(?:cdn[12]?\.suno\.ai|[a-zA-Z0-9_.-]+\.flowmusic\.app|[a-zA-Z0-9_.-]+\.producer\.ai)\/[^\s"'<>\\]+/gi;
+                      /https?:\/\/(?:cdn[12]?\.suno\.ai|[a-zA-Z0-9_.-]+\.flowmusic\.app|[a-zA-Z0-9_.-]+\.producer\.ai)\/[^\s"'<>\\]+?\.(?:m4a|mp3|wav|aac|webm|ogg|flac)(?:\?[^\s"'<>\\]*)?/gi;
                     const blobRegex =
                       /blob:https?:\/\/[^\s"'<>\\]+/gi;
 
                     const extractClipUrlsFromText = (txt) => {
-                      if (!txt || typeof txt !== 'string') return;
+                      if (!txt || typeof txt !== 'string' || txt.includes('/cdn-cgi/')) return;
                       let m;
                       let added = false;
                       while ((m = audioUrlRegex.exec(txt)) !== null) {
-                        if (!window.__HUELLAS_FLOWMUSIC_URLS__.has(m[0])) {
+                        if (isGenuineAudioUrl(m[0]) && !window.__HUELLAS_FLOWMUSIC_URLS__.has(m[0])) {
                           window.__HUELLAS_FLOWMUSIC_URLS__.add(m[0]);
                           added = true;
                         }
                       }
                       while ((m = gcsAudioRegex.exec(txt)) !== null) {
-                        if (!window.__HUELLAS_FLOWMUSIC_URLS__.has(m[0])) {
+                        if (isGenuineAudioUrl(m[0]) && !window.__HUELLAS_FLOWMUSIC_URLS__.has(m[0])) {
                           window.__HUELLAS_FLOWMUSIC_URLS__.add(m[0]);
                           added = true;
                         }
                       }
                       while ((m = serviceAudioRegex.exec(txt)) !== null) {
-                        if (!window.__HUELLAS_FLOWMUSIC_URLS__.has(m[0])) {
+                        if (isGenuineAudioUrl(m[0]) && !window.__HUELLAS_FLOWMUSIC_URLS__.has(m[0])) {
                           window.__HUELLAS_FLOWMUSIC_URLS__.add(m[0]);
                           added = true;
                         }
                       }
                       while ((m = blobRegex.exec(txt)) !== null) {
-                        if (!window.__HUELLAS_FLOWMUSIC_URLS__.has(m[0])) {
+                        if (isGenuineAudioUrl(m[0]) && !window.__HUELLAS_FLOWMUSIC_URLS__.has(m[0])) {
                           window.__HUELLAS_FLOWMUSIC_URLS__.add(m[0]);
                           added = true;
                         }
@@ -6178,6 +6191,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   // 4. Fetch cross-origin video/image binary as base64 DataURL for frame extraction & auto-download
   if (message.type === 'FETCH_VIDEO_BASE64' && message.url) {
+    const candidateUrl = String(message.url || '');
+    if (candidateUrl.includes('/cdn-cgi/') || (candidateUrl.includes('rum') && candidateUrl.includes('cloudflare'))) {
+      sendResponse({ ok: false, error: 'Ignored Cloudflare telemetry /cdn-cgi/ endpoint' });
+      return false;
+    }
     (async () => {
       try {
         let resp = await fetch(message.url, { credentials: 'include' }).catch(() => null);

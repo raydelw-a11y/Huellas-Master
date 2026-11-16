@@ -195,7 +195,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '03:00 PM - 11/16/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '03:32 PM - 11/16/2026';
 
 const PROTECTED_DOC_TEXT_FIELDS = [
   'rawClipsText',
@@ -13590,10 +13590,12 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       } else if (msg.type === 'SUNO_AUDIO_CAPTURED') {
         // ITEM 2: Auto-save captured Flow Music / Suno track into 02_Audio inside Root Folder and inject into CapCut Editor Track 5
         setExtensionInstalled(true);
+        const rawAudioUrl = String(msg.audioUrl || '');
+        if (rawAudioUrl.includes('/cdn-cgi/')) return;
         const trackNum = Number(msg.trackNumber) || 1;
         const padded = String(trackNum).padStart(2, '0');
         const dataUrl = msg.audioDataUrl || msg.audioUrl || '';
-        if (dataUrl) {
+        if (dataUrl && !dataUrl.includes('/cdn-cgi/')) {
           setCapturedSunoAudioMap((prev) => ({ ...prev, [trackNum]: dataUrl }));
           const currentDoc = activeDocRef.current;
           let updatedTracks: SunoTrack[] = [];
