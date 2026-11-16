@@ -43,7 +43,7 @@
     "_v5_16x9_captionBottom10": true,
     "_v6_16x9_captionOriginalDefault": true
   },
-  "updatedAt": "2026-11-16T04:06:34.432Z",
+  "updatedAt": "2026-11-16T11:51:27.958Z",
   "overlayStyles": {
     "logoScalePct": 5,
     "logoOpacity": 95,
@@ -1291,9 +1291,9 @@
       "trimEnd": 8,
       "speed": 1,
       "smoothSlowMo": false,
-      "foleyVolume": 20,
-      "customVolumeSet": false,
-      "audioMuted": false
+      "foleyVolume": 0,
+      "customVolumeSet": true,
+      "audioMuted": true
     },
     {
       "id": "clip-72-1794345057854-72",
@@ -1305,7 +1305,11 @@
       "smoothSlowMo": false,
       "foleyVolume": 20,
       "customVolumeSet": false,
-      "audioMuted": false
+      "audioMuted": false,
+      "reframe9x16Mode": "auto_pan",
+      "reframeFocusXStart": 65,
+      "reframeFocusXEnd": 38,
+      "reframeFocusY": 50
     },
     {
       "id": "clip-73-1794345057854-73",
@@ -1315,9 +1319,9 @@
       "trimEnd": 8,
       "speed": 1,
       "smoothSlowMo": false,
-      "foleyVolume": 20,
-      "customVolumeSet": false,
-      "audioMuted": false
+      "foleyVolume": 0,
+      "customVolumeSet": true,
+      "audioMuted": true
     },
     {
       "id": "clip-74-1794345057854-74",
@@ -1329,7 +1333,11 @@
       "smoothSlowMo": false,
       "foleyVolume": 0,
       "customVolumeSet": true,
-      "audioMuted": true
+      "audioMuted": true,
+      "reframe9x16Mode": "auto_pan",
+      "reframeFocusXStart": 18,
+      "reframeFocusXEnd": 76,
+      "reframeFocusY": 50
     },
     {
       "id": "clip-75-1794345057854-75",
@@ -1341,7 +1349,11 @@
       "smoothSlowMo": false,
       "foleyVolume": 20,
       "customVolumeSet": false,
-      "audioMuted": false
+      "audioMuted": false,
+      "reframe9x16Mode": "auto_pan",
+      "reframeFocusXStart": 18,
+      "reframeFocusXEnd": 72,
+      "reframeFocusY": 50
     },
     {
       "id": "clip-76-1794345057855-76",
@@ -1353,7 +1365,11 @@
       "smoothSlowMo": false,
       "foleyVolume": 20,
       "customVolumeSet": false,
-      "audioMuted": false
+      "audioMuted": false,
+      "reframe9x16Mode": "auto_pan",
+      "reframeFocusXStart": 82,
+      "reframeFocusXEnd": 24,
+      "reframeFocusY": 50
     },
     {
       "id": "clip-77-1794345057855-77",
@@ -1365,7 +1381,11 @@
       "smoothSlowMo": false,
       "foleyVolume": 20,
       "customVolumeSet": false,
-      "audioMuted": false
+      "audioMuted": false,
+      "reframe9x16Mode": "auto_center",
+      "reframeFocusXStart": 50,
+      "reframeFocusXEnd": 50,
+      "reframeFocusY": 50
     },
     {
       "id": "clip-78-1794345057855-78",
@@ -1377,7 +1397,11 @@
       "smoothSlowMo": false,
       "foleyVolume": 20,
       "customVolumeSet": false,
-      "audioMuted": false
+      "audioMuted": false,
+      "reframe9x16Mode": "auto_focus",
+      "reframeFocusXStart": 41,
+      "reframeFocusXEnd": 41,
+      "reframeFocusY": 50
     },
     {
       "id": "clip-79-1794345057856-79",
@@ -1389,7 +1413,11 @@
       "smoothSlowMo": false,
       "foleyVolume": 20,
       "customVolumeSet": false,
-      "audioMuted": false
+      "audioMuted": false,
+      "reframe9x16Mode": "auto_center",
+      "reframeFocusXStart": 50,
+      "reframeFocusXEnd": 50,
+      "reframeFocusY": 50
     },
     {
       "id": "clip-80-1794345057856-80",
@@ -1401,7 +1429,11 @@
       "smoothSlowMo": false,
       "foleyVolume": 20,
       "customVolumeSet": false,
-      "audioMuted": false
+      "audioMuted": false,
+      "reframe9x16Mode": "auto_pan",
+      "reframeFocusXStart": 24,
+      "reframeFocusXEnd": 76,
+      "reframeFocusY": 50
     },
     {
       "id": "clip-81-1794345057856-81",
@@ -1413,7 +1445,11 @@
       "smoothSlowMo": false,
       "foleyVolume": 20,
       "customVolumeSet": false,
-      "audioMuted": false
+      "audioMuted": false,
+      "reframe9x16Mode": "auto_pan",
+      "reframeFocusXStart": 39,
+      "reframeFocusXEnd": 21,
+      "reframeFocusY": 50
     },
     {
       "id": "clip-82-1794345057856-82",
@@ -1425,7 +1461,11 @@
       "smoothSlowMo": false,
       "foleyVolume": 20,
       "customVolumeSet": false,
-      "audioMuted": false
+      "audioMuted": false,
+      "reframe9x16Mode": "auto_pan",
+      "reframeFocusXStart": 78,
+      "reframeFocusXEnd": 28,
+      "reframeFocusY": 50
     },
     {
       "id": "clip-83-1794345057857-83",
@@ -1437,7 +1477,11 @@
       "smoothSlowMo": false,
       "foleyVolume": 20,
       "customVolumeSet": false,
-      "audioMuted": false
+      "audioMuted": false,
+      "reframe9x16Mode": "auto_pan",
+      "reframeFocusXStart": 84,
+      "reframeFocusXEnd": 67,
+      "reframeFocusY": 50
     },
     {
       "id": "clip-84-1794345057857-84",
@@ -1449,7 +1493,11 @@
       "smoothSlowMo": false,
       "foleyVolume": 20,
       "customVolumeSet": false,
-      "audioMuted": false
+      "audioMuted": false,
+      "reframe9x16Mode": "auto_center",
+      "reframeFocusXStart": 50,
+      "reframeFocusXEnd": 50,
+      "reframeFocusY": 50
     },
     {
       "id": "clip-85-1794345057857-85",
@@ -1461,7 +1509,11 @@
       "smoothSlowMo": false,
       "foleyVolume": 20,
       "customVolumeSet": false,
-      "audioMuted": false
+      "audioMuted": false,
+      "reframe9x16Mode": "auto_center",
+      "reframeFocusXStart": 50,
+      "reframeFocusXEnd": 50,
+      "reframeFocusY": 50
     },
     {
       "id": "clip-86-1794345057857-86",

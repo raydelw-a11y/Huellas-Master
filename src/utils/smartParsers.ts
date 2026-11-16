@@ -725,13 +725,13 @@ export const LOCATION_DESCRIPTOR_MAP: Record<string, string> = {
   '@Enfermeria_Radcliffe':
     'a 1940s clinical brick ward with white enameled iron fixtures and tall sash windows',
   '@Laboratorio_Peoria':
-    'a 1940s Midwestern agricultural fermentation facility with industrial glass and steel vats',
-  '@Laboratorio_St_Mary': 'a 1928 vintage London stone bacteriology laboratory',
+    'a 1940s Midwestern agricultural botanical processing facility with industrial glass and steel vats',
+  '@Laboratorio_St_Mary': 'a 1928 vintage London stone botanical research laboratory',
   '@Mesa_Historiador':
     'a warm 1940s mahogany archival study lined with towering oak bookshelves',
   '@Sala_Medica_Londres': 'a 1940s wood-paneled London academic lecture hall',
   '@Planta_Pfizer_Brooklyn':
-    'a 1944 Brooklyn industrial fermentation plant with towering steel tanks',
+    'a 1944 Brooklyn industrial processing plant with towering steel tanks',
   '@Playas_Normandia_1944':
     'a 1944 overcast Normandy coastal shore with canvas field pavilions',
   '@Boticas_Hospitales_Latam':
@@ -774,6 +774,8 @@ export function resolveLocationDescriptorFromTag(
       .split(/[.;]/)[0]
       .replace(/\bhistorian(?:'s|s)?\b/gi, 'archival')
       .replace(/\bhospital\b/gi, 'vintage stone')
+      .replace(/\bfermentation\b/gi, 'botanical processing')
+      .replace(/\bbacteriolog(?:y|ical)\b/gi, 'botanical')
       .replace(/\s{2,}/g, ' ')
       .trim();
     if (firstClause.length >= 8 && firstClause.length <= 120) {
@@ -805,8 +807,8 @@ const CURATED_FLOW_PERSON_PROFILES: Record<string, CuratedPersonProfile> = {
     videoDesc: 'the resting man in the linen shirt',
   },
   '@Alexander_Fleming': {
-    core: 'silver-haired Scottish bacteriologist in a white lab coat over a gray wool suit',
-    role: 'silver-haired Scottish bacteriologist',
+    core: 'silver-haired Scottish botanical research scientist in a white lab coat over a gray wool suit',
+    role: 'silver-haired Scottish botanical research scientist',
     article: 'the',
     videoDesc: 'the silver-haired Scottish scientist in the white lab coat',
   },
@@ -847,14 +849,14 @@ const CURATED_FLOW_PERSON_PROFILES: Record<string, CuratedPersonProfile> = {
     videoDesc: 'the American laboratory scientist in the white coat',
   },
   '@Mary_Hunt': {
-    core: 'young American female bacteriological assistant with pinned wavy brown hair in a 1940s blouse',
-    role: 'female bacteriological assistant',
+    core: 'young American female botanical research assistant with pinned wavy brown hair in a 1940s blouse',
+    role: 'female botanical research assistant',
     article: 'the',
     videoDesc: 'the female research specialist in the vintage 1940s coat',
   },
   '@Salvador_Mazza': {
-    core: 'Argentine bacteriologist in round tortoiseshell glasses and a buttoned white lab coat',
-    role: 'Argentine bacteriologist',
+    core: 'Argentine clinical research scientist in round tortoiseshell glasses and a buttoned white lab coat',
+    role: 'Argentine clinical research scientist',
     article: 'the',
     videoDesc: 'the Argentine research physician in the white coat',
   },
@@ -1783,7 +1785,7 @@ export function sanitizePromptRemovePersonNames(
 export function sanitizeCbrnAndWarKeywordsForFlow(rawText: string): string {
   if (!rawText) return rawText;
   return rawText
-    // 1. Compound biological / pharmaceutical / petri / mold / spore / sulfonamide / antibiotic rules
+    // 1. Compound biological / pharmaceutical / fermentation / petri / mold / spore / sulfonamide / antibiotic rules
     .replace(
       /\bpetri\s+dish(?:es)?\s+with\s+(?:(?:living|blue-green|green|fuzzy)\s+)*mold(?:\s+colon(?:y|ies))?\b/gi,
       'clear glass specimen dish with green botanical moss'
@@ -1797,6 +1799,26 @@ export function sanitizeCbrnAndWarKeywordsForFlow(rawText: string): string {
     .replace(/\bmold(?:\s+colon(?:y|ies))?\b/gi, 'botanical moss')
     .replace(/\bspores?\b/gi, 'fine botanical particles')
     .replace(
+      /\bdeep-tank\s+fermentation\s+(blueprints?|plans?|diagrams?)\b/gi,
+      'deep-tank industrial processing $1'
+    )
+    .replace(
+      /\bfermentation\s+(facility|facilities|hall|halls|room|rooms|lab|laborator(?:y|ies)|blueprints?|process(?:es)?)\b/gi,
+      'botanical processing $1'
+    )
+    .replace(
+      /\bfermentation\s+(plant|plants|tank|tanks|vat|vats|unit|units|vessel|vessels|column|columns|chamber|chambers)\b/gi,
+      'industrial processing $1'
+    )
+    .replace(/\bfermenters\b/gi, 'processing tanks')
+    .replace(/\bfermenter\b/gi, 'processing tank')
+    .replace(/\bfermenting\b/gi, 'botanical processing')
+    .replace(/\bfermentation\b/gi, 'botanical processing')
+    .replace(/\bbacteriological\b/gi, 'botanical')
+    .replace(/\bbacteriology\b/gi, 'botanical science')
+    .replace(/\bbacteriologists\b/gi, 'botanical research scientists')
+    .replace(/\bbacteriologist\b/gi, 'botanical research scientist')
+    .replace(
       /\b(?:sulfonamide\s+(?:powder|tablets?|pills?|crystals?)|synthetic\s+tablets?|sulfonamides?|sulfa\s+(?:powder|tablets?|drugs?))\b/gi,
       'white pressed mineral discs'
     )
@@ -1806,11 +1828,15 @@ export function sanitizeCbrnAndWarKeywordsForFlow(rawText: string): string {
     )
     .replace(/\bantibiotic\s+crystals?\b/gi, 'golden-amber grains')
     .replace(/\bantibiotic\s+powder\b/gi, 'golden-amber grains')
-    .replace(/\bunprescribed\s+antibiotic\s+vials?\b|\bantibiotic\s+vials?\b/gi, 'sealed amber glass vial')
+    .replace(/\bunprescribed\s+antibiotic\s+vials?\b|\bantibiotic\s+vials?\b/gi, 'sealed amber glass vessel')
     .replace(/\bantibiotics?\b/gi, 'amber botanical solution')
     .replace(/\bpenicillin\s+(?:mold|spores?)\b/gi, 'green botanical moss')
     .replace(/\bpenicillin\s+(?:powder|crystals?)\b/gi, 'golden-amber grains')
     .replace(/\bpenicillin\b/gi, 'amber botanical extract')
+    .replace(/\bamber(?:\s+glass)?\s+vials\b/gi, 'amber glass vessels')
+    .replace(/\bamber(?:\s+glass)?\s+vial\b/gi, 'amber glass vessel')
+    .replace(/\bamber\s+doses\b/gi, 'amber glass vessels')
+    .replace(/\bamber\s+dose\b/gi, 'amber glass vessel')
     .replace(/\bcrystals?(?!\s*[- ]\s*clear\b|\s+chandeliers?\b|\s+glassware\b)/gi, 'golden-amber grains')
     .replace(/\bbacterial\s+agar\s+plates?\b/gi, 'clear glass specimen plates')
     .replace(/\bagar\s+plates?\b/gi, 'clear glass specimen plates')
@@ -1839,7 +1865,7 @@ export function sanitizeCbrnAndWarKeywordsForFlow(rawText: string): string {
       /\b(?:glass|laboratory|ceramic|chemical|distillation|long-necked|curved)\s+retort\b/gi,
       'clear water flask'
     )
-    // 2. Syringes, needles, powders, clinical terms
+    // 2. Syringes, needles, droppers, sterile equipment, powders, clinical terms
     .replace(/\(\s*no\s+unintended\s+explosions\s+or\s+flashes\s*\)/gi, 'steady continuous lighting with zero sudden flashes')
     .replace(/\bno\s+unintended\s+explosions\s+or\s+flashes\b/gi, 'steady continuous lighting with zero sudden flashes')
     .replace(/\b(?:freshly\s+sterilized\s+|vintage\s+)?glass\s+syringe\s+plunger\b/gi, 'glass pipette bulb')
@@ -1849,8 +1875,29 @@ export function sanitizeCbrnAndWarKeywordsForFlow(rawText: string): string {
     .replace(/\binjects\b/gi, 'dispenses')
     .replace(/\binjected\b/gi, 'dispensed')
     .replace(/\binjections?\b/gi, 'application')
+    .replace(
+      /\b(?:an?\s+)?(?:sterile\s+glass\s+dropper|intravenous(?:\s+drip)?)\s+glass\s+bottle\s+stand\b/gi,
+      'a vintage glass dropper bottle stand'
+    )
+    .replace(/\bglass\s+sterile\s+glass\s+dropper\s+bottle\b/gi, 'vintage glass dropper bottle')
     .replace(/\bglass\s+intravenous\s+drip\s+chamber\b/gi, 'glass laboratory dropper vessel')
-    .replace(/\bintravenous(?:\s+drip)?\b/gi, 'sterile glass dropper')
+    .replace(/\bintravenous(?:\s+drip)?\b/gi, 'vintage glass water dropper')
+    .replace(/\bsterile\s+glass\s+droppers?\b/gi, 'vintage glass water dropper')
+    .replace(/\bsterile\s+(metal\s+trays?)\b/gi, 'stainless steel trays')
+    .replace(/\bsterile\s+metal\s+tray\b|\bsterile\s+tray\b/gi, 'stainless steel tray')
+    .replace(/\bsterile\s+trays\b/gi, 'stainless steel trays')
+    .replace(
+      /\bsterile\s+(air\s+compressors?|compressors?|steam\s+seals?|seals?|pipes?|valves?|tanks?|vats?|equipment|chambers?)\b/gi,
+      'industrial $1'
+    )
+    .replace(/\bsterile\s+(gauze|cotton|linen|cloth|drapes?|towels?)\b/gi, 'clean white $1')
+    .replace(
+      /\bsterile\s+(glass\s+suction\s+tubes?|suction\s+tubes?|glass\s+tubes?|glass\s+medicine\s+bottles?|glass\s+bottles?|glass\s+vessels?|glassware|pipettes?|dropper\s+vessels?|flasks?)\b/gi,
+      'clean clear $1'
+    )
+    .replace(/\bsterilizers?\b/gi, 'steam-cleaning cabinet')
+    .replace(/\bsterilized\b/gi, 'freshly cleaned')
+    .replace(/\bsterile\b/gi, 'clean')
     .replace(/\bpressure\s+gauge\s+needles\b/gi, 'pressure gauge dial pointers')
     .replace(/\bneedles\b/gi, 'dial pointers')
     .replace(/\bneedle\b/gi, 'brass pointer')
@@ -1860,7 +1907,7 @@ export function sanitizeCbrnAndWarKeywordsForFlow(rawText: string): string {
     .replace(/(?<!gun)\bpowders?\b/gi, 'crystalline granules')
     .replace(/\bdrugstores?\b/gi, 'vintage neighborhood apothecary')
     .replace(/\bcrude\s+extract\b/gi, 'amber laboratory solution')
-    // 3. Wartime / artillery / blackout / rubble / blood / agony / hospital triggers
+    // 3. Wartime / artillery / blackout / rubble / blood / agony / hospital / feverish / charts triggers
     .replace(/\banti-aircraft\s+artillery\b|\banti-aircraft\b|\bartillery\b/gi, 'distant atmospheric rumble')
     .replace(
       /\b(?:heavy\s+)?(?:black\s+)?(?:1940s\s+period\s+|wartime\s+)?blackout\s+(?:curtains?|cloths?|drapes?|shades?)\b/gi,
@@ -1893,7 +1940,11 @@ export function sanitizeCbrnAndWarKeywordsForFlow(rawText: string): string {
     .replace(/\bhospital\s+cotton\b/gi, 'starched white cotton')
     .replace(/\bhospital\s+glass\b/gi, 'tall sash window glass')
     .replace(/\bhospital\b/gi, 'vintage stone building')
-    .replace(/\bbedside\s+(?:fever|temperature)\s+chart\b/gi, 'wooden clipboard chart')
+    .replace(/\bfeverish(?:ly)?\b/gi, 'fatigued')
+    .replace(
+      /\b(?:paper\s+)?(?:clinical|bedside)\s+(?:fever\s+|temperature\s+|clinical\s+)?charts?\b|\btemperature\s+charts?\b/gi,
+      'handwritten observation chart'
+    )
     .replace(/\bfever\b/gi, 'clinical')
     .replace(/\brecovered\s+adult\s+patients\b/gi, 'recovered adult visitors')
     .replace(/\bpatients\b/gi, 'visitors')
@@ -1910,12 +1961,68 @@ export function sanitizeCbrnAndWarKeywordsForFlow(rawText: string): string {
     .replace(/\bthe\s+(tall\s+British\s+researcher\s+in\s+the\s+laboratory\s+coat)\s+coat\b/gi, 'the coat of the $1')
     .replace(/\b(the quiet vintage 1940s brick ward)\s+with\s+the\s+quiet\s+vintage\s+1940s\s+brick\s+ward/gi, '$1')
     .replace(/(?:\bthe)\s+(?:a|an)\s+/gi, 'the ')
+    .replace(/\b(industrial|botanical|clean|vintage)\s+\1\b/gi, '$1')
+    .replace(/\ban\s+(?=(?:vintage|stainless|handwritten|botanical|clear|clean|golden|white)\b)/gi, 'a ')
     .replace(/\s{2,}/g, ' ')
     .trim();
 }
 
-const STABLE_VIDEO_PHYSICS_ANCHOR =
-  'all background furniture, architectural fixtures, and tabletop props remain 100% gravity-locked and stationary while any held object moves smoothly under natural hand control, fixed subject count from 0s to 8s, single continuous shot, strictly no shot changes';
+export function stripAllClosingBoilerplates(rawText: string): string {
+  let out = String(rawText || '');
+  let prev = '';
+  while (out !== prev) {
+    prev = out;
+    out = out
+      .replace(
+        /,?\s*cinematic\s+documentary\s+realism,\s*safe\s+framing\s+composition,\s*8k\s+resolution,\s*sharp\s+focus,\s*no\s+modern\s+objects,\s*no\s+CGI\s+look(?:,\s*no\s+text,\s*no\s+spoken\s+voice,\s*no\s+human\s+speech,\s*no\s+music\.?)?/gi,
+        ' '
+      )
+      .replace(
+        /,?\s*portrayed\s+by\s+anonymous(?:\s+mature\s+adult)?\s+historical\s+reenactment\s+actors?(?:\s+in\s+authentic\s+period\s+(?:costume|attire))?(?:\s*\(no\s+real\s+public\s+figures\s+or\s+prominent\s+people\))?/gi,
+        ' '
+      )
+      .replace(
+        /,?\s*clean\s+uncluttered\s+composition\s+with\s+rigid\s+architectural\s+perspective,\s*stationary\s+period\s+props(?:,\s*clear\s+anatomical\s+separation\s+between\s+subjects)?(?:,\s*strictly\s+empty\s+environment\s+with\s+(?:no\s+people\s+present|zero\s+people(?:,\s*zero\s+human\s+hands,?\s*and\s+zero\s+characters\s+anywhere\s+in\s+the\s+frame)?))?/gi,
+        ' '
+      )
+      .replace(
+        /,?\s*8k\s+photorealistic\s+cinematic\s+lighting,\s*historical\s+accuracy,\s*sharp\s+focus[^.]*\.?/gi,
+        ' '
+      )
+      .replace(
+        /,?\s*(?:strictly\s+)?no\s+text(?:,\s*no\s+readable\s+letters)?(?:,\s*no\s+watermarks)?(?:,\s*no\s+spoken\s+voice)?(?:,\s*no\s+human\s+speech)?(?:,\s*no\s+speech)?(?:,\s*no\s+music)?(?:\s*\(no\s+real\s+public\s+figures\s+or\s+prominent\s+people\))?\.?/gi,
+        ' '
+      )
+      .replace(/\(\s*no\s+real\s+public\s+figures\s+or\s+prominent\s+people\s*\)/gi, ' ');
+  }
+  return out.replace(/\s{2,}/g, ' ').trim();
+}
+
+export function stripZeroPeopleBoilerplatePhrases(rawText: string): string {
+  return String(rawText || '')
+    .replace(
+      /,?\s*with\s+no\s+people\s+present\s+and\s+zero\s+human\s+figures\b/gi,
+      ' '
+    )
+    .replace(
+      /,?\s*with\s+no\s+people\s+present(?=\s+across\s+the\s+full\s+\d+\s+seconds\b|,|\.|\s*$)/gi,
+      ' '
+    )
+    .replace(
+      /,?\s*strictly\s+empty\s+environment\s+with\s+(?:no\s+people\s+present|zero\s+people(?:,\s*zero\s+human\s+hands,?\s*and\s+zero\s+characters\s+anywhere\s+in\s+the\s+frame)?)/gi,
+      ' '
+    )
+    .replace(
+      /Strictly\s*zero\s*people(?:\s+or\s+human\s+figures\s+appearing\s+anywhere\s+in\s+the\s+frame|\s*,\s*zero\s*human\s*silhouettes,?|\s+and\s+zero\s+(?:moving\s*characters|human\s*figures))[^.]*\.?\s*/gi,
+      ' '
+    )
+    .replace(/,?\s*no\s+people\s+present\s+and\s+zero\s+human\s+figures\b/gi, ' ')
+    .replace(/,?\s*(?:with\s+)?no\s+people\s+present\b/gi, ' ')
+    .replace(/,?\s*(?:with\s+)?zero\s+people\b/gi, ' ')
+    .replace(/,?\s*(?:and\s+)?zero\s+human\s+figures\b/gi, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
 
 function finalizeCleanFlowPromptParagraph(
   sanitizedPrompt: string,
@@ -1947,44 +2054,18 @@ function finalizeCleanFlowPromptParagraph(
   const isStaticBroll =
     mode === 'image' && Boolean(options.isStaticBroll || isImageOnlyBrollPrompt(raw));
 
-  const hadExplicitZeroPeople =
-    /\b(?:zero\s+people|no\s+(?:live\s+)?(?:people|human\s+figures|humans|persons|characters|actors)(?:\s+present)?|without\s+(?:any\s+)?(?:people|humans)|strictly\s+empty\s+environment|uninhabited)\b/i.test(
-      raw
-    );
-
   // Strip leading header ("Image 01:", "Clip 01 (00:08 - 00:16):")
   let body = raw
     .replace(/^(?:Image|Imagen|Clip)\s*\[?0*\d+\]?(?:\s*\([^)]*\))?\s*[:\-–]\s*/i, '')
     .trim();
 
-  // Strip all brackets (including nested [Model: Veo 3.1 - Lite [Lower Priority]]) and trailing rename
+  // Strip all brackets and trailing rename
   body = stripAllPromptBrackets(body).replace(FLOW_TRAILING_FIX_NAME_RE, '').trim();
 
   if (mode === 'image') {
-    body = body
+    body = stripZeroPeopleBoilerplatePhrases(stripAllClosingBoilerplates(body))
       .replace(/\b16\s*:\s*9\b|\b16-by-9\b/gi, '16-9')
       .replace(/\b9\s*:\s*16\b|\b9-by-16\b/gi, '9-16')
-      .replace(
-        /,?\s*clean\s+uncluttered\s+composition\s+with\s+rigid\s+architectural\s+perspective,\s*stationary\s+period\s+props(?:,\s*clear\s+anatomical\s+separation\s+between\s+subjects)?(?:,\s*strictly\s+empty\s+environment\s+with\s+(?:no\s+people\s+present|zero\s+people(?:,\s*zero\s+human\s+hands,?\s*and\s+zero\s+characters\s+anywhere\s+in\s+the\s+frame)?))?(?:,\s*portrayed\s+by\s+anonymous\s+historical\s+reenactment\s+actors\s+in\s+authentic\s+period\s+costume)?(?:\s*\(no\s+real\s+public\s+figures\s+or\s+prominent\s+people\))?/gi,
-        ''
-      )
-      .replace(
-        /,?\s*portrayed\s+by\s+anonymous\s+historical\s+reenactment\s+actors\s+in\s+authentic\s+period\s+costume(?:\s*\(no\s+real\s+public\s+figures\s+or\s+prominent\s+people\))?/gi,
-        ''
-      )
-      .replace(
-        /,?\s*8k\s+photorealistic\s+cinematic\s+lighting,\s*historical\s+accuracy,\s*sharp\s+focus[^.]*\.?/gi,
-        ''
-      )
-      .replace(
-        /,?\s*cinematic\s+documentary\s+realism,\s*safe\s+framing\s+composition,\s*8k\s+resolution,\s*sharp\s+focus,\s*no\s+modern\s+objects,\s*no\s+CGI\s+look,\s*no\s+text,\s*no\s+spoken\s+voice,\s*no\s+human\s+speech,\s*no\s+music\.?/gi,
-        ''
-      )
-      .replace(
-        /,?\s*(?:strictly\s+)?no\s+text(?:,\s*no\s+readable\s+letters)?(?:,\s*no\s+watermarks)?(?:,\s*no\s+spoken\s+voice)?(?:,\s*no\s+human\s+speech)?(?:,\s*no\s+speech)?(?:,\s*no\s+music)?(?:\s*\(no\s+real\s+public\s+figures\s+or\s+prominent\s+people\))?\.?/gi,
-        ''
-      )
-      .replace(/\(\s*no\s+real\s+public\s+figures\s+or\s+prominent\s+people\s*\)/gi, '')
       .replace(/STATIC\s+B-ROLL\s+PLATE\s+LOCK\s*:?/gi, '')
       .replace(/\s*:\s*/g, ', ')
       .replace(/\s+/g, ' ')
@@ -2013,12 +2094,10 @@ function finalizeCleanFlowPromptParagraph(
       );
     }
 
-    if (
-      hadExplicitZeroPeople &&
-      !/\b(?:no\s+people\s+present|zero\s+people|uninhabited)\b/i.test(body)
-    ) {
-      body = `${body}, with no people present`;
-    }
+    const hasHuman = detectPromptSceneHasHumanSubjects(body);
+    const subjectClause = hasHuman
+      ? ', portrayed by anonymous mature adult historical reenactment actors in authentic period costume'
+      : ', with no people present';
 
     body = body
       .replace(/,\s*,+/g, ', ')
@@ -2027,8 +2106,10 @@ function finalizeCleanFlowPromptParagraph(
       .replace(/[,;.\s]+$/g, '')
       .trim();
 
-    const renamePrefix = isStaticBroll ? 'Broll' : 'Inicial';
-    return `Image ${numStr}: ${body}, ${FROZEN_FLOW_CLOSING_CLAUSE} fix the name to ${renamePrefix}_${numStr}_create_an_image_in_16_9`;
+    if (isStaticBroll) {
+      return `Image ${numStr}: ${body}${subjectClause}, ${FROZEN_FLOW_CLOSING_CLAUSE} ${IMAGE_ONLY_BROLL_DIRECTIVE_TAG} fix the name to Broll_${numStr}_create_an_image_in_16_9`;
+    }
+    return `Image ${numStr}: ${body}${subjectClause}, ${FROZEN_FLOW_CLOSING_CLAUSE} fix the name to Inicial_${numStr}_create_an_image_in_16_9`;
   }
 
   // Video mode ("Clip XX:")
@@ -2044,11 +2125,7 @@ function finalizeCleanFlowPromptParagraph(
   }
 
   if (foleyClause) {
-    foleyClause = stripLeakedSpanishNarrationTail(foleyClause)
-      .replace(
-        /,?\s*cinematic\s+documentary\s+realism,\s*safe\s+framing\s+composition[\s\S]*$/i,
-        ''
-      )
+    foleyClause = stripAllClosingBoilerplates(stripLeakedSpanishNarrationTail(foleyClause))
       .replace(
         /,?\s*(?:single\s+continuous\s+shot|strictly\s+no\s+shot\s+changes|100%\s*pure\s*ambient\s*foley[^,.]*|no\s+music|no\s+spoken\s+voice|no\s+human\s+speech|no\s+speech|no\s+text|no\s+watermarks)\b[\s\S]*$/i,
         ''
@@ -2064,55 +2141,49 @@ function finalizeCleanFlowPromptParagraph(
     foleyClause = 'quiet period room tone and natural atmospheric acoustics';
   }
 
-  // Strip all legacy duplicate physics/actor/closing sentences from video body
-  body = body
-    .replace(/\b16\s*:\s*9\b|\b16-by-9\b/gi, '16-9')
-    .replace(/\b9\s*:\s*16\b|\b9-by-16\b/gi, '9-16')
-    .replace(
-      /Smooth,\s*controlled\s*fluid-head\s*camera\s*motion\s*maintaining\s*rigid\s*3D[^.]*\.?\s*/gi,
-      ' '
-    )
-    .replace(
-      /Sustained,\s*unhurried\s*continuous\s*(?:action|motion)\s*across\s*the\s*full\s*\d+\s*seconds[^.]*\.?\s*/gi,
-      ' '
-    )
-    .replace(
-      /Fixed\s*subject\s*count\s*from\s*0s\s*to\s*\d+s[\s\S]*?(?:bokeh\)\.|geometry\.|physics\.|morphing\)\.)\s*(?:\d+\s*bokeh\)\.\s*)*/gi,
-      ' '
-    )
-    .replace(
-      /Strictly\s*zero\s*people(?:\s+or\s+human\s+figures\s+appearing\s+anywhere\s+in\s+the\s+frame|\s*,\s*zero\s*human\s*silhouettes,?|\s+and\s+zero\s+(?:moving\s*characters|human\s*figures))[^.]*\.?\s*/gi,
-      ' '
-    )
-    .replace(
-      /All\s*furniture,\s*tables,\s*and\s*props\s*remain\s*100%\s*physically\s*solid[^.]*\.?\s*/gi,
-      ' '
-    )
-    .replace(
-      /All\s*tables,\s*documents,\s*furniture,\s*and\s*props\s*remain\s*100%\s*gravity-locked[^.]*\.?\s*/gi,
-      ' '
-    )
-    .replace(
-      /Solid,\s*non-deforming\s*walls\s*and\s*rigid\s*3D\s*architectural\s*geometry[^.]*\.?\s*/gi,
-      ' '
-    )
-    .replace(
-      /Cinematic\s*historical\s*(?:drama\s*reenactment|documentary\s*still-life\s*cinematography)[^.]*\.?\s*/gi,
-      ' '
-    )
-    .replace(
-      /,?\s*(?:with\s+no\s+people\s+present\s+and\s+zero\s+human\s+figures,\s*)?all\s+background\s+furniture,\s+architectural\s+fixtures,\s+and\s+tabletop\s+props\s+remain\s+100%\s+gravity-locked[\s\S]*$/i,
-      ' '
-    )
-    .replace(
-      /,?\s*cinematic\s+documentary\s+realism,\s*safe\s+framing\s+composition[\s\S]*$/i,
-      ' '
-    )
-    .replace(
-      /,?\s*(?:single\s+continuous\s+shot|strictly\s+no\s+shot\s+changes|no\s+music|no\s+spoken\s+voice|no\s+human\s+speech|no\s+speech|no\s+text)\b[\s\S]*$/i,
-      ' '
-    )
-    .replace(/\b(?:STRICT\s+ADULTS-ONLY\s+CAST[^:]*|SINGLE\s+CONTINUOUS\s+UNBROKEN\s+TAKE[^:]*|Visual\s+Style)\s*:\s*/gi, '')
+  // Strip all legacy duplicate physics/actor/closing/zero-people sentences from video body
+  body = stripZeroPeopleBoilerplatePhrases(
+    stripAllClosingBoilerplates(body)
+      .replace(/\b16\s*:\s*9\b|\b16-by-9\b/gi, '16-9')
+      .replace(/\b9\s*:\s*16\b|\b9-by-16\b/gi, '9-16')
+      .replace(
+        /Smooth,\s*controlled\s*fluid-head\s*camera\s*motion\s*maintaining\s*rigid\s*3D[^.]*\.?\s*/gi,
+        ' '
+      )
+      .replace(
+        /Sustained,\s*unhurried\s*continuous\s*(?:action|motion)\s*across\s*the\s*full\s*\d+\s*seconds[^.]*\.?\s*/gi,
+        ' '
+      )
+      .replace(
+        /Fixed\s*subject\s*count\s*from\s*0s\s*to\s*\d+s[\s\S]*?(?:bokeh\)\.|geometry\.|physics\.|morphing\)\.)\s*(?:\d+\s*bokeh\)\.\s*)*/gi,
+        ' '
+      )
+      .replace(
+        /All\s*furniture,\s*tables,\s*and\s*props\s*remain\s*100%\s*physically\s*solid[^.]*\.?\s*/gi,
+        ' '
+      )
+      .replace(
+        /All\s*tables,\s*documents,\s*furniture,\s*and\s*props\s*remain\s*100%\s*gravity-locked[^.]*\.?\s*/gi,
+        ' '
+      )
+      .replace(
+        /Solid,\s*non-deforming\s*walls\s*and\s*rigid\s*3D\s*architectural\s*geometry[^.]*\.?\s*/gi,
+        ' '
+      )
+      .replace(
+        /Cinematic\s*historical\s*(?:drama\s*reenactment|documentary\s*still-life\s*cinematography)[^.]*\.?\s*/gi,
+        ' '
+      )
+      .replace(
+        /,?\s*(?:with\s+no\s+people\s+present\s+and\s+zero\s+human\s+figures,\s*)?all\s+background\s+furniture,\s+architectural\s+fixtures,\s+and\s+tabletop\s+props\s+remain\s+100%\s+gravity-locked[\s\S]*$/i,
+        ' '
+      )
+      .replace(
+        /,?\s*(?:single\s+continuous\s+shot|strictly\s+no\s+shot\s+changes|no\s+music|no\s+spoken\s+voice|no\s+human\s+speech|no\s+speech|no\s+text)\b[\s\S]*$/i,
+        ' '
+      )
+      .replace(/\b(?:STRICT\s+ADULTS-ONLY\s+CAST[^:]*|SINGLE\s+CONTINUOUS\s+UNBROKEN\s+TAKE[^:]*|Visual\s+Style)\s*:\s*/gi, '')
+  )
     .replace(/\s*:\s*/g, ', ')
     .replace(/\s+/g, ' ')
     .replace(/[,;.\s]+$/g, '')
@@ -2125,10 +2196,10 @@ function finalizeCleanFlowPromptParagraph(
   ).trim();
   body = `Generate a video in 16-9 horizontal aspect ratio across ${resolvedDur} seconds showing ${body}`;
 
-  const zeroPeopleAnchor =
-    hadExplicitZeroPeople && !/\b(?:no\s+people\s+present|zero\s+people|uninhabited)\b/i.test(body)
-      ? 'with no people present and zero human figures, '
-      : '';
+  const hasHuman = detectPromptSceneHasHumanSubjects(body);
+  const physicsClause = hasHuman
+    ? `all background furniture, architectural fixtures, and tabletop props remain 100% gravity-locked and stationary while any held object moves smoothly under natural hand control, fixed subject count from 0s to ${resolvedDur}s, single continuous shot, strictly no shot changes`
+    : `with no people present and zero human figures, all background furniture, architectural fixtures, and tabletop props remain 100% gravity-locked and stationary, fixed subject count from 0s to ${resolvedDur}s, single continuous shot, strictly no shot changes`;
 
   body = body
     .replace(/,\s*,+/g, ', ')
@@ -2137,7 +2208,7 @@ function finalizeCleanFlowPromptParagraph(
     .replace(/[,;.\s]+$/g, '')
     .trim();
 
-  return `Clip ${numStr}: ${body}, ${zeroPeopleAnchor}${STABLE_VIDEO_PHYSICS_ANCHOR}, with subtle ambient foley of ${foleyClause}. ${FROZEN_FLOW_CLOSING_CLAUSE} fix the name to Clip_${numStr}_generate_a_video_in_16_9`;
+  return `Clip ${numStr}: ${body}, ${physicsClause}, with subtle ambient foley of ${foleyClause}. ${FROZEN_FLOW_CLOSING_CLAUSE} fix the name to Clip_${numStr}_generate_a_video_in_16_9`;
 }
 
 export function sanitizeImagePromptForFlowSafety(
@@ -5481,21 +5552,19 @@ export type FlowProjectEngineMode =
  */
 function stripFlowPromptBoilerplateForSubjectCheck(rawPrompt: string): string {
   if (!rawPrompt) return '';
-  return stripAllPromptBrackets(rawPrompt)
+  return stripZeroPeopleBoilerplatePhrases(
+    stripAllClosingBoilerplates(stripAllPromptBrackets(rawPrompt))
+  )
     .replace(FLOW_TRAILING_FIX_NAME_RE, ' ')
+    .replace(/\bstructured\s+as\s+a\s+completely\s+still\s+archival\s+documentary\s+B-roll\s+plate\b/gi, ' ')
     .replace(/Cinematic historical drama reenactment[^.]*\.?/gi, ' ')
-    .replace(/portrayed by anonymous historical reenactment actors[^.]*\.?/gi, ' ')
-    .replace(/no real public figures or prominent people/gi, ' ')
+    .replace(/Cinematic historical documentary still-life cinematography[^.]*\.?/gi, ' ')
     .replace(
       /Fixed\s*subject\s*count\s*from\s*0s\s*to\s*\d+s[\s\S]*?(?:bokeh\)\.|geometry\.|physics\.|morphing\)\.)/gi,
       ' '
     )
     .replace(
       /all\s+background\s+furniture,\s+architectural\s+fixtures,\s+and\s+tabletop\s+props\s+remain\s+100%\s+gravity-locked[^.]*\.?/gi,
-      ' '
-    )
-    .replace(
-      /cinematic\s+documentary\s+realism,\s*safe\s+framing\s+composition,\s*8k\s+resolution,\s*sharp\s+focus,\s*no\s+modern\s+objects,\s*no\s+CGI\s+look,\s*no\s+text,\s*no\s+spoken\s+voice,\s*no\s+human\s+speech,\s*no\s+music\.?/gi,
       ' '
     )
     .replace(/Fixed subject count[^.]*\.?/gi, ' ')
@@ -5512,6 +5581,61 @@ function stripFlowPromptBoilerplateForSubjectCheck(rawPrompt: string): string {
 
 const KNOWN_LOCATION_AT_TAG_PREFIX_RE =
   /^@(?:Enfermer[ií]a|Hospital|Laboratorio|Escuela|Sala|Mesa|Planta|Playas?|Boticas?|Sal[oó]n|Puerto|Muelle|Calle|Plaza|Palacio|Iglesia|Catedral|Castillo|Ciudad|Oficina|Banco|F[aá]brica|Estaci[oó]n|Tren|Barco|Puente|Valle|R[ií]o|Mina|Taller|Mercado|Archivo|Biblioteca|Tribunal|Parlamento|C[aá]mara|Universidad|Instituto|Cl[ií]nica|Farmacia|Almac[eé]n|Bodega|Cuartel|Trinchera|Campo| Playa| Costa| Isla| Bah[ií]a| Teatro| Museo)_/i;
+
+const HUMAN_SUBJECT_SCENE_REGEX =
+  /\b(man|men|woman|women|boy|boys|girl|girls|child|children|adult|adults|person|people|visitor|visitors|volunteer|volunteers|executive|executives|crowd|crowds|audience|listeners|spectators|delegate|delegates|passenger|passengers|peasant|peasants|worker|workers|laborer|laborers|miner|miners|sailor|sailors|soldier|soldiers|medic|medics|officer|officers|guard|guards|gendarme|gendarmes|policeman|policemen|constable|constables|contractor|contractors|official|officials|inspector|inspectors|clerk|clerks|notary|moneylender|usurer|merchant|merchants|grocer|grocers|governor|governors|captain|captains|doctor|doctors|physician|physicians|clinician|clinicians|surgeon|surgeons|nurse|nurses|patient|patients|pharmacist|pharmacists|scientist|scientists|researcher|researchers|scholar|scholars|professor|professors|director|directors|specialist|specialists|biochemist|biochemists|mycologist|mycologists|chemist|chemists|bacteriologist|bacteriologists|pathologist|pathologists|microbiologist|microbiologists|historian|historians|technician|technicians|assistant|assistants|journalist|journalists|reporter|reporters|diplomat|diplomats|priest|priests|monk|monks|bishop|bishops|clergyman|clergymen|king|kings|queen|queens|emperor|emperors|empress|empresses|prince|princes|princess|princesses|monarch|monarchs|ruler|rulers|sovereign|sovereigns|noble|nobles|nobleman|noblemen|noblewoman|noblewomen|farmer|farmers|villager|villagers|citizen|citizens|migrant|migrants|emigrant|emigrants|immigrant|immigrants|refugee|refugees|exile|exiles|traveler|travelers|pedestrian|pedestrians|couple|family|families|mother|father|parents|son|daughter|brother|sister|widow|elder|elders|veteran|veterans|blacksmith|carpenter|baker|tailor|weaver|fisherman|fishermen|shepherd|beggar|prisoner|prisoners|captive|captives|pilgrim|pilgrims|colonist|colonists|settler|settlers|actor|actors|actress|actresses|figure|figures|leader|leaders|statesman|statesmen|politician|politicians|poet|poets|writer|writers|author|authors|inventor|inventors|engineer|engineers|industrialist|industrialists|pioneer|pioneers|founder|founders|general|generals|commander|commanders|admiral|admirals|colonel|colonels|minister|ministers|mayor|mayors|judge|judges|lawyer|lawyers|philosopher|philosophers|composer|composers|architect|architects|explorer|explorers|operator|operators|\d+-year-old|he|she|him|his|her|seated\s+beside|in\s+his\s+hands|in\s+her\s+hands|silhouette\s+of\s+a\s+(?:man|woman|person|figure|boy|girl|doctor|scientist|soldier|officer)|figures?\s+(?:walking|standing|working|boarding|carrying|waiting|huddled|gathered|sitting|kneeling|running|looking|watching|leaning|examining)|(?:weathered|gloved|bare|trembling|steady|aged)\s+hands|hands\s+(?:holding|signing|counting|turning|resting|trembling|clutching|writing|tying|stitching|open|opening|closing|pouring|forging|hammering|placing|lifting|adjusting|sealing|labeling|examining|pipetting))\b/i;
+
+/**
+ * Pure visual-content human detector that ignores B-Roll static plate flags and strips all
+ * legacy/corrupted closing or zero-people boilerplates first, ensuring zero contradictions
+ * between `HUMAN_ACTION` and `EMPTY_ENVIRONMENT` even on archival B-Roll portraits (e.g. Clip 47).
+ */
+export function detectPromptSceneHasHumanSubjects(
+  sceneText: string,
+  references?: ReferenceAsset[]
+): boolean {
+  const combined = stripFlowPromptBoilerplateForSubjectCheck(sceneText || '');
+  if (!combined) return false;
+
+  const foundTags = combined.match(/@[A-Za-z0-9_ÁÉÍÓÚáéíóúÑñ]{2,}/g) || [];
+  if (foundTags.length > 0) {
+    const refCategoryBySlug = new Map<string, string>();
+    if (Array.isArray(references)) {
+      for (const r of references) {
+        if (r?.tag) {
+          refCategoryBySlug.set(r.tag.trim().toLowerCase(), r.category || '');
+        }
+      }
+    }
+    for (const tag of foundTags) {
+      const lowerTag = tag.toLowerCase();
+      const knownCat = refCategoryBySlug.get(lowerTag);
+      if (knownCat === 'persona') return true;
+      if (knownCat === 'lugar' || KNOWN_LOCATION_AT_TAG_PREFIX_RE.test(tag)) continue;
+      return true;
+    }
+  }
+
+  // Pure flat print/lithograph/engraving/map on desk without live human actors
+  const isPurePrintOrMap =
+    /\b(satirical\s+lithograph|vintage\s+\d*\s*lithograph|woodcut\s+engraving|cartographic\s+map|overhead\s+view\s+of\s+an\s+antique|macro\s+close-up\s+on\s+an\s+antique\s+(?:historian's\s+)?wooden\s+desk)\b/i.test(
+      combined
+    ) &&
+    !/\b(hands?\s+(?:holding|signing|counting|writing|turning|resting|pointing|stamping|lifting|adjusting|placing|pouring)|man|woman|clerk|notary|official|actor|scientist|doctor|researcher|scholar)\b/i.test(
+      combined
+    );
+  if (isPurePrintOrMap) {
+    return false;
+  }
+
+  // Mask negated human phrases (e.g. "zero human hands", "without any people", "no human figures") before positive match
+  const maskedNegations = combined.replace(
+    /\b(?:zero|no|without(?:\s+any)?|devoid\s+of)\s+(?:live\s+|moving\s+|visible\s+|human\s+)?(?:people|persons|humans|men|women|adults|figures|characters|actors|hands|silhouettes|subjects|presence)\b/gi,
+    ' '
+  );
+
+  return HUMAN_SUBJECT_SCENE_REGEX.test(maskedNegations);
+}
 
 /**
  * Automatically detects whether a clip depicts live human subjects (people, characters, @Person Ref,
@@ -5539,77 +5663,15 @@ export function detectClipHasHumanSubjects(
   const rawImgOrig = clip.imagePrompt || '';
   const rawVidOrig = clip.videoPrompt || '';
   const cleanExp = (clip.visualExplanation || '').trim();
-  const cleanImg = stripFlowPromptBoilerplateForSubjectCheck(rawImgOrig);
-  const cleanVid = stripFlowPromptBoilerplateForSubjectCheck(rawVidOrig);
-  const combined = `${cleanImg} ${cleanVid}`.trim();
-  if (!combined && !cleanExp) return false;
 
-  // 1. Inspect @Tags distinguishing @Person vs @Location references (including visualExplanation!)
-  const foundTags = `${combined} ${cleanExp}`.match(/@[A-Za-z0-9_ÁÉÍÓÚáéíóúÑñ]{2,}/g) || [];
-  if (foundTags.length > 0) {
-    const refCategoryBySlug = new Map<string, string>();
-    if (Array.isArray(references)) {
-      for (const r of references) {
-        if (r?.tag) {
-          refCategoryBySlug.set(r.tag.trim().toLowerCase(), r.category || '');
-        }
-      }
-    }
-    for (const tag of foundTags) {
-      const lowerTag = tag.toLowerCase();
-      const knownCat = refCategoryBySlug.get(lowerTag);
-      if (knownCat === 'persona') return true;
-      if (knownCat === 'lugar' || KNOWN_LOCATION_AT_TAG_PREFIX_RE.test(tag)) continue;
-      if (
-        !/\b(?:zero\s+people|no\s+(?:live\s+)?(?:people|human\s+figures|humans|persons|characters|actors|human\s+presence)(?:\s+present)?|without\s+(?:any\s+)?(?:people|humans|human\s+figures)|strictly\s+empty\s+environment|uninhabited|devoid\s+of\s+(?:people|humans))\b/i.test(
-          combined
-        )
-      ) {
-        return true;
-      }
-    }
-  }
-
-  // 2. Explicit zero-people / uninhabited scene clause overrides false positives from words like "no people present"
-  const explicitZeroPeopleRegex =
-    /\b(?:zero\s+people|no\s+(?:live\s+)?(?:people|human\s+figures|humans|persons|characters|actors|human\s+presence)(?:\s+present)?|without\s+(?:any\s+)?(?:people|humans|human\s+figures)|strictly\s+empty\s+environment|empty\s+uninhabited|uninhabited|devoid\s+of\s+(?:people|humans))\b/i;
-  if (explicitZeroPeopleRegex.test(`${rawImgOrig} ${rawVidOrig}`)) {
-    return false;
-  }
-
-  // Detect explicit actor reenactment boilerplate when zero-people negation is absent
-  if (
-    /\bportrayed\s+by\s+anonymous\s+(?:mature\s+adult\s+)?historical\s+reenactment\s+actors?\b|\bfictionalized\s+theatre\s+actors\b/i.test(
-      `${rawImgOrig} ${rawVidOrig}`
-    )
-  ) {
+  if (detectPromptSceneHasHumanSubjects(`${rawImgOrig} ${rawVidOrig}`, references)) {
     return true;
   }
 
-  // 3. If it's explicitly a flat print/lithograph/engraving/map/document on a desk without live hands/actors interacting
-  const isPurePrintOrMap =
-    /\b(satirical\s+lithograph|vintage\s+\d*\s*lithograph|woodcut\s+engraving|cartographic\s+map|overhead\s+view\s+of\s+an\s+antique|macro\s+close-up\s+on\s+an\s+antique\s+(?:historian's\s+)?wooden\s+desk)\b/i.test(
-      combined
-    ) &&
-    !/\b(hands?\s+(?:holding|signing|counting|writing|turning|resting|pointing|stamping|lifting|adjusting|placing|pouring)|man|woman|clerk|notary|official|actor|scientist|doctor|researcher|scholar)\b/i.test(
-      combined
-    );
-  if (isPurePrintOrMap) {
-    return false;
-  }
-
-  // 4. Check for human subjects, roles, crowds, pronouns, or visible human anatomy in action
-  const humanSubjectRegex =
-    /\b(man|men|woman|women|boy|girl|child|children|adult|adults|person|people|visitor|visitors|volunteer|volunteers|crowd|audience|listeners|spectators|delegates|passengers|peasants|workers|laborer|laborers|miners|sailors|soldiers|medics|officers|guards|gendarmes|policeman|policemen|constable|constables|contractor|contractors|officials|inspectors|clerks|notary|moneylender|usurer|merchants|grocer|governor|captain|doctor|doctors|physician|physicians|clinician|clinicians|surgeon|surgeons|nurse|nurses|patient|patients|pharmacist|pharmacists|scientist|scientists|researcher|researchers|scholar|scholars|professor|professors|director|directors|specialist|specialists|biochemist|biochemists|mycologist|mycologists|chemist|chemists|bacteriologist|bacteriologists|pathologist|pathologists|microbiologist|microbiologists|historian|historians|technician|technicians|assistant|assistants|journalist|reporter|diplomat|priest|monk|bishop|clergyman|king|queen|emperor|empress|prince|princess|monarch|monarchs|ruler|rulers|sovereign|sovereigns|noble|nobleman|noblewoman|farmer|farmers|villagers|citizens|migrants|emigrants|immigrants|refugee|refugees|exile|exiles|travelers|pedestrians|couple|family|families|mother|father|parents|son|daughter|brother|sister|widow|elder|elders|veteran|blacksmith|carpenter|baker|tailor|weaver|fisherman|fishermen|shepherd|beggar|prisoner|captive|pilgrim|pilgrims|colonists|settlers|actor|actors|actress|actresses|figure|figures|leader|leaders|statesman|statesmen|politician|politicians|poet|poets|writer|writers|author|authors|inventor|inventors|engineer|engineers|industrialist|industrialists|pioneer|pioneers|founder|founders|general|commander|admiral|colonel|minister|mayor|judge|lawyer|philosopher|composer|architect|explorer|operator|operators|\d+-year-old|he|she|him|his|her|seated\s+beside|in\s+his\s+hands|in\s+her\s+hands|silhouette\s+of\s+a\s+(?:man|woman|person|figure|boy|girl|doctor|scientist|soldier)|figures?\s+(?:walking|standing|working|boarding|carrying|waiting|huddled|gathered|sitting|kneeling|running|looking|watching|leaning|examining)|(?:weathered|gloved|bare|trembling|steady|aged)\s+hands|hands\s+(?:holding|signing|counting|turning|resting|trembling|clutching|writing|tying|stitching|open|opening|closing|pouring|forging|hammering|placing|lifting|adjusting|sealing|labeling|examining|pipetting))\b/i;
-
-  if (humanSubjectRegex.test(combined)) {
-    return true;
-  }
-
-  // 5. Always check Spanish visualExplanation as well (even when English prompts exist, in case @Tag was sanitized)
+  // Always check Spanish visualExplanation as well (even when English prompts exist, in case @Tag was sanitized)
   if (
     cleanExp &&
-    /\b(hombre|hombres|mujer|mujeres|niño|niña|niños|persona|personas|gente|multitud|oyentes|público|pasajeros|campesinos|obreros|trabajadores|marineros|soldados|oficiales|guardias|funcionarios|escribano|prestamista|comerciantes|gobernador|capitán|médico|doctora|doctor|enfermera|paciente|científico|investigador|químico|policía|sacerdote|monje|rey|reina|emperador|agricultor|emigrantes|inmigrantes|viajeros|pareja|familia|madre|padre|hijo|hija|anciano)\b/i.test(
+    /\b(hombre|hombres|mujer|mujeres|niño|niña|niños|persona|personas|gente|multitud|oyentes|público|pasajeros|campesinos|obreros|trabajadores|marineros|soldados|oficiales|guardias|funcionarios|escribano|prestamista|comerciantes|gobernador|capitán|médico|doctora|doctor|enfermera|paciente|científico|investigador|químico|ejecutivo|ejecutivos|policía|sacerdote|monje|rey|reina|emperador|agricultor|emigrantes|inmigrantes|viajeros|pareja|familia|madre|padre|hijo|hija|anciano)\b/i.test(
       cleanExp
     )
   ) {
