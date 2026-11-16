@@ -195,7 +195,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '02:27 PM - 11/16/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '02:32 PM - 11/16/2026';
 
 const PROTECTED_DOC_TEXT_FIELDS = [
   'rawClipsText',
@@ -26577,6 +26577,30 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                       >
                         + Añadir Pista FlowMusic
                       </button>
+                      {(activeDoc.sunoTracks || []).length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const count = (activeDoc.sunoTracks || []).length;
+                            if (
+                              window.confirm(
+                                `¿Estás seguro de que deseas borrar TODAS las ${count} canciones de la Etapa 8? Esta acción no se puede deshacer.`
+                              )
+                            ) {
+                              updateActiveDoc(
+                                { sunoTracks: [], rawSunoText: '' },
+                                { allowClearFields: ['rawSunoText'], source: 'user-delete-all-suno' }
+                              );
+                              setCapturedSunoAudioMap({});
+                            }
+                          }}
+                          className="px-3.5 py-2 rounded-xl bg-rose-950/70 hover:bg-rose-900 border border-rose-600/50 text-rose-300 hover:text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer transition shadow-sm"
+                          title="Eliminar todas las canciones diseñadas o agregadas en Etapa 8"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>Borrar Todas ({activeDoc.sunoTracks.length})</span>
+                        </button>
+                      )}
                     </div>
                   </div>
 
@@ -26610,6 +26634,17 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
 
                 {/* FlowMusic Track Cards */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                  {(activeDoc.sunoTracks || []).length === 0 && (
+                    <div className="col-span-full py-12 text-center bg-[#14120f] border border-dashed border-slate-800 rounded-2xl p-8 space-y-3">
+                      <Music className="w-10 h-10 text-amber-500/50 mx-auto" />
+                      <p className="text-sm font-bold text-slate-300">
+                        No hay canciones agregadas en la Etapa 8
+                      </p>
+                      <p className="text-xs text-slate-500 max-w-md mx-auto">
+                        Haz clic en <strong>"✨ Diseñar Música (Gemini + FlowMusic)"</strong> para componerlas automáticamente según las escenas visuales de tu documental, o añade pistas manualmente con <strong>"+ Añadir Pista FlowMusic"</strong>.
+                      </p>
+                    </div>
+                  )}
                   {(activeDoc.sunoTracks || []).map((track, idx) => (
                     <div
                       key={track.id}
@@ -26657,6 +26692,45 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             placeholder="2:30"
                             className="w-16 text-center text-xs font-mono font-bold text-emerald-300 bg-slate-950 border border-emerald-500/40 rounded px-1.5 py-1"
                           />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const songTitle = track.title || `Pista #${idx + 1}`;
+                              if (
+                                window.confirm(
+                                  `¿Seguro que deseas eliminar la canción #${idx + 1}: "${songTitle}"?`
+                                )
+                              ) {
+                                const next = activeDoc.sunoTracks
+                                  .filter((_, i) => i !== idx)
+                                  .map((t, newIdx) => ({
+                                    ...t,
+                                    trackNumber: newIdx + 1,
+                                  }));
+                                updateActiveDoc(
+                                  {
+                                    sunoTracks: next,
+                                    ...(next.length === 0 ? { rawSunoText: '' } : {}),
+                                  },
+                                  next.length === 0
+                                    ? { allowClearFields: ['rawSunoText'], source: 'user-delete-suno' }
+                                    : undefined
+                                );
+                                setCapturedSunoAudioMap((prev) => {
+                                  const nextMap: Record<number, string> = {};
+                                  next.forEach((t, newIdx) => {
+                                    if (t.audioUrl) nextMap[newIdx + 1] = t.audioUrl;
+                                  });
+                                  return nextMap;
+                                });
+                              }
+                            }}
+                            className="p-1.5 rounded-lg bg-rose-950/60 hover:bg-rose-900/80 border border-rose-600/40 text-rose-300 hover:text-rose-100 text-xs font-bold flex items-center gap-1 cursor-pointer transition shadow-sm shrink-0"
+                            title={`Eliminar la pista #${idx + 1}: "${track.title}"`}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span className="hidden sm:inline">Borrar</span>
+                          </button>
                         </div>
                       </div>
 
