@@ -43,7 +43,7 @@
     "_v5_16x9_captionBottom10": true,
     "_v6_16x9_captionOriginalDefault": true
   },
-  "updatedAt": "2026-11-16T02:29:18.302Z",
+  "updatedAt": "2026-11-16T02:32:04.156Z",
   "overlayStyles": {
     "logoScalePct": 5,
     "logoOpacity": 95,
@@ -77,7 +77,7 @@
     "hookLine2AnimInDur": 1,
     "hookLine2AnimOut": "fade",
     "hookLine2AnimOutDur": 1,
-    "clip1OverlayEndSec": 14,
+    "clip1OverlayEndSec": 16,
     "captionFontFamily": "'Cinzel', Georgia, 'Times New Roman', serif",
     "captionFontSize": 21,
     "captionFontSize16x9": 21,
@@ -130,9 +130,7 @@
       "reframe9x16Mode": "auto_pan",
       "reframeFocusXStart": 78,
       "reframeFocusXEnd": 28,
-      "reframeFocusY": 50,
-      "originalSlotDuration": 6,
-      "sourceDuration": 6
+      "reframeFocusY": 50
     },
     {
       "id": "clip-2-1794345057838-2",
@@ -180,9 +178,7 @@
       "reframe9x16Mode": "auto_pan",
       "reframeFocusXStart": 34,
       "reframeFocusXEnd": 78,
-      "reframeFocusY": 50,
-      "originalSlotDuration": 8,
-      "sourceDuration": 8
+      "reframeFocusY": 50
     },
     {
       "id": "clip-5-1794345057839-5",
@@ -534,9 +530,7 @@
       "reframe9x16Mode": "auto_center",
       "reframeFocusXStart": 50,
       "reframeFocusXEnd": 50,
-      "reframeFocusY": 50,
-      "originalSlotDuration": 8,
-      "sourceDuration": 8
+      "reframeFocusY": 50
     },
     {
       "id": "clip-27-1794345057843-27",
@@ -632,9 +626,7 @@
       "reframe9x16Mode": "auto_focus",
       "reframeFocusXStart": 17,
       "reframeFocusXEnd": 17,
-      "reframeFocusY": 50,
-      "originalSlotDuration": 8,
-      "sourceDuration": 8
+      "reframeFocusY": 50
     },
     {
       "id": "clip-33-1794345057844-33",
@@ -747,9 +739,7 @@
       "reframe9x16Mode": "auto_pan",
       "reframeFocusXStart": 24,
       "reframeFocusXEnd": 76,
-      "reframeFocusY": 50,
-      "originalSlotDuration": 8,
-      "sourceDuration": 8
+      "reframeFocusY": 50
     },
     {
       "id": "clip-40-1794345057846-40",
@@ -829,9 +819,7 @@
       "reframe9x16Mode": "auto_pan",
       "reframeFocusXStart": 78,
       "reframeFocusXEnd": 24,
-      "reframeFocusY": 50,
-      "originalSlotDuration": 8,
-      "sourceDuration": 8
+      "reframeFocusY": 50
     },
     {
       "id": "clip-45-1794345057847-45",
@@ -1007,9 +995,7 @@
       "reframe9x16Mode": "auto_focus",
       "reframeFocusXStart": 16,
       "reframeFocusXEnd": 16,
-      "reframeFocusY": 50,
-      "originalSlotDuration": 8,
-      "sourceDuration": 8
+      "reframeFocusY": 50
     },
     {
       "id": "clip-56-1794345057850-56",
@@ -1153,9 +1139,7 @@
       "reframe9x16Mode": "auto_pan",
       "reframeFocusXStart": 22,
       "reframeFocusXEnd": 78,
-      "reframeFocusY": 50,
-      "originalSlotDuration": 8,
-      "sourceDuration": 8
+      "reframeFocusY": 50
     },
     {
       "id": "clip-65-1794345057852-65",
@@ -1235,9 +1219,7 @@
       "reframe9x16Mode": "auto_center",
       "reframeFocusXStart": 50,
       "reframeFocusXEnd": 50,
-      "reframeFocusY": 50,
-      "originalSlotDuration": 8,
-      "sourceDuration": 8
+      "reframeFocusY": 50
     },
     {
       "id": "clip-70-1794345057853-70",
@@ -1301,9 +1283,7 @@
       "smoothSlowMo": false,
       "foleyVolume": 0,
       "customVolumeSet": true,
-      "audioMuted": true,
-      "originalSlotDuration": 8,
-      "sourceDuration": 8
+      "audioMuted": true
     },
     {
       "id": "clip-75-1794345057854-75",
@@ -1315,9 +1295,7 @@
       "smoothSlowMo": false,
       "foleyVolume": 20,
       "customVolumeSet": false,
-      "audioMuted": false,
-      "originalSlotDuration": 8,
-      "sourceDuration": 8
+      "audioMuted": false
     },
     {
       "id": "clip-76-1794345057855-76",
@@ -1329,9 +1307,7 @@
       "smoothSlowMo": false,
       "foleyVolume": 20,
       "customVolumeSet": false,
-      "audioMuted": false,
-      "originalSlotDuration": 8,
-      "sourceDuration": 8
+      "audioMuted": false
     },
     {
       "id": "clip-77-1794345057855-77",
@@ -1355,9 +1331,7 @@
       "smoothSlowMo": false,
       "foleyVolume": 20,
       "customVolumeSet": false,
-      "audioMuted": false,
-      "originalSlotDuration": 8,
-      "sourceDuration": 8
+      "audioMuted": false
     },
     {
       "id": "clip-79-1794345057856-79",
@@ -1369,9 +1343,7 @@
       "smoothSlowMo": false,
       "foleyVolume": 20,
       "customVolumeSet": false,
-      "audioMuted": false,
-      "originalSlotDuration": 8,
-      "sourceDuration": 8
+      "audioMuted": false
     },
     {
       "id": "clip-80-1794345057856-80",
@@ -1419,9 +1391,7 @@
       "smoothSlowMo": false,
       "foleyVolume": 20,
       "customVolumeSet": false,
-      "audioMuted": false,
-      "originalSlotDuration": 8,
-      "sourceDuration": 8
+      "audioMuted": false
     },
     {
       "id": "clip-84-1794345057857-84",
@@ -1433,9 +1403,7 @@
       "smoothSlowMo": false,
       "foleyVolume": 20,
       "customVolumeSet": false,
-      "audioMuted": false,
-      "originalSlotDuration": 8,
-      "sourceDuration": 8
+      "audioMuted": false
     },
     {
       "id": "clip-85-1794345057857-85",
@@ -1495,9 +1463,7 @@
       "smoothSlowMo": false,
       "foleyVolume": 0,
       "customVolumeSet": true,
-      "audioMuted": true,
-      "originalSlotDuration": 8,
-      "sourceDuration": 8
+      "audioMuted": true
     },
     {
       "id": "clip-90-1794345057858-90",
@@ -1533,9 +1499,7 @@
       "smoothSlowMo": false,
       "foleyVolume": 0,
       "customVolumeSet": true,
-      "audioMuted": true,
-      "originalSlotDuration": 8,
-      "sourceDuration": 8
+      "audioMuted": true
     },
     {
       "id": "clip-93-1794345057859-93",
@@ -1559,9 +1523,7 @@
       "smoothSlowMo": false,
       "foleyVolume": 20,
       "customVolumeSet": false,
-      "audioMuted": false,
-      "originalSlotDuration": 8,
-      "sourceDuration": 8
+      "audioMuted": false
     },
     {
       "id": "clip-95-1794345057859-95",
@@ -1597,9 +1559,7 @@
       "smoothSlowMo": false,
       "foleyVolume": 20,
       "customVolumeSet": false,
-      "audioMuted": false,
-      "originalSlotDuration": 8,
-      "sourceDuration": 8
+      "audioMuted": false
     },
     {
       "id": "clip-98-1794345057860-98",
@@ -1623,9 +1583,7 @@
       "smoothSlowMo": false,
       "foleyVolume": 20,
       "customVolumeSet": false,
-      "audioMuted": false,
-      "originalSlotDuration": 8,
-      "sourceDuration": 8
+      "audioMuted": false
     },
     {
       "id": "clip-100-1794345057860-100",
@@ -1649,9 +1607,7 @@
       "smoothSlowMo": false,
       "foleyVolume": 20,
       "customVolumeSet": false,
-      "audioMuted": false,
-      "originalSlotDuration": 8,
-      "sourceDuration": 8
+      "audioMuted": false
     },
     {
       "id": "clip-102-1794345057861-102",
@@ -1687,9 +1643,7 @@
       "smoothSlowMo": false,
       "foleyVolume": 20,
       "customVolumeSet": false,
-      "audioMuted": false,
-      "originalSlotDuration": 8,
-      "sourceDuration": 8
+      "audioMuted": false
     },
     {
       "id": "clip-105-1794345057861-105",
@@ -1713,9 +1667,7 @@
       "smoothSlowMo": false,
       "foleyVolume": 0,
       "customVolumeSet": true,
-      "audioMuted": true,
-      "originalSlotDuration": 8,
-      "sourceDuration": 8
+      "audioMuted": true
     },
     {
       "id": "clip-107-1794345057862-107",
@@ -1751,9 +1703,7 @@
       "smoothSlowMo": false,
       "foleyVolume": 20,
       "customVolumeSet": false,
-      "audioMuted": false,
-      "originalSlotDuration": 8,
-      "sourceDuration": 8
+      "audioMuted": false
     },
     {
       "id": "clip-110-1794345057862-110",
@@ -1777,9 +1727,7 @@
       "smoothSlowMo": false,
       "foleyVolume": 20,
       "customVolumeSet": false,
-      "audioMuted": false,
-      "originalSlotDuration": 8,
-      "sourceDuration": 8
+      "audioMuted": false
     },
     {
       "id": "clip-112-1794345057863-112",
@@ -1815,9 +1763,7 @@
       "smoothSlowMo": false,
       "foleyVolume": 20,
       "customVolumeSet": false,
-      "audioMuted": false,
-      "originalSlotDuration": 8,
-      "sourceDuration": 8
+      "audioMuted": false
     },
     {
       "id": "clip-115-1794345057863-115",
@@ -1877,9 +1823,7 @@
       "smoothSlowMo": false,
       "foleyVolume": 20,
       "customVolumeSet": false,
-      "audioMuted": false,
-      "originalSlotDuration": 8,
-      "sourceDuration": 8
+      "audioMuted": false
     },
     {
       "id": "clip-120-1794345057864-120",
@@ -1891,9 +1835,7 @@
       "smoothSlowMo": false,
       "foleyVolume": 0,
       "customVolumeSet": true,
-      "audioMuted": true,
-      "originalSlotDuration": 8,
-      "sourceDuration": 8
+      "audioMuted": true
     },
     {
       "id": "clip-121-1794345057865-121",
@@ -1941,9 +1883,7 @@
       "smoothSlowMo": false,
       "foleyVolume": 20,
       "customVolumeSet": false,
-      "audioMuted": false,
-      "originalSlotDuration": 8,
-      "sourceDuration": 8
+      "audioMuted": false
     },
     {
       "id": "clip-125-1794345057865-125",
@@ -1955,9 +1895,7 @@
       "smoothSlowMo": false,
       "foleyVolume": 20,
       "customVolumeSet": false,
-      "audioMuted": false,
-      "originalSlotDuration": 8,
-      "sourceDuration": 8
+      "audioMuted": false
     },
     {
       "id": "clip-126-1794345057866-126",
@@ -1969,9 +1907,7 @@
       "smoothSlowMo": false,
       "foleyVolume": 20,
       "customVolumeSet": false,
-      "audioMuted": false,
-      "originalSlotDuration": 8,
-      "sourceDuration": 8
+      "audioMuted": false
     },
     {
       "id": "clip-127-1794345057866-127",
@@ -1995,9 +1931,7 @@
       "smoothSlowMo": false,
       "foleyVolume": 20,
       "customVolumeSet": false,
-      "audioMuted": false,
-      "originalSlotDuration": 8,
-      "sourceDuration": 8
+      "audioMuted": false
     },
     {
       "id": "clip-129-1794345057866-129",
@@ -2009,9 +1943,7 @@
       "smoothSlowMo": false,
       "foleyVolume": 20,
       "customVolumeSet": false,
-      "audioMuted": false,
-      "originalSlotDuration": 8,
-      "sourceDuration": 8
+      "audioMuted": false
     },
     {
       "id": "clip-130-1794345057866-130",
@@ -2071,9 +2003,7 @@
       "smoothSlowMo": false,
       "foleyVolume": 20,
       "customVolumeSet": false,
-      "audioMuted": false,
-      "originalSlotDuration": 8,
-      "sourceDuration": 8
+      "audioMuted": false
     },
     {
       "id": "clip-135-1794345057868-135",
@@ -2133,9 +2063,7 @@
       "smoothSlowMo": false,
       "foleyVolume": 20,
       "customVolumeSet": false,
-      "audioMuted": false,
-      "originalSlotDuration": 8,
-      "sourceDuration": 8
+      "audioMuted": false
     },
     {
       "id": "clip-140-1794345057870-140",
@@ -2159,9 +2087,7 @@
       "smoothSlowMo": false,
       "foleyVolume": 20,
       "customVolumeSet": false,
-      "audioMuted": false,
-      "originalSlotDuration": 8,
-      "sourceDuration": 8
+      "audioMuted": false
     },
     {
       "id": "clip-142-1794345057871-142",
@@ -2185,9 +2111,7 @@
       "smoothSlowMo": false,
       "foleyVolume": 20,
       "customVolumeSet": false,
-      "audioMuted": false,
-      "originalSlotDuration": 8,
-      "sourceDuration": 8
+      "audioMuted": false
     },
     {
       "id": "clip-144-1794345057872-144",

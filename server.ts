@@ -13783,6 +13783,8 @@ app.post('/api/flow/override-discarded-clip', async (req, res) => {
             videoDiscardOverriddenAt: overriddenAt,
             videoReady: true,
             imageReady: true,
+            reviewedForEditor: true,
+            reviewedUpdatedAt: Math.max(overriddenAt, Number(c?.reviewedUpdatedAt || 0) + 1),
             auditStatus: 'ok',
             auditReason: '✅ Descarte sobreescrito manualmente.',
             videoAuditStatus: 'approved',
@@ -13791,6 +13793,8 @@ app.post('/api/flow/override-discarded-clip', async (req, res) => {
           };
           delete nextClip.discardedVideoFileName;
           delete nextClip.videoDiscardedAt;
+          delete nextClip.suggestedImagePrompt;
+          delete nextClip.suggestedVideoPrompt;
           return nextClip;
         });
         if (updatedDoc) {
@@ -15972,11 +15976,18 @@ app.post('/api/flow/accept-initial-image-as-broll', async (req, res) => {
                   clipEntry.promptUpdatedAt = acceptedAt;
                   clipEntry.imageReady = true;
                   clipEntry.videoReady = true;
+                  clipEntry.reviewedForEditor = true;
+                  clipEntry.reviewedUpdatedAt = Math.max(
+                    acceptedAt,
+                    Number(clipEntry.reviewedUpdatedAt || 0) + 1
+                  );
                   clipEntry.videoSavedFileName = finalBrollName;
                   clipEntry.videoSavedAt = acceptedAt;
                   clipEntry.videoDiscardOverriddenAt = acceptedAt;
                   delete clipEntry.discardedVideoFileName;
                   delete clipEntry.videoDiscardedAt;
+                  delete clipEntry.suggestedImagePrompt;
+                  delete clipEntry.suggestedVideoPrompt;
                   clipEntry.auditStatus = 'ok';
                   clipEntry.auditReason =
                     '🖼️ Escena B-Roll Solo Imagen lista — movimiento 4K 60fps local en Editor.';

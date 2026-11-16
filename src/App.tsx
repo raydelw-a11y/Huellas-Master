@@ -183,7 +183,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '9:28 PM - 11/15/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '9:38 PM - 11/15/2026';
 
 const PROTECTED_DOC_TEXT_FIELDS = [
   'rawClipsText',
@@ -8541,9 +8541,14 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                 videoFrames: safeRelFrameForDoc
                   ? [safeRelFrameForDoc, safeRelFrameForDoc, safeRelFrameForDoc]
                   : cleanedPrevFrames,
+                reviewedForEditor: true,
+                reviewedUpdatedAt: Math.max(
+                  overrideTs,
+                  Number(c.reviewedUpdatedAt || 0) + 1
+                ),
                 auditStatus: 'ok' as const,
                 auditReason:
-                  '✅ Descarte sobreescrito manualmente — clip aceptado y movido a 05_Clips_Video.',
+                  '✅ Descarte sobreescrito manualmente — clip aceptado, movido a 05_Clips_Video y marcado como Revisado.',
                 videoAuditStatus: 'approved' as const,
                 videoAuditReason: '',
                 videoAuditIssues: [],
@@ -8554,7 +8559,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
             updateActiveDoc({ clips: nextClips });
           }
 
-          const okMsg = `✅ Clip ${padded} aceptado sin regenerar: sacado de _Descartados_Auditoria y movido a 05_Clips_Video (${data.fileName || expectedFileName}).`;
+          const okMsg = `✅ Clip ${padded} aceptado sin regenerar y marcado como ✅ Revisado: sacado de _Descartados_Auditoria y movido a 05_Clips_Video (${data.fileName || expectedFileName}).`;
           setFlowStatusLog(okMsg);
           setBridgeStatusType('SUCCESS');
           setBridgeStatusMsg(okMsg);
@@ -8778,15 +8783,6 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                 : '';
             const nextClips = baseClips.map((c) => {
               if (c.clipNumber !== clipNum) return c;
-              const wasRejectedOrDiscarded =
-                !isClipDiscardOverridden(c) &&
-                (c.videoAuditStatus === 'rejected' ||
-                  c.auditStatus === 'mismatch' ||
-                  Boolean(getEffectiveClipDiscardedFileName(c)));
-              const hadHealthyActiveVideo = Boolean(
-                (c.videoReady || c.videoSavedFileName) && !wasRejectedOrDiscarded
-              );
-              const preserveReviewed = Boolean(c.reviewedForEditor && hadHealthyActiveVideo);
               const nextName = String(
                 data.fileName || c.videoSavedFileName || `${expectedFileName}_Broll_4K.mp4`
               );
@@ -8819,17 +8815,13 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                 videoFrames: safeRelFrameForDoc
                   ? [safeRelFrameForDoc, safeRelFrameForDoc, safeRelFrameForDoc]
                   : cleanedPrevFrames,
-                reviewedForEditor: preserveReviewed,
-                ...(preserveReviewed !== Boolean(c.reviewedForEditor)
-                  ? {
-                      reviewedUpdatedAt: Math.max(
-                        acceptedAt,
-                        Number(c.reviewedUpdatedAt || 0) + 1
-                      ),
-                    }
-                  : {}),
+                reviewedForEditor: true,
+                reviewedUpdatedAt: Math.max(
+                  acceptedAt,
+                  Number(c.reviewedUpdatedAt || 0) + 1
+                ),
                 auditStatus: 'ok' as const,
-                auditReason: '🖼️ Imagen inicial aceptada como B-Roll 4K 60fps.',
+                auditReason: '🖼️ Imagen inicial aceptada como B-Roll 4K 60fps y marcada como Revisado.',
                 videoAuditStatus: 'approved' as const,
                 videoAuditReason: '',
                 videoAuditIssues: [],
@@ -8857,7 +8849,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
             });
           }
 
-          const okMsg = `🖼️ Clip ${padded} convertido a B-Roll 4K · 60fps (${resolvedMotionLabel}) usando su imagen inicial (${data.fileName || `${expectedFileName}_Broll_4K.mp4`}).`;
+          const okMsg = `🖼️ Clip ${padded} convertido a B-Roll 4K · 60fps (${resolvedMotionLabel}) y marcado como ✅ Revisado (${data.fileName || `${expectedFileName}_Broll_4K.mp4`}).`;
           setFlowStatusLog(okMsg);
           setBridgeStatusType('SUCCESS');
           setBridgeStatusMsg(okMsg);
@@ -22644,8 +22636,16 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                       Boolean(
                         capturedClipVideosMap[c.clipNumber] ||
                           c.videoSavedFileName ||
+                          c.videoReady ||
                           c.reviewedForEditor ||
-                          (c.isStaticBroll && c.imageReady)
+                          (c.isStaticBroll && (c.imageReady || c.imagePreviewUrl))
+                      );
+                    const isClipCreated = (c: DocumentaryClip) =>
+                      Boolean(
+                        capturedClipVideosMap[c.clipNumber] ||
+                          c.videoSavedFileName ||
+                          c.videoReady ||
+                          (c.isStaticBroll && (c.imageReady || c.imagePreviewUrl))
                       );
                     const isClipGenerating = (c: DocumentaryClip) =>
                       c.videoAuditStatus === 'generating' || c.videoAuditStatus === 'auditing';
@@ -22689,7 +22689,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                         case 'REVISADO':
                           return Boolean(c.reviewedForEditor);
                         case 'SIN_REVISAR':
-                          return !c.reviewedForEditor;
+                          return isClipCreated(c) && !c.reviewedForEditor;
                         case 'STATIC_BROLL':
                           return Boolean(c.isStaticBroll);
                         default:
@@ -22778,7 +22778,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                       {
                         key: 'SIN_REVISAR',
                         label: '○ Sin Revisar',
-                        count: allClipsList.filter((c) => !c.reviewedForEditor).length,
+                        count: allClipsList.filter((c) => isClipCreated(c) && !c.reviewedForEditor).length,
                         activeClass: 'bg-amber-500 text-slate-950 border-amber-300 shadow',
                         idleClass: 'bg-slate-900 text-slate-400 border-slate-700 hover:bg-slate-800',
                       },
@@ -23132,8 +23132,16 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                       Boolean(
                         capturedClipVideosMap[c.clipNumber] ||
                           c.videoSavedFileName ||
+                          c.videoReady ||
                           c.reviewedForEditor ||
-                          (c.isStaticBroll && c.imageReady)
+                          (c.isStaticBroll && (c.imageReady || c.imagePreviewUrl))
+                      );
+                    const isCardCreated = (c: DocumentaryClip) =>
+                      Boolean(
+                        capturedClipVideosMap[c.clipNumber] ||
+                          c.videoSavedFileName ||
+                          c.videoReady ||
+                          (c.isStaticBroll && (c.imageReady || c.imagePreviewUrl))
                       );
                     const isCardGen = (c: DocumentaryClip) =>
                       c.videoAuditStatus === 'generating' || c.videoAuditStatus === 'auditing';
@@ -23174,7 +23182,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                         case 'REVISADO':
                           return Boolean(clip.reviewedForEditor);
                         case 'SIN_REVISAR':
-                          return !clip.reviewedForEditor;
+                          return isCardCreated(clip) && !clip.reviewedForEditor;
                         case 'STATIC_BROLL':
                           return Boolean(clip.isStaticBroll);
                         default:
@@ -24858,13 +24866,59 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                   </button>
                                   <button
                                     onClick={() => {
+                                      const effDiscName = getEffectiveClipDiscardedFileName(clip);
+                                      const needsPhysicalQuarantineRestore =
+                                        canOverrideClipDiscard(clip) &&
+                                        !capturedClipVideosMap[clip.clipNumber] &&
+                                        (!clip.videoSavedFileName ||
+                                          clip.videoSavedFileName === effDiscName);
+                                      if (needsPhysicalQuarantineRestore) {
+                                        void handleOverrideClipDiscard(clip);
+                                        return;
+                                      }
+                                      const nextRevTs = Math.max(
+                                        Date.now(),
+                                        Number(clip.reviewedUpdatedAt || 0) + 1,
+                                        Number(clip.videoDiscardedAt || 0) + 1,
+                                        Number(clip.videoDiscardOverriddenAt || 0) + 1
+                                      );
+                                      const hasRealMedia = Boolean(
+                                        capturedClipVideosMap[clip.clipNumber] ||
+                                          (clip.videoSavedFileName &&
+                                            clip.videoSavedFileName !== effDiscName) ||
+                                          clip.reviewedForEditor ||
+                                          (clip.isStaticBroll && clip.imageReady)
+                                      );
                                       const next = [...activeDoc.clips];
                                       next[realIdx] = {
                                         ...clip,
                                         suggestedImagePrompt: undefined,
                                         suggestedVideoPrompt: undefined,
+                                        reviewedForEditor: true,
+                                        reviewedUpdatedAt: nextRevTs,
+                                        videoDiscardOverriddenAt: nextRevTs,
+                                        videoReady: hasRealMedia ? true : clip.videoReady,
+                                        auditStatus: 'ok' as const,
+                                        auditReason:
+                                          '✅ Sugerencia descartada — clip marcado como Revisado.',
+                                        videoAuditStatus:
+                                          clip.videoAuditStatus === 'rejected' ||
+                                          clip.videoAuditStatus === 'warning'
+                                            ? hasRealMedia
+                                              ? ('approved' as const)
+                                              : undefined
+                                            : clip.videoAuditStatus,
+                                        videoAuditReason: '',
+                                        videoAuditIssues: [],
                                       };
                                       updateActiveDoc({ clips: next });
+                                      if (
+                                        !capturedClipVideosMap[clip.clipNumber] &&
+                                        clip.videoSavedFileName &&
+                                        clip.videoSavedFileName !== effDiscName
+                                      ) {
+                                        handleLoadClipVideoFromFolder(clip, true);
+                                      }
                                     }}
                                     className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs cursor-pointer"
                                   >
