@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-11-08T12:13:00.000Z",
-    "updatedAt": "2026-11-16T12:06:08.978Z",
+    "updatedAt": "2026-11-16T12:07:28.720Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -61,7 +61,7 @@
       "REMOTE_GEMINI_STAGE_COMMAND_JSON": "{\"type\":\"REMOTE_GEMINI_STAGE\",\"commandId\":\"rgs_thumb_1794402632127_q8jih\",\"docId\":\"doc-video-77-huellas\",\"stageNumber\":505,\"requestedAt\":1794402632127,\"prompt\":\"Thumbnail: Create an image in 16:9 horizontal aspect ratio featuring an ultra-clean three-element composition with zero visual clutter, dominated on the right sixty percent of the frame by a dramatic medium close-up of a young British male physician in his late twenties with tousled dark hair, sweat beads, visible skin pores, and wide-open anguished eyes showing crisp white sclera making direct piercing eye contact into the camera lens, portrayed by an anonymous historical reenactment actor in authentic period attire (no real public figures or prominent people) wearing a 1941 white clinical coat over a tweed vest, holding up in the foreground a completely dry empty vintage glass medicine vial with tiny traces of yellow powder clinging to its inner walls, set against a cold midnight cyan-blue darkened 1941 British hospital ward with heavy black wartime blackout curtains in deep abyssal shadow, lit by dramatic chiaroscuro warm golden-amber key light across his face and a sharp rim light separating him from the cold dark background. In the bottom-left area of the image, a bold high-contrast cinematic documentary typography text overlay stacked across 2 exact separate lines reads (Line 1: \\\"FALTÓ UNA GOTA\\\" / Line 2: \\\"Y SE APAGÓ\\\"). In the top-right corner, a small discreet 5% scale logo displays \\\"8K\\\" in metallic gold. In the top-left corner, the official page logo from the provided reference image is cleanly integrated at 5% scale, strictly preserving and visibly rendering both the logo emblem and the exact text underneath it \\\"Huellas de la Humanidad\\\" without cropping, blurring, or omitting the sub-text. The scene has cinematic documentary realism, 8k resolution, sharp focus, safe framing composition, no modern objects, no CGI look, no unintended floating text, no music.\",\"taskType\":\"THUMBNAIL_IMAGE_GENERATION\",\"enableCreateImage\":true,\"standaloneNewChat\":true,\"noNotebook\":true,\"mediaType\":\"THUMBNAILS\",\"optionLabel\":\"A\",\"aspectRatio\":\"16:9\",\"enableHighModel\":false,\"enableArgonLow\":true,\"enableCarbonLow\":true,\"preferredModel\":\"CARBON_4_LOW\",\"thinkingLevel\":\"LOW\",\"enableDeepResearch\":false,\"videoName\":\"\",\"deepResearchVideoName\":\"\",\"geminiChatUrl\":\"\",\"geminiDeepResearchChatUrl\":\"\",\"notebookName\":\"\"}",
       "REMOTE_GEMINI_STAGE_ACK_ID": "rgs_1794399996476_23q8n",
       "GEMINI_CHAT_URL": "https://gemini.google.com/app/03cabb86628532c8",
-      "PROMPTS_RESTORED_AT": "1794830610517",
+      "PROMPTS_RESTORED_AT": "1794830848720",
       "FIELD_CLEARED_AT_rawClipsText": "0"
     },
     "compiledMasterPrompt": "",
@@ -3425,7 +3425,10 @@
         "videoFrames": [],
         "videoSavedFileName": "90_generate_a_video_in_16_9_9af3bf5c_4K.mp4",
         "videoSavedAt": 1794830668929,
-        "videoDiscardOverriddenAt": 1794830668929
+        "videoDiscardOverriddenAt": 1794830668929,
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-91-1794442732130-8vtn",
@@ -3446,7 +3449,10 @@
         "videoFrames": [],
         "videoSavedFileName": "91_Engineers_turning_valve_wheel_e3ba7443_4K.mp4",
         "videoSavedAt": 1794830768488,
-        "videoDiscardOverriddenAt": 1794830768488
+        "videoDiscardOverriddenAt": 1794830768488,
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-92-1794442732142-fl8g",
@@ -3470,7 +3476,10 @@
         "videoFrames": [],
         "videoSavedFileName": "92_Create_an_image_in_16_Broll_4K.mp4",
         "videoSavedAt": 1794830768977,
-        "videoDiscardOverriddenAt": 1794830768977
+        "videoDiscardOverriddenAt": 1794830768977,
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-93-1794442732153-2vi5",
@@ -3500,15 +3509,20 @@
         "imagePrompt": "Image 94: Create an image in 16-9 horizontal aspect ratio a dramatic March 1942 quiet 1940s brick ward in New Haven, Connecticut showing a fatigued 33-year-old American female resting person resting weak and pale against white pillows while an adult male physician and female nurse in crisp 1940s white cap prepare a vintage glass dropper bottle stand, portrayed by anonymous mature adult historical reenactment actors in authentic period costume, cinematic documentary realism, safe framing composition, 8k resolution, sharp focus, no modern objects, no CGI look, clean uncluttered composition with rigid architectural perspective, stationary period props, clear anatomical separation between subjects, portrayed by anonymous mature adult historical reenactment actors in authentic period costume (no real public figures or prominent people), no text, no spoken voice, no human speech, no music. fix the name to Inicial_94_create_an_image_in_16_9",
         "videoPrompt": "Clip 94: Generate a video in 16-9 horizontal aspect ratio across 8 seconds showing a gentle slow dolly-in across the dim 1942 Connecticut quiet 1940s brick ward as the nurse adjusts a cool damp cloth on the adult resting person forehead while the physician connects fine rubber tubing to a suspended glass drip bottle of golden solution across the full 8 seconds, holding a natural composed frame through the final second, all background furniture, architectural fixtures, and tabletop props remain 100% gravity-locked and stationary while any held object moves smoothly under natural hand control, fixed subject count from 0s to 8s, single continuous shot, strictly no shot changes, with subtle ambient foley of delicate clink of vintage glass dropper bottle on metal stand, soft rustle of starched nurse uniform. fix the name to Clip_94_generate_a_video_in_16_9. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous action across the full 8 seconds, holding a natural composed posture through the final frame. Fixed subject count from 0s to 8s, exact same character(s) remain in frame with locked anatomy, no new people appearing out of nowhere mid-shot, no characters vanishing or morphing, background figures stationary in soft f/1.8 bokeh. Solid, non-deforming walls and rigid 3D architectural geometry from 0s to 8s that never warp, breathe, or mutate during camera movement. All furniture, tables, and props remain 100% physically solid and non-deforming from 0s to 8s, with zero self-moving, floating, morphing, mutating, vanishing, or shape-shifting objects. Cinematic historical drama reenactment featuring anonymous fictionalized theatre actors in period costume (no real public figures or prominent people, steady continuous lighting with zero sudden flashes). cinematic documentary realism, safe framing composition, 8k resolution, sharp focus, no modern objects, no CGI look, no text, no spoken voice, no human speech, no music. fix the name to Clip_94_generate_a_video_in_16_9",
         "narrationSegment": "[pausa: 2.5s] El ataque a Pearl Harbor en diciembre de 1941 había convertido a aquel polvo amarillo en un secreto militar",
-        "imageReady": false,
-        "videoReady": false,
+        "imageReady": true,
+        "videoReady": true,
         "auditStatus": "ok",
         "auditReason": "Sincronizado con el tramo de voz narrativa.",
         "pauseNotes": "Contiene [pausa: 2.5s] en la locución",
         "reviewedForEditor": false,
         "recreated": false,
-        "videoDiscardedAt": 1794641982559,
-        "videoFrames": []
+        "videoFrames": [],
+        "videoSavedFileName": "94_generate_a_video_in_16_9_2fd4b301_4K.mp4",
+        "videoSavedAt": 1794830848719,
+        "videoDiscardOverriddenAt": 1794830848719,
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-95-1794442732175-7kii",
@@ -3538,15 +3552,20 @@
         "imagePrompt": "Image 96: Create an image in 16-9 horizontal aspect ratio a stark overhead close-up on a stainless steel vintage stone building counter in 1942 showing an insulated metal-lined wooden courier chest filled with melting ice where nearly half the small slots now hold empty used glass vials, with no people present, cinematic documentary realism, safe framing composition, 8k resolution, sharp focus, no modern objects, no CGI look, clean uncluttered composition with rigid architectural perspective, stationary period props, clear anatomical separation between subjects, portrayed by anonymous mature adult historical reenactment actors in authentic period costume (no real public figures or prominent people), no text, no spoken voice, no human speech, no music. fix the name to Inicial_96_create_an_image_in_16_9",
         "videoPrompt": "Clip 96: Generate a video in 16-9 horizontal aspect ratio across 8 seconds showing a slow overhead crane push-in onto the open ice-cooled courier chest revealing the row of exhausted empty glass vials beside the few remaining amber glass vessels in 1942 across the full 8 seconds, holding a natural composed frame through the final second, with no people present and zero human figures, all background furniture, architectural fixtures, and tabletop props remain 100% gravity-locked and stationary, fixed subject count from 0s to 8s, single continuous shot, strictly no shot changes, with subtle ambient foley of soft crackle and drip of melting ice inside metal chest, quiet room resonance. fix the name to Clip_96_generate_a_video_in_16_9. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous action across the full 8 seconds, holding a natural composed posture through the final frame. Fixed subject count from 0s to 8s, exact same character(s) remain in frame with locked anatomy, no new people appearing out of nowhere mid-shot, no characters vanishing or morphing, background figures stationary in soft f/1.8 bokeh. Solid, non-deforming walls and rigid 3D architectural geometry from 0s to 8s that never warp, breathe, or mutate during camera movement. All furniture, tables, and props remain 100% physically solid and non-deforming from 0s to 8s, with zero self-moving, floating, morphing, mutating, vanishing, or shape-shifting objects. Cinematic historical drama reenactment featuring anonymous fictionalized theatre actors in period costume (no real public figures or prominent people, steady continuous lighting with zero sudden flashes). cinematic documentary realism, safe framing composition, 8k resolution, sharp focus, no modern objects, no CGI look, no text, no spoken voice, no human speech, no music. fix the name to Clip_96_generate_a_video_in_16_9",
         "narrationSegment": "a Anne Miller, la esposa de un directivo universitario que agonizaba tras trece días con fiebre superior a 40 grados por una infección",
-        "imageReady": false,
-        "videoReady": false,
+        "imageReady": true,
+        "videoReady": true,
         "auditStatus": "ok",
         "auditReason": "Sincronizado con el tramo de voz narrativa.",
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "videoDiscardedAt": 1794641982559,
-        "videoFrames": []
+        "videoFrames": [],
+        "videoSavedFileName": "96_generate_a_video_in_16_9_6816d844_4K.mp4",
+        "videoSavedAt": 1794830848719,
+        "videoDiscardOverriddenAt": 1794830848719,
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-97-1794442732197-k75v",
@@ -3576,15 +3595,20 @@
         "imagePrompt": "Image 98: Create an image in 16-9 horizontal aspect ratio a gritty atmospheric 1943 exterior wide shot in industrial Brooklyn, New York showing the massive red-brick facade, loading bays, and tall smokestack of the converted ice manufacturing plant of a 1944 Brooklyn industrial processing plant with towering steel tanks on a misty morning, with no people present, cinematic documentary realism, safe framing composition, 8k resolution, sharp focus, no modern objects, no CGI look, clean uncluttered composition with rigid architectural perspective, stationary period props, clear anatomical separation between subjects, portrayed by anonymous mature adult historical reenactment actors in authentic period costume (no real public figures or prominent people), no text, no spoken voice, no human speech, no music. fix the name to Inicial_98_create_an_image_in_16_9",
         "videoPrompt": "Clip 98: Generate a video in 16-9 horizontal aspect ratio across 8 seconds showing a smooth wide crane pan across the cobblestone street of industrial Brooklyn toward the towering red-brick walls and steel loading doors of the large 1940s stainless-steel botanical processing hall across the full 8 seconds, holding a natural composed frame through the final second, with no people present and zero human figures, all background furniture, architectural fixtures, and tabletop props remain 100% gravity-locked and stationary, fixed subject count from 0s to 8s, single continuous shot, strictly no shot changes, with subtle ambient foley of distant tugboat horn from the East River, rumble of heavy steel delivery trucks echoing off brick. fix the name to Clip_98_generate_a_video_in_16_9. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous action across the full 8 seconds, holding a natural composed posture through the final frame. Fixed subject count from 0s to 8s, exact same character(s) remain in frame with locked anatomy, no new people appearing out of nowhere mid-shot, no characters vanishing or morphing, background figures stationary in soft f/1.8 bokeh. Solid, non-deforming walls and rigid 3D architectural geometry from 0s to 8s that never warp, breathe, or mutate during camera movement. All furniture, tables, and props remain 100% physically solid and non-deforming from 0s to 8s, with zero self-moving, floating, morphing, mutating, vanishing, or shape-shifting objects. Cinematic historical drama reenactment featuring anonymous fictionalized theatre actors in period costume (no real public figures or prominent people, steady continuous lighting with zero sudden flashes). cinematic documentary realism, safe framing composition, 8k resolution, sharp focus, no modern objects, no CGI look, no text, no spoken voice, no human speech, no music. fix the name to Clip_98_generate_a_video_in_16_9",
         "narrationSegment": "directivos de Pfizer en Nueva York ejecutaron una apuesta colosal que amenazaba con llevarlos a la bancarrota si fallaba. Compraron una",
-        "imageReady": false,
-        "videoReady": false,
+        "imageReady": true,
+        "videoReady": true,
         "auditStatus": "ok",
         "auditReason": "Sincronizado con el tramo de voz narrativa.",
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "videoDiscardedAt": 1794641982559,
-        "videoFrames": []
+        "videoFrames": [],
+        "videoSavedFileName": "98_generate_a_video_in_16_9_428838ae_4K.mp4",
+        "videoSavedAt": 1794830848621,
+        "videoDiscardOverriddenAt": 1794830848621,
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-99-1794442732219-nfs5",
@@ -3595,15 +3619,20 @@
         "imagePrompt": "Image 99: Create an image in 16-9 horizontal aspect ratio a breathtaking symmetrical wide shot down the central nave of a 1944 Brooklyn industrial processing plant with towering steel tanks showcasing rows of fourteen colossal ten-thousand-gallon vertical riveted steel industrial processing tanks rising two stories high under beams of industrial window light, with no people present, cinematic documentary realism, safe framing composition, 8k resolution, sharp focus, no modern objects, no CGI look, clean uncluttered composition with rigid architectural perspective, stationary period props, clear anatomical separation between subjects, portrayed by anonymous mature adult historical reenactment actors in authentic period costume (no real public figures or prominent people), no text, no spoken voice, no human speech, no music. fix the name to Inicial_99_create_an_image_in_16_9",
         "videoPrompt": "Clip 99: Generate a video in 16-9 horizontal aspect ratio across 8 seconds showing a majestic slow dolly forward down the central concrete aisle between the fourteen towering vertical steel industrial processing tanks inside the large 1940s stainless-steel botanical processing hall, maintaining crisp architectural symmetry across the full 8 seconds, holding a natural composed frame through the final second, with no people present and zero human figures, all background furniture, architectural fixtures, and tabletop props remain 100% gravity-locked and stationary, fixed subject count from 0s to 8s, single continuous shot, strictly no shot changes, with subtle ambient foley of powerful deep symphonic hum of fourteen active giant steel processing tanks. fix the name to Clip_99_generate_a_video_in_16_9. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous action across the full 8 seconds, holding a natural composed posture through the final frame. Fixed subject count from 0s to 8s, exact same character(s) remain in frame with locked anatomy, no new people appearing out of nowhere mid-shot, no characters vanishing or morphing, background figures stationary in soft f/1.8 bokeh. Solid, non-deforming walls and rigid 3D architectural geometry from 0s to 8s that never warp, breathe, or mutate during camera movement. All furniture, tables, and props remain 100% physically solid and non-deforming from 0s to 8s, with zero self-moving, floating, morphing, mutating, vanishing, or shape-shifting objects. Cinematic historical drama reenactment featuring anonymous fictionalized theatre actors in period costume (no real public figures or prominent people, steady continuous lighting with zero sudden flashes). cinematic documentary realism, safe framing composition, 8k resolution, sharp focus, no modern objects, no CGI look, no text, no spoken voice, no human speech, no music. fix the name to Clip_99_generate_a_video_in_16_9",
         "narrationSegment": "gigantesca planta abandonada de fabricación de hielo en el barrio de Brooklyn y en tiempo récord la llenaron con catorce tanques verticales",
-        "imageReady": false,
-        "videoReady": false,
+        "imageReady": true,
+        "videoReady": true,
         "auditStatus": "ok",
         "auditReason": "Sincronizado con el tramo de voz narrativa.",
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "videoDiscardedAt": 1794641982559,
-        "videoFrames": []
+        "videoFrames": [],
+        "videoSavedFileName": "99_generate_a_video_in_16_9_54882613_4K.mp4",
+        "videoSavedAt": 1794830848621,
+        "videoDiscardOverriddenAt": 1794830848621,
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-100-1794442732230-snyf",
