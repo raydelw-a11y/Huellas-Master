@@ -7242,7 +7242,7 @@ async function runExternalGeminiAskOrder(task) {
         await forceSubmitPromptInGeminiTab(tabId, task.prompt);
         continue;
       }
-      if (snap.count > 0 && !snap.generating && snap.text.trim().length > 2) {
+      if (snap.count > 0 && !snap.generating && snap.text.trim().length >= 1) {
         if (snap.text === lastText) {
           stableDoneTicks += 1;
         } else {
@@ -8256,7 +8256,7 @@ async function runExternalChatGptAskOrder(task) {
       const trimmedSnapText = snap.text.trim();
       const isNewTurn =
         snap.count > baselineCount || (trimmedSnapText.length > 0 && trimmedSnapText !== baselineText);
-      const readyEnough = snap.hasFinishActions ? trimmedSnapText.length >= 2 : trimmedSnapText.length >= 2;
+      const readyEnough = trimmedSnapText.length >= 1;
       const neededStableTicks = snap.hasFinishActions ? 2 : 3;
       if (isNewTurn && !snap.generating && readyEnough) {
         if (snap.text === lastText) {
@@ -9362,7 +9362,7 @@ async function runExternalClaudeAskOrder(task) {
       const trimmedSnapText = (snap.text || '').trim();
       const isNewTurn =
         snap.count > baselineCount || (trimmedSnapText.length > 0 && trimmedSnapText !== baselineText);
-      const readyEnough = (snap.hasFinishActions || snap.hasMarkdown) && trimmedSnapText.length >= 2;
+      const readyEnough = trimmedSnapText.length >= 1;
       const neededStableTicks = snap.hasFinishActions ? 2 : 3;
       if (isNewTurn && !snap.generating && readyEnough) {
         if (snap.text === lastText) {
@@ -10253,7 +10253,7 @@ async function runExternalGrokAskOrder(task) {
       const trimmedSnapText = (snap.text || '').trim();
       const isNewTurn =
         snap.count > baselineCount || (trimmedSnapText.length > 0 && trimmedSnapText !== baselineText);
-      const readyEnough = (snap.hasFinishActions || snap.hasMarkdown) && trimmedSnapText.length >= 2;
+      const readyEnough = trimmedSnapText.length >= 1;
       const neededStableTicks = snap.hasFinishActions ? 2 : 3;
       if (isNewTurn && !snap.generating && readyEnough) {
         if (snap.text === lastText) {
@@ -11408,7 +11408,7 @@ async function runExternalCopilotAskOrder(task) {
       const trimmedSnapText = (snap.text || '').trim();
       const isNewTurn =
         snap.count > baselineCount || (trimmedSnapText.length > 0 && trimmedSnapText !== baselineText);
-      const readyEnough = trimmedSnapText.length >= 2;
+      const readyEnough = trimmedSnapText.length >= 1;
       const neededStableTicks = snap.hasFinishActions ? 2 : 3;
       if (isNewTurn && !snap.generating && readyEnough) {
         if (snap.text === lastText) {
