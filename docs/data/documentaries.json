@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-11-08T12:13:00.000Z",
-    "updatedAt": "2026-11-16T12:00:42.591Z",
+    "updatedAt": "2026-11-16T12:01:41.998Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -61,7 +61,7 @@
       "REMOTE_GEMINI_STAGE_COMMAND_JSON": "{\"type\":\"REMOTE_GEMINI_STAGE\",\"commandId\":\"rgs_thumb_1794402632127_q8jih\",\"docId\":\"doc-video-77-huellas\",\"stageNumber\":505,\"requestedAt\":1794402632127,\"prompt\":\"Thumbnail: Create an image in 16:9 horizontal aspect ratio featuring an ultra-clean three-element composition with zero visual clutter, dominated on the right sixty percent of the frame by a dramatic medium close-up of a young British male physician in his late twenties with tousled dark hair, sweat beads, visible skin pores, and wide-open anguished eyes showing crisp white sclera making direct piercing eye contact into the camera lens, portrayed by an anonymous historical reenactment actor in authentic period attire (no real public figures or prominent people) wearing a 1941 white clinical coat over a tweed vest, holding up in the foreground a completely dry empty vintage glass medicine vial with tiny traces of yellow powder clinging to its inner walls, set against a cold midnight cyan-blue darkened 1941 British hospital ward with heavy black wartime blackout curtains in deep abyssal shadow, lit by dramatic chiaroscuro warm golden-amber key light across his face and a sharp rim light separating him from the cold dark background. In the bottom-left area of the image, a bold high-contrast cinematic documentary typography text overlay stacked across 2 exact separate lines reads (Line 1: \\\"FALTÓ UNA GOTA\\\" / Line 2: \\\"Y SE APAGÓ\\\"). In the top-right corner, a small discreet 5% scale logo displays \\\"8K\\\" in metallic gold. In the top-left corner, the official page logo from the provided reference image is cleanly integrated at 5% scale, strictly preserving and visibly rendering both the logo emblem and the exact text underneath it \\\"Huellas de la Humanidad\\\" without cropping, blurring, or omitting the sub-text. The scene has cinematic documentary realism, 8k resolution, sharp focus, safe framing composition, no modern objects, no CGI look, no unintended floating text, no music.\",\"taskType\":\"THUMBNAIL_IMAGE_GENERATION\",\"enableCreateImage\":true,\"standaloneNewChat\":true,\"noNotebook\":true,\"mediaType\":\"THUMBNAILS\",\"optionLabel\":\"A\",\"aspectRatio\":\"16:9\",\"enableHighModel\":false,\"enableArgonLow\":true,\"enableCarbonLow\":true,\"preferredModel\":\"CARBON_4_LOW\",\"thinkingLevel\":\"LOW\",\"enableDeepResearch\":false,\"videoName\":\"\",\"deepResearchVideoName\":\"\",\"geminiChatUrl\":\"\",\"geminiDeepResearchChatUrl\":\"\",\"notebookName\":\"\"}",
       "REMOTE_GEMINI_STAGE_ACK_ID": "rgs_1794399996476_23q8n",
       "GEMINI_CHAT_URL": "https://gemini.google.com/app/03cabb86628532c8",
-      "PROMPTS_RESTORED_AT": "1794829883330",
+      "PROMPTS_RESTORED_AT": "1794830501998",
       "FIELD_CLEARED_AT_rawClipsText": "0"
     },
     "compiledMasterPrompt": "",
@@ -1273,7 +1273,10 @@
         "recreated": false,
         "videoSavedFileName": "01_create_a_cinematic_6_second_4bcd0a45_4K.mp4",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-2-1794442731165-p25y",
@@ -1295,7 +1298,10 @@
         "reviewedUpdatedAt": 1794792962788,
         "videoDiscardOverriddenAt": 1794706687781,
         "videoSavedAt": 1794706687781,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-3-1794442731175-5puj",
@@ -1315,7 +1321,10 @@
         "recreated": false,
         "videoSavedFileName": "03_create_a_cinematic_8_second_d8115b23_4K.mp4",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-4-1794442731185-oogs",
@@ -1335,7 +1344,10 @@
         "recreated": false,
         "videoSavedFileName": "04_create_a_cinematic_8_second_9f89be36_4K.mp4",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-5-1794442731196-lbnk",
@@ -1355,7 +1367,10 @@
         "recreated": false,
         "videoSavedFileName": "05_create_a_cinematic_8_second_77a1f962_4K.mp4",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-6-1794442731207-xswg",
@@ -1375,7 +1390,10 @@
         "recreated": false,
         "videoSavedFileName": "06_create_a_cinematic_8_second_fe849478_4K.mp4",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-7-1794442731217-3c0i",
@@ -1395,7 +1413,10 @@
         "recreated": false,
         "videoSavedFileName": "07_create_a_cinematic_8_second_8a0e5be8_4K.mp4",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-8-1794442731227-k4l8",
@@ -1415,7 +1436,10 @@
         "recreated": false,
         "videoSavedFileName": "08_create_a_cinematic_8_second_3d797e03_4K.mp4",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-9-1794442731237-p9r9",
@@ -1435,7 +1459,10 @@
         "recreated": false,
         "videoSavedFileName": "09_create_a_cinematic_8_second_0cf4c630_4K.mp4",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-10-1794442731248-4ctv",
@@ -1455,7 +1482,10 @@
         "recreated": false,
         "videoSavedFileName": "10_create_a_cinematic_8_second_1fff4388_4K.mp4",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-11-1794442731258-u43d",
@@ -1475,7 +1505,10 @@
         "recreated": false,
         "videoSavedFileName": "11_create_a_cinematic_8_second_02b868e8_4K.mp4",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-12-1794442731269-szpx",
@@ -1495,10 +1528,12 @@
         "recreated": true,
         "videoSavedFileName": "12_Physician_studies_chart_67a33dd3_4K.mp4",
         "reviewedUpdatedAt": 1794792997403,
-        "videoSavedAt": 1794657527325,
+        "videoSavedAt": 1794830501989,
         "videoAuditStatus": "approved",
-        "discardedVideoFileName": "12_create_a_cinematic_8_second_29f8b781_4K.mp4",
-        "videoDiscardedAt": 1794641982559
+        "videoFrames": [],
+        "videoDiscardOverriddenAt": 1794830501989,
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-13-1794442731279-62ej",
@@ -1520,7 +1555,10 @@
         "reviewedUpdatedAt": 1794677075959,
         "videoDiscardOverriddenAt": 1794677027933,
         "videoSavedAt": 1794677027933,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-14-1794442731290-gj5t",
@@ -1540,7 +1578,10 @@
         "recreated": false,
         "videoSavedFileName": "14_create_a_cinematic_8_second_38fa30f9_4K.mp4",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-15-1794442731300-zjsg",
@@ -1560,7 +1601,10 @@
         "recreated": false,
         "videoSavedFileName": "15_create_a_cinematic_8_second_6ae2fc0d_4K.mp4",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-16-1794442731310-1oob",
@@ -1582,7 +1626,10 @@
         "reviewedUpdatedAt": 1794794583028,
         "videoDiscardOverriddenAt": 1794677478501,
         "videoSavedAt": 1794677478501,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-17-1794442731321-hp1z",
@@ -1602,7 +1649,10 @@
         "recreated": false,
         "videoSavedFileName": "17_create_a_cinematic_8_second_7c7428d8_4K.mp4",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-18-1794442731331-b44g",
@@ -1625,7 +1675,10 @@
         "brollCameraMotion": "zoom_in",
         "videoSavedAt": 1794572688032,
         "previousVideoPrompt": "Clip 18 (02:24 - 02:32): Create a cinematic 8-second static B-roll video executing ONLY a smooth, continuous, ultra-steady optical Ken Burns zoom-in over the frozen scene: ONLY a slow, steady optical Ken Burns zoom-in (gradual push-in from wide to tight framing with zero lens distortion) across the 100% still archival photograph plate of the open 1929 scientific bulletin with monochrome bacterial agar illustrations resting motionless on @Mesa_Historiador, keeping the entire starting image 100% frozen as a still documentary B-roll plate from 0s to 8s with zero internal object animation, with no people present. STATIC B-ROLL PLATE LOCK (CAMERA MOTION ONLY): Treat the starting image as a 100% frozen, motionless archival B-roll still plate from 0s to 8s with strictly zero internal object animation, zero morphing, and zero lighting shifts—ONLY the virtual optical rostrum camera performs the zoom in movement. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: subtle archival library room tone, faint dry paper stillness, single continuous shot, strictly no shot changes, no music, no speech, no text. [B-Roll: STATIC_ZOOM_IN] [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-19-1794442731341-phaw",
@@ -1645,7 +1698,10 @@
         "recreated": false,
         "videoSavedFileName": "19_create_a_cinematic_8_second_49483cb1_4K.mp4",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-20-1794442731352-xt0y",
@@ -1667,7 +1723,10 @@
         "reviewedUpdatedAt": 1794794609395,
         "videoDiscardOverriddenAt": 1794677508406,
         "videoSavedAt": 1794677508406,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-21-1794442731362-gggd",
@@ -1687,7 +1746,10 @@
         "recreated": false,
         "videoSavedFileName": "21_create_a_cinematic_8_second_video_4db99d4b_4K.mp4",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-22-1794442731372-yoqz",
@@ -1707,7 +1769,10 @@
         "recreated": false,
         "videoSavedFileName": "22_create_a_cinematic_8_second_video_751661e8_4K.mp4",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-23-1794442731382-trx5",
@@ -1727,7 +1792,10 @@
         "recreated": false,
         "videoSavedFileName": "23_create_a_cinematic_8_second_video_de5f3c8a_4K.mp4",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-24-1794442731393-v2r1",
@@ -1747,7 +1815,10 @@
         "recreated": false,
         "videoSavedFileName": "24_create_a_cinematic_8_second_video_39bc2cfa_4K.mp4",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-25-1794442731403-pd0o",
@@ -1767,7 +1838,10 @@
         "recreated": false,
         "videoSavedFileName": "25_create_a_cinematic_8_second_video_29287299_4K.mp4",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-26-1794442731413-x9gl",
@@ -1789,7 +1863,10 @@
         "reviewedUpdatedAt": 1794794621264,
         "videoDiscardOverriddenAt": 1794677501307,
         "videoSavedAt": 1794677501307,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-27-1794442731423-3exw",
@@ -1809,7 +1886,10 @@
         "recreated": false,
         "videoSavedFileName": "27_create_a_cinematic_8_second_video_a1ebeddd_4K.mp4",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-28-1794442731434-q1gg",
@@ -1832,7 +1912,10 @@
         "brollCameraMotion": "zoom_out",
         "videoSavedAt": 1794572688032,
         "previousVideoPrompt": "Clip 28 (03:44 - 03:52): Create a cinematic 8-second static B-roll video executing ONLY a smooth, continuous, ultra-steady optical Ken Burns zoom-out over the frozen scene: ONLY a slow, steady optical Ken Burns zoom-out (gradual pull-back from close detail to wide framing revealing full context) across the 100% still archival photograph plate of the preserved 1928 Petri dish, cloth-bound notebook, and brass fountain pen frozen in slanting light on the wooden bench of @Laboratorio_St_Mary, keeping the entire starting image 100% frozen as a still documentary B-roll plate from 0s to 8s with zero internal object animation, with no people present. STATIC B-ROLL PLATE LOCK (CAMERA MOTION ONLY): Treat the starting image as a 100% frozen, motionless archival B-roll still plate from 0s to 8s with strictly zero internal object animation, zero morphing, and zero lighting shifts—ONLY the virtual optical rostrum camera performs the zoom out movement. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: quiet regulator wall clock ticking in the basement laboratory, calm room tone, single continuous shot, strictly no shot changes, no music, no speech, no text. [B-Roll: STATIC_ZOOM_OUT] [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-29-1794442731445-pba0",
@@ -1852,7 +1935,10 @@
         "recreated": false,
         "videoSavedFileName": "29_create_a_cinematic_8_second_video_530d5f28_4K.mp4",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-30-1794442731455-7f9y",
@@ -1872,7 +1958,10 @@
         "recreated": false,
         "videoSavedFileName": "30_Director_examining_flask_in_office_4c723756_4K.mp4",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-31-1794442731466-enz2",
@@ -1892,7 +1981,10 @@
         "recreated": false,
         "videoSavedFileName": "31_create_a_cinematic_8_second_video_fcbeeefd_4K.mp4",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-32-1794442731476-jirb",
@@ -1916,7 +2008,10 @@
         "videoSavedAt": 1794678280589,
         "flowClipEngine": "OMNI_1_1_FLASH",
         "promptUpdatedAt": 1794572688032,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-33-1794442731487-7ng7",
@@ -1938,7 +2033,10 @@
         "videoSavedFileName": "33_create_a_cinematic_8_second_a164be7a_4K.mp4",
         "videoDiscardOverriddenAt": 1794678785398,
         "videoSavedAt": 1794678785398,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-34-1794442731497-4xpp",
@@ -1958,7 +2056,10 @@
         "recreated": false,
         "videoSavedFileName": "34_create_a_cinematic_8_second_video_3d55e994_4K.mp4",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-35-1794442731509-otas",
@@ -1978,7 +2079,10 @@
         "recreated": false,
         "videoSavedFileName": "35_create_a_cinematic_8_second_video_0edf6ca0_4K.mp4",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-36-1794442731519-xlej",
@@ -1998,7 +2102,10 @@
         "recreated": false,
         "videoSavedFileName": "36_create_a_cinematic_8_second_video_4c1eb370_4K.mp4",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-37-1794442731530-acku",
@@ -2018,7 +2125,10 @@
         "recreated": false,
         "videoSavedFileName": "37_create_a_cinematic_8_second_video_579ee378_4K.mp4",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-38-1794442731541-yayn",
@@ -2038,7 +2148,10 @@
         "recreated": false,
         "videoSavedFileName": "38_create_a_cinematic_8_second_video_85509bae_4K.mp4",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-39-1794442731552-ehq1",
@@ -2064,7 +2177,9 @@
         "videoDiscardOverriddenAt": 1794710702075,
         "videoSavedAt": 1794710702075,
         "promptUpdatedAt": 1794710702075,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-40-1794442731564-hlpz",
@@ -2088,7 +2203,10 @@
         "videoSavedAt": 1794783238372,
         "flowClipEngine": "VEO_3_1_LITE_LOWER_PRIORITY",
         "promptUpdatedAt": 1794572688032,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-41-1794442731575-fc3o",
@@ -2108,7 +2226,10 @@
         "recreated": false,
         "videoSavedFileName": "41_create_a_cinematic_8_second_video_db2bd31c_4K.mp4",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-42-1794442731586-of1g",
@@ -2128,7 +2249,10 @@
         "recreated": false,
         "videoSavedFileName": "42_create_a_cinematic_8_second_video_2fde4ec1_4K.mp4",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-43-1794442731599-cg5y",
@@ -2151,7 +2275,10 @@
         "brollCameraMotion": "tilt_up",
         "videoSavedAt": 1794572688032,
         "previousVideoPrompt": "Clip 43 (05:44 - 05:52): Create a cinematic 8-second static B-roll video executing ONLY a smooth, continuous vertical rostrum camera tilt upward from bottom to top over the frozen scene: ONLY a slow, controlled vertical pedestal tilt upward from the base of the still archival frame to the top across the 100% still documentary photograph plate ascending from the lower glass milk bottles up the reclaimed oak shelving, hand-blown glass spirals, and copper coils inside @Escuela_Dunn_Oxford, keeping the entire starting image 100% frozen as a still documentary B-roll plate from 0s to 8s with zero internal object animation, with no people present. STATIC B-ROLL PLATE LOCK (CAMERA MOTION ONLY): Treat the starting image as a 100% frozen, motionless archival B-roll still plate from 0s to 8s with strictly zero internal object animation, zero morphing, and zero lighting shifts—ONLY the virtual optical rostrum camera performs the tilt arriba movement. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: soft resonant glass-and-oak laboratory room tone, distant faint condenser hum, single continuous shot, strictly no shot changes, no music, no speech, no text. [B-Roll: STATIC_TILT_UP] [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-44-1794442731610-w47n",
@@ -2173,7 +2300,10 @@
         "reviewedUpdatedAt": 1794795828398,
         "videoDiscardOverriddenAt": 1794783840003,
         "videoSavedAt": 1794783840003,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-45-1794442731621-fnyp",
@@ -2193,7 +2323,10 @@
         "recreated": false,
         "videoSavedFileName": "45_create_a_cinematic_8_second_video_7e360369_4K.mp4",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-46-1794442731633-e6ac",
@@ -2213,7 +2346,10 @@
         "recreated": false,
         "videoSavedFileName": "46_create_a_cinematic_8_second_video_ab0c9aae_4K.mp4",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-47-1794442731644-ywek",
@@ -2240,7 +2376,10 @@
         "videoSavedAt": 1794783824382,
         "flowClipEngine": "OMNI_1_1_FLASH",
         "promptUpdatedAt": 1794572688032,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-48-1794442731654-m6ir",
@@ -2263,7 +2402,10 @@
         "brollCameraMotion": "tilt_up",
         "videoSavedAt": 1794572688032,
         "previousVideoPrompt": "Clip 48 (06:24 - 06:32): Create a cinematic 8-second video showing a sweeping slow crane glide down the center aisle of @Escuela_Dunn_Oxford revealing row after row of white enameled hospital bedpans and improvised tin vessels stacked neatly from floor to ceiling, with no people present across the full 8 seconds, holding a natural composed frame through the final second. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: warm steady hum of steam heating pipes, subtle metallic creak of heavily loaded wooden racks, single continuous shot, strictly no shot changes, no music, no speech, no text. [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-49-1794442731666-cfvg",
@@ -2283,7 +2425,10 @@
         "recreated": false,
         "videoSavedFileName": "49_create_a_cinematic_8_second_video_2d8d8198_4K.mp4",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-50-1794442731676-b8ih",
@@ -2303,7 +2448,10 @@
         "recreated": false,
         "videoSavedFileName": "50_create_a_cinematic_8_second_video_cfafe45a_4K.mp4",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-51-1794442731688-pq81",
@@ -2323,7 +2471,10 @@
         "recreated": false,
         "videoSavedFileName": "51_create_a_cinematic_8_second_video_f90207df_4K.mp4",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-52-1794442731699-6uh0",
@@ -2343,7 +2494,10 @@
         "recreated": false,
         "videoSavedFileName": "52_create_a_cinematic_8_second_video_95768583_4K.mp4",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-53-1794442731709-4sk9",
@@ -2363,7 +2517,10 @@
         "recreated": false,
         "videoSavedFileName": "53_create_a_cinematic_8_second_video_6e8653fa_4K.mp4",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-54-1794442731720-3ejb",
@@ -2383,7 +2540,10 @@
         "recreated": false,
         "videoSavedFileName": "54_create_a_cinematic_8_second_video_e4ea9943_4K.mp4",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-55-1794442731732-p5pv",
@@ -2405,7 +2565,10 @@
         "reviewedUpdatedAt": 1794795843099,
         "videoDiscardOverriddenAt": 1794783968378,
         "videoSavedAt": 1794783968378,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-56-1794442731742-n1x9",
@@ -2425,7 +2588,10 @@
         "recreated": false,
         "videoSavedFileName": "56_create_a_cinematic_8_second_video_7c00d5a4_4K.mp4",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-57-1794442731753-3p0f",
@@ -2445,7 +2611,10 @@
         "recreated": false,
         "videoSavedFileName": "57_create_a_cinematic_8_second_video_e840344b_4K.mp4",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-58-1794442731764-8ly5",
@@ -2465,7 +2634,10 @@
         "recreated": false,
         "videoSavedFileName": "58_create_a_cinematic_8_second_video_dba5a797_4K.mp4",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-59-1794442731775-xu0d",
@@ -2485,7 +2657,10 @@
         "recreated": false,
         "videoSavedFileName": "59_create_a_cinematic_8_second_video_5c88b959_4K.mp4",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-60-1794442731786-dixj",
@@ -2505,7 +2680,10 @@
         "recreated": false,
         "videoSavedFileName": "60_create_a_cinematic_8_second_video_366ec892_4K.mp4",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-61-1794442731797-nx38",
@@ -2528,7 +2706,10 @@
         "brollCameraMotion": "zoom_in",
         "videoSavedAt": 1794572688032,
         "previousVideoPrompt": "Clip 61 (08:08 - 08:16): Create a cinematic 8-second static B-roll video executing ONLY a smooth, continuous, ultra-steady optical Ken Burns zoom-in over the frozen scene: ONLY a slow, steady optical Ken Burns zoom-in (gradual push-in from wide to tight framing with zero lens distortion) across the 100% still macro photograph plate of the vintage syringe needle tip touching the completely dry empty glass medicine vial on sterile gauze inside @Enfermeria_Radcliffe, keeping the entire starting image 100% frozen as a still documentary B-roll plate from 0s to 8s with zero internal object animation, with no people present. STATIC B-ROLL PLATE LOCK (CAMERA MOTION ONLY): Treat the starting image as a 100% frozen, motionless archival B-roll still plate from 0s to 8s with strictly zero internal object animation, zero morphing, and zero lighting shifts—ONLY the virtual optical rostrum camera performs the zoom in movement. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: heavy solemn hospital ward silence, faint distant radiator tone, single continuous shot, strictly no shot changes, no music, no speech, no text. [B-Roll: STATIC_ZOOM_IN] [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-62-1794442731808-jvta",
@@ -2548,7 +2729,10 @@
         "recreated": false,
         "videoSavedFileName": "62_62_Medium_shot_of_researcher_1efcbd92_4K.mp4",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-63-1794442731820-w4pm",
@@ -2568,7 +2752,10 @@
         "recreated": false,
         "videoSavedFileName": "63_63_Close_up_of_scientist_643dbd17_4K.mp4",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-64-1794442731831-o2eo",
@@ -2594,7 +2781,10 @@
         "videoDiscardOverriddenAt": 1794784316977,
         "videoSavedAt": 1794784316977,
         "promptUpdatedAt": 1794784316977,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-65-1794442731842-ehl6",
@@ -2616,7 +2806,10 @@
         "reviewedUpdatedAt": 1794796199295,
         "videoDiscardOverriddenAt": 1794784366554,
         "videoSavedAt": 1794784366554,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-66-1794442731853-yf0x",
@@ -2638,7 +2831,10 @@
         "reviewedUpdatedAt": 1794796212573,
         "videoDiscardOverriddenAt": 1794784623643,
         "videoSavedAt": 1794784623643,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-67-1794442731863-n024",
@@ -2658,7 +2854,10 @@
         "recreated": false,
         "videoSavedFileName": "67_Wide_shot_of_historic_19e830f2_4K.mp4",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794573067176
+        "videoSavedAt": 1794573067176,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-68-1794442731874-xin2",
@@ -2677,10 +2876,12 @@
         "reviewedForEditor": true,
         "recreated": false,
         "videoSavedFileName": "68_Detail_shot_of_old_d843192e_4K.mp4",
-        "videoSavedAt": 1794573067176,
+        "videoSavedAt": 1794830501989,
         "videoAuditStatus": "approved",
-        "discardedVideoFileName": "68_68_Macro_shot_of_vintage_0fd04ec1_4K.mp4",
-        "videoDiscardedAt": 1794572688032
+        "videoFrames": [],
+        "videoDiscardOverriddenAt": 1794830501989,
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-69-1794442731885-nk42",
@@ -2706,7 +2907,10 @@
         "videoDiscardOverriddenAt": 1794785728722,
         "videoSavedAt": 1794785728722,
         "promptUpdatedAt": 1794785728722,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-70-1794442731896-6f4i",
@@ -2726,7 +2930,10 @@
         "recreated": false,
         "videoSavedFileName": "70_Macro_shot_of_vintage_0fd04ec1_4K.mp4",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794573067176
+        "videoSavedAt": 1794573067176,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-71-1794442731907-k11s",
@@ -2777,7 +2984,10 @@
         "videoSavedFileName": "72_create_a_cinematic_8_second_video_0e85ea80_4K.mp4",
         "videoDiscardOverriddenAt": 1794800994182,
         "videoSavedAt": 1794800994182,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-73-1794442731929-3g7v",
@@ -2831,7 +3041,10 @@
         "previousVideoPrompt": "Clip 74 (09:52 - 10:00): Create a cinematic 8-second static B-roll video executing ONLY a smooth, continuous horizontal rostrum camera pan from left to right over the frozen scene: ONLY a slow, level horizontal fluid-head pan from left to right across the still archival frame across the 100% still archival photograph plate gliding laterally from the crossed-out chalk molecular ring diagrams on the slate blackboard across the row of cold inert synthesis flasks, keeping the entire starting image 100% frozen as a still documentary B-roll plate from 0s to 8s with zero internal object animation, with no people present. STATIC B-ROLL PLATE LOCK (CAMERA MOTION ONLY): Treat the starting image as a 100% frozen, motionless archival B-roll still plate from 0s to 8s with strictly zero internal object animation, zero morphing, and zero lighting shifts—ONLY the virtual optical rostrum camera performs the pan derecha movement. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: quiet ticking of a laboratory stopwatch, distant muffled wartime night stillness, single continuous shot, strictly no shot changes, no music, no speech, no text. [B-Roll: STATIC_PAN_RIGHT] [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
         "videoDiscardOverriddenAt": 1794801067254,
         "videoSavedAt": 1794801067254,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-75-1794442731952-yj52",
@@ -2853,7 +3066,10 @@
         "videoSavedFileName": "75_create_a_cinematic_8_second_video_de4c9eb9_4K.mp4",
         "videoDiscardOverriddenAt": 1794801067162,
         "videoSavedAt": 1794801067162,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-76-1794442731963-qvug",
@@ -2875,7 +3091,10 @@
         "videoSavedFileName": "76_create_a_cinematic_8_second_video_a50ba352_4K.mp4",
         "videoDiscardOverriddenAt": 1794801067162,
         "videoSavedAt": 1794801067162,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-77-1794442731974-12ee",
@@ -2897,7 +3116,9 @@
         "videoSavedFileName": "77_create_a_cinematic_8_second_video_95812866_4K.mp4",
         "videoSavedAt": 1794801382990,
         "videoAuditStatus": "approved",
-        "videoDiscardedAt": 1794641982559
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-78-1794442731985-09h8",
@@ -2919,7 +3140,9 @@
         "videoSavedFileName": "78_create_a_cinematic_8_second_video_dfc4944f_4K.mp4",
         "videoSavedAt": 1794801382990,
         "videoAuditStatus": "approved",
-        "videoDiscardedAt": 1794641982559
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-79-1794442731996-nr8s",
@@ -2941,7 +3164,9 @@
         "videoSavedFileName": "79_create_a_cinematic_8_second_video_3ed08c20_4K.mp4",
         "videoSavedAt": 1794801382990,
         "videoAuditStatus": "approved",
-        "videoDiscardedAt": 1794641982559
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-80-1794442732007-j5h7",
@@ -2963,7 +3188,9 @@
         "videoSavedFileName": "80_create_a_cinematic_8_second_video_2d5e3306_4K.mp4",
         "videoSavedAt": 1794801382990,
         "videoAuditStatus": "approved",
-        "videoDiscardedAt": 1794641982559
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-81-1794442732018-m1iu",
@@ -2985,7 +3212,9 @@
         "videoSavedFileName": "81_create_a_cinematic_8_second_video_706937a5_4K.mp4",
         "videoSavedAt": 1794801382990,
         "videoAuditStatus": "approved",
-        "videoDiscardedAt": 1794641982559
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-82-1794442732030-lb3b",
@@ -3007,7 +3236,9 @@
         "videoSavedFileName": "82_Specialist_measures_corn-steep_b…_0636177c_4K.mp4",
         "videoSavedAt": 1794801382990,
         "videoAuditStatus": "approved",
-        "videoDiscardedAt": 1794641982559
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-83-1794442732041-uaqf",
@@ -3029,7 +3260,9 @@
         "videoSavedFileName": "83_create_a_cinematic_8_second_video_631fcac2_4K.mp4",
         "videoSavedAt": 1794801382990,
         "videoAuditStatus": "approved",
-        "videoDiscardedAt": 1794641982559
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-84-1794442732052-2jsf",
@@ -3051,7 +3284,9 @@
         "videoSavedFileName": "84_create_a_cinematic_8_second_video_59cecac0_4K.mp4",
         "videoSavedAt": 1794801382990,
         "videoAuditStatus": "approved",
-        "videoDiscardedAt": 1794641982559
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-85-1794442732062-pu57",
@@ -3073,7 +3308,9 @@
         "videoSavedFileName": "85_create_a_cinematic_8_second_video_41b87af6_4K.mp4",
         "videoSavedAt": 1794801382990,
         "videoAuditStatus": "approved",
-        "videoDiscardedAt": 1794641982559
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-86-1794442732073-4bhu",
@@ -3084,14 +3321,20 @@
         "imagePrompt": "Image 86: Create an image in 16-9 horizontal aspect ratio a warm sunlit 1943 summer medium shot at the doorway of a 1940s Midwestern agricultural botanical processing facility with industrial glass and steel vats showing 25-year-old assistant female botanical specialist with pinned wavy brown hair in a pastel blue 1940s collared blouse and navy skirt carrying a woven market basket and sample jars, portrayed by anonymous mature adult historical reenactment actors in authentic period costume, cinematic documentary realism, safe framing composition, 8k resolution, sharp focus, no modern objects, no CGI look, no text, no spoken voice, no human speech, no music. fix the name to Inicial_86_create_an_image_in_16_9",
         "videoPrompt": "Clip 86: Generate a video in 16-9 horizontal aspect ratio across 8 seconds showing a lively smooth tracking shot outside the sunlit 1940s agricultural research laboratory as the female research specialist in the vintage 1940s coat walks briskly down the sunlit limestone walkway carrying her woven sample basket under bright 1943 summer foliage across the full 8 seconds, holding a natural composed frame through the final second, all background furniture, architectural fixtures, and tabletop props remain 100% gravity-locked and stationary while any held object moves smoothly under natural hand control, fixed subject count from 0s to 8s, single continuous shot, strictly no shot changes, with subtle ambient foley of crisp leather oxfords stepping on warm pavement, rustle of woven wicker basket, cheerful summer birds. cinematic documentary realism, safe framing composition, 8k resolution, sharp focus, no modern objects, no CGI look, no text, no spoken voice, no human speech, no music. fix the name to Clip_86_generate_a_video_in_16_9",
         "narrationSegment": "en la superficie de miles de frascos, los ingenieros de Peoria diseñaron tambores giratorios y tanques sumergidos donde",
-        "imageReady": false,
-        "videoReady": false,
+        "imageReady": true,
+        "videoReady": true,
         "auditStatus": "ok",
         "auditReason": "Sincronizado con el tramo de voz narrativa.",
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "videoDiscardedAt": 1794641982559
+        "videoFrames": [],
+        "videoSavedFileName": "86_generate_a_video_in_16_9_fa3e1eea_4K.mp4",
+        "videoSavedAt": 1794830501989,
+        "videoDiscardOverriddenAt": 1794830501989,
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-87-1794442732084-d7yk",
@@ -3109,7 +3352,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "videoDiscardedAt": 1794641982559
+        "videoDiscardedAt": 1794641982559,
+        "videoFrames": []
       },
       {
         "id": "clip-88-1794442732096-cubd",
@@ -3120,14 +3364,20 @@
         "imagePrompt": "Image 88: Create an image in 16-9 horizontal aspect ratio an iconic cinematic medium close-up inside the bright tiled laboratory of a 1940s Midwestern agricultural botanical processing facility with industrial glass and steel vats in 1943 showing the female botanical assistant in her open white cotton lab coat cradling a netted tan cantaloupe melon on a stainless steel trays beneath overhead lights, portrayed by anonymous mature adult historical reenactment actors in authentic period costume, cinematic documentary realism, safe framing composition, 8k resolution, sharp focus, no modern objects, no CGI look, no text, no spoken voice, no human speech, no music. fix the name to Inicial_88_create_an_image_in_16_9",
         "videoPrompt": "Clip 88: Generate a video in 16-9 horizontal aspect ratio across 8 seconds showing a slow admiring push-in inside the sunlit 1940s agricultural research laboratory as the female research specialist in the vintage 1940s coat sets the netted cantaloupe melon carefully onto the stainless steel examination bench and leans close with bright observant eyes across the full 8 seconds, holding a natural composed frame through the final second, all background furniture, architectural fixtures, and tabletop props remain 100% gravity-locked and stationary while any held object moves smoothly under natural hand control, fixed subject count from 0s to 8s, single continuous shot, strictly no shot changes, with subtle ambient foley of soft thud of ripe melon set onto stainless steel trays, quiet footsteps on laboratory tile. cinematic documentary realism, safe framing composition, 8k resolution, sharp focus, no modern objects, no CGI look, no text, no spoken voice, no human speech, no music. fix the name to Clip_88_generate_a_video_in_16_9",
         "narrationSegment": "crecer en las profundidades de todo el líquido al mismo tiempo. Sin embargo, la cepa original traída desde el sótano",
-        "imageReady": false,
-        "videoReady": false,
+        "imageReady": true,
+        "videoReady": true,
         "auditStatus": "ok",
         "auditReason": "Sincronizado con el tramo de voz narrativa.",
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "videoDiscardedAt": 1794641982559
+        "videoFrames": [],
+        "videoSavedFileName": "88_generate_a_video_in_16_9_32a9c80d_4K.mp4",
+        "videoSavedAt": 1794830501883,
+        "videoDiscardOverriddenAt": 1794830501883,
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-89-1794442732107-bpco",
@@ -3138,8 +3388,8 @@
         "imagePrompt": "Image 89: Create an image in 16-9 horizontal aspect ratio structured as a completely still archival documentary B-roll plate showing an ultra-detailed macro documentary still-photograph plate on a stainless steel tray inside a 1940s Midwestern agricultural botanical processing facility with industrial glass and steel vats showing the textured netted rind of a ripe cantaloupe melon bearing a vivid velvety golden-yellow scar of natural botanical moss under crisp laboratory light, with no people present, cinematic documentary realism, safe framing composition, 8k resolution, sharp focus, no modern objects, no CGI look, no text, no spoken voice, no human speech, no music. [IMAGE ONLY — DO NOT GENERATE VIDEO CLIP] fix the name to Broll_89_create_an_image_in_16_9",
         "videoPrompt": "",
         "narrationSegment": "londinense de Fleming detestaba vivir sumergida. En el verano de 1943, una asistente técnica de unos 25 años llamada Mary Hunt",
-        "imageReady": false,
-        "videoReady": false,
+        "imageReady": true,
+        "videoReady": true,
         "auditStatus": "ok",
         "auditReason": "🖼️ Escena B-Roll Solo Imagen (Zoom In) lista — movimiento 4K 60fps local en Editor.",
         "pauseNotes": "",
@@ -3148,7 +3398,13 @@
         "previousVideoPrompt": "Clip 89 (11:52 - 12:00): Create a cinematic 8-second static B-roll video executing ONLY a smooth, continuous, ultra-steady optical Ken Burns zoom-in over the frozen scene: ONLY a slow, steady optical Ken Burns zoom-in (gradual push-in from wide to tight framing with zero lens distortion) across the 100% still macro photograph plate of the netted cantaloupe rind on the steel tray inside @Laboratorio_Peoria centering tightly on the luminous golden-yellow mold scar, keeping the entire starting image 100% frozen as a still documentary B-roll plate from 0s to 8s with zero internal object animation, with no people present. STATIC B-ROLL PLATE LOCK (CAMERA MOTION ONLY): Treat the starting image as a 100% frozen, motionless archival B-roll still plate from 0s to 8s with strictly zero internal object animation, zero morphing, and zero lighting shifts—ONLY the virtual optical rostrum camera performs the zoom in movement. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: hushed laboratory room tone, faint sterile ventilation hum, single continuous shot, strictly no shot changes, no music, no speech, no text. [B-Roll: STATIC_ZOOM_IN] [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
         "isStaticBroll": true,
         "brollCameraMotion": "zoom_in",
-        "videoDiscardedAt": 1794641982559
+        "videoFrames": [],
+        "videoSavedFileName": "89_Create_an_image_in_16_Broll_4K.mp4",
+        "videoSavedAt": 1794830501989,
+        "videoDiscardOverriddenAt": 1794830501989,
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-90-1794442732119-3md7",
@@ -3166,7 +3422,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "videoDiscardedAt": 1794641982559
+        "videoDiscardedAt": 1794641982559,
+        "videoFrames": []
       },
       {
         "id": "clip-91-1794442732130-8vtn",
@@ -3184,7 +3441,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "videoDiscardedAt": 1794641982559
+        "videoDiscardedAt": 1794641982559,
+        "videoFrames": []
       },
       {
         "id": "clip-92-1794442732142-fl8g",
@@ -3205,7 +3463,8 @@
         "previousVideoPrompt": "Clip 92 (12:16 - 12:24): Create a cinematic 8-second video showing a slow solemn wide tracking glide across the wet sand of @Playas_Normandia_1944 past the olive-drab medical crates toward gray Atlantic waves breaking against dark steel beach obstacles, with no people present across the full 8 seconds, holding a natural composed frame through the final second. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: rolling crash of cold English Channel waves on wet sand, sea wind snapping canvas tent ropes, single continuous shot, strictly no shot changes, no music, no speech, no text. [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
         "isStaticBroll": true,
         "brollCameraMotion": "zoom_in",
-        "videoDiscardedAt": 1794641982559
+        "videoDiscardedAt": 1794641982559,
+        "videoFrames": []
       },
       {
         "id": "clip-93-1794442732153-2vi5",
@@ -3223,7 +3482,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "videoDiscardedAt": 1794641982559
+        "videoDiscardedAt": 1794641982559,
+        "videoFrames": []
       },
       {
         "id": "clip-94-1794442732164-svpi",
@@ -3241,7 +3501,8 @@
         "pauseNotes": "Contiene [pausa: 2.5s] en la locución",
         "reviewedForEditor": false,
         "recreated": false,
-        "videoDiscardedAt": 1794641982559
+        "videoDiscardedAt": 1794641982559,
+        "videoFrames": []
       },
       {
         "id": "clip-95-1794442732175-7kii",
@@ -3259,7 +3520,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "videoDiscardedAt": 1794641982559
+        "videoDiscardedAt": 1794641982559,
+        "videoFrames": []
       },
       {
         "id": "clip-96-1794442732186-06fb",
@@ -3277,7 +3539,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "videoDiscardedAt": 1794641982559
+        "videoDiscardedAt": 1794641982559,
+        "videoFrames": []
       },
       {
         "id": "clip-97-1794442732197-k75v",
@@ -3295,7 +3558,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "videoDiscardedAt": 1794641982559
+        "videoDiscardedAt": 1794641982559,
+        "videoFrames": []
       },
       {
         "id": "clip-98-1794442732208-3o3n",
@@ -3313,7 +3577,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "videoDiscardedAt": 1794641982559
+        "videoDiscardedAt": 1794641982559,
+        "videoFrames": []
       },
       {
         "id": "clip-99-1794442732219-nfs5",
@@ -3331,7 +3596,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "videoDiscardedAt": 1794641982559
+        "videoDiscardedAt": 1794641982559,
+        "videoFrames": []
       },
       {
         "id": "clip-100-1794442732230-snyf",
@@ -3349,7 +3615,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "videoDiscardedAt": 1794641982559
+        "videoDiscardedAt": 1794641982559,
+        "videoFrames": []
       },
       {
         "id": "clip-101-1794442732241-qds1",
@@ -3367,7 +3634,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "videoDiscardedAt": 1794641982559
+        "videoDiscardedAt": 1794641982559,
+        "videoFrames": []
       },
       {
         "id": "clip-102-1794442732253-5tcv",
@@ -3385,7 +3653,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "videoDiscardedAt": 1794641982559
+        "videoDiscardedAt": 1794641982559,
+        "videoFrames": []
       },
       {
         "id": "clip-103-1794442732266-j79n",
@@ -3406,7 +3675,8 @@
         "previousVideoPrompt": "Clip 103 (13:44 - 13:52): Create a cinematic 8-second static B-roll video executing ONLY a smooth, continuous, ultra-steady optical Ken Burns zoom-out over the frozen scene: ONLY a slow, steady optical Ken Burns zoom-out (gradual pull-back from close detail to wide framing revealing full context) across the 100% still high-angle archival photograph plate pulling back from a tight cluster of golden penicillin ampoules to reveal the vast 1944 Allied supply depot filled wall-to-wall with crates, keeping the entire starting image 100% frozen as a still documentary B-roll plate from 0s to 8s with zero internal object animation, with no people present. STATIC B-ROLL PLATE LOCK (CAMERA MOTION ONLY): Treat the starting image as a 100% frozen, motionless archival B-roll still plate from 0s to 8s with strictly zero internal object animation, zero morphing, and zero lighting shifts—ONLY the virtual optical rostrum camera performs the zoom out movement. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: deep cavernous warehouse echo, faint wooden crate stillness, single continuous shot, strictly no shot changes, no music, no speech, no text. [B-Roll: STATIC_ZOOM_OUT] [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
         "isStaticBroll": true,
         "brollCameraMotion": "zoom_in",
-        "videoDiscardedAt": 1794641982559
+        "videoDiscardedAt": 1794641982559,
+        "videoFrames": []
       },
       {
         "id": "clip-104-1794442732280-ee8o",
@@ -3424,7 +3694,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "videoDiscardedAt": 1794641982559
+        "videoDiscardedAt": 1794641982559,
+        "videoFrames": []
       },
       {
         "id": "clip-105-1794442732292-6p8i",
@@ -3442,7 +3713,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "videoDiscardedAt": 1794641982559
+        "videoDiscardedAt": 1794641982559,
+        "videoFrames": []
       },
       {
         "id": "clip-106-1794442732303-7smm",
@@ -3463,7 +3735,8 @@
         "previousVideoPrompt": "Clip 106 (14:08 - 14:16): Create a cinematic 8-second video showing a slow graceful macro slider shot across the marble counter from the humble vintage coins toward the abundant gleaming glass vials bathed in warm afternoon sunlight, with no people present across the full 8 seconds, holding a natural composed frame through the final second. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: warm peaceful afternoon street murmur muffled behind shop glass, quiet clock tick, single continuous shot, strictly no shot changes, no music, no speech, no text. [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
         "isStaticBroll": true,
         "brollCameraMotion": "zoom_in",
-        "videoDiscardedAt": 1794641982559
+        "videoDiscardedAt": 1794641982559,
+        "videoFrames": []
       },
       {
         "id": "clip-107-1794442732315-wuh5",
@@ -3481,7 +3754,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "videoDiscardedAt": 1794641982559
+        "videoDiscardedAt": 1794641982559,
+        "videoFrames": []
       },
       {
         "id": "clip-108-1794442732326-kak7",
@@ -3499,7 +3773,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "videoDiscardedAt": 1794641982559
+        "videoDiscardedAt": 1794641982559,
+        "videoFrames": []
       },
       {
         "id": "clip-109-1794442732338-ycxg",
@@ -3517,7 +3792,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "videoDiscardedAt": 1794641982559
+        "videoDiscardedAt": 1794641982559,
+        "videoFrames": []
       },
       {
         "id": "clip-110-1794442732349-awuc",
@@ -3535,7 +3811,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "videoDiscardedAt": 1794641982559
+        "videoDiscardedAt": 1794641982559,
+        "videoFrames": []
       },
       {
         "id": "clip-111-1794442732360-m8p9",
@@ -3553,7 +3830,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "videoDiscardedAt": 1794641982559
+        "videoDiscardedAt": 1794641982559,
+        "videoFrames": []
       },
       {
         "id": "clip-112-1794442732371-jcbd",
@@ -3571,7 +3849,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "videoDiscardedAt": 1794641982559
+        "videoDiscardedAt": 1794641982559,
+        "videoFrames": []
       },
       {
         "id": "clip-113-1794442732383-311u",
@@ -3589,7 +3868,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "videoDiscardedAt": 1794641982559
+        "videoDiscardedAt": 1794641982559,
+        "videoFrames": []
       },
       {
         "id": "clip-114-1794442732394-hfo9",
@@ -3607,7 +3887,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "videoDiscardedAt": 1794641982559
+        "videoDiscardedAt": 1794641982559,
+        "videoFrames": []
       },
       {
         "id": "clip-115-1794442732405-30jk",
@@ -3625,7 +3906,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "videoDiscardedAt": 1794641982559
+        "videoDiscardedAt": 1794641982559,
+        "videoFrames": []
       },
       {
         "id": "clip-116-1794442732416-vn88",
@@ -3643,7 +3925,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "videoDiscardedAt": 1794641982559
+        "videoDiscardedAt": 1794641982559,
+        "videoFrames": []
       },
       {
         "id": "clip-117-1794442732427-ue28",
@@ -3661,7 +3944,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "videoDiscardedAt": 1794641982559
+        "videoDiscardedAt": 1794641982559,
+        "videoFrames": []
       },
       {
         "id": "clip-118-1794442732439-0mur",
@@ -3679,7 +3963,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "videoDiscardedAt": 1794641982559
+        "videoDiscardedAt": 1794641982559,
+        "videoFrames": []
       },
       {
         "id": "clip-119-1794442732451-3e1d",
@@ -3697,7 +3982,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "videoDiscardedAt": 1794641982559
+        "videoDiscardedAt": 1794641982559,
+        "videoFrames": []
       },
       {
         "id": "clip-120-1794442732463-ccap",
@@ -3718,7 +4004,8 @@
         "previousVideoPrompt": "Clip 120 (16:00 - 16:08): Create a cinematic 8-second static B-roll video executing ONLY a smooth, continuous horizontal rostrum camera pan from right to left over the frozen scene: ONLY a slow, level horizontal fluid-head pan from right to left across the still archival frame across the 100% still archival photograph plate panning smoothly from the closed neoclassical stone ministry facade leftward toward the misty iron harbor cranes along the Rio de la Plata in 1944 Buenos Aires, keeping the entire starting image 100% frozen as a still documentary B-roll plate from 0s to 8s with zero internal object animation, with no people present. STATIC B-ROLL PLATE LOCK (CAMERA MOTION ONLY): Treat the starting image as a 100% frozen, motionless archival B-roll still plate from 0s to 8s with strictly zero internal object animation, zero morphing, and zero lighting shifts—ONLY the virtual optical rostrum camera performs the pan izquierda movement. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: distant ship foghorn echoing across river mist, cold wind over wet granite, single continuous shot, strictly no shot changes, no music, no speech, no text. [B-Roll: STATIC_PAN_LEFT] [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
         "isStaticBroll": true,
         "brollCameraMotion": "zoom_in",
-        "videoDiscardedAt": 1794641982559
+        "videoDiscardedAt": 1794641982559,
+        "videoFrames": []
       },
       {
         "id": "clip-121-1794442732475-ac8b",
@@ -3736,7 +4023,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "videoDiscardedAt": 1794641982559
+        "videoDiscardedAt": 1794641982559,
+        "videoFrames": []
       },
       {
         "id": "clip-122-1794442732486-pltb",
@@ -3754,7 +4042,8 @@
         "pauseNotes": "Contiene [pausa: 2.2s] en la locución",
         "reviewedForEditor": false,
         "recreated": false,
-        "videoDiscardedAt": 1794641982559
+        "videoDiscardedAt": 1794641982559,
+        "videoFrames": []
       },
       {
         "id": "clip-123-1794442732497-1vru",
@@ -3772,7 +4061,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "videoDiscardedAt": 1794641982559
+        "videoDiscardedAt": 1794641982559,
+        "videoFrames": []
       },
       {
         "id": "clip-124-1794442732509-vhdf",
@@ -3790,7 +4080,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "videoDiscardedAt": 1794641982559
+        "videoDiscardedAt": 1794641982559,
+        "videoFrames": []
       },
       {
         "id": "clip-125-1794442732520-b13p",
@@ -3808,7 +4099,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "videoDiscardedAt": 1794641982559
+        "videoDiscardedAt": 1794641982559,
+        "videoFrames": []
       },
       {
         "id": "clip-126-1794442732531-q0wa",
@@ -3826,7 +4118,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "videoDiscardedAt": 1794641982559
+        "videoDiscardedAt": 1794641982559,
+        "videoFrames": []
       },
       {
         "id": "clip-127-1794442732542-lrcg",
@@ -3844,7 +4137,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "videoDiscardedAt": 1794641982559
+        "videoDiscardedAt": 1794641982559,
+        "videoFrames": []
       },
       {
         "id": "clip-128-1794442732553-4yyc",
@@ -3862,7 +4156,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "videoDiscardedAt": 1794641982559
+        "videoDiscardedAt": 1794641982559,
+        "videoFrames": []
       },
       {
         "id": "clip-129-1794442732564-24nk",
@@ -3880,7 +4175,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "videoDiscardedAt": 1794641982559
+        "videoDiscardedAt": 1794641982559,
+        "videoFrames": []
       },
       {
         "id": "clip-130-1794442732576-r340",
@@ -3898,7 +4194,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "videoDiscardedAt": 1794641982559
+        "videoDiscardedAt": 1794641982559,
+        "videoFrames": []
       },
       {
         "id": "clip-131-1794442732587-9egp",
@@ -3916,7 +4213,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "videoDiscardedAt": 1794641982559
+        "videoDiscardedAt": 1794641982559,
+        "videoFrames": []
       },
       {
         "id": "clip-132-1794442732598-871o",
@@ -3934,7 +4232,8 @@
         "pauseNotes": "Contiene [pausa: 2.2s] en la locución",
         "reviewedForEditor": false,
         "recreated": false,
-        "videoDiscardedAt": 1794641982559
+        "videoDiscardedAt": 1794641982559,
+        "videoFrames": []
       },
       {
         "id": "clip-133-1794442732609-kfab",
@@ -3952,7 +4251,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "videoDiscardedAt": 1794641982559
+        "videoDiscardedAt": 1794641982559,
+        "videoFrames": []
       },
       {
         "id": "clip-134-1794442732620-cfsy",
@@ -3970,7 +4270,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "videoDiscardedAt": 1794641982559
+        "videoDiscardedAt": 1794641982559,
+        "videoFrames": []
       },
       {
         "id": "clip-135-1794442732632-dl9e",
@@ -3988,7 +4289,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "videoDiscardedAt": 1794641982559
+        "videoDiscardedAt": 1794641982559,
+        "videoFrames": []
       },
       {
         "id": "clip-136-1794442732644-n4wi",
@@ -4006,7 +4308,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "videoDiscardedAt": 1794641982559
+        "videoDiscardedAt": 1794641982559,
+        "videoFrames": []
       },
       {
         "id": "clip-137-1794442732656-9na5",
@@ -4024,7 +4327,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "videoDiscardedAt": 1794641982559
+        "videoDiscardedAt": 1794641982559,
+        "videoFrames": []
       },
       {
         "id": "clip-138-1794442732667-f729",
@@ -4045,7 +4349,8 @@
         "previousVideoPrompt": "Clip 138 (18:24 - 18:32): Create a cinematic 8-second static B-roll video executing ONLY a smooth, continuous vertical rostrum camera tilt downward from top to bottom over the frozen scene: ONLY a slow, controlled vertical pedestal tilt downward from the top of the still archival frame to the base detail across the 100% still overhead documentary photograph plate tilting downward across the slate bench grid of ten Petri dishes onto the four plates overrun by golden resistant bacterial colonies, keeping the entire starting image 100% frozen as a still documentary B-roll plate from 0s to 8s with zero internal object animation, with no people present. STATIC B-ROLL PLATE LOCK (CAMERA MOTION ONLY): Treat the starting image as a 100% frozen, motionless archival B-roll still plate from 0s to 8s with strictly zero internal object animation, zero morphing, and zero lighting shifts—ONLY the virtual optical rostrum camera performs the tilt abajo movement. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: quiet hum of laboratory lighting ballast, cold clinical glass stillness, single continuous shot, strictly no shot changes, no music, no speech, no text. [B-Roll: STATIC_TILT_DOWN] [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
         "isStaticBroll": true,
         "brollCameraMotion": "zoom_in",
-        "videoDiscardedAt": 1794641982559
+        "videoDiscardedAt": 1794641982559,
+        "videoFrames": []
       },
       {
         "id": "clip-139-1794442732679-jcda",
@@ -4063,7 +4368,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "videoDiscardedAt": 1794641982559
+        "videoDiscardedAt": 1794641982559,
+        "videoFrames": []
       },
       {
         "id": "clip-140-1794442732691-pwyq",
@@ -4081,7 +4387,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "videoDiscardedAt": 1794641982559
+        "videoDiscardedAt": 1794641982559,
+        "videoFrames": []
       },
       {
         "id": "clip-141-1794442732703-fpm0",
@@ -4099,7 +4406,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "videoDiscardedAt": 1794641982559
+        "videoDiscardedAt": 1794641982559,
+        "videoFrames": []
       },
       {
         "id": "clip-142-1794442732714-vxqm",
@@ -4117,7 +4425,8 @@
         "pauseNotes": "Contiene [pausa: 2.4s] en la locución",
         "reviewedForEditor": false,
         "recreated": false,
-        "videoDiscardedAt": 1794641982559
+        "videoDiscardedAt": 1794641982559,
+        "videoFrames": []
       },
       {
         "id": "clip-143-1794442732725-ry7q",
@@ -4135,7 +4444,8 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "videoDiscardedAt": 1794641982559
+        "videoDiscardedAt": 1794641982559,
+        "videoFrames": []
       }
     ],
     "capcutRawSrt": "",
