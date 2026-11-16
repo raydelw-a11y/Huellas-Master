@@ -183,7 +183,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '8:40 PM - 11/15/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '8:43 PM - 11/15/2026';
 
 const PROTECTED_DOC_TEXT_FIELDS = [
   'rawClipsText',
@@ -23931,17 +23931,61 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                               </div>
                             )}
 
-                            {/* 2. VIEWPORT-FIT ASPECT-RATIO LOCKED .MP4 VIDEO VIEWER (POSTER-FIRST SINGLE-DECODER INLINE PLAYER) */}
-                            <div className="w-full flex justify-center">
-                              <div
-                                data-stage8-clip-slot={clip.clipNumber}
-                                className={`relative rounded-xl overflow-hidden border-2 border-amber-500/50 bg-black shadow-2xl flex items-center justify-center ${
-                                  activeDoc.productionType === 'REEL_9X16' ||
-                                  activeDoc.promptConfig?.SUB_OPCION_REELS === '9X16'
-                                    ? 'w-full max-w-[300px] sm:max-w-[calc((100vh-245px)*0.5625)] sm:max-h-[calc(100vh-245px)] min-h-[300px] mx-auto aspect-[9/16]'
-                                    : 'w-full sm:max-w-[calc((100vh-245px)*1.7778)] sm:max-h-[calc(100vh-245px)] min-h-[185px] mx-auto aspect-video'
-                                }`}
-                              >
+                            {/* 2. VIEWPORT-FIT ASPECT-RATIO LOCKED .MP4 VIDEO VIEWER WITH CORRESPONDING VOICEOVER NARRATION PANEL ON THE LEFT */}
+                            <div className="w-full flex flex-col lg:flex-row items-stretch justify-center gap-3.5">
+                              {/* Panel Izquierdo: Texto de la Voz Narrativa que le corresponde al Clip */}
+                              <div className="w-full lg:w-[280px] xl:w-[330px] shrink-0 bg-slate-950/90 border border-emerald-500/35 rounded-xl p-3 flex flex-col justify-between gap-2.5 shadow-xl">
+                                <div className="space-y-2 flex-1 flex flex-col min-h-0">
+                                  <div className="flex items-center justify-between gap-1.5 border-b border-slate-800/80 pb-1.5">
+                                    <span className="text-[11px] font-black text-emerald-300 uppercase tracking-wider flex items-center gap-1.5 truncate">
+                                      🎙️ Voz Narrativa
+                                    </span>
+                                    <div className="flex items-center gap-1 shrink-0">
+                                      <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-900 border border-slate-700 text-slate-300">
+                                        {clip.timeRange || 'S/T'}
+                                      </span>
+                                      <button
+                                        type="button"
+                                        onClick={() => copyText(clip.narrationSegment || '', `narr-${clip.id}`)}
+                                        className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700 hover:border-slate-600 transition cursor-pointer"
+                                        title="Copiar texto de la voz narrativa"
+                                      >
+                                        {copiedId === `narr-${clip.id}` ? '✓ Copiado' : '📋 Copiar'}
+                                      </button>
+                                    </div>
+                                  </div>
+                                  <textarea
+                                    value={clip.narrationSegment || ''}
+                                    onChange={(e) => {
+                                      const next = [...activeDoc.clips];
+                                      next[realIdx] = { ...clip, narrationSegment: e.target.value };
+                                      updateActiveDoc({ clips: next });
+                                    }}
+                                    placeholder="Texto de la voz narrativa de este clip..."
+                                    className="w-full flex-1 min-h-[140px] lg:min-h-[190px] bg-slate-900/70 rounded-lg p-2.5 text-xs text-emerald-200 font-medium leading-relaxed resize-none focus:outline-none focus:ring-1 focus:ring-emerald-400/50 border border-slate-800"
+                                  />
+                                </div>
+                                <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-slate-800/60 font-mono">
+                                  <span>Clip {paddedNum}</span>
+                                  <span>
+                                    {clip.narrationSegment
+                                      ? `${clip.narrationSegment.trim().split(/\s+/).filter(Boolean).length} palabras`
+                                      : '0 palabras'}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Visor de Video */}
+                              <div className="flex-1 flex justify-center items-center min-w-0">
+                                <div
+                                  data-stage8-clip-slot={clip.clipNumber}
+                                  className={`relative rounded-xl overflow-hidden border-2 border-amber-500/50 bg-black shadow-2xl flex items-center justify-center ${
+                                    activeDoc.productionType === 'REEL_9X16' ||
+                                    activeDoc.promptConfig?.SUB_OPCION_REELS === '9X16'
+                                      ? 'w-full max-w-[300px] sm:max-w-[calc((100vh-245px)*0.5625)] sm:max-h-[calc(100vh-245px)] min-h-[300px] mx-auto aspect-[9/16]'
+                                      : 'w-full sm:max-w-[calc((100vh-245px)*1.7778)] sm:max-h-[calc(100vh-245px)] min-h-[185px] mx-auto aspect-video'
+                                  }`}
+                                >
                                 {(() => {
                                   const rawActiveVideoUrl = capturedClipVideosMap[clip.clipNumber];
                                   const activeVideoUrl = rawActiveVideoUrl
@@ -24395,6 +24439,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                               </div>
                             </div>
                           </div>
+                        </div>
 
                           {/* Botón para copiar ambos prompts (Imagen + Clip) juntos, justo arriba de los prompts ocultos */}
                           <div className="flex items-center justify-end">
