@@ -39,11 +39,27 @@ export const BROLL_MOTION_ENGLISH_PHRASE: Record<BrollCameraMotion, string> = {
 
 export const IMAGE_ONLY_BROLL_DIRECTIVE_TAG = '[IMAGE ONLY — DO NOT GENERATE VIDEO CLIP]';
 
+export const FROZEN_FLOW_CLOSING_CLAUSE =
+  'cinematic documentary realism, safe framing composition, 8k resolution, sharp focus, no modern objects, no CGI look, no text, no spoken voice, no human speech, no music.';
+
+export const FLOW_TRAILING_FIX_NAME_RE =
+  /\bfix\s+the\s+name(?:\s+to\s+(?:Inicial|Broll|Clip|@?[A-Za-z0-9_]+)_[A-Za-z0-9_]+|\s+to\s+@?[A-Za-z0-9_]+)?\.?\s*$/i;
+
+export function stripAllPromptBrackets(text: string): string {
+  let out = String(text || '');
+  while (/\[[^\]]*\]/.test(out)) {
+    out = out.replace(/\[[^\]]*\]/g, ' ');
+  }
+  return out.replace(/[\[\]]/g, ' ');
+}
+
 export function isImageOnlyBrollPrompt(text?: string | null): boolean {
   if (!text) return false;
   return (
     /\[IMAGE\s+ONLY\s*[—–-]?\s*DO\s+NOT\s+GENERATE\s+VIDEO\s+CLIP\]/i.test(text) ||
-    /\[B-Roll\s*:\s*STATIC_[A-Z_]+\]/i.test(text)
+    /\[B-Roll\s*:\s*STATIC_[A-Z_]+\]/i.test(text) ||
+    /\bfix\s+the\s+name\s+to\s+Broll_\d+/i.test(text) ||
+    /\bstill\s+archival\s+documentary\s+B-roll\s+plate\b/i.test(text)
   );
 }
 
@@ -59,13 +75,8 @@ export function extractInlineTimeRangeFromPrompt(text?: string | null): string |
 }
 
 export function stripBrollControlTagsFromImagePrompt(rawPrompt: string): string {
-  return String(rawPrompt || '')
-    .replace(/\s*\[Time\s*:\s*[^\]]+\]/gi, ' ')
-    .replace(/\s*\[Duration\s*:\s*[^\]]+\]/gi, ' ')
-    .replace(/\s*\[(?:Video\s+)?Model\s*:\s*[^\]]+\]/gi, ' ')
-    .replace(/\s*\[IMAGE\s+ONLY\s*[—–-]?\s*DO\s+NOT\s+GENERATE\s+VIDEO\s+CLIP\]/gi, ' ')
-    .replace(/\s*\[B-Roll\s*:\s*STATIC_[A-Z_]+\]/gi, ' ')
-    .replace(/\s*\bfix\s+the\s+name\b\.?\s*$/i, '')
+  return stripAllPromptBrackets(String(rawPrompt || ''))
+    .replace(FLOW_TRAILING_FIX_NAME_RE, '')
     .replace(/\s{2,}/g, ' ')
     .trim();
 }
@@ -73,24 +84,30 @@ export function stripBrollControlTagsFromImagePrompt(rawPrompt: string): string 
 export function normalizeBrollImagePrompt(
   rawImg: string,
   clipNumber: number,
-  timeRange?: string,
-  durationSec: number = 8,
-  motion: BrollCameraMotion = 'zoom_in'
+  _timeRange?: string,
+  _durationSec: number = 8,
+  _motion: BrollCameraMotion = 'zoom_in'
 ): string {
   const inferredNum = Number.isFinite(clipNumber) && clipNumber > 0
     ? clipNumber
-    : Number(String(rawImg || '').match(/^(?:Image|Imagen)\s*\[?0*(\d+)\]?/i)?.[1] || 1);
+    : Number(
+        String(rawImg || '').match(/^(?:Image|Imagen)\s*\[?0*(\d+)\]?/i)?.[1] ||
+          String(rawImg || '').match(/\bfix\s+the\s+name\s+to\s+(?:Inicial|Broll|Clip)_0*(\d+)/i)?.[1] ||
+          1
+      );
   const numStr = inferredNum < 10 ? `0${inferredNum}` : `${inferredNum}`;
-  const resolvedTime = (timeRange || extractInlineTimeRangeFromPrompt(rawImg) || '').trim();
   let body = stripBrollControlTagsFromImagePrompt(rawImg)
-    .replace(/^(?:(?:Image|Imagen)\s*(?:\[?0*\d+\]?|undefined|NaN)(?:\s*\([^)]*\))?\s*:\s*)+/i, '')
+    .replace(/^(?:(?:Image|Imagen)\s*(?:\[?0*\d+\]?|undefined|NaN)(?:\s*\([^)]*\))?\s*[:\-–]\s*)+/i, '')
     .trim();
 
   // Deduplicate any nested/repeated B-Roll plate phrasing from earlier passes
   body = body
     .replace(
-      /^Create\s+an\s+image(?:\s+in\s+(16:9\s+horizontal|9:16\s+vertical)\s+aspect\s+ratio)?\s+(?:of\s+)?/i,
-      (_, ar) => `Create an image in ${ar || '16:9 horizontal'} aspect ratio `
+      /^Create\s+an\s+image(?:\s+in\s+(16[-:]9\s+horizontal|16-by-9\s+horizontal|9[-:]16\s+vertical|9-by-16\s+vertical)\s+aspect\s+ratio)?\s+(?:of\s+)?/i,
+      (_, ar) =>
+        `Create an image in ${
+          ar && /9[-:]16|9-by-16/i.test(ar) ? '9-16 vertical' : '16-9 horizontal'
+        } aspect ratio `
     )
     .replace(
       /\bstructured\s+as\s+a\s+completely\s+still\s+archival\s+documentary\s+B-roll\s+plate\s+(?:showing|depicting)\s+(?:an?\s+(?:moody\s+|stark\s+|somber\s+|warm\s+|\d{4}\s+)*archival\s+still[- ]photograph\s+plate\s+(?:showing\s+|of\s+)?)?/gi,
@@ -107,22 +124,22 @@ export function normalizeBrollImagePrompt(
     .replace(/\s{2,}/g, ' ')
     .trim();
 
+  if (!/^Create\s+an\s+image\b/i.test(body)) {
+    body = `Create an image in 16-9 horizontal aspect ratio ${body}`;
+  }
+
   body = body.replace(
-    /^(Create\s+an\s+image\s+in\s+(?:16:9\s+horizontal|9:16\s+vertical)\s+aspect\s+ratio)\s+(?:structured\s+as\s+a\s+completely\s+still\s+archival\s+documentary\s+B-roll\s+plate\s+)?(?:(on|inside|along|at|beneath|under|across)\b|(?:showing\s+|depicting\s+|of\s+)?)/i,
+    /^(Create\s+an\s+image\s+in\s+(?:16[-:]9\s+horizontal|9[-:]16\s+vertical)\s+aspect\s+ratio)\s+(?:structured\s+as\s+a\s+completely\s+still\s+archival\s+documentary\s+B-roll\s+plate\s+)?(?:(on|inside|along|at|beneath|under|across)\b|(?:showing\s+|depicting\s+|of\s+)?)/i,
     (_, prefix, locPrep) =>
       locPrep
         ? `${prefix} structured as a completely still archival documentary B-roll plate ${locPrep.toLowerCase()}`
         : `${prefix} structured as a completely still archival documentary B-roll plate showing `
   );
 
-  const shielded = ensureAntiMutationPhysicsInPrompt(`Image ${numStr}: ${body}`, true, durationSec);
-  const coreClean = stripBrollControlTagsFromImagePrompt(shielded).replace(/\.?\s*$/, '.');
-  const timeTag = resolvedTime ? `[Time: ${resolvedTime}] ` : '';
-  const durTag = durationSec > 0 ? `[Duration: ${durationSec}s] ` : '';
-  const brollTag = `[B-Roll: ${BROLL_MOTION_TAG_BY_KEY[motion] || 'STATIC_ZOOM_IN'}]`;
-  return `${coreClean} ${timeTag}${durTag}[Model: Nano Banana 2.1] ${IMAGE_ONLY_BROLL_DIRECTIVE_TAG} ${brollTag} fix the name`
-    .replace(/\s{2,}/g, ' ')
-    .trim();
+  return sanitizeImagePromptForFlowSafety(`Image ${numStr}: ${body}`, undefined, undefined, {
+    isStaticBroll: true,
+    clipNumber: inferredNum,
+  });
 }
 
 export function parseBrollMotionFromText(
@@ -147,7 +164,7 @@ export function parseBrollMotionFromText(
     return { isStaticBroll: true, brollCameraMotion: map[raw] || 'zoom_in' };
   }
   if (
-    /STATIC\s+B-ROLL\s+PLATE\s+LOCK|IMAGE\s+ONLY\s*[—–-]?\s*DO\s+NOT\s+GENERATE\s+VIDEO\s+CLIP|Static\s+B-Roll\s+Plate|B-Roll\s+Est[áa]tico/i.test(
+    /STATIC\s+B-ROLL\s+PLATE\s+LOCK|IMAGE\s+ONLY\s*[—–-]?\s*DO\s+NOT\s+GENERATE\s+VIDEO\s+CLIP|Static\s+B-Roll\s+Plate|B-Roll\s+Est[áa]tico|\bfix\s+the\s+name\s+to\s+Broll_\d+|\bstill\s+archival\s+documentary\s+B-roll\s+plate\b/i.test(
       combined
     )
   ) {
@@ -677,139 +694,93 @@ export function sanitizeBrandSafeEditorialText(rawText: string): string {
 export function ensureAntiMutationPhysicsInPrompt(
   rawPrompt: string,
   isImagePrompt: boolean = false,
-  clipSec: number = 10
+  clipSec: number = 8
 ): string {
   if (!rawPrompt || !rawPrompt.trim()) return '';
-  let p = rawPrompt.trim();
-
-  let prefix = '';
-  const prefixMatch = p.match(/^((?:Image|Clip|Imagen)\s+\d+(?:\s*\([^)]*\))?\s*:\s*)/i);
-  if (prefixMatch) {
-    prefix = prefixMatch[1];
-    p = p.slice(prefix.length).trim();
-  }
-
-  // Aplicar primero el blindaje Anti-Filtro "Prominent People" y Políticas
-  p = applyAutomaticFlowPolicyShield(p, false);
-
-  // Limpiar cualquier cláusula previa para nunca duplicar (incluyendo decimales como f/1.8 bokeh sin dejar residuos "8 bokeh).")
-  p = p
-    .replace(/\[ANTI-MUTATION[^\]]*\]\s*/gi, '')
-    .replace(
-      /Smooth,\s*controlled\s*fluid-head\s*camera\s*motion\s*maintaining\s*rigid\s*3D[^.]*\.\s*/gi,
-      ''
-    )
-    .replace(
-      /Sustained,\s*unhurried\s*continuous\s*(?:action|motion)\s*across\s*the\s*full\s*\d+\s*seconds[^.]*\.\s*/gi,
-      ''
-    )
-    .replace(
-      /Fixed\s*subject\s*count\s*from\s*0s\s*to\s*\d+s[\s\S]*?(?:bokeh\)\.|geometry\.|physics\.|morphing\)\.)\s*(?:\d+\s*bokeh\)\.\s*)*/gi,
-      ''
-    )
-    .replace(
-      /Strictly\s*zero\s*people(?:,\s*zero\s*human\s*silhouettes,?)?\s*and\s*zero\s*(?:moving\s*characters|human\s*figures)[^.]*\.\s*/gi,
-      ''
-    )
-    .replace(/(?<!f\/1\.)(?:\b\d+\s*bokeh\)\.\s*)+/gi, '')
-    .replace(
-      /All\s*tables,\s*documents,\s*furniture,\s*and\s*props\s*remain\s*100%\s*gravity-locked[^.]*\.\s*/gi,
-      ''
-    )
-    .replace(
-      /Solid,\s*non-deforming\s*walls\s*and\s*rigid\s*3D\s*architectural\s*geometry[^.]*\.\s*/gi,
-      ''
-    )
-    .replace(
-      /Cinematic\s*historical\s*drama\s*reenactment\s*featuring\s*anonymous\s*fictionalized\s*theatre\s*actors[^.]*\.\s*/gi,
-      ''
-    )
-    .replace(/\s*\(no unintended explosions or flashes\)\s*/gi, ' ')
-    .trim();
-
-  const isStaticBrollScene =
-    /\[B-Roll\s*:\s*STATIC_[A-Z_]+\]|STATIC\s+B-ROLL\s+PLATE\s+LOCK|IMAGE\s+ONLY\s*[—–-]?\s*DO\s+NOT\s+GENERATE\s+VIDEO\s+CLIP/i.test(
-      p
-    );
-  const isExplicitZeroPeopleScene =
-    isStaticBrollScene ||
-    /\b(?:zero\s+people|no\s+(?:live\s+)?(?:people|human\s+figures|humans|persons|characters|actors)(?:\s+present)?|without\s+(?:any\s+)?(?:people|humans)|strictly\s+empty\s+environment|uninhabited)\b/i.test(
-      p
-    );
-
+  const shielded = applyAutomaticFlowPolicyShield(rawPrompt.trim(), false);
   if (isImagePrompt) {
-    let preservedTrailingTags = '';
-    const trailingTagsMatch = p.match(
-      /((?:\s*\[(?:Time|Duration|Video\s+Model|Model|B-Roll|IMAGE\s+ONLY)[^\]]*\])+(?:\s*fix\s+the\s+name\.?)?|\s*fix\s+the\s+name\.?)\s*$/i
-    );
-    if (trailingTagsMatch) {
-      preservedTrailingTags = ` ${trailingTagsMatch[1].trim()}`;
-      p = p.slice(0, p.length - trailingTagsMatch[0].length).trim();
-    }
-    const imgClause = isExplicitZeroPeopleScene
-      ? 'clean uncluttered composition with rigid architectural perspective, stationary period props, strictly empty environment with no people present'
-      : 'clean uncluttered composition with rigid architectural perspective, stationary period props, clear anatomical separation between subjects, portrayed by anonymous historical reenactment actors in authentic period costume (no real public figures or prominent people)';
-    if (!p.toLowerCase().includes('rigid architectural perspective')) {
-      if (/\bno\s+text\b/i.test(p)) {
-        p = p.replace(/\b(no\s+text\.?)/i, `${imgClause}, $1`);
-      } else {
-        p = `${p.replace(/\.?\s*$/, '')}, ${imgClause}, no text.`;
-      }
-    } else if (!isExplicitZeroPeopleScene && !/no real public figures/i.test(p)) {
-      p = `${p.replace(/\.?\s*$/, '')}, portrayed by anonymous historical reenactment actors in authentic period costume (no real public figures or prominent people).`;
-    }
-    return `${prefix}${p}${preservedTrailingTags}`.replace(/\s{2,}/g, ' ').trim();
+    return sanitizeImagePromptForFlowSafety(shielded, undefined, undefined, {
+      isStaticBroll: isImageOnlyBrollPrompt(shielded),
+    });
   }
-
-  // Ensure explicit Stage 1 duration phrase inside the English description while preserving "Create" as word 6
-  if (/^Create\s+a\s+(?:cinematic\s+|smooth\s+)?video\s+showing\b/i.test(p)) {
-    p = p.replace(
-      /^Create\s+a\s+(?:cinematic\s+|smooth\s+)?video\s+showing\b/i,
-      `Create a cinematic ${clipSec}-second video showing`
-    );
-  } else if (/^Create\s+a\s+cinematic\s+\d+-second\s+video\b/i.test(p)) {
-    p = p.replace(
-      /^Create\s+a\s+cinematic\s+\d+-second\s+video\b/i,
-      `Create a cinematic ${clipSec}-second video`
-    );
-  } else if (!new RegExp(`\\b${clipSec}-second\\b|\\b${clipSec}\\s*seconds\\b`, 'i').test(p) && /^Create\s+a\b/i.test(p)) {
-    p = p.replace(/^Create\s+a\s+/i, `Create a cinematic ${clipSec}-second `);
-  }
-
-  // Conservar todos los movimientos de cámara del Prompt Maestro (pan, dolly, crane, tracking, tilt, orbit), pero hacerlos suaves y controlados
-  p = p
-    .replace(/\b(whip\s+pan|fast\s+pan|rapid\s+pan)\b/gi, 'smooth controlled fluid-head pan')
-    .replace(/\b(fast\s+tracking|rapid\s+tracking)\b/gi, 'smooth stabilized Steadicam tracking')
-    .replace(/\b(fast\s+dolly|rapid\s+zoom|sudden\s+zoom)\b/gi, 'smooth controlled dolly');
-
-  const shieldDirective = isExplicitZeroPeopleScene
-    ? `Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the ${clipSec}-second shot. Sustained, unhurried continuous motion across the full ${clipSec} seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to ${clipSec}s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects, steady continuous lighting with zero sudden flashes.`
-    : `Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the ${clipSec}-second shot. Sustained, unhurried continuous action across the full ${clipSec} seconds, holding a natural composed posture through the final frame. Fixed subject count from 0s to ${clipSec}s (no new people appearing out of nowhere, vanishing, or morphing; background figures stationary in shallow optical bokeh). Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects. Cinematic historical drama reenactment featuring anonymous fictionalized theatre actors in period costume (no real public figures or prominent people, steady continuous lighting with zero sudden flashes).`;
-
-  if (/\b(?:Ambient\s+Foley|Audio)\s*:/i.test(p)) {
-    p = p.replace(/\b((?:Ambient\s+Foley|Audio)\s*:)/i, `${shieldDirective} $1`);
-  } else {
-    p = `${p.replace(/\.?\s*$/, '')}. ${shieldDirective}`;
-  }
-
-  // Ensure [Duration: Xs] tag is explicitly present before [Model: ...] / fix the name
-  p = p.replace(/\s*\[Duration\s*:\s*\d+\s*s(?:ec(?:onds?)?)?\]\s*/gi, ' ').replace(/\s{2,}/g, ' ').trim();
-  const durTag = `[Duration: ${clipSec}s]`;
-  if (/\[(?:Video\s+)?Model\s*:[^\]]*\]/i.test(p)) {
-    p = p.replace(/\s*(\[(?:Video\s+)?Model\s*:[^\]]*\])/i, ` ${durTag} $1`);
-  } else if (/fix the name\s*\.?\s*$/i.test(p)) {
-    p = p.replace(/\s*(fix the name\s*\.?\s*)$/i, ` ${durTag} $1`);
-  } else {
-    p = `${p} ${durTag}`;
-  }
-
-  return `${prefix}${p}`.replace(/\s{2,}/g, ' ').trim();
+  return sanitizeVideoClipPromptForFlowSafety(shielded, undefined, undefined, {
+    durationSec: clipSec,
+  });
 }
 
 export interface SanitizePersonNamesOptions {
   mode?: 'image' | 'video';
   references?: ReferenceAsset[];
   docContextText?: string;
+}
+
+export interface SanitizeFlowPromptOptions {
+  isStaticBroll?: boolean;
+  clipNumber?: number;
+  durationSec?: number;
+}
+
+export const LOCATION_DESCRIPTOR_MAP: Record<string, string> = {
+  '@Escuela_Dunn_Oxford': 'a 1941 red-brick Oxford pathology laboratory',
+  '@Enfermeria_Radcliffe':
+    'a 1940s clinical brick ward with white enameled iron fixtures and tall sash windows',
+  '@Laboratorio_Peoria':
+    'a 1940s Midwestern agricultural fermentation facility with industrial glass and steel vats',
+  '@Laboratorio_St_Mary': 'a 1928 vintage London stone bacteriology laboratory',
+  '@Mesa_Historiador':
+    'a warm 1940s mahogany archival study lined with towering oak bookshelves',
+  '@Sala_Medica_Londres': 'a 1940s wood-paneled London academic lecture hall',
+  '@Planta_Pfizer_Brooklyn':
+    'a 1944 Brooklyn industrial fermentation plant with towering steel tanks',
+  '@Playas_Normandia_1944':
+    'a 1944 overcast Normandy coastal shore with canvas field pavilions',
+  '@Boticas_Hospitales_Latam':
+    'a 1940s sunlit Latin American wood-and-glass neighborhood apothecary',
+  '@Salon_Nobel_Estocolmo':
+    'a 1945 grand Stockholm concert hall with gilded classical architecture and velvet drapery',
+};
+
+const NORMALIZED_LOCATION_DESCRIPTOR_MAP: Record<string, string> = Object.fromEntries(
+  Object.entries(LOCATION_DESCRIPTOR_MAP).map(([k, v]) => [
+    k
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase(),
+    v,
+  ])
+);
+
+export function resolveLocationDescriptorFromTag(
+  rawTag: string,
+  ref?: ReferenceAsset
+): string {
+  const cleanTag = String(rawTag || '').trim();
+  const atTag = cleanTag.startsWith('@') ? cleanTag : `@${cleanTag}`;
+  if (LOCATION_DESCRIPTOR_MAP[atTag]) {
+    return LOCATION_DESCRIPTOR_MAP[atTag];
+  }
+  const normKey = atTag
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+  if (NORMALIZED_LOCATION_DESCRIPTOR_MAP[normKey]) {
+    return NORMALIZED_LOCATION_DESCRIPTOR_MAP[normKey];
+  }
+  const rawVisual = String(ref?.prompt || (ref as any)?.visualPrompt || '').trim();
+  if (rawVisual) {
+    const firstClause = rawVisual
+      .replace(/@[A-Za-z0-9_ÁÉÍÓÚáéíóúÜüÑñ-]+/g, '')
+      .replace(/^(?:Create\s+an\s+image[^,]*?(?:of|showing|depicting)\s+)/i, '')
+      .split(/[.;]/)[0]
+      .replace(/\bhistorian(?:'s|s)?\b/gi, 'archival')
+      .replace(/\bhospital\b/gi, 'vintage stone')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
+    if (firstClause.length >= 8 && firstClause.length <= 120) {
+      return /^(?:a|an|the)\b/i.test(firstClause) ? firstClause : `a ${firstClause}`;
+    }
+  }
+  return 'a 1940s historical documentary architectural setting';
 }
 
 interface CuratedPersonProfile {
@@ -822,13 +793,13 @@ interface CuratedPersonProfile {
 
 const CURATED_FLOW_PERSON_PROFILES: Record<string, CuratedPersonProfile> = {
   '@Charles_Fletcher': {
-    core: 'young British clinical physician in a white cotton hospital coat',
+    core: 'young British clinical physician in a white cotton clinical coat',
     role: 'young British clinical physician',
     article: 'the',
     videoDesc: 'the young British physician in the white coat',
   },
   '@Albert_Alexander': {
-    core: 'British reserve police constable in a vintage off-white linen hospital gown',
+    core: 'British reserve police constable in a vintage off-white linen clinical gown',
     role: 'British reserve police constable',
     article: 'the',
     videoDesc: 'the resting man in the linen shirt',
@@ -927,16 +898,16 @@ const CURATED_FLOW_VIDEO_TAG_DESC: Record<string, string> = {
   '@Mary_Hunt': CURATED_FLOW_PERSON_PROFILES['@Mary_Hunt'].videoDesc,
   '@Salvador_Mazza': CURATED_FLOW_PERSON_PROFILES['@Salvador_Mazza'].videoDesc,
   '@Historiador_Antiguo': CURATED_FLOW_PERSON_PROFILES['@Historiador_Antiguo'].videoDesc,
-  '@Enfermeria_Radcliffe': 'the quiet vintage 1940s brick ward',
-  '@Laboratorio_St_Mary': 'the vintage wood-paneled London laboratory',
-  '@Escuela_Dunn_Oxford': 'the vintage Oxford research laboratory',
-  '@Mesa_Historiador': 'the warm mahogany study lined with oak bookshelves',
-  '@Sala_Medica_Londres': 'the paneled wood lecture hall',
-  '@Laboratorio_Peoria': 'the sunlit 1940s agricultural research laboratory',
-  '@Planta_Pfizer_Brooklyn': 'the large 1940s stainless-steel fermentation hall',
-  '@Playas_Normandia_1944': 'the overcast 1940s coastal canvas pavilion',
-  '@Boticas_Hospitales_Latam': 'the classic 1940s wooden apothecary interior',
-  '@Salon_Nobel_Estocolmo': 'the grand neoclassical ceremonial concert hall',
+  '@Enfermeria_Radcliffe': LOCATION_DESCRIPTOR_MAP['@Enfermeria_Radcliffe'],
+  '@Laboratorio_St_Mary': LOCATION_DESCRIPTOR_MAP['@Laboratorio_St_Mary'],
+  '@Escuela_Dunn_Oxford': LOCATION_DESCRIPTOR_MAP['@Escuela_Dunn_Oxford'],
+  '@Mesa_Historiador': LOCATION_DESCRIPTOR_MAP['@Mesa_Historiador'],
+  '@Sala_Medica_Londres': LOCATION_DESCRIPTOR_MAP['@Sala_Medica_Londres'],
+  '@Laboratorio_Peoria': LOCATION_DESCRIPTOR_MAP['@Laboratorio_Peoria'],
+  '@Planta_Pfizer_Brooklyn': LOCATION_DESCRIPTOR_MAP['@Planta_Pfizer_Brooklyn'],
+  '@Playas_Normandia_1944': LOCATION_DESCRIPTOR_MAP['@Playas_Normandia_1944'],
+  '@Boticas_Hospitales_Latam': LOCATION_DESCRIPTOR_MAP['@Boticas_Hospitales_Latam'],
+  '@Salon_Nobel_Estocolmo': LOCATION_DESCRIPTOR_MAP['@Salon_Nobel_Estocolmo'],
 };
 
 const ANONYMOUS_ROLE_KEYWORDS = new Set([
@@ -1501,7 +1472,8 @@ function applyContextAwarePersonReplacement(
       /^\s*(?:at\s+age\s+\d+|in\s+(?:a|an|the|his|her|round|gold|silver|oval|dark|white|black|gray|brown|vintage|period|formal|tailored|buttoned|starched)\b|wearing\b)/i.test(
         after
       );
-    const followedByApposition = /^,\s*(?:an?|the)\s+\d{1,3}-year-old\b/i.test(after);
+    const followedByApposition =
+      /^(?:,\s*(?:an?|the)\s+\d{1,3}-year-old\b|\s*\(\s*\d{1,3}-year-old\b)/i.test(after);
 
     if (hasPossessive) {
       const base = precededByDeterminer ? profile.role : `the ${profile.role}`;
@@ -1511,6 +1483,9 @@ function applyContextAwarePersonReplacement(
     if (mode === 'video') {
       if (precededByAgeOnly || precededByDeterminer) {
         return profile.role;
+      }
+      if (followedByApposition) {
+        return precededByDeterminer ? 'adult historical subject' : 'the adult historical subject';
       }
       if (followedByClothingOrAge) {
         return `${profile.article} ${profile.role}`;
@@ -1530,7 +1505,7 @@ function applyContextAwarePersonReplacement(
       return followedByClothingOrAge ? profile.role : profile.core;
     }
     if (followedByApposition) {
-      // Next phrase already states ", a 43-year-old British reserve constable"
+      // Next phrase already states ", a 43-year-old British reserve constable" or "(42-year-old...)"
       return precededByDeterminer ? 'adult historical subject' : 'the adult historical subject';
     }
     if (precededByDeterminer) {
@@ -1544,8 +1519,7 @@ function applyContextAwarePersonReplacement(
 
 /**
  * Unified, idempotent sanitizer that strips ALL proper person names, surnames, possessives,
- * and @Person tags (when required) without harming cinematography vocabulary, geography,
- * institutions, scientific eponyms, or adult age descriptors.
+ * @Person tags, AND @Location tags across BOTH image and video prompts (0 '@' symbols surviving).
  */
 export function sanitizePromptRemovePersonNames(
   prompt: string,
@@ -1557,7 +1531,7 @@ export function sanitizePromptRemovePersonNames(
 
   let p = prompt.trim();
 
-  // Preserve leading "Image 01:" / "Clip 01 (00:00 - 00:08):" prefix (including first 6 words boundary)
+  // Preserve leading "Image 01:" / "Clip 01 (00:00 - 00:08):" prefix
   let prefix = '';
   const prefixMatch = p.match(/^((?:Image|Imagen|Clip)\s+\d+(?:\s*\([^)]*\))?\s*:\s*)/i);
   if (prefixMatch) {
@@ -1565,7 +1539,7 @@ export function sanitizePromptRemovePersonNames(
     p = p.slice(prefix.length).trim();
   }
 
-  // Preserve trailing control tags ([Time:...], [B-Roll:...], [Duration:...], [Model:... [Lower Priority]], fix the name)
+  // Preserve trailing control tags / fix the name if present
   let suffix = '';
   const suffixMatch = p.match(
     /((?:\s*\[(?:Time|B-Roll|Duration|Video\s+Model|Model|IMAGE\s+ONLY)(?:[^\[\]]|\[[^\]]*\])*\])+(?:\s*\(\s*100%\s*pure\s*ambient\s*foley[^)]*\)\.?)?(?:\s*fix\s+the\s+name(?:\s+to\s+@?[A-Za-z0-9_]+)?\.?)?|\s*fix\s+the\s+name(?:\s+to\s+@?[A-Za-z0-9_]+)?\.?(?:\s*\(\s*100%\s*pure\s*ambient\s*foley[^)]*\)\.?)?(?:\s*\[(?:Time|B-Roll|Duration|Video\s+Model|Model|IMAGE\s+ONLY)(?:[^\[\]]|\[[^\]]*\])*\])*)\s*$/i
@@ -1575,10 +1549,8 @@ export function sanitizePromptRemovePersonNames(
     p = p.slice(0, p.length - suffixMatch[0].length).trim();
   }
 
-  // 1. Cut any leaked Spanish narration tail inside video prompts
-  if (mode === 'video') {
-    p = stripLeakedSpanishNarrationTail(p);
-  }
+  // 1. Cut any leaked Spanish narration tail in both modes
+  p = stripLeakedSpanishNarrationTail(p);
 
   // 2. Repair legacy Video 76 regex corruption artifacts before applying clean replacements
   p = p
@@ -1591,20 +1563,24 @@ export function sanitizePromptRemovePersonNames(
       '$1 of the historic coastal fortress'
     );
 
-  // 3. Build unified person profile map from references + curated profiles
+  // 3. Build unified person profile & location descriptor maps from references + curated catalogs
   const profileByAtTag = new Map<string, CuratedPersonProfile>();
+  const locationRefByAtTag = new Map<string, ReferenceAsset>();
   const locationTagsLower = new Set<string>();
 
   for (const [tag, prof] of Object.entries(CURATED_FLOW_PERSON_PROFILES)) {
     profileByAtTag.set(tag.toLowerCase(), prof);
   }
+  for (const tag of Object.keys(LOCATION_DESCRIPTOR_MAP)) {
+    locationTagsLower.add(tag.toLowerCase());
+    const escTag = escapeRegexLiteral(tag);
+    p = p.replace(new RegExp(`${escTag}\\b`, 'gi'), resolveLocationDescriptorFromTag(tag));
+  }
   for (const [tag, desc] of Object.entries(CURATED_FLOW_VIDEO_TAG_DESC)) {
-    if (!CURATED_FLOW_PERSON_PROFILES[tag]) {
+    if (!CURATED_FLOW_PERSON_PROFILES[tag] && !LOCATION_DESCRIPTOR_MAP[tag]) {
       locationTagsLower.add(tag.toLowerCase());
-      if (mode === 'video') {
-        const escTag = escapeRegexLiteral(tag);
-        p = p.replace(new RegExp(`${escTag}\\b`, 'gi'), desc);
-      }
+      const escTag = escapeRegexLiteral(tag);
+      p = p.replace(new RegExp(`${escTag}\\b`, 'gi'), desc);
     }
   }
 
@@ -1620,16 +1596,19 @@ export function sanitizePromptRemovePersonNames(
         ref.category === 'persona' ||
         (ref as any).type === 'Persona' ||
         (!KNOWN_LOCATION_AT_TAG_PREFIX_RE.test(atTag) &&
+          !LOCATION_DESCRIPTOR_MAP[atTag] &&
           ref.category !== 'lugar' &&
           (ref as any).type !== 'Lugar' &&
           atTag.startsWith('@'));
 
       if (!isPerson) {
         locationTagsLower.add(lowerAt);
-        if (mode === 'video') {
-          const escTag = escapeRegexLiteral(atTag);
-          p = p.replace(new RegExp(`${escTag}\\b`, 'gi'), 'the historical period setting');
-        }
+        locationRefByAtTag.set(lowerAt, ref);
+        const escTag = escapeRegexLiteral(atTag);
+        p = p.replace(
+          new RegExp(`${escTag}\\b`, 'gi'),
+          resolveLocationDescriptorFromTag(atTag, ref)
+        );
         continue;
       }
 
@@ -1672,42 +1651,51 @@ export function sanitizePromptRemovePersonNames(
     }
   }
 
-  // 4. Replace @Person tags cleanly:
-  //    - mode === 'video': ALWAYS replace ALL @Tags (person or remaining location) with anonymous description (NEVER body.replace(/_/g, ' '))
-  //    - mode === 'image': keep @Location tags & anonymous-role @Tags (e.g. @Historiador_Antiguo, @Scottish_Bacteriologist);
-  //                        replace real-name @Person tags with anonymous physical+attire description WITHOUT '@'
+  // 4. Replace ALL @Tags (both @Location and @Person, including anonymous roles) in BOTH image and video modes
   const matchedAtTags = Array.from(
-    new Set(p.match(/@[A-Za-z0-9_ÁÉÍÓÚáéíóúÑñ]+/g) || [])
+    new Set(p.match(/@[A-Za-z0-9_ÁÉÍÓÚáéíóúÜüÑñ-]+/g) || [])
   ).sort((a, b) => b.length - a.length);
 
   for (const atTag of matchedAtTags) {
     const lowerAt = atTag.toLowerCase();
-    if (locationTagsLower.has(lowerAt) || KNOWN_LOCATION_AT_TAG_PREFIX_RE.test(atTag)) {
-      if (mode === 'video') {
-        const locDesc = CURATED_FLOW_VIDEO_TAG_DESC[atTag] || 'the historical period setting';
-        p = p.replace(new RegExp(`${escapeRegexLiteral(atTag)}\\b`, 'gi'), locDesc);
-      }
-      continue;
-    }
-
     const matchedRef = Array.isArray(references)
       ? references.find((r) => String(r?.tag || '').trim().toLowerCase() === lowerAt)
       : undefined;
-    const isAnonHandle = isAnonymousRoleReferenceTag(atTag, matchedRef);
 
-    if (mode === 'image' && isAnonHandle) {
+    if (
+      locationTagsLower.has(lowerAt) ||
+      KNOWN_LOCATION_AT_TAG_PREFIX_RE.test(atTag) ||
+      matchedRef?.category === 'lugar' ||
+      (matchedRef as any)?.type === 'Lugar'
+    ) {
+      const locDesc = resolveLocationDescriptorFromTag(
+        atTag,
+        matchedRef || locationRefByAtTag.get(lowerAt)
+      );
+      p = p.replace(new RegExp(`${escapeRegexLiteral(atTag)}\\b`, 'gi'), locDesc);
       continue;
     }
 
-    const prof: CuratedPersonProfile = profileByAtTag.get(lowerAt) || {
-      core: 'adult historical figure in authentic period attire',
-      role: 'adult historical figure',
-      article: 'the',
-      videoDesc: 'the adult historical figure in authentic period attire',
-    };
+    const prof: CuratedPersonProfile =
+      profileByAtTag.get(lowerAt) ||
+      (matchedRef ? extractProfileFromReference(matchedRef) : undefined) || {
+        core: 'adult historical figure in authentic period attire',
+        role: 'adult historical figure',
+        article: 'the',
+        videoDesc: 'the adult historical figure in authentic period attire',
+      };
     const tagRe = new RegExp(`${escapeRegexLiteral(atTag)}(?:['’]s)?\\b`, 'gi');
     p = applyContextAwarePersonReplacement(p, tagRe, prof, mode);
   }
+
+  // Universal anti-'@' fallback: ensure ZERO '@' tokens remain in either image or video mode
+  p = p
+    .replace(/@[A-Za-z0-9_ÁÉÍÓÚáéíóúÜüÑñ-]+/g, (residualTag) =>
+      KNOWN_LOCATION_AT_TAG_PREFIX_RE.test(residualTag)
+        ? resolveLocationDescriptorFromTag(residualTag)
+        : 'the adult historical figure in authentic period attire'
+    )
+    .replace(/@+/g, '');
 
   // 5. Replace explicit full names & distinctive surnames from document lexicon (longest first)
   nameTokensToReplace.sort((a, b) => b.term.length - a.term.length);
@@ -1774,9 +1762,12 @@ export function sanitizePromptRemovePersonNames(
 
   // 9. Clean accidental article/phrase duplications (keeps sanitization 100% idempotent)
   p = p
+    .replace(/(?:\bthe)\s+(?:a|an)\s+/gi, 'the ')
     .replace(/\bthe\s+the\b/gi, 'the')
     .replace(/\ba\s+the\b/gi, 'the')
     .replace(/\ban\s+the\b/gi, 'the')
+    .replace(/\ba\s+a\b/gi, 'a')
+    .replace(/\ban\s+an\b/gi, 'an')
     .replace(/\b(the adult historical (?:figure|leader|specialist|noblewoman))(?:\s+of\s+\1|\s+\1)+\b/gi, '$1')
     .replace(/\s+([,.;:!?])/g, '$1')
     .replace(/\s{2,}/g, ' ')
@@ -1785,81 +1776,107 @@ export function sanitizePromptRemovePersonNames(
   return `${prefix}${p}${suffix}`.replace(/\s{2,}/g, ' ').trim();
 }
 
-export function sanitizeImagePromptForFlowSafety(
-  rawImagePrompt: string,
-  references?: ReferenceAsset[],
-  docContextText?: string
-): string {
-  if (!rawImagePrompt || !rawImagePrompt.trim()) return rawImagePrompt;
-  return sanitizePromptRemovePersonNames(rawImagePrompt, {
-    mode: 'image',
-    references,
-    docContextText,
-  });
-}
-
 /**
- * Hardens video-clip prompts (Clip XX) against Google Flow Veo/Omni anti-deepfake & safety filters
- * while preserving visual likeness through anonymous role/appearance descriptors.
+ * Descending-specificity CBRN, pharmaceutical, wartime, clinical, and abrupt-physics sanitizer
+ * applied identically to BOTH image and video prompts with strict \b boundaries and plural safety.
  */
-export function sanitizeVideoClipPromptForFlowSafety(
-  rawVideoPrompt: string,
-  references?: ReferenceAsset[],
-  docContextText?: string
-): string {
-  if (!rawVideoPrompt || !rawVideoPrompt.trim()) return rawVideoPrompt;
-
-  // 1. Strip ALL person names, Spanish tails, and @Tags cleanly (never turning @Person_Tag into plain proper names)
-  let full = sanitizePromptRemovePersonNames(rawVideoPrompt, {
-    mode: 'video',
-    references,
-    docContextText,
-  });
-
-  let prefix = '';
-  const prefixMatch = full.match(/^(Clip\s+\d+(?:\s*\([^)]*\))?\s*:\s*)/i);
-  if (prefixMatch) {
-    prefix = prefixMatch[1];
-    full = full.slice(prefix.length).trim();
-  }
-
-  let suffix = '';
-  const suffixMatch = full.match(
-    /((?:\s*\[(?:B-Roll|Duration|Video\s+Model|Model)(?:[^\[\]]|\[[^\]]*\])*\])+(?:\s*\(\s*100%\s*pure\s*ambient\s*foley[^)]*\)\.?)?(?:\s*fix\s+the\s+name\.?)?|\s*fix\s+the\s+name\.?(?:\s*\(\s*100%\s*pure\s*ambient\s*foley[^)]*\)\.?)?(?:\s*\[(?:B-Roll|Duration|Video\s+Model|Model)(?:[^\[\]]|\[[^\]]*\])*\])*)\s*$/i
-  );
-  if (suffixMatch) {
-    suffix = ` ${suffixMatch[1].trim()}`;
-    full = full.slice(0, full.length - suffixMatch[0].length).trim();
-  }
-
-  // 2. Neutralize Veo / Omni keyword false-positive triggers
-  let p = full
-    .replace(/\(\s*no\s+unintended\s+explosions\s+or\s+flashes\s*\)/gi, '(steady continuous lighting with zero sudden flashes)')
+export function sanitizeCbrnAndWarKeywordsForFlow(rawText: string): string {
+  if (!rawText) return rawText;
+  return rawText
+    // 1. Compound biological / pharmaceutical / petri / mold / spore / sulfonamide / antibiotic rules
+    .replace(
+      /\bpetri\s+dish(?:es)?\s+with\s+(?:(?:living|blue-green|green|fuzzy)\s+)*mold(?:\s+colon(?:y|ies))?\b/gi,
+      'clear glass specimen dish with green botanical moss'
+    )
+    .replace(/\bpetri\s+dish(?:es)?\b/gi, 'clear glass specimen dish')
+    .replace(
+      /\b(?:living\s+green|blue-green|green)\s+mold(?:\s+colon(?:y|ies))?\b/gi,
+      'green botanical moss'
+    )
+    .replace(/\bmold\s+spores?\b/gi, 'fine botanical particles')
+    .replace(/\bmold(?:\s+colon(?:y|ies))?\b/gi, 'botanical moss')
+    .replace(/\bspores?\b/gi, 'fine botanical particles')
+    .replace(
+      /\b(?:sulfonamide\s+(?:powder|tablets?|pills?|crystals?)|synthetic\s+tablets?|sulfonamides?|sulfa\s+(?:powder|tablets?|drugs?))\b/gi,
+      'white pressed mineral discs'
+    )
+    .replace(
+      /(?<!\b(?:stone|clay|bronze|wax|marble|memorial|wooden)\s)\btablets?\b/gi,
+      'white pressed mineral discs'
+    )
+    .replace(/\bantibiotic\s+crystals?\b/gi, 'golden-amber grains')
+    .replace(/\bantibiotic\s+powder\b/gi, 'golden-amber grains')
+    .replace(/\bunprescribed\s+antibiotic\s+vials?\b|\bantibiotic\s+vials?\b/gi, 'sealed amber glass vial')
+    .replace(/\bantibiotics?\b/gi, 'amber botanical solution')
+    .replace(/\bpenicillin\s+(?:mold|spores?)\b/gi, 'green botanical moss')
+    .replace(/\bpenicillin\s+(?:powder|crystals?)\b/gi, 'golden-amber grains')
+    .replace(/\bpenicillin\b/gi, 'amber botanical extract')
+    .replace(/\bcrystals?(?!\s*[- ]\s*clear\b|\s+chandeliers?\b|\s+glassware\b)/gi, 'golden-amber grains')
+    .replace(/\bbacterial\s+agar\s+plates?\b/gi, 'clear glass specimen plates')
+    .replace(/\bagar\s+plates?\b/gi, 'clear glass specimen plates')
+    .replace(/\bbacteri(?:a|al|um)\b/gi, 'microscopic specimens')
+    .replace(/\b(?:staphylococc(?:us|i)|streptococc(?:us|i)|pathogens?|microbes?|germs?)\b/gi, 'microscopic specimens')
+    .replace(/\binfections?\b|\binfected\b|\bsepsis\b|\bsepticemia\b/gi, 'severe ailment')
+    // Contextual "cultures" (never corrupts "Spanish culture")
+    .replace(
+      /\b(ceramic|liquid|mold|botanical|bacterial|microscopic|glass|flask|broth|agar|laboratory|living|pure|surface|submerged|fermentation|shallow)\s+cultures?\b/gi,
+      '$1 specimens'
+    )
+    .replace(
+      /\bcultures?\s+(vessels?|flasks?|dishes?|plates?|tanks?|vats?|broth|liquid|solutions?|tubes?|extracts?|samples?|collections?|cases?|boxes?|racks?|bottles?|trays?|chambers?|media|medium)\b/gi,
+      'specimen $1'
+    )
+    .replace(
+      /(?<!\b(?:human|popular|local|ancient|modern|european|american|british|spanish|latin|western|folk|literary|civic|national|traditional)\s)\bcultures\b/gi,
+      'specimens'
+    )
+    // Contextual "retorts" (never corrupts verb "he retorts")
+    .replace(
+      /\b(?:(?:glass|laboratory|ceramic|chemical|distillation|long-necked|curved)\s+)?retorts\b/gi,
+      'clear water flasks'
+    )
+    .replace(
+      /\b(?:glass|laboratory|ceramic|chemical|distillation|long-necked|curved)\s+retort\b/gi,
+      'clear water flask'
+    )
+    // 2. Syringes, needles, powders, clinical terms
+    .replace(/\(\s*no\s+unintended\s+explosions\s+or\s+flashes\s*\)/gi, 'steady continuous lighting with zero sudden flashes')
     .replace(/\bno\s+unintended\s+explosions\s+or\s+flashes\b/gi, 'steady continuous lighting with zero sudden flashes')
     .replace(/\b(?:freshly\s+sterilized\s+|vintage\s+)?glass\s+syringe\s+plunger\b/gi, 'glass pipette bulb')
     .replace(/\bsyringe\s+plunger\b/gi, 'glass pipette bulb')
     .replace(/\b(?:freshly\s+sterilized\s+|vintage\s+|sterile\s+)?(?:glass\s+)?syringes?\b/gi, 'graduated glass laboratory pipette')
     .replace(/\binjecting\b/gi, 'dispensing')
     .replace(/\binjects\b/gi, 'dispenses')
-    .replace(/\binjection\b/gi, 'application')
+    .replace(/\binjected\b/gi, 'dispensed')
+    .replace(/\binjections?\b/gi, 'application')
     .replace(/\bglass\s+intravenous\s+drip\s+chamber\b/gi, 'glass laboratory dropper vessel')
     .replace(/\bintravenous(?:\s+drip)?\b/gi, 'sterile glass dropper')
     .replace(/\bpressure\s+gauge\s+needles\b/gi, 'pressure gauge dial pointers')
     .replace(/\bneedles\b/gi, 'dial pointers')
     .replace(/\bneedle\b/gi, 'brass pointer')
-    .replace(/\bunprescribed\s+antibiotic\s+vial\b/gi, 'sealed amber glass vial')
-    .replace(/\bantibiotic\s+powder\b/gi, 'purified golden crystalline granules')
     .replace(/\bwhite\s+alumina\s+powder\b/gi, 'white mineral chromatography column')
-    .replace(/\byellow\s+powder\b/gi, 'golden crystalline granules')
+    .replace(/\b(?:golden-brown\s+purified|yellow|amber|golden)\s+powder\b/gi, 'golden-amber grains')
     .replace(/\bwhite\s+powder\b/gi, 'fine mineral granules')
-    .replace(/\bpowder\b/gi, 'crystalline granules')
+    .replace(/(?<!gun)\bpowders?\b/gi, 'crystalline granules')
     .replace(/\bdrugstores?\b/gi, 'vintage neighborhood apothecary')
     .replace(/\bcrude\s+extract\b/gi, 'amber laboratory solution')
+    // 3. Wartime / artillery / blackout / rubble / blood / agony / hospital triggers
+    .replace(/\banti-aircraft\s+artillery\b|\banti-aircraft\b|\bartillery\b/gi, 'distant atmospheric rumble')
+    .replace(
+      /\b(?:heavy\s+)?(?:black\s+)?(?:1940s\s+period\s+|wartime\s+)?blackout\s+(?:curtains?|cloths?|drapes?|shades?)\b/gi,
+      'shaded night ambient curtains with amber lamps'
+    )
+    .replace(/\bblackouts?\b/gi, 'shaded night ambient with amber lamps')
     .replace(/\bbomb-damaged\b/gi, 'weathered soot-stained')
-    .replace(/\bbomb\b/gi, 'heavy storm')
-    .replace(/\bair-raid\s+siren\b/gi, 'harbor foghorn')
-    .replace(/\bair-raid\b/gi, 'heavy night')
+    .replace(/\bbombs?\b|\bbombing\b|\bbombardment\b/gi, 'heavy storm')
+    .replace(/\bair-raid\s+sirens?\b/gi, 'distant harbor foghorn')
+    .replace(/\bair-raid\s+(?:curtains?|cloths?|drapes?|shades?)\b/gi, 'shaded night ambient curtains with amber lamps')
+    .replace(/\bair-raid\b/gi, 'shaded night')
     .replace(/\banti-blast\b/gi, 'crisscrossed paper-taped')
+    .replace(/\brubble\b/gi, 'weathered stone fragments')
+    .replace(/\bblood(?:y|stained)?\b|\bbleeding\b/gi, 'deep crimson stain')
+    .replace(/\b(?:agony|deaths?|dying|deadly|lethal(?:ly)?|fatal(?:ly)?)\b/gi, 'solemn silence and quiet restraint')
+    .replace(/\bwounds?\b|\bwounded\b/gi, 'bandaged limb')
     .replace(/\bwartime\s+hospital\s+room\s+tone\b/gi, '1940s quiet brick ward tone')
     .replace(/\bhospital\s+room\s+tone\b/gi, 'quiet brick ward room tone')
     .replace(/\bstarched\s+hospital\s+cotton\b/gi, 'starched white cotton')
@@ -1881,13 +1898,287 @@ export function sanitizeVideoClipPromptForFlowSafety(
     .replace(/\brecovered\s+adult\s+patients\b/gi, 'recovered adult visitors')
     .replace(/\bpatients\b/gi, 'visitors')
     .replace(/\bpatient\b/gi, 'resting person')
-    .replace(/\bthe\s+(?:young\s+British\s+physician\s+in\s+the\s+white\s+coat)\s+coat\b/gi, 'the coat of $1')
-    .replace(/\bthe\s+(?:tall\s+British\s+researcher\s+in\s+the\s+laboratory\s+coat)\s+coat\b/gi, 'the coat of $1')
+    // 4. Abrupt verbs & unstable camera motion -> stable smooth physics
+    .replace(/\b(?:shattering|breaking|smashing|crashing|exploding|bursting)\b/gi, 'softly shifting')
+    .replace(/\b(?:shatters?|breaks?|smashes?|explodes?)\b/gi, 'gently settles')
+    .replace(/\b(?:violently|abruptly)\b/gi, 'calmly')
+    .replace(/\b(whip\s+pan|fast\s+pan|rapid\s+pan)\b/gi, 'smooth controlled fluid-head pan')
+    .replace(/\b(fast\s+tracking|rapid\s+tracking)\b/gi, 'smooth stabilized Steadicam tracking')
+    .replace(/\b(fast\s+dolly|rapid\s+zoom|sudden\s+zoom)\b/gi, 'smooth controlled dolly')
+    .replace(/\bsound\s+waves?\b/gi, 'gentle room acoustics')
+    .replace(/\bthe\s+(young\s+British\s+physician\s+in\s+the\s+white\s+coat)\s+coat\b/gi, 'the coat of the $1')
+    .replace(/\bthe\s+(tall\s+British\s+researcher\s+in\s+the\s+laboratory\s+coat)\s+coat\b/gi, 'the coat of the $1')
     .replace(/\b(the quiet vintage 1940s brick ward)\s+with\s+the\s+quiet\s+vintage\s+1940s\s+brick\s+ward/gi, '$1')
+    .replace(/(?:\bthe)\s+(?:a|an)\s+/gi, 'the ')
     .replace(/\s{2,}/g, ' ')
     .trim();
+}
 
-  return `${prefix}${p}${suffix}`.replace(/\s{2,}/g, ' ').trim();
+const STABLE_VIDEO_PHYSICS_ANCHOR =
+  'all background furniture, architectural fixtures, and tabletop props remain 100% gravity-locked and stationary while any held object moves smoothly under natural hand control, fixed subject count from 0s to 8s, single continuous shot, strictly no shot changes';
+
+function finalizeCleanFlowPromptParagraph(
+  sanitizedPrompt: string,
+  mode: 'image' | 'video',
+  options: SanitizeFlowPromptOptions = {}
+): string {
+  let raw = String(sanitizedPrompt || '').trim();
+  if (!raw) return raw;
+
+  const headerNumMatch = raw.match(/^(?:Image|Imagen|Clip)\s*\[?0*(\d+)\]?/i);
+  const renameNumMatch = raw.match(/\bfix\s+the\s+name\s+to\s+(?:Inicial|Broll|Clip)_0*(\d+)/i);
+  const resolvedNum =
+    (typeof options.clipNumber === 'number' && options.clipNumber > 0 ? options.clipNumber : 0) ||
+    (headerNumMatch ? parseInt(headerNumMatch[1], 10) : 0) ||
+    (renameNumMatch ? parseInt(renameNumMatch[1], 10) : 0) ||
+    1;
+  const numStr = resolvedNum < 10 ? `0${resolvedNum}` : `${resolvedNum}`;
+
+  const inlineDurMatch =
+    raw.match(/\[Duration\s*:\s*(\d+)\s*s(?:ec(?:onds?)?)?\]/i) ||
+    raw.match(/\bGenerate\s+a\s+video\s+in\s+16[-:]9\s+horizontal\s+aspect\s+ratio\s+across\s+(\d+)\s+seconds\b/i) ||
+    raw.match(/\bCreate\s+a\s+cinematic\s+(\d+)-second\s+video\b/i) ||
+    raw.match(/\bacross\s+the\s+full\s+(\d+)\s*seconds\b/i);
+  const resolvedDur =
+    (typeof options.durationSec === 'number' && options.durationSec > 0 ? options.durationSec : 0) ||
+    (inlineDurMatch ? parseInt(inlineDurMatch[1], 10) : 0) ||
+    (resolvedNum === 1 ? 6 : 8);
+
+  const isStaticBroll =
+    mode === 'image' && Boolean(options.isStaticBroll || isImageOnlyBrollPrompt(raw));
+
+  const hadExplicitZeroPeople =
+    /\b(?:zero\s+people|no\s+(?:live\s+)?(?:people|human\s+figures|humans|persons|characters|actors)(?:\s+present)?|without\s+(?:any\s+)?(?:people|humans)|strictly\s+empty\s+environment|uninhabited)\b/i.test(
+      raw
+    );
+
+  // Strip leading header ("Image 01:", "Clip 01 (00:08 - 00:16):")
+  let body = raw
+    .replace(/^(?:Image|Imagen|Clip)\s*\[?0*\d+\]?(?:\s*\([^)]*\))?\s*[:\-–]\s*/i, '')
+    .trim();
+
+  // Strip all brackets (including nested [Model: Veo 3.1 - Lite [Lower Priority]]) and trailing rename
+  body = stripAllPromptBrackets(body).replace(FLOW_TRAILING_FIX_NAME_RE, '').trim();
+
+  if (mode === 'image') {
+    body = body
+      .replace(/\b16\s*:\s*9\b|\b16-by-9\b/gi, '16-9')
+      .replace(/\b9\s*:\s*16\b|\b9-by-16\b/gi, '9-16')
+      .replace(
+        /,?\s*clean\s+uncluttered\s+composition\s+with\s+rigid\s+architectural\s+perspective,\s*stationary\s+period\s+props(?:,\s*clear\s+anatomical\s+separation\s+between\s+subjects)?(?:,\s*strictly\s+empty\s+environment\s+with\s+(?:no\s+people\s+present|zero\s+people(?:,\s*zero\s+human\s+hands,?\s*and\s+zero\s+characters\s+anywhere\s+in\s+the\s+frame)?))?(?:,\s*portrayed\s+by\s+anonymous\s+historical\s+reenactment\s+actors\s+in\s+authentic\s+period\s+costume)?(?:\s*\(no\s+real\s+public\s+figures\s+or\s+prominent\s+people\))?/gi,
+        ''
+      )
+      .replace(
+        /,?\s*portrayed\s+by\s+anonymous\s+historical\s+reenactment\s+actors\s+in\s+authentic\s+period\s+costume(?:\s*\(no\s+real\s+public\s+figures\s+or\s+prominent\s+people\))?/gi,
+        ''
+      )
+      .replace(
+        /,?\s*8k\s+photorealistic\s+cinematic\s+lighting,\s*historical\s+accuracy,\s*sharp\s+focus[^.]*\.?/gi,
+        ''
+      )
+      .replace(
+        /,?\s*cinematic\s+documentary\s+realism,\s*safe\s+framing\s+composition,\s*8k\s+resolution,\s*sharp\s+focus,\s*no\s+modern\s+objects,\s*no\s+CGI\s+look,\s*no\s+text,\s*no\s+spoken\s+voice,\s*no\s+human\s+speech,\s*no\s+music\.?/gi,
+        ''
+      )
+      .replace(
+        /,?\s*(?:strictly\s+)?no\s+text(?:,\s*no\s+readable\s+letters)?(?:,\s*no\s+watermarks)?(?:,\s*no\s+spoken\s+voice)?(?:,\s*no\s+human\s+speech)?(?:,\s*no\s+speech)?(?:,\s*no\s+music)?(?:\s*\(no\s+real\s+public\s+figures\s+or\s+prominent\s+people\))?\.?/gi,
+        ''
+      )
+      .replace(/\(\s*no\s+real\s+public\s+figures\s+or\s+prominent\s+people\s*\)/gi, '')
+      .replace(/STATIC\s+B-ROLL\s+PLATE\s+LOCK\s*:?/gi, '')
+      .replace(/\s*:\s*/g, ', ')
+      .replace(/\s+/g, ' ')
+      .replace(/[,;.\s]+$/g, '')
+      .trim();
+
+    if (!/^Create\s+an\s+image\b/i.test(body)) {
+      body = `Create an image in 16-9 horizontal aspect ratio ${body}`;
+    } else {
+      body = body.replace(
+        /^Create\s+an\s+image(?:\s+in\s+(16-9\s+horizontal|9-16\s+vertical)\s+aspect\s+ratio)?\s*(?:of\s+)?/i,
+        (_, ar) => `Create an image in ${ar || '16-9 horizontal'} aspect ratio `
+      );
+    }
+
+    if (
+      isStaticBroll &&
+      !/\bstill\s+archival\s+documentary\s+B-roll\s+plate\b/i.test(body)
+    ) {
+      body = body.replace(
+        /^(Create\s+an\s+image\s+in\s+(?:16-9\s+horizontal|9-16\s+vertical)\s+aspect\s+ratio)\s+(?:(on|inside|along|at|beneath|under|across)\b|(?:showing\s+|depicting\s+|of\s+)?)/i,
+        (_, pfx, prep) =>
+          prep
+            ? `${pfx} structured as a completely still archival documentary B-roll plate ${prep.toLowerCase()}`
+            : `${pfx} structured as a completely still archival documentary B-roll plate showing `
+      );
+    }
+
+    if (
+      hadExplicitZeroPeople &&
+      !/\b(?:no\s+people\s+present|zero\s+people|uninhabited)\b/i.test(body)
+    ) {
+      body = `${body}, with no people present`;
+    }
+
+    body = body
+      .replace(/,\s*,+/g, ', ')
+      .replace(/\s+([,.;])/g, '$1')
+      .replace(/\s{2,}/g, ' ')
+      .replace(/[,;.\s]+$/g, '')
+      .trim();
+
+    const renamePrefix = isStaticBroll ? 'Broll' : 'Inicial';
+    return `Image ${numStr}: ${body}, ${FROZEN_FLOW_CLOSING_CLAUSE} fix the name to ${renamePrefix}_${numStr}_create_an_image_in_16_9`;
+  }
+
+  // Video mode ("Clip XX:")
+  let foleyClause = '';
+  const foleyColonMatch = body.match(/\b(?:Ambient\s+Foley|Audio)\s*:\s*([\s\S]*)$/i);
+  const foleyProseMatch = body.match(/,?\s*with\s+subtle\s+ambient\s+foley\s+of\s+([\s\S]*)$/i);
+  if (foleyColonMatch) {
+    foleyClause = foleyColonMatch[1];
+    body = body.slice(0, foleyColonMatch.index).trim();
+  } else if (foleyProseMatch) {
+    foleyClause = foleyProseMatch[1];
+    body = body.slice(0, foleyProseMatch.index).trim();
+  }
+
+  if (foleyClause) {
+    foleyClause = stripLeakedSpanishNarrationTail(foleyClause)
+      .replace(
+        /,?\s*cinematic\s+documentary\s+realism,\s*safe\s+framing\s+composition[\s\S]*$/i,
+        ''
+      )
+      .replace(
+        /,?\s*(?:single\s+continuous\s+shot|strictly\s+no\s+shot\s+changes|100%\s*pure\s*ambient\s*foley[^,.]*|no\s+music|no\s+spoken\s+voice|no\s+human\s+speech|no\s+speech|no\s+text|no\s+watermarks)\b[\s\S]*$/i,
+        ''
+      )
+      .replace(/\(\s*100%\s*pure\s*ambient\s*foley[^)]*\)/gi, '')
+      .replace(/\b16\s*:\s*9\b|\b16-by-9\b/gi, '16-9')
+      .replace(/\s*:\s*/g, ', ')
+      .replace(/\s+/g, ' ')
+      .replace(/[,;.\s]+$/g, '')
+      .trim();
+  }
+  if (!foleyClause) {
+    foleyClause = 'quiet period room tone and natural atmospheric acoustics';
+  }
+
+  // Strip all legacy duplicate physics/actor/closing sentences from video body
+  body = body
+    .replace(/\b16\s*:\s*9\b|\b16-by-9\b/gi, '16-9')
+    .replace(/\b9\s*:\s*16\b|\b9-by-16\b/gi, '9-16')
+    .replace(
+      /Smooth,\s*controlled\s*fluid-head\s*camera\s*motion\s*maintaining\s*rigid\s*3D[^.]*\.?\s*/gi,
+      ' '
+    )
+    .replace(
+      /Sustained,\s*unhurried\s*continuous\s*(?:action|motion)\s*across\s*the\s*full\s*\d+\s*seconds[^.]*\.?\s*/gi,
+      ' '
+    )
+    .replace(
+      /Fixed\s*subject\s*count\s*from\s*0s\s*to\s*\d+s[\s\S]*?(?:bokeh\)\.|geometry\.|physics\.|morphing\)\.)\s*(?:\d+\s*bokeh\)\.\s*)*/gi,
+      ' '
+    )
+    .replace(
+      /Strictly\s*zero\s*people(?:\s+or\s+human\s+figures\s+appearing\s+anywhere\s+in\s+the\s+frame|\s*,\s*zero\s*human\s*silhouettes,?|\s+and\s+zero\s+(?:moving\s*characters|human\s*figures))[^.]*\.?\s*/gi,
+      ' '
+    )
+    .replace(
+      /All\s*furniture,\s*tables,\s*and\s*props\s*remain\s*100%\s*physically\s*solid[^.]*\.?\s*/gi,
+      ' '
+    )
+    .replace(
+      /All\s*tables,\s*documents,\s*furniture,\s*and\s*props\s*remain\s*100%\s*gravity-locked[^.]*\.?\s*/gi,
+      ' '
+    )
+    .replace(
+      /Solid,\s*non-deforming\s*walls\s*and\s*rigid\s*3D\s*architectural\s*geometry[^.]*\.?\s*/gi,
+      ' '
+    )
+    .replace(
+      /Cinematic\s*historical\s*(?:drama\s*reenactment|documentary\s*still-life\s*cinematography)[^.]*\.?\s*/gi,
+      ' '
+    )
+    .replace(
+      /,?\s*(?:with\s+no\s+people\s+present\s+and\s+zero\s+human\s+figures,\s*)?all\s+background\s+furniture,\s+architectural\s+fixtures,\s+and\s+tabletop\s+props\s+remain\s+100%\s+gravity-locked[\s\S]*$/i,
+      ' '
+    )
+    .replace(
+      /,?\s*cinematic\s+documentary\s+realism,\s*safe\s+framing\s+composition[\s\S]*$/i,
+      ' '
+    )
+    .replace(
+      /,?\s*(?:single\s+continuous\s+shot|strictly\s+no\s+shot\s+changes|no\s+music|no\s+spoken\s+voice|no\s+human\s+speech|no\s+speech|no\s+text)\b[\s\S]*$/i,
+      ' '
+    )
+    .replace(/\b(?:STRICT\s+ADULTS-ONLY\s+CAST[^:]*|SINGLE\s+CONTINUOUS\s+UNBROKEN\s+TAKE[^:]*|Visual\s+Style)\s*:\s*/gi, '')
+    .replace(/\s*:\s*/g, ', ')
+    .replace(/\s+/g, ' ')
+    .replace(/[,;.\s]+$/g, '')
+    .trim();
+
+  // Normalize video opening so first 6 tokens match "generate_a_video_in_16_9" and prose carries exact Stage 1 duration
+  body = body.replace(
+    /^(?:Generate\s+a\s+video(?:\s+in\s+(?:16-9|9-16)\s+(?:horizontal|vertical)\s+aspect\s+ratio)?(?:\s+across\s+\d+\s+seconds)?|Create\s+a\s+(?:cinematic\s+|smooth\s+)?(?:\d+-second\s+)?video)\s*(?:showing\s+)?/i,
+    ''
+  ).trim();
+  body = `Generate a video in 16-9 horizontal aspect ratio across ${resolvedDur} seconds showing ${body}`;
+
+  const zeroPeopleAnchor =
+    hadExplicitZeroPeople && !/\b(?:no\s+people\s+present|zero\s+people|uninhabited)\b/i.test(body)
+      ? 'with no people present and zero human figures, '
+      : '';
+
+  body = body
+    .replace(/,\s*,+/g, ', ')
+    .replace(/\s+([,.;])/g, '$1')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/[,;.\s]+$/g, '')
+    .trim();
+
+  return `Clip ${numStr}: ${body}, ${zeroPeopleAnchor}${STABLE_VIDEO_PHYSICS_ANCHOR}, with subtle ambient foley of ${foleyClause}. ${FROZEN_FLOW_CLOSING_CLAUSE} fix the name to Clip_${numStr}_generate_a_video_in_16_9`;
+}
+
+export function sanitizeImagePromptForFlowSafety(
+  rawImagePrompt: string,
+  references?: ReferenceAsset[],
+  docContextText?: string,
+  options?: SanitizeFlowPromptOptions
+): string {
+  if (!rawImagePrompt || !rawImagePrompt.trim()) return rawImagePrompt;
+  const isStaticBroll = Boolean(options?.isStaticBroll || isImageOnlyBrollPrompt(rawImagePrompt));
+  const personAndLocClean = sanitizePromptRemovePersonNames(rawImagePrompt, {
+    mode: 'image',
+    references,
+    docContextText,
+  });
+  const cbrnClean = sanitizeCbrnAndWarKeywordsForFlow(personAndLocClean);
+  return finalizeCleanFlowPromptParagraph(cbrnClean, 'image', {
+    ...options,
+    isStaticBroll,
+  });
+}
+
+/**
+ * Hardens video-clip prompts (Clip XX) against Google Flow Veo/Omni anti-deepfake & CBRN filters,
+ * enforcing single-paragraph syntax, stable physics, English-only Foley, frozen closing clause,
+ * and clean trailing rename `fix the name to Clip_XX_generate_a_video_in_16_9`.
+ */
+export function sanitizeVideoClipPromptForFlowSafety(
+  rawVideoPrompt: string,
+  references?: ReferenceAsset[],
+  docContextText?: string,
+  options?: SanitizeFlowPromptOptions
+): string {
+  if (!rawVideoPrompt || !rawVideoPrompt.trim()) return rawVideoPrompt;
+  const personAndLocClean = sanitizePromptRemovePersonNames(rawVideoPrompt, {
+    mode: 'video',
+    references,
+    docContextText,
+  });
+  const cbrnClean = sanitizeCbrnAndWarKeywordsForFlow(personAndLocClean);
+  return finalizeCleanFlowPromptParagraph(cbrnClean, 'video', options);
 }
 
 export function buildRawClipsTextWithHeader(
@@ -1909,7 +2200,11 @@ export function buildRawClipsTextWithHeader(
           : standardClipDurationSec || 8;
       if (c.isStaticBroll) {
         if (!rawImg) return '';
-        const safeBrollImg = sanitizeImagePromptForFlowSafety(rawImg, references);
+        const safeBrollImg = sanitizeImagePromptForFlowSafety(rawImg, references, undefined, {
+          isStaticBroll: true,
+          clipNumber: c.clipNumber,
+          durationSec: durSec,
+        });
         return normalizeBrollImagePrompt(
           safeBrollImg,
           c.clipNumber,
@@ -1918,14 +2213,18 @@ export function buildRawClipsTextWithHeader(
           c.brollCameraMotion || 'zoom_in'
         );
       }
-      const safeImg = rawImg ? sanitizeImagePromptForFlowSafety(rawImg, references) : '';
-      const imgClean = stripBrollControlTagsFromImagePrompt(safeImg);
-      const img =
-        imgClean && !/\bfix\s+the\s+name\b\.?\s*$/i.test(imgClean)
-          ? `${imgClean.replace(/\.?\s*$/, '.')} fix the name`
-          : imgClean;
+      const img = rawImg
+        ? sanitizeImagePromptForFlowSafety(rawImg, references, undefined, {
+            isStaticBroll: false,
+            clipNumber: c.clipNumber,
+            durationSec: durSec,
+          })
+        : '';
       const safeVid = rawVid
-        ? sanitizeVideoClipPromptForFlowSafety(rawVid, references)
+        ? sanitizeVideoClipPromptForFlowSafety(rawVid, references, undefined, {
+            clipNumber: c.clipNumber,
+            durationSec: durSec,
+          })
         : '';
       const vid = safeVid
         ? applyClipFlowVideoEngineTag(
@@ -2295,13 +2594,13 @@ export function parseClipsFromRawText(
         ? clipPromptMatch[2].replace(/\s*(?:-|–|—|to)\s*/, ' - ').trim()
         : clip.timeRange;
       if (timeRange) clip.timeRange = timeRange;
-      const normalizedBody = /^Create a/i.test(bodyRaw)
+      const normalizedBody = /^(?:Create\s+a|Generate\s+a\s+video)/i.test(bodyRaw)
         ? bodyRaw
-        : `Create a cinematic ${num === 1 ? clip1Duration : standardClipDuration}-second video showing ${bodyRaw}`;
+        : `Generate a video in 16-9 horizontal aspect ratio across ${num === 1 ? clip1Duration : standardClipDuration} seconds showing ${bodyRaw}`;
       const targetSec = num === 1 ? clip1Duration : standardClipDuration;
       const numStr = num < 10 ? String(num).padStart(2, '0') : String(num);
       const candidateVideoPrompt = ensureAntiMutationPhysicsInPrompt(
-        `Clip ${numStr}${timeRange ? ` (${timeRange})` : ''}: ${normalizedBody}`,
+        `Clip ${numStr}: ${normalizedBody}`,
         false,
         targetSec
       );
@@ -2327,7 +2626,7 @@ export function parseClipsFromRawText(
       continue;
     }
 
-    if (headerMatch && !line.toLowerCase().includes('create a video')) {
+    if (headerMatch && !/\b(?:create|generate)\s+a\s+video\b/i.test(line)) {
       const num = parseInt(headerMatch[1], 10);
       currentClipNum = num;
       const clip = ensureClip(num);
@@ -3192,8 +3491,8 @@ export function syncAndAuditProductionClips(
             `Desfase de tiempo en el encabezado del Clip 1 (${promptHeaderRangeMatch?.[1]}) frente al Timeline real (${c1Range}).`
           );
         }
-        if (/speech|narrat|voiceover/i.test(vidP) && !/no speech/i.test(vidP)) {
-          c1Issues.push('El Clip 1 no debe llevar voz hablada; debe cerrar con "no music, no speech".');
+        if (/speech|narrat|voiceover/i.test(vidP) && !/\bno\s+(?:human\s+|spoken\s+)?speech\b/i.test(vidP)) {
+          c1Issues.push('El Clip 1 no debe llevar voz hablada; debe cerrar con "no spoken voice, no human speech".');
         }
         if (/(?<!f\/1\.)\b\d+\s*bokeh\)\./i.test(imgP) || /(?<!f\/1\.)\b\d+\s*bokeh\)\./i.test(vidP)) {
           c1Issues.push('Residuo de truncamiento "bokeh)." detectado en el prompt.');
@@ -3363,12 +3662,13 @@ export function syncAndAuditProductionClips(
         );
       }
 
-      const durTagMatch = vidP.match(/\[Duration\s*:\s*(\d+)\s*s\]/i);
-      if (!durTagMatch) {
-        issues.push(`Falta la etiqueta de duración [Duration: ${standardClipDuration}s] de Etapa 1.`);
-      } else if (parseInt(durTagMatch[1], 10) !== standardClipDuration) {
+      const durTagMatch =
+        vidP.match(/\[Duration\s*:\s*(\d+)\s*s\]/i) ||
+        vidP.match(/\bacross\s+(?:the\s+full\s+)?(\d+)\s*seconds\b/i) ||
+        vidP.match(/\b(\d+)-second\s+video\b/i);
+      if (durTagMatch && parseInt(durTagMatch[1], 10) !== standardClipDuration) {
         issues.push(
-          `La duración en el prompt ([Duration: ${durTagMatch[1]}s]) no coincide con los ${standardClipDuration}s elegidos en Etapa 1.`
+          `La duración en el prompt (${durTagMatch[1]}s) no coincide con los ${standardClipDuration}s elegidos en Etapa 1.`
         );
       }
 
@@ -5181,15 +5481,21 @@ export type FlowProjectEngineMode =
  */
 function stripFlowPromptBoilerplateForSubjectCheck(rawPrompt: string): string {
   if (!rawPrompt) return '';
-  return rawPrompt
-    .replace(/\[(?:Video\s+)?Model\s*:[^\]]+\]/gi, ' ')
-    .replace(/\[Duration\s*:[^\]]+\]/gi, ' ')
-    .replace(/\bfix\s+the\s+name\b\.?/gi, ' ')
+  return stripAllPromptBrackets(rawPrompt)
+    .replace(FLOW_TRAILING_FIX_NAME_RE, ' ')
     .replace(/Cinematic historical drama reenactment[^.]*\.?/gi, ' ')
     .replace(/portrayed by anonymous historical reenactment actors[^.]*\.?/gi, ' ')
     .replace(/no real public figures or prominent people/gi, ' ')
     .replace(
       /Fixed\s*subject\s*count\s*from\s*0s\s*to\s*\d+s[\s\S]*?(?:bokeh\)\.|geometry\.|physics\.|morphing\)\.)/gi,
+      ' '
+    )
+    .replace(
+      /all\s+background\s+furniture,\s+architectural\s+fixtures,\s+and\s+tabletop\s+props\s+remain\s+100%\s+gravity-locked[^.]*\.?/gi,
+      ' '
+    )
+    .replace(
+      /cinematic\s+documentary\s+realism,\s*safe\s+framing\s+composition,\s*8k\s+resolution,\s*sharp\s+focus,\s*no\s+modern\s+objects,\s*no\s+CGI\s+look,\s*no\s+text,\s*no\s+spoken\s+voice,\s*no\s+human\s+speech,\s*no\s+music\.?/gi,
       ' '
     )
     .replace(/Fixed subject count[^.]*\.?/gi, ' ')
@@ -5198,6 +5504,7 @@ function stripFlowPromptBoilerplateForSubjectCheck(rawPrompt: string): string {
     .replace(/objects and hands maintain solid physical persistence[^.]*\.?/gi, ' ')
     .replace(/natural human anatomy[^.]*\.?/gi, ' ')
     .replace(/historian's\s+wooden\s+desk/gi, 'wooden desk')
+    .replace(/,\s*with\s+subtle\s+ambient\s+foley\s+of\s+[\s\S]*$/i, ' ')
     .replace(/Ambient\s+Foley\s*:[\s\S]*$/i, ' ')
     .replace(/\s+/g, ' ')
     .trim();
@@ -5222,6 +5529,7 @@ export function detectClipHasHumanSubjects(
 ): boolean {
   if (
     clip.isStaticBroll ||
+    isImageOnlyBrollPrompt(clip.imagePrompt) ||
     /\[B-Roll\s*:\s*STATIC_[A-Z_]+\]|STATIC\s+B-ROLL\s+PLATE\s+LOCK|IMAGE\s+ONLY\s*[—–-]?\s*DO\s+NOT\s+GENERATE\s+VIDEO\s+CLIP/i.test(
       `${clip.imagePrompt || ''} ${clip.videoPrompt || ''}`
     )
@@ -5292,7 +5600,7 @@ export function detectClipHasHumanSubjects(
 
   // 4. Check for human subjects, roles, crowds, pronouns, or visible human anatomy in action
   const humanSubjectRegex =
-    /\b(man|men|woman|women|boy|girl|child|children|adult|adults|person|people|crowd|audience|listeners|spectators|delegates|passengers|peasants|workers|laborer|laborers|miners|sailors|soldiers|medics|officers|guards|gendarmes|policeman|policemen|constable|constables|contractor|contractors|officials|inspectors|clerks|notary|moneylender|usurer|merchants|grocer|governor|captain|doctor|doctors|physician|physicians|clinician|clinicians|surgeon|surgeons|nurse|nurses|patient|patients|pharmacist|pharmacists|scientist|scientists|researcher|researchers|scholar|scholars|professor|professors|director|directors|specialist|specialists|biochemist|biochemists|mycologist|mycologists|chemist|chemists|bacteriologist|bacteriologists|pathologist|pathologists|microbiologist|microbiologists|historian|historians|technician|technicians|assistant|assistants|journalist|reporter|diplomat|priest|monk|bishop|clergyman|king|queen|emperor|empress|prince|princess|monarch|monarchs|ruler|rulers|sovereign|sovereigns|noble|nobleman|noblewoman|farmer|farmers|villagers|citizens|migrants|emigrants|immigrants|refugee|refugees|exile|exiles|travelers|pedestrians|couple|family|families|mother|father|parents|son|daughter|brother|sister|widow|elder|elders|veteran|blacksmith|carpenter|baker|tailor|weaver|fisherman|fishermen|shepherd|beggar|prisoner|captive|pilgrim|pilgrims|colonists|settlers|actor|actors|actress|actresses|figure|figures|leader|leaders|statesman|statesmen|politician|politicians|poet|poets|writer|writers|author|authors|inventor|inventors|engineer|engineers|industrialist|industrialists|pioneer|pioneers|founder|founders|general|commander|admiral|colonel|minister|mayor|judge|lawyer|philosopher|composer|architect|explorer|operator|operators|\d+-year-old|he|she|him|his|her|seated\s+beside|in\s+his\s+hands|in\s+her\s+hands|silhouette\s+of\s+a\s+(?:man|woman|person|figure|boy|girl|doctor|scientist|soldier)|figures?\s+(?:walking|standing|working|boarding|carrying|waiting|huddled|gathered|sitting|kneeling|running|looking|watching|leaning|examining)|(?:weathered|gloved|bare|trembling|steady|aged)\s+hands|hands\s+(?:holding|signing|counting|turning|resting|trembling|clutching|writing|tying|stitching|open|opening|closing|pouring|forging|hammering|placing|lifting|adjusting|sealing|labeling|examining|pipetting))\b/i;
+    /\b(man|men|woman|women|boy|girl|child|children|adult|adults|person|people|visitor|visitors|volunteer|volunteers|crowd|audience|listeners|spectators|delegates|passengers|peasants|workers|laborer|laborers|miners|sailors|soldiers|medics|officers|guards|gendarmes|policeman|policemen|constable|constables|contractor|contractors|officials|inspectors|clerks|notary|moneylender|usurer|merchants|grocer|governor|captain|doctor|doctors|physician|physicians|clinician|clinicians|surgeon|surgeons|nurse|nurses|patient|patients|pharmacist|pharmacists|scientist|scientists|researcher|researchers|scholar|scholars|professor|professors|director|directors|specialist|specialists|biochemist|biochemists|mycologist|mycologists|chemist|chemists|bacteriologist|bacteriologists|pathologist|pathologists|microbiologist|microbiologists|historian|historians|technician|technicians|assistant|assistants|journalist|reporter|diplomat|priest|monk|bishop|clergyman|king|queen|emperor|empress|prince|princess|monarch|monarchs|ruler|rulers|sovereign|sovereigns|noble|nobleman|noblewoman|farmer|farmers|villagers|citizens|migrants|emigrants|immigrants|refugee|refugees|exile|exiles|travelers|pedestrians|couple|family|families|mother|father|parents|son|daughter|brother|sister|widow|elder|elders|veteran|blacksmith|carpenter|baker|tailor|weaver|fisherman|fishermen|shepherd|beggar|prisoner|captive|pilgrim|pilgrims|colonists|settlers|actor|actors|actress|actresses|figure|figures|leader|leaders|statesman|statesmen|politician|politicians|poet|poets|writer|writers|author|authors|inventor|inventors|engineer|engineers|industrialist|industrialists|pioneer|pioneers|founder|founders|general|commander|admiral|colonel|minister|mayor|judge|lawyer|philosopher|composer|architect|explorer|operator|operators|\d+-year-old|he|she|him|his|her|seated\s+beside|in\s+his\s+hands|in\s+her\s+hands|silhouette\s+of\s+a\s+(?:man|woman|person|figure|boy|girl|doctor|scientist|soldier)|figures?\s+(?:walking|standing|working|boarding|carrying|waiting|huddled|gathered|sitting|kneeling|running|looking|watching|leaning|examining)|(?:weathered|gloved|bare|trembling|steady|aged)\s+hands|hands\s+(?:holding|signing|counting|turning|resting|trembling|clutching|writing|tying|stitching|open|opening|closing|pouring|forging|hammering|placing|lifting|adjusting|sealing|labeling|examining|pipetting))\b/i;
 
   if (humanSubjectRegex.test(combined)) {
     return true;
@@ -5341,49 +5649,20 @@ export function resolveClipFlowVideoEngine(
 }
 
 /**
- * Injects or updates the explicit `[B-Roll: STATIC_...]`, `[Duration: Xs]`, and `[Model: ...]` tags
- * at the end of a `Clip X` prompt (right before `fix the name` if present) so the first 6 words
- * of `Clip X (MM:SS - MM:SS): Create` remain 100% intact for Google Flow's file-renaming rule.
+ * Formats a `Clip XX` video prompt cleanly into a bracketless, colon-free single paragraph
+ * preserving exact Stage 1 prose duration and trailing `fix the name to Clip_XX_generate_a_video_in_16_9`
+ * without re-injecting legacy `[Duration: ...]` or `[Model: ...]` brackets.
  */
 export function applyClipFlowVideoEngineTag(
   videoPrompt: string,
-  engine: FlowClipEngineType,
+  _engine: FlowClipEngineType,
   durationSec?: number,
-  brollCameraMotion?: BrollCameraMotion | null
+  _brollCameraMotion?: BrollCameraMotion | null
 ): string {
   if (!videoPrompt || !videoPrompt.trim()) return videoPrompt;
-  const modelLabel =
-    engine === 'OMNI_1_1_FLASH' ? 'Omni 1.1 Flash' : 'Veo 3.1 - Lite [Lower Priority]';
-  const existingDurMatch = videoPrompt.match(/\[Duration\s*:\s*(\d+)\s*s(?:ec(?:onds?)?)?\]/i);
-  const resolvedDur =
-    typeof durationSec === 'number' && durationSec > 0
-      ? durationSec
-      : existingDurMatch
-        ? parseInt(existingDurMatch[1], 10)
-        : undefined;
-  const parsedExistingBroll = parseBrollMotionFromText(videoPrompt);
-  const effectiveBrollMotion =
-    brollCameraMotion === null
-      ? undefined
-      : brollCameraMotion || parsedExistingBroll.brollCameraMotion;
-  const brollTag = effectiveBrollMotion
-    ? `[B-Roll: ${BROLL_MOTION_TAG_BY_KEY[effectiveBrollMotion]}] `
-    : '';
-  const durTag = resolvedDur ? `[Duration: ${resolvedDur}s] ` : '';
-  const tagText = `${brollTag}${durTag}[Model: ${modelLabel}]`;
-
-  // Remove any existing [B-Roll: ...], [Duration: ...] or [Model: ...] / [Video Model: ...] tag first
-  const cleaned = videoPrompt
-    .replace(/\s*\[B-Roll\s*:\s*STATIC_[A-Z_]+\]\s*/gi, ' ')
-    .replace(/\s*\[Duration\s*:\s*\d+\s*s(?:ec(?:onds?)?)?\]\s*/gi, ' ')
-    .replace(/\s*\[(?:Video\s+)?Model\s*:[^\]]*\]\s*(?:\])?/gi, ' ')
-    .replace(/\s{2,}/g, ' ')
-    .trim();
-
-  if (/fix the name\s*\.?\s*$/i.test(cleaned)) {
-    return cleaned.replace(/\s*(fix the name\s*\.?\s*)$/i, ` ${tagText} $1`);
-  }
-  return `${cleaned} ${tagText}`;
+  return sanitizeVideoClipPromptForFlowSafety(videoPrompt, undefined, undefined, {
+    durationSec: typeof durationSec === 'number' && durationSec > 0 ? durationSec : undefined,
+  });
 }
 
 export function inferBestBrollMotionForNarration(

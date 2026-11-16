@@ -43,7 +43,7 @@
     "_v5_16x9_captionBottom10": true,
     "_v6_16x9_captionOriginalDefault": true
   },
-  "updatedAt": "2026-11-16T02:56:05.445Z",
+  "updatedAt": "2026-11-16T04:06:34.432Z",
   "overlayStyles": {
     "logoScalePct": 5,
     "logoOpacity": 95,
@@ -134,18 +134,18 @@
       "customVolumeSet": true
     },
     "clip-7-1794345057839-7": {
-      "foleyVolume": 1,
-      "audioMuted": false,
+      "foleyVolume": 0,
+      "audioMuted": true,
       "customVolumeSet": true
     },
     "num_7_full": {
-      "foleyVolume": 1,
-      "audioMuted": false,
+      "foleyVolume": 0,
+      "audioMuted": true,
       "customVolumeSet": true
     },
     "num_7": {
-      "foleyVolume": 1,
-      "audioMuted": false,
+      "foleyVolume": 0,
+      "audioMuted": true,
       "customVolumeSet": true
     }
   },
@@ -266,9 +266,9 @@
       "trimEnd": 8,
       "speed": 1,
       "smoothSlowMo": false,
-      "foleyVolume": 1,
+      "foleyVolume": 0,
       "customVolumeSet": true,
-      "audioMuted": false,
+      "audioMuted": true,
       "reframe9x16Mode": "auto_pan",
       "reframeFocusXStart": 31,
       "reframeFocusXEnd": 16,

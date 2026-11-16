@@ -186,7 +186,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '10:38 PM - 11/15/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '11:05 PM - 11/15/2026';
 
 const PROTECTED_DOC_TEXT_FIELDS = [
   'rawClipsText',
@@ -23372,9 +23372,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                   visible[visible.length - 1]?.clipNumber || allDocClips.length;
                                 const batchGuardNote =
                                   visible.length > 0 && !isVisibleContiguous
-                                    ? `[FLOW TARGETED REGENERATION BATCH ${effectiveBatchFilter || 1}/${effectiveBatchFilter ? totalFilteredBatches : 1} (${visible.length} SPECIFIC SCENES: [${visible.map((c) => c.clipNumber).join(', ')}]) — GENERATE ONLY THESE EXACT ${visible.length} LISTED SCENES IN THIS EXACT ORDER. KEEP EVERY ORIGINAL SCENE NUMBER ("Image N" / "Clip N" AND FILE PREFIX "NN_") 100% UNCHANGED — NEVER RENUMBER 1..${visible.length}, NEVER GENERATE SKIPPED INTERMEDIATE SCENES, AND NEVER PARAPHRASE TITLES. START IN A NEW FLOW CHAT THREAD TO CLEAR STICKY @INGREDIENTS.]\n\n`
+                                    ? `FLOW TARGETED REGENERATION BATCH ${effectiveBatchFilter || 1}/${effectiveBatchFilter ? totalFilteredBatches : 1} (${visible.length} SPECIFIC SCENES: ${visible.map((c) => c.clipNumber).join(', ')}) — GENERATE ONLY THESE EXACT ${visible.length} LISTED SCENES IN THIS EXACT ORDER. KEEP EVERY ORIGINAL SCENE NUMBER ("Image N" / "Clip N" AND FILE PREFIX "NN_") 100% UNCHANGED — NEVER RENUMBER 1..${visible.length}, NEVER GENERATE SKIPPED INTERMEDIATE SCENES, AND NEVER PARAPHRASE TITLES. START IN A NEW FLOW CHAT THREAD TO CLEAR STICKY @INGREDIENTS.\n\n`
                                     : effectiveBatchFilter >= 1
-                                    ? `[FLOW BATCH ${effectiveBatchFilter}/${totalFilteredBatches} — GENERATE STRICTLY SCENES ${firstVisibleNum} TO ${lastVisibleNum} IN EXACT SEQUENTIAL ORDER WITHOUT SKIPPING ANY SCENE OR PARAPHRASING TITLES. START IN A NEW FLOW CHAT THREAD TO CLEAR STICKY @INGREDIENTS.]\n\n`
+                                    ? `FLOW BATCH ${effectiveBatchFilter}/${totalFilteredBatches} — GENERATE STRICTLY SCENES ${firstVisibleNum} TO ${lastVisibleNum} IN EXACT SEQUENTIAL ORDER WITHOUT SKIPPING ANY SCENE OR PARAPHRASING TITLES. START IN A NEW FLOW CHAT THREAD TO CLEAR STICKY @INGREDIENTS.\n\n`
                                     : '';
                                 const headerPrefix = `${currentHeader}\n\n${batchGuardNote}`;
                                 const body = visible
@@ -23410,8 +23410,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                       resolved,
                                       durForClip
                                     );
-                                    return `${safeImg}\n${taggedVid}`;
+                                    return [safeImg, taggedVid].filter(Boolean).join('\n\n');
                                   })
+                                  .filter(Boolean)
                                   .join('\n\n');
                                 copyText(headerPrefix + body, 'copy-batch-clips');
                               }}
@@ -24625,7 +24626,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                   cardClipDurSec
                                 );
                                 copyText(
-                                  `${safeImg}\n${taggedVid}`,
+                                  [safeImg, taggedVid].filter(Boolean).join('\n\n'),
                                   `both-prompts-${clip.id}`
                                 );
                               }}
