@@ -2018,17 +2018,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             percent: data.percent ?? 0,
             activeWorkers: data.activeWorkers || 0,
             items: data.items || {},
-            isWarmingAll: autoWarm ? true : data.building + data.queued > 0,
+            isWarmingAll: Boolean(data.building || data.queued),
           });
-          if (autoWarm && (data.building > 0 || data.queued > 0)) {
-            setStatusMessage(
-              `⚡ Generando proxies ${targetQuality === 'low' ? '540p' : '720p'} en segundo plano (${data.ready}/${data.total} listos • ${data.percent}%).`
-            );
-          } else if (autoWarm && data.ready === data.total) {
-            setStatusMessage(
-              `✅ ¡Todos los proxies ${targetQuality === 'low' ? '540p' : '720p'} (${data.ready}/${data.total}) están listos!`
-            );
-          }
         }
       } catch {}
     },
@@ -2037,9 +2028,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
   useEffect(() => {
     if (previewQuality === 'high') return;
-    void fetchPreviewProxyStatus(false);
+    // Auto-generate missing proxies silently in background:
+    void fetchPreviewProxyStatus(true);
     const interval = setInterval(() => {
-      void fetchPreviewProxyStatus(false);
+      void fetchPreviewProxyStatus(true);
     }, 3500);
     return () => clearInterval(interval);
   }, [fetchPreviewProxyStatus, previewQuality]);
@@ -8981,6 +8973,80 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         clipNumber: nextClipAtPlayhead.clipNumber,
       }
     : null;
+
+  const targetedInspectorClip = useMemo(() => {
+    return (
+      (selectedClipId ? timelineClips.find((c) => c.id === selectedClipId) : null) ||
+      activeClipAtPlayhead ||
+      null
+    );
+  }, [timelineClips, selectedClipId, activeClipAtPlayhead]);
+
+  const targetedClipProxyInfo = useMemo(() => {
+    if (!targetedInspectorClip) return null;
+    const clipLabel =
+      targetedInspectorClip.clipNumber === 0
+        ? 'Intro'
+        : targetedInspectorClip.clipNumber === 999
+        ? 'Outro'
+        : `Clip ${String(targetedInspectorClip.clipNumber).padStart(2, '0')}${
+            targetedInspectorClip.partLabel ? ` (${targetedInspectorClip.partLabel})` : ''
+          }`;
+
+    if (previewQuality === 'high') {
+      return {
+        clipLabel,
+        qualityLabel: '4K',
+        status: 'high',
+        text: `Proxy ${clipLabel}: 4K Original`,
+        badgeClass: 'bg-slate-900 border-slate-700/80 text-slate-400',
+        dot: '⚡',
+      };
+    }
+
+    const qualityLabel = previewQuality === 'low' ? '540p' : '720p';
+    const videoUrl = targetedInspectorClip.videoUrl || '';
+    const item = videoUrl ? previewProxyStatus.items[videoUrl] : null;
+
+    if (item?.status === 'ready') {
+      return {
+        clipLabel,
+        qualityLabel,
+        status: 'ready',
+        text: `Proxy ${clipLabel} (${qualityLabel}): Creado`,
+        badgeClass: 'bg-emerald-950/80 border-emerald-500/60 text-emerald-300',
+        dot: '✅',
+      };
+    }
+    if (item?.status === 'building') {
+      return {
+        clipLabel,
+        qualityLabel,
+        status: 'building',
+        text: `Proxy ${clipLabel} (${qualityLabel}): Creándose...`,
+        badgeClass: 'bg-amber-950/90 border-amber-400 text-amber-200 animate-pulse',
+        dot: '🔄',
+      };
+    }
+    if (item?.status === 'queued') {
+      return {
+        clipLabel,
+        qualityLabel,
+        status: 'queued',
+        text: `Proxy ${clipLabel} (${qualityLabel}): En cola`,
+        badgeClass: 'bg-amber-950/80 border-amber-500/60 text-amber-300',
+        dot: '⏳',
+      };
+    }
+    return {
+      clipLabel,
+      qualityLabel,
+      status: 'missing',
+      text: `Proxy ${clipLabel} (${qualityLabel}): Pendiente`,
+      badgeClass: 'bg-slate-900 border-slate-700/70 text-slate-400',
+      dot: '⏳',
+    };
+  }, [targetedInspectorClip, previewQuality, previewProxyStatus.items]);
 
   const decoratePlaybackPreviewUrl = (
     rewrittenUrl: string,
@@ -16693,55 +16759,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 </select>
               </div>
 
-              {/* Preview Proxies Live Status Badge */}
-              {previewQuality !== 'high' ? (
-                <button
-                  type="button"
-                  onClick={() => void fetchPreviewProxyStatus(true)}
-                  title={
-                    previewProxyStatus.ready === previewProxyStatus.total && previewProxyStatus.total > 0
-                      ? `✅ Todos los proxies de ${previewQuality === 'low' ? '540p' : '720p'} están creados (${previewProxyStatus.ready}/${previewProxyStatus.total}). Clic para forzar reverificación.`
-                      : previewProxyStatus.building + previewProxyStatus.queued > 0
-                      ? `🔄 Generando proxies en segundo plano: ${previewProxyStatus.ready}/${previewProxyStatus.total} listos (${previewProxyStatus.percent}%). ${previewProxyStatus.building} procesando con FFmpeg, ${previewProxyStatus.queued} en cola.`
-                      : `⚡ ${previewProxyStatus.ready}/${previewProxyStatus.total} proxies creados (${previewProxyStatus.percent}%). ¡Haz clic aquí para generar todos los proxies restantes en segundo plano!`
-                  }
-                  className={`flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-bold border transition cursor-pointer select-none shrink-0 ${
-                    previewProxyStatus.ready === previewProxyStatus.total && previewProxyStatus.total > 0
-                      ? 'bg-emerald-950/80 border-emerald-500/60 text-emerald-300 hover:bg-emerald-900/90'
-                      : previewProxyStatus.building + previewProxyStatus.queued > 0
-                      ? 'bg-amber-950/90 border-amber-400 text-amber-200 animate-pulse'
-                      : 'bg-sky-950/80 border-sky-500/60 text-sky-200 hover:bg-sky-900/90'
-                  }`}
-                >
-                  {previewProxyStatus.building + previewProxyStatus.queued > 0 ? (
-                    <>
-                      <span className="inline-block animate-spin text-amber-400">⏳</span>
-                      <span>
-                        Proxies {previewQuality === 'low' ? '540p' : '720p'}: {previewProxyStatus.ready}/{previewProxyStatus.total} ({previewProxyStatus.percent}%)
-                      </span>
-                    </>
-                  ) : previewProxyStatus.ready === previewProxyStatus.total && previewProxyStatus.total > 0 ? (
-                    <>
-                      <span className="text-emerald-400">✅</span>
-                      <span>
-                        Proxies {previewQuality === 'low' ? '540p' : '720p'}: {previewProxyStatus.ready}/{previewProxyStatus.total} Listos
-                      </span>
-                    </>
-                  ) : (
-                    <>
-                      <span className="text-sky-400">⚡</span>
-                      <span>
-                        Proxies {previewQuality === 'low' ? '540p' : '720p'}: {previewProxyStatus.ready}/{previewProxyStatus.total} (Generar)
-                      </span>
-                    </>
-                  )}
-                </button>
-              ) : (
+              {/* Selected Clip Proxy Status Text (Pure Informational Indicator - Auto Generation) */}
+              {targetedClipProxyInfo && (
                 <div
-                  className="hidden md:flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-900/80 border border-slate-700/60 text-[10px] text-slate-400 shrink-0 select-none"
-                  title="En calidad Alta (4K Nativa), los proxies están apagados y se reproduce el video maestro original."
+                  className={`hidden sm:flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-mono border select-none shrink-0 ${targetedClipProxyInfo.badgeClass}`}
+                  title={`Estado del proxy de reproducción para ${targetedClipProxyInfo.clipLabel} (${targetedClipProxyInfo.qualityLabel}). La generación se realiza automáticamente en segundo plano.`}
                 >
-                  <span>⚡ Proxies: 4K Nativa</span>
+                  <span>{targetedClipProxyInfo.dot}</span>
+                  <span className="font-semibold">{targetedClipProxyInfo.text}</span>
                 </div>
               )}
               <span className="hidden sm:inline-block px-1.5 py-0.5 rounded bg-slate-900 border border-slate-700 text-[10px] font-mono text-slate-300 shrink-0">
