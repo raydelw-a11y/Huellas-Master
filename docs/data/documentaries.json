@@ -3578,8 +3578,7 @@
         "reframeFocusXEnd": 50,
         "reframeFocusY": 50,
         "reframeConfidence": 0.55,
-        "reframeReason": "Encuadre central simétrico IA (50%)",
-        "videoDiscardedAt": 1794641982559
+        "reframeReason": "Encuadre central simétrico IA (50%)"
       },
       {
         "id": "clip-78-1794442731985-09h8",
@@ -3609,8 +3608,7 @@
         "reframeFocusXEnd": 41,
         "reframeFocusY": 50,
         "reframeConfidence": 0.55,
-        "reframeReason": "Enfoque inteligente IA en tercio izquierdo (41%)",
-        "videoDiscardedAt": 1794641982559
+        "reframeReason": "Enfoque inteligente IA en tercio izquierdo (41%)"
       },
       {
         "id": "clip-79-1794442731996-nr8s",
@@ -3640,8 +3638,7 @@
         "reframeFocusXEnd": 50,
         "reframeFocusY": 50,
         "reframeConfidence": 0.55,
-        "reframeReason": "Encuadre central simétrico IA (50%)",
-        "videoDiscardedAt": 1794641982559
+        "reframeReason": "Encuadre central simétrico IA (50%)"
       },
       {
         "id": "clip-80-1794442732007-j5h7",
@@ -3671,8 +3668,7 @@
         "reframeFocusXEnd": 76,
         "reframeFocusY": 50,
         "reframeConfidence": 0.84,
-        "reframeReason": "Paneo dinámico IA (24% → 76%) desde escena izquierda hacia sujeto derecho (Izq → Der)",
-        "videoDiscardedAt": 1794641982559
+        "reframeReason": "Paneo dinámico IA (24% → 76%) desde escena izquierda hacia sujeto derecho (Izq → Der)"
       },
       {
         "id": "clip-81-1794442732018-m1iu",
@@ -3702,8 +3698,7 @@
         "reframeFocusXEnd": 21,
         "reframeFocusY": 50,
         "reframeConfidence": 0.55,
-        "reframeReason": "Paneo dinámico IA (39% → 21%) siguiendo acción/sujeto",
-        "videoDiscardedAt": 1794641982559
+        "reframeReason": "Paneo dinámico IA (39% → 21%) siguiendo acción/sujeto"
       },
       {
         "id": "clip-82-1794442732030-lb3b",
@@ -3733,8 +3728,7 @@
         "reframeFocusXEnd": 28,
         "reframeFocusY": 50,
         "reframeConfidence": 0.82,
-        "reframeReason": "Paneo dinámico IA (78% → 28%) desde sujeto derecho hacia escena izquierda (Der → Izq)",
-        "videoDiscardedAt": 1794641982559
+        "reframeReason": "Paneo dinámico IA (78% → 28%) desde sujeto derecho hacia escena izquierda (Der → Izq)"
       },
       {
         "id": "clip-83-1794442732041-uaqf",
@@ -3764,8 +3758,7 @@
         "reframeFocusXEnd": 67,
         "reframeFocusY": 50,
         "reframeConfidence": 0.62,
-        "reframeReason": "Paneo dinámico IA (84% → 67%) siguiendo acción/sujeto",
-        "videoDiscardedAt": 1794641982559
+        "reframeReason": "Paneo dinámico IA (84% → 67%) siguiendo acción/sujeto"
       },
       {
         "id": "clip-84-1794442732052-2jsf",
@@ -3795,8 +3788,7 @@
         "reframeFocusXEnd": 50,
         "reframeFocusY": 50,
         "reframeConfidence": 0.55,
-        "reframeReason": "Encuadre central simétrico IA (50%)",
-        "videoDiscardedAt": 1794641982559
+        "reframeReason": "Encuadre central simétrico IA (50%)"
       },
       {
         "id": "clip-85-1794442732062-pu57",
@@ -3826,8 +3818,7 @@
         "reframeFocusXEnd": 50,
         "reframeFocusY": 50,
         "reframeConfidence": 0.62,
-        "reframeReason": "Encuadre central simétrico IA (50%)",
-        "videoDiscardedAt": 1794641982559
+        "reframeReason": "Encuadre central simétrico IA (50%)"
       },
       {
         "id": "clip-86-1794442732073-4bhu",
@@ -3888,8 +3879,7 @@
         "reframeConfidence": 0.55,
         "reframeReason": "Enfoque inteligente IA en tercio derecho (62%)",
         "videoAuditReason": "",
-        "videoAuditIssues": [],
-        "videoDiscardedAt": 1794641982559
+        "videoAuditIssues": []
       },
       {
         "id": "clip-88-1794442732096-cubd",
@@ -4310,8 +4300,7 @@
         "videoAuditStatus": "approved",
         "reviewedUpdatedAt": 1794831554100,
         "videoAuditReason": "",
-        "videoAuditIssues": [],
-        "videoDiscardedAt": 1794641982559
+        "videoAuditIssues": []
       },
       {
         "id": "clip-101-1794442732241-qds1",
@@ -5164,18 +5153,28 @@
         "timeRange": "17:52 - 18:00",
         "cameraSelection": "",
         "visualExplanation": "",
-        "imagePrompt": "Image 134: Create an image in 16-9 horizontal aspect ratio a tense shadowy close-up in a 1946 domestic washroom showing an adult hand softly shifting a small yellow white pressed mineral discs in half beside a half-full glass of water on a porcelain sink ledge and leaving the unfinished bottle uncapped, portrayed by anonymous mature adult historical reenactment actors in authentic period costume, cinematic documentary realism, safe framing composition, 8k resolution, sharp focus, no modern objects, no CGI look, no text, no spoken voice, no human speech, no music. fix the name to Inicial_134_create_an_image_in_16_9",
-        "videoPrompt": "Clip 134: Generate a video in 16-9 horizontal aspect ratio across 8 seconds showing a slow push-in toward the porcelain sink ledge as the adult hand picks up only a tiny fragment of the yellow white pressed mineral discs, leaving the remaining doses abandoned next to the water glass in dim light across the full 8 seconds, holding a natural composed frame through the final second, all background furniture, architectural fixtures, and tabletop props remain 100% gravity-locked and stationary while any held object moves smoothly under natural hand control, fixed subject count from 0s to 8s, single continuous shot, strictly no shot changes, with subtle ambient foley of quiet period room tone and natural atmospheric acoustics. cinematic documentary realism, safe framing composition, 8k resolution, sharp focus, no modern objects, no CGI look, no text, no spoken voice, no human speech, no music. fix the name to Clip_134_generate_a_video_in_16_9",
+        "imagePrompt": "Image 134 [B-Roll: STATIC_ZOOM_OUT]: Create an image in 16-9 horizontal aspect ratio a tense shadowy close-up in a 1946 domestic washroom showing an adult hand softly shifting a small yellow white pressed mineral discs in half beside a half-full glass of water on a porcelain sink ledge and leaving the unfinished bottle uncapped, portrayed by anonymous mature adult historical reenactment actors in authentic period costume, cinematic documentary realism, safe framing composition, 8k resolution, sharp focus, no modern objects, no CGI look, no text, no spoken voice, no human speech, no music. fix the name to Inicial_134_create_an_image_in_16_9",
+        "videoPrompt": "",
         "narrationSegment": "mortal de que una persona desinformada se aplicara por cuenta propia una dosis insuficiente y, al exponer a sus microbios a cantidades",
-        "imageReady": false,
-        "videoReady": false,
+        "imageReady": true,
+        "videoReady": true,
         "auditStatus": "ok",
-        "auditReason": "Sincronizado con el tramo de voz narrativa.",
+        "auditReason": "🖼️ Escena B-Roll Solo Imagen lista — movimiento 4K 60fps local en Editor.",
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
-        "videoDiscardedAt": 1794641982559,
-        "videoFrames": []
+        "videoFrames": [],
+        "previousVideoPrompt": "Clip 134: Generate a video in 16-9 horizontal aspect ratio across 8 seconds showing a slow push-in toward the porcelain sink ledge as the adult hand picks up only a tiny fragment of the yellow white pressed mineral discs, leaving the remaining doses abandoned next to the water glass in dim light across the full 8 seconds, holding a natural composed frame through the final second, all background furniture, architectural fixtures, and tabletop props remain 100% gravity-locked and stationary while any held object moves smoothly under natural hand control, fixed subject count from 0s to 8s, single continuous shot, strictly no shot changes, with subtle ambient foley of quiet period room tone and natural atmospheric acoustics. cinematic documentary realism, safe framing composition, 8k resolution, sharp focus, no modern objects, no CGI look, no text, no spoken voice, no human speech, no music. fix the name to Clip_134_generate_a_video_in_16_9",
+        "isStaticBroll": true,
+        "brollCameraMotion": "zoom_out",
+        "promptUpdatedAt": 1794837248224,
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": [],
+        "reviewedUpdatedAt": 1794837248224,
+        "videoSavedFileName": "134_Create_an_image_in_16_Broll_4K.mp4",
+        "videoSavedAt": 1794837248224,
+        "videoDiscardOverriddenAt": 1794837248224
       },
       {
         "id": "clip-135-1794442732632-dl9e",
@@ -5243,12 +5242,14 @@
         "pauseNotes": "",
         "reviewedForEditor": true,
         "recreated": false,
-        "videoDiscardedAt": 1794641982559,
         "videoFrames": [],
         "videoSavedFileName": "137_generate_a_video_in_16_9_7890d7db_4K.mp4",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794837074425,
-        "reviewedUpdatedAt": 1794837177068
+        "reviewedUpdatedAt": 1794837177068,
+        "videoAuditReason": "",
+        "videoAuditIssues": [],
+        "videoDiscardOverriddenAt": 1794837016438
       },
       {
         "id": "clip-138-1794442732667-f729",
@@ -5318,11 +5319,13 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "videoDiscardedAt": 1794641982559,
         "videoFrames": [],
         "videoSavedFileName": "140_generate_a_video_in_16_9_beedc931_4K.mp4",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794837111382
+        "videoSavedAt": 1794837111382,
+        "videoAuditReason": "",
+        "videoAuditIssues": [],
+        "videoDiscardOverriddenAt": 1794837076411
       },
       {
         "id": "clip-141-1794442732703-fpm0",
@@ -5340,11 +5343,13 @@
         "pauseNotes": "",
         "reviewedForEditor": false,
         "recreated": false,
-        "videoDiscardedAt": 1794641982559,
         "videoFrames": [],
         "videoSavedFileName": "141_generate_a_video_in_16_9_e1b4955d_4K.mp4",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794837111382
+        "videoSavedAt": 1794837111382,
+        "videoAuditReason": "",
+        "videoAuditIssues": [],
+        "videoDiscardOverriddenAt": 1794837087507
       },
       {
         "id": "clip-142-1794442732714-vxqm",
@@ -5362,11 +5367,13 @@
         "pauseNotes": "Contiene [pausa: 2.4s] en la locución",
         "reviewedForEditor": false,
         "recreated": false,
-        "videoDiscardedAt": 1794641982559,
         "videoFrames": [],
         "videoSavedFileName": "142_generate_a_video_in_16_9_4c60861b_4K.mp4",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794837119017
+        "videoSavedAt": 1794837119656,
+        "videoAuditReason": "",
+        "videoAuditIssues": [],
+        "videoDiscardOverriddenAt": 1794837119656
       },
       {
         "id": "clip-143-1794442732725-ry7q",
