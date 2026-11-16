@@ -465,9 +465,34 @@ async function injectPromptIntoBottomEditor(rawPromptText, mediaType, logoDataUr
       : String(rawPromptText || '').trim();
 
   // Veo 3.1 - Lite [Lower Priority] admite un máximo de 8 segundos por clip:
-  // normalizar cualquier referencia de 10 segundos a 8 segundos para que Google Flow nunca rechace el clip.
+  // normalizar cualquier referencia de 10 segundos a 8 segundos y aplicar guardia ligera anti-nombres en VIDEO.
   if (isVidPrompt) {
     promptText = promptText
+      .replace(
+        /(\b(?:no\s+music,\s*no\s+speech,\s*no\s+text|no\s+speech,\s*no\s+text|no\s+text,\s*no\s+watermarks(?:,\s*no\s+speech,\s*no\s+music)?|anywhere\s+in\s+the\s+frame|through\s+the\s+final\s+frame)\.|(?:no\s+unintended\s+explosions\s+or\s+flashes|steady\s+continuous\s+lighting\s+with\s+zero\s+sudden\s+flashes)\)\.)(\s+(?:(?!\b(?:STRICT|SINGLE|Smooth|Fixed|Solid|All\s+furniture|Cinematic|Ambient\s+Foley|Audio|no\s+music,\s*no\s+speech)\b)[^[\]]){12,520})(?=\s*(?:\[(?:Duration|Video\s+Model|Model|B-Roll)|fix\s+the\s+name\b|$))/i,
+        (full, anchor, tail) => {
+          if (
+            /[áéíóúñ¿¡]/i.test(tail) ||
+            /\b(?:el|la|los|las|un|una|del|para|con|que|como|hacia|desde|entre|quien|mientras|despu[eé]s|hasta|se\s+encontraba|escribi[oó]|desembarc[oó]|arrib[oó]|lleg[oó]|campamento|pesetas|barco|carta|madre|padre|doctor|m[eé]dico|poeta|gastado|boina|chamarra|gafas|junto)\b/i.test(
+              tail
+            )
+          ) {
+            return anchor;
+          }
+          return full;
+        }
+      )
+      .replace(
+        /@([A-Za-z0-9_ÁÉÍÓÚáéíóúÑñ]+)(?:['’]s)?\b/g,
+        (full, body) =>
+          /^(?:Enfermer[ií]a|Hospital|Laboratorio|Escuela|Sala|Mesa|Planta|Playas?|Boticas?|Sal[oó]n|Puerto|Muelle|Calle|Plaza|Palacio|Iglesia|Catedral|Castillo|Ciudad|Oficina|Banco|F[aá]brica|Estaci[oó]n|Tren|Barco|Puente|Valle|R[ií]o|Mina|Taller|Mercado|Archivo|Biblioteca|Tribunal|Parlamento|C[aá]mara|Universidad|Instituto|Cl[ií]nica|Farmacia|Almac[eé]n|Bodega|Cuartel|Trinchera|Campo|Costa|Isla|Bah[ií]a|Teatro|Museo)_/i.test(
+            body
+          )
+            ? 'the historical period setting'
+            : /['’]s$/i.test(full)
+            ? "the adult historical figure's"
+            : 'the adult historical figure in period attire'
+      )
       .replace(/\b10-second\b/gi, '8-second')
       .replace(/\b10\s+seconds\b/gi, '8 seconds')
       .replace(/\bfrom\s+0s\s+to\s+10s\b/gi, 'from 0s to 8s')
@@ -671,6 +696,31 @@ function ensurePromptAndGetSubmitCoords(rawPromptText, mediaType) {
       : String(rawPromptText || '').trim();
   if (isVidPrompt) {
     promptText = promptText
+      .replace(
+        /(\b(?:no\s+music,\s*no\s+speech,\s*no\s+text|no\s+speech,\s*no\s+text|no\s+text,\s*no\s+watermarks(?:,\s*no\s+speech,\s*no\s+music)?|anywhere\s+in\s+the\s+frame|through\s+the\s+final\s+frame)\.|(?:no\s+unintended\s+explosions\s+or\s+flashes|steady\s+continuous\s+lighting\s+with\s+zero\s+sudden\s+flashes)\)\.)(\s+(?:(?!\b(?:STRICT|SINGLE|Smooth|Fixed|Solid|All\s+furniture|Cinematic|Ambient\s+Foley|Audio|no\s+music,\s*no\s+speech)\b)[^[\]]){12,520})(?=\s*(?:\[(?:Duration|Video\s+Model|Model|B-Roll)|fix\s+the\s+name\b|$))/i,
+        (full, anchor, tail) => {
+          if (
+            /[áéíóúñ¿¡]/i.test(tail) ||
+            /\b(?:el|la|los|las|un|una|del|para|con|que|como|hacia|desde|entre|quien|mientras|despu[eé]s|hasta|se\s+encontraba|escribi[oó]|desembarc[oó]|arrib[oó]|lleg[oó]|campamento|pesetas|barco|carta|madre|padre|doctor|m[eé]dico|poeta|gastado|boina|chamarra|gafas|junto)\b/i.test(
+              tail
+            )
+          ) {
+            return anchor;
+          }
+          return full;
+        }
+      )
+      .replace(
+        /@([A-Za-z0-9_ÁÉÍÓÚáéíóúÑñ]+)(?:['’]s)?\b/g,
+        (full, body) =>
+          /^(?:Enfermer[ií]a|Hospital|Laboratorio|Escuela|Sala|Mesa|Planta|Playas?|Boticas?|Sal[oó]n|Puerto|Muelle|Calle|Plaza|Palacio|Iglesia|Catedral|Castillo|Ciudad|Oficina|Banco|F[aá]brica|Estaci[oó]n|Tren|Barco|Puente|Valle|R[ií]o|Mina|Taller|Mercado|Archivo|Biblioteca|Tribunal|Parlamento|C[aá]mara|Universidad|Instituto|Cl[ií]nica|Farmacia|Almac[eé]n|Bodega|Cuartel|Trinchera|Campo|Costa|Isla|Bah[ií]a|Teatro|Museo)_/i.test(
+            body
+          )
+            ? 'the historical period setting'
+            : /['’]s$/i.test(full)
+            ? "the adult historical figure's"
+            : 'the adult historical figure in period attire'
+      )
       .replace(/\b10-second\b/gi, '8-second')
       .replace(/\b10\s+seconds\b/gi, '8 seconds')
       .replace(/\bfrom\s+0s\s+to\s+10s\b/gi, 'from 0s to 8s')
@@ -1641,6 +1691,31 @@ async function generateSingleClipViaFlowSdk(
           .replace(/^Clip\s*\d+\s*(?:\([^)]*\))?\s*:\s*/i, '')
           .replace(/^\*\*?Image\s*\d+\s*:\*\*?\s*/i, '')
           .replace(/^Image\s*\d+\s*:\s*/i, '')
+          .replace(
+            /(\b(?:no\s+music,\s*no\s+speech,\s*no\s+text|no\s+speech,\s*no\s+text|no\s+text,\s*no\s+watermarks(?:,\s*no\s+speech,\s*no\s+music)?|anywhere\s+in\s+the\s+frame|through\s+the\s+final\s+frame)\.|(?:no\s+unintended\s+explosions\s+or\s+flashes|steady\s+continuous\s+lighting\s+with\s+zero\s+sudden\s+flashes)\)\.)(\s+(?:(?!\b(?:STRICT|SINGLE|Smooth|Fixed|Solid|All\s+furniture|Cinematic|Ambient\s+Foley|Audio|no\s+music,\s*no\s+speech)\b)[^[\]]){12,520})(?=\s*(?:\[(?:Duration|Video\s+Model|Model|B-Roll)|fix\s+the\s+name\b|$))/i,
+            (full, anchor, tail) => {
+              if (
+                /[áéíóúñ¿¡]/i.test(tail) ||
+                /\b(?:el|la|los|las|un|una|del|para|con|que|como|hacia|desde|entre|quien|mientras|despu[eé]s|hasta|se\s+encontraba|escribi[oó]|desembarc[oó]|arrib[oó]|lleg[oó]|campamento|pesetas|barco|carta|madre|padre|doctor|m[eé]dico|poeta|gastado|boina|chamarra|gafas|junto)\b/i.test(
+                  tail
+                )
+              ) {
+                return anchor;
+              }
+              return full;
+            }
+          )
+          .replace(
+            /@([A-Za-z0-9_ÁÉÍÓÚáéíóúÑñ]+)(?:['’]s)?\b/g,
+            (full, body) =>
+              /^(?:Enfermer[ií]a|Hospital|Laboratorio|Escuela|Sala|Mesa|Planta|Playas?|Boticas?|Sal[oó]n|Puerto|Muelle|Calle|Plaza|Palacio|Iglesia|Catedral|Castillo|Ciudad|Oficina|Banco|F[aá]brica|Estaci[oó]n|Tren|Barco|Puente|Valle|R[ií]o|Mina|Taller|Mercado|Archivo|Biblioteca|Tribunal|Parlamento|C[aá]mara|Universidad|Instituto|Cl[ií]nica|Farmacia|Almac[eé]n|Bodega|Cuartel|Trinchera|Campo|Costa|Isla|Bah[ií]a|Teatro|Museo)_/i.test(
+                body
+              )
+                ? 'the historical period setting'
+                : /['’]s$/i.test(full)
+                ? "the adult historical figure's"
+                : 'the adult historical figure in period attire'
+          )
           .trim()
           .slice(0, 3950);
 

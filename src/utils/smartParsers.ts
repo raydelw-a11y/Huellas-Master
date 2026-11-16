@@ -222,26 +222,35 @@ export function applyAutomaticFlowPolicyShield(
   }
 
   // 1. Reemplazar títulos reales / políticos / religiosos + Nombres Propios ("Prominent People" filter trigger)
+  const PLACE_TITLE_EXCLUSION =
+    '(?!Mary\\b|Francisco\\b|Diego\\b|Carlos\\b|Juan\\b|Jos[eé]\\b|Luis\\b|Pedro\\b|Pablo\\b|Miguel\\b|Antonio\\b|Mart[ií]n\\b|Sebasti[aá]n\\b|Salvador\\b|Lorenzo\\b|Mateo\\b|Nicol[aá]s\\b|Crist[oó]bal\\b|Fe\\b|Clara\\b|Cruz\\b|Mar[ií]a\\b|Rosa\\b|Ana\\b|Luc[ií]a\\b|B[aá]rbara\\b|Elena\\b|Teresa\\b|Domingo\\b|Tom[aá]s\\b|Sp[ií]ritus\\b)';
   p = p.replace(
-    /\b(?:Queen|Princess|Empress|Duchess|Lady|Countess|Reina|Princesa|Emperatriz|Duquesa)\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+(?:of|de|del|von|I|II|III|IV|V|VI|VII|VIII|IX|X|[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+))*/g,
+    /\b(?:Queen|Princess|Empress|Duchess|Lady|Countess|Reina|Princesa|Emperatriz|Duquesa|Doña|Mrs\.?|Ms\.?|Sra\.?)\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+(?:of|de|del|von|I|II|III|IV|V|VI|VII|VIII|IX|X|[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+))*/g,
     'an adult historical noblewoman in regal period attire, portrayed by an anonymous dramatic actress'
   );
   p = p.replace(
-    /\b(?:King|Prince|Emperor|Duke|Lord|Count|Sultan|Tsar|Czar|Pharaoh|General|President|Prime Minister|Chancellor|Dictator|Rey|Príncipe|Emperador|Duque|Conde|Faraón)\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+(?:of|de|del|von|I|II|III|IV|V|VI|VII|VIII|IX|X|XI|XII|XIII|XIV|XV|XVI|[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+))*/g,
-    'an adult historical monarch in ceremonial period wardrobe, portrayed by an anonymous dramatic actor'
+    /\b(?:King|Prince|Emperor|Duke|Lord|Count|Sultan|Tsar|Czar|Pharaoh|General|Gral\.?|Colonel|Col\.?|Captain|Capt\.?|Major|Commander|Admiral|President|Presidente|Prime\s+Minister|Chancellor|Minister|Ministro|Governor|Gobernador|Senator|Mayor|Rey|Príncipe|Emperador|Duque|Conde|Faraón|Sir|Don)\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+(?:of|de|del|von|I|II|III|IV|V|VI|VII|VIII|IX|X|XI|XII|XIII|XIV|XV|XVI|[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+))*/g,
+    'an adult historical figure in ceremonial period wardrobe, portrayed by an anonymous dramatic actor'
   );
   p = p.replace(
-    /\b(?:Pope|Bishop|Archbishop|Cardinal|Saint|Father|Friar|Papa|Obispo|Arzobispo|Cardenal|San|Santa|Santo)\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+(?:of|de|del|I|II|III|IV|V|VI|VII|VIII|IX|X|XI|XII|XIII|XIV|XV|XVI|[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+))*/g,
+    /\b(?:Dr\.?|Doctor|Doctora|Prof\.?|Professor|Profesor|Poet|Poeta|Surgeon|Cirujano|Inventor|Industrialist|Mr\.?|Sr\.?)\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+(?:de|del|la|von|van|[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+))*/g,
+    'an adult historical specialist in authentic period attire, portrayed by an anonymous actor'
+  );
+  p = p.replace(
+    new RegExp(
+      `\\b(?:Pope|Bishop|Archbishop|Cardinal|Father|Friar|Papa|Obispo|Arzobispo|Cardenal|Fray|(?:Saint|San|Santa|Santo)\\s+${PLACE_TITLE_EXCLUSION})\\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\\s+(?:of|de|del|I|II|III|IV|V|VI|VII|VIII|IX|X|XI|XII|XIII|XIV|XV|XVI|[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+))*(?!\\s+(?:Hospital|Church|Cathedral|Abbey|Fort|Fortress|Castle|Bay|Harbor|Port|Street|Avenue|Plaza|Square|Island|River|Valley))`,
+      'g'
+    ),
     'an elderly historical clergyman in ornate ceremonial vestments, portrayed by an anonymous actor'
   );
 
   // 2. Reemplazar nombres propios históricos sueltos que disparan el detector de "prominent people"
   p = p.replace(
-    /\b(Ingeborg|Isambour|Blanche|Blanca|Eleanor|Leonor|Agnes|Inés|Cleopatra|Nefertiti|Boleyn|Elizabeth|Isabel|Mary Stuart|Marie Antoinette|Victoria|Catherine|Catalina|Juana)\b/gi,
+    /\b(Ingeborg|Isambour|Blanche|Blanca|Eleanor|Leonor|Agnes|Inés|Cleopatra|Nefertiti|Boleyn|Elizabeth|Isabel|Mary Stuart|Marie Antoinette|Victoria|Catherine|Catalina|Juana|Eva Per[oó]n|Evita)\b/gi,
     'the adult noblewoman in period attire'
   );
   p = p.replace(
-    /\b(Philip Augustus|Felipe Augusto|Philip II|Felipe II|Alfonso XIII|Alfonso XII|Primo de Rivera|Franco|Machado|Philip|Felipe|Augustus|Augusto|Innocent III|Inocencio III|Innocent|Inocencio|Louis VIII|Louis IX|King John|Canute|Knut|Valdemar|Napoleon|Bonaparte|Caesar|Nero|Caligula|Charlemagne|Carlomagno|Henry VIII|Enrique VIII|Richard|Ricardo|Medici|Borgia|Habsburg|Romanov|Tudor|Plantagenet|Capet|Capeto|Columbus|Colón|Cortés|Pizarro|Bolívar)\b/gi,
+    /\b(Philip Augustus|Felipe Augusto|Philip II|Felipe II|Alfonso XIII|Alfonso XII|Primo de Rivera|Franco|Machado|Philip|Felipe|Augustus|Augusto|Innocent III|Inocencio III|Innocent|Inocencio|Louis VIII|Louis IX|King John|Canute|Knut|Valdemar|Napoleon|Bonaparte|Caesar|Nero|Caligula|Charlemagne|Carlomagno|Henry VIII|Enrique VIII|Richard|Ricardo|Medici|Borgia|Habsburg|Romanov|Tudor|Plantagenet|Capet|Capeto|Columbus|Colón|Cortés|Pizarro|Bolívar|Juan Per[oó]n|Per[oó]n|Edison|Henry Ford|Enzo Ferrari|Churchill|Roosevelt|Lincoln|Einstein|Pasteur|Fleming|Florey|Heatley|Mazza)\b/gi,
     'the adult historical figure in period attire'
   );
 
@@ -797,19 +806,127 @@ export function ensureAntiMutationPhysicsInPrompt(
   return `${prefix}${p}`.replace(/\s{2,}/g, ' ').trim();
 }
 
+export interface SanitizePersonNamesOptions {
+  mode?: 'image' | 'video';
+  references?: ReferenceAsset[];
+  docContextText?: string;
+}
+
+interface CuratedPersonProfile {
+  core: string;
+  role: string;
+  article: 'a' | 'an' | 'the';
+  videoDesc: string;
+  isAnonymousRole?: boolean;
+}
+
+const CURATED_FLOW_PERSON_PROFILES: Record<string, CuratedPersonProfile> = {
+  '@Charles_Fletcher': {
+    core: 'young British clinical physician in a white cotton hospital coat',
+    role: 'young British clinical physician',
+    article: 'the',
+    videoDesc: 'the young British physician in the white coat',
+  },
+  '@Albert_Alexander': {
+    core: 'British reserve police constable in a vintage off-white linen hospital gown',
+    role: 'British reserve police constable',
+    article: 'the',
+    videoDesc: 'the resting man in the linen shirt',
+  },
+  '@Alexander_Fleming': {
+    core: 'silver-haired Scottish bacteriologist in a white lab coat over a gray wool suit',
+    role: 'silver-haired Scottish bacteriologist',
+    article: 'the',
+    videoDesc: 'the silver-haired Scottish scientist in the white lab coat',
+  },
+  '@Almroth_Wright': {
+    core: 'elderly silver-haired British medical institute director in a formal black wool frock coat',
+    role: 'elderly silver-haired British institute director',
+    article: 'the',
+    videoDesc: 'the elderly silver-haired institute director in the dark frock coat',
+  },
+  '@Howard_Florey': {
+    core: 'bespectacled Australian pathology professor in a white lab coat over a tweed waistcoat',
+    role: 'bespectacled senior pathology professor',
+    article: 'the',
+    videoDesc: 'the bespectacled senior professor in the tweed suit',
+  },
+  '@Ernst_Chain': {
+    core: 'dark-haired Central European biochemist with a thick dark mustache in a white lab coat',
+    role: 'dark-haired Central European biochemist',
+    article: 'the',
+    videoDesc: 'the dark-haired biochemist in the white lab coat',
+  },
+  '@Norman_Heatley': {
+    core: 'tall British experimental biochemist in a heather-brown sweater beneath a white lab coat',
+    role: 'tall British experimental biochemist',
+    article: 'the',
+    videoDesc: 'the tall British researcher in the laboratory coat',
+  },
+  '@Ruth_Callow': {
+    core: 'young British female laboratory technician in a tied white linen cap and white lab coat',
+    role: 'young British female laboratory technician',
+    article: 'the',
+    videoDesc: 'the female laboratory researcher in the white coat',
+  },
+  '@Andrew_Moyer': {
+    core: 'American agricultural mycologist in round metal-rimmed spectacles and a crisp white lab coat',
+    role: 'American agricultural mycologist',
+    article: 'the',
+    videoDesc: 'the American laboratory scientist in the white coat',
+  },
+  '@Mary_Hunt': {
+    core: 'young American female bacteriological assistant with pinned wavy brown hair in a 1940s blouse',
+    role: 'female bacteriological assistant',
+    article: 'the',
+    videoDesc: 'the female research specialist in the vintage 1940s coat',
+  },
+  '@Salvador_Mazza': {
+    core: 'Argentine bacteriologist in round tortoiseshell glasses and a buttoned white lab coat',
+    role: 'Argentine bacteriologist',
+    article: 'the',
+    videoDesc: 'the Argentine research physician in the white coat',
+  },
+  '@Historiador_Antiguo': {
+    core: 'senior documentary historian in an olive-brown tweed jacket',
+    role: 'senior documentary historian',
+    article: 'the',
+    videoDesc: 'the senior historian in the olive-brown tweed jacket',
+    isAnonymousRole: true,
+  },
+  '@Ricardo_Ruiz_Balbin': {
+    core: 'adult Spanish Asturian farmer in a black wool beret and dark ribbed corduroy jacket',
+    role: 'adult Spanish farmer',
+    article: 'an',
+    videoDesc: 'the adult Spanish farmer in the wool beret',
+  },
+  '@Frank_Menocal': {
+    core: 'stern quarantine physician with a trimmed mustache and wire-rimmed glasses in a white linen uniform',
+    role: 'quarantine physician',
+    article: 'the',
+    videoDesc: 'the stern quarantine physician in the white linen uniform',
+  },
+  '@Pedro_Garfias_Zurita': {
+    core: '38-year-old Spanish exiled poet in thick tortoiseshell glasses, a black beret, and a worn shepherd jacket',
+    role: 'Spanish exiled poet',
+    article: 'the',
+    videoDesc: 'the 38-year-old Spanish poet in thick glasses and a black beret',
+  },
+};
+
 const CURATED_FLOW_VIDEO_TAG_DESC: Record<string, string> = {
-  '@Charles_Fletcher': 'the young British physician in the white coat',
-  '@Albert_Alexander': 'the resting man in the linen shirt',
-  '@Alexander_Fleming': 'the silver-haired Scottish scientist in the white lab coat',
-  '@Almroth_Wright': 'the elderly silver-haired institute director in the dark frock coat',
-  '@Howard_Florey': 'the bespectacled senior professor in the tweed suit',
-  '@Ernst_Chain': 'the dark-haired biochemist in the white lab coat',
-  '@Norman_Heatley': 'the tall British researcher in the laboratory coat',
-  '@Ruth_Callow': 'the female laboratory researcher in the white coat',
-  '@Andrew_Moyer': 'the American laboratory scientist in the white coat',
-  '@Mary_Hunt': 'the female research specialist in the vintage 1940s coat',
-  '@Salvador_Mazza': 'the Argentine research physician in the white coat',
-  '@Historiador_Antiguo': 'the senior historian in the olive-brown tweed jacket',
+  '@Charles_Fletcher': CURATED_FLOW_PERSON_PROFILES['@Charles_Fletcher'].videoDesc,
+  '@Albert_Alexander': CURATED_FLOW_PERSON_PROFILES['@Albert_Alexander'].videoDesc,
+  '@Alexander_Fleming': CURATED_FLOW_PERSON_PROFILES['@Alexander_Fleming'].videoDesc,
+  '@Almroth_Wright': CURATED_FLOW_PERSON_PROFILES['@Almroth_Wright'].videoDesc,
+  '@Howard_Florey': CURATED_FLOW_PERSON_PROFILES['@Howard_Florey'].videoDesc,
+  '@Ernst_Chain': CURATED_FLOW_PERSON_PROFILES['@Ernst_Chain'].videoDesc,
+  '@Norman_Heatley': CURATED_FLOW_PERSON_PROFILES['@Norman_Heatley'].videoDesc,
+  '@Ruth_Callow': CURATED_FLOW_PERSON_PROFILES['@Ruth_Callow'].videoDesc,
+  '@Andrew_Moyer': CURATED_FLOW_PERSON_PROFILES['@Andrew_Moyer'].videoDesc,
+  '@Mary_Hunt': CURATED_FLOW_PERSON_PROFILES['@Mary_Hunt'].videoDesc,
+  '@Salvador_Mazza': CURATED_FLOW_PERSON_PROFILES['@Salvador_Mazza'].videoDesc,
+  '@Historiador_Antiguo': CURATED_FLOW_PERSON_PROFILES['@Historiador_Antiguo'].videoDesc,
   '@Enfermeria_Radcliffe': 'the quiet vintage 1940s brick ward',
   '@Laboratorio_St_Mary': 'the vintage wood-paneled London laboratory',
   '@Escuela_Dunn_Oxford': 'the vintage Oxford research laboratory',
@@ -822,7 +939,422 @@ const CURATED_FLOW_VIDEO_TAG_DESC: Record<string, string> = {
   '@Salon_Nobel_Estocolmo': 'the grand neoclassical ceremonial concert hall',
 };
 
+const ANONYMOUS_ROLE_KEYWORDS = new Set([
+  'actor',
+  'actress',
+  'adult',
+  'adulto',
+  'agent',
+  'agricultural',
+  'american',
+  'ancient',
+  'anonymous',
+  'antiguo',
+  'architect',
+  'archivist',
+  'argentine',
+  'assistant',
+  'asturian',
+  'australian',
+  'author',
+  'bacteriological',
+  'bacteriologist',
+  'bacteriologo',
+  'baker',
+  'banker',
+  'biochemist',
+  'bishop',
+  'blacksmith',
+  'british',
+  'campesino',
+  'captain',
+  'carpenter',
+  'central',
+  'character',
+  'chemist',
+  'chief',
+  'cientifico',
+  'clergyman',
+  'clerk',
+  'clinical',
+  'clinician',
+  'colonel',
+  'commander',
+  'commissioner',
+  'composer',
+  'constable',
+  'contractor',
+  'cuban',
+  'delegate',
+  'detective',
+  'diplomat',
+  'director',
+  'doctor',
+  'doctora',
+  'documentary',
+  'duchess',
+  'duke',
+  'elder',
+  'elderly',
+  'emigrant',
+  'emigrante',
+  'emperor',
+  'empress',
+  'engineer',
+  'english',
+  'entrepreneur',
+  'european',
+  'exile',
+  'exiled',
+  'experimental',
+  'explorer',
+  'farmer',
+  'female',
+  'figure',
+  'fisherman',
+  'founder',
+  'french',
+  'galician',
+  'general',
+  'german',
+  'governor',
+  'grocer',
+  'guard',
+  'historian',
+  'historiador',
+  'historical',
+  'immigrant',
+  'industrialist',
+  'inspector',
+  'institute',
+  'inventor',
+  'italian',
+  'journalist',
+  'judge',
+  'king',
+  'lab',
+  'laboratory',
+  'laborer',
+  'lawyer',
+  'lead',
+  'leader',
+  'lider',
+  'male',
+  'man',
+  'medical',
+  'medico',
+  'merchant',
+  'mexican',
+  'microbiologist',
+  'migrant',
+  'minister',
+  'monarch',
+  'monk',
+  'mother',
+  'mycologist',
+  'narrator',
+  'narrador',
+  'noble',
+  'nobleman',
+  'noblewoman',
+  'notary',
+  'nurse',
+  'obrero',
+  'officer',
+  'old',
+  'older',
+  'operator',
+  'oxford',
+  'passenger',
+  'pathologist',
+  'pathology',
+  'patient',
+  'peasant',
+  'person',
+  'persona',
+  'personaje',
+  'pharmacist',
+  'philosopher',
+  'physician',
+  'pilot',
+  'pioneer',
+  'poet',
+  'poeta',
+  'police',
+  'politician',
+  'president',
+  'priest',
+  'prince',
+  'princess',
+  'professor',
+  'protagonist',
+  'protagonista',
+  'quarantine',
+  'queen',
+  'referencia',
+  'refugee',
+  'reporter',
+  'research',
+  'researcher',
+  'reserve',
+  'ruler',
+  'rural',
+  'sailor',
+  'scholar',
+  'scientist',
+  'scottish',
+  'senator',
+  'senior',
+  'shepherd',
+  'soldier',
+  'soldado',
+  'sovereign',
+  'spanish',
+  'specialist',
+  'statesman',
+  'surgeon',
+  'tailor',
+  'technician',
+  'traveler',
+  'veteran',
+  'villager',
+  'weaver',
+  'widow',
+  'woman',
+  'worker',
+  'writer',
+  'young',
+]);
+
+const ROLE_ONLY_SIGNAL_TOKENS = new Set([
+  'actor',
+  'actress',
+  'archivist',
+  'assistant',
+  'author',
+  'bacteriologist',
+  'bacteriologo',
+  'baker',
+  'banker',
+  'biochemist',
+  'bishop',
+  'blacksmith',
+  'campesino',
+  'captain',
+  'carpenter',
+  'character',
+  'chemist',
+  'cientifico',
+  'clergyman',
+  'clerk',
+  'clinician',
+  'colonel',
+  'commander',
+  'commissioner',
+  'composer',
+  'constable',
+  'contractor',
+  'delegate',
+  'detective',
+  'diplomat',
+  'director',
+  'doctor',
+  'doctora',
+  'duchess',
+  'duke',
+  'emigrant',
+  'emigrante',
+  'emperor',
+  'empress',
+  'engineer',
+  'entrepreneur',
+  'exile',
+  'explorer',
+  'farmer',
+  'figure',
+  'fisherman',
+  'founder',
+  'general',
+  'governor',
+  'grocer',
+  'guard',
+  'historian',
+  'historiador',
+  'immigrant',
+  'industrialist',
+  'inspector',
+  'inventor',
+  'journalist',
+  'judge',
+  'king',
+  'laborer',
+  'lawyer',
+  'leader',
+  'lider',
+  'man',
+  'medico',
+  'merchant',
+  'microbiologist',
+  'migrant',
+  'minister',
+  'monarch',
+  'monk',
+  'mother',
+  'mycologist',
+  'narrador',
+  'narrator',
+  'nobleman',
+  'noblewoman',
+  'notary',
+  'nurse',
+  'obrero',
+  'officer',
+  'operator',
+  'pathologist',
+  'patient',
+  'peasant',
+  'person',
+  'persona',
+  'personaje',
+  'pharmacist',
+  'philosopher',
+  'physician',
+  'pilot',
+  'pioneer',
+  'poet',
+  'poeta',
+  'politician',
+  'president',
+  'priest',
+  'prince',
+  'princess',
+  'professor',
+  'protagonist',
+  'protagonista',
+  'queen',
+  'referencia',
+  'refugee',
+  'reporter',
+  'researcher',
+  'ruler',
+  'sailor',
+  'scholar',
+  'scientist',
+  'senator',
+  'shepherd',
+  'soldier',
+  'soldado',
+  'sovereign',
+  'specialist',
+  'statesman',
+  'surgeon',
+  'tailor',
+  'technician',
+  'traveler',
+  'veteran',
+  'villager',
+  'weaver',
+  'widow',
+  'woman',
+  'worker',
+  'writer',
+]);
+
+/**
+ * Returns true ONLY when an @Reference tag is strictly an anonymous role/archetype handle
+ * (e.g. @Historiador_Antiguo, @Scottish_Bacteriologist, @Young_Clinical_Physician)
+ * with zero proper personal names/surnames.
+ */
+export function isAnonymousRoleReferenceTag(tag: string, ref?: ReferenceAsset): boolean {
+  const raw = String(tag || '').trim();
+  if (!raw) return false;
+  if (ref?.category === 'lugar' || (ref as any)?.type === 'Lugar') return false;
+  if (KNOWN_LOCATION_AT_TAG_PREFIX_RE.test(raw)) return false;
+
+  const curated = CURATED_FLOW_PERSON_PROFILES[raw];
+  if (curated && curated.isAnonymousRole !== true) return false;
+  if (curated?.isAnonymousRole === true) return true;
+
+  const clean = raw
+    .replace(/^@+/, '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+  if (!clean) return false;
+
+  const tokens = clean.split(/[_\s-]+/).filter(Boolean);
+  if (tokens.length === 0) return false;
+
+  let hasRoleWord = false;
+  for (const tok of tokens) {
+    if (/^\d{1,4}$/.test(tok)) continue;
+    const low = tok.toLowerCase();
+    if (!ANONYMOUS_ROLE_KEYWORDS.has(low)) {
+      return false;
+    }
+    if (ROLE_ONLY_SIGNAL_TOKENS.has(low)) {
+      hasRoleWord = true;
+    }
+  }
+  return hasRoleWord;
+}
+
+const GEO_AND_CINEMA_SINGLE_WHITELIST = new Set([
+  // Camera, framing, Flow & prompt boilerplate
+  'create', 'image', 'clip', 'video', 'shot', 'wide', 'medium', 'close', 'closeup', 'macro',
+  'extreme', 'overhead', 'angle', 'view', 'frame', 'framing', 'focus', 'shallow', 'depth', 'field',
+  'golden', 'hour', 'blue', 'dawn', 'dusk', 'twilight', 'morning', 'afternoon', 'evening', 'night',
+  'slow', 'smooth', 'steady', 'gentle', 'subtle', 'dolly', 'push', 'pull', 'pan', 'tilt', 'crane',
+  'tracking', 'zoom', 'orbit', 'arc', 'slider', 'steadicam', 'fluid', 'head', 'motion', 'movement',
+  'static', 'frozen', 'plate', 'broll', 'roll', 'cinematic', 'historical', 'documentary', 'realism',
+  'photorealistic', 'lighting', 'chiaroscuro', 'grain', 'bokeh', 'ambient', 'foley', 'audio', 'sound',
+  'strict', 'strictly', 'fixed', 'solid', 'sustained', 'single', 'continuous', 'unbroken', 'take',
+  'adults', 'only', 'cast', 'literal', 'visual', 'logic', 'style', 'pure', 'calm', 'composed',
+  'natural', 'human', 'acting', 'omni', 'flash', 'veo', 'lite', 'lower', 'priority', 'nano', 'banana',
+  'model', 'duration', 'time', 'fix', 'name', 'warm', 'cold', 'cool', 'dark', 'bright', 'soft', 'hard',
+  'high', 'low', 'first', 'second', 'third', 'final', 'opening', 'closing', 'inner', 'outer',
+  // Calendar, eras, nationalities, institutions, eponyms
+  'january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october',
+  'november', 'december', 'christmas', 'easter', 'sunday', 'monday', 'tuesday', 'wednesday',
+  'thursday', 'friday', 'saturday', 'victorian', 'georgian', 'edwardian', 'medieval', 'renaissance',
+  'british', 'english', 'scottish', 'irish', 'welsh', 'spanish', 'french', 'german', 'italian',
+  'american', 'mexican', 'cuban', 'argentine', 'latin', 'european', 'nordic', 'midwestern',
+  'asturian', 'galician', 'andalusian', 'catalan', 'basque', 'canadian', 'australian', 'russian',
+  'petri', 'bunsen', 'erlenmeyer', 'diesel', 'fahrenheit', 'celsius', 'kelvin', 'morse', 'nobel',
+  'oxford', 'london', 'paddington', 'radcliffe', 'peoria', 'illinois', 'brooklyn', 'connecticut',
+  'york', 'haven', 'boston', 'chicago', 'detroit', 'washington', 'philadelphia', 'california',
+  'paris', 'berlin', 'vienna', 'madrid', 'barcelona', 'sevilla', 'cadiz', 'santander', 'asturias',
+  'galicia', 'cantabria', 'coruna', 'vigo', 'gijon', 'tenerife', 'havana', 'habana', 'triscornia',
+  'casablanca', 'cienfuegos', 'veracruz', 'mexico', 'puebla', 'buenos', 'aires', 'montevideo',
+  'cuba', 'spain', 'england', 'britain', 'france', 'germany', 'italy', 'argentina', 'uruguay',
+  'sweden', 'stockholm', 'normandy', 'normandia', 'atlantic', 'caribbean', 'cantabrian', 'pacific',
+  'east', 'west', 'north', 'south', 'central', 'upper', 'lower', 'new', 'old', 'grand', 'royal',
+  'pfizer', 'merck', 'sinaia', 'titanic', 'centro', 'asturiano', 'quinta', 'covadonga', 'benefica',
+  'gallego', 'aguila', 'musel', 'ciego', 'avila', 'lue', 'colunga', 'maliano', 'hospital', 'mary',
+  'church', 'cathedral', 'abbey', 'palace', 'castle', 'fortress', 'tower', 'bridge', 'harbor',
+  'port', 'bay', 'river', 'sea', 'ocean', 'island', 'islands', 'street', 'avenue', 'square', 'plaza',
+  'station', 'school', 'university', 'institute', 'laboratory', 'hall', 'room', 'ward', 'club',
+  'company', 'compania', 'trasatlantica', 'guard', 'civil', 'rural', 'law', 'act', 'world', 'war',
+  'wall', 'day', 'year', 'century', 'mr', 'mrs', 'ms', 'dr', 'st', 'san', 'santa', 'santo', 'saint',
+]);
+
+const PLACE_OR_ENTITY_SUFFIX_RE =
+  /^(?:Street|Avenue|Boulevard|Road|Lane|Alley|Way|Plaza|Square|Park|Garden|Gardens|Bay|River|Sea|Ocean|Gulf|Strait|Channel|Lake|Valley|Mountain|Mountains|Hill|Hills|Island|Islands|Coast|Harbor|Harbour|Port|Dock|Pier|Bridge|Canal|Station|Terminal|Hospital|Clinic|Infirmary|Sanatorium|University|College|School|Institute|Academy|Laboratory|Lab|Hall|Chamber|Theater|Theatre|Opera|Museum|Library|Archive|Palace|Castle|Fort|Fortress|Citadel|Tower|Cathedral|Church|Chapel|Abbey|Monastery|Convent|Club|Hotel|Tavern|Cafe|Bakery|Factory|Plant|Mill|Mine|Bank|Exchange|Office|Ministry|Parliament|Senate|Court|Prison|Camp|Barracks|Guard|Law|Act|Treaty|Compa[nñ][ií]a|Centro|Quinta|War|Century|Day|Hour|Shot|Angle|View|Focus|Grain|Light|Motion|Pan|Dolly|Tilt|Crane|Zoom|Foley|Priority|Flash|Banana|Lite)$/i;
+
+const KNOWN_HISTORICAL_NAME_PAIR_RE =
+  /\b(?:Alexander\s+Fleming|Charles\s+Fletcher|Albert\s+Alexander|Howard\s+Florey|Ernst\s+Chain|Norman\s+Heatley|Almroth\s+Wright|Andrew\s+Moyer|Salvador\s+Mazza|Mary\s+Hunt|Ruth\s+Callow|Ricardo\s+Ruiz\s+Balb[ií]n|Bernarda\s+Ruiz\s+Balb[ií]n|Ruiz\s+Balb[ií]n|Frank\s+Menocal|Pedro\s+Garfias\s+Zurita|Pedro\s+Becerra|Jos[eé]\s+Linares|Indalecio\s+Rodr[ií]guez|Juan\s+(?:Domingo\s+)?Per[oó]n|Eva\s+Per[oó]n|Thomas\s+Edison|Henry\s+Ford|Enzo\s+Ferrari|Nikola\s+Tesla|Marie\s+Curie|Louis\s+Pasteur|Winston\s+Churchill|Franklin\s+Roosevelt|Abraham\s+Lincoln|Albert\s+Einstein|Guglielmo\s+Marconi)\b/gi;
+
+function escapeRegexLiteral(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 function extractAnonymousRoleFromReference(ref: ReferenceAsset): string {
+  const tag = String(ref?.tag || '').trim();
+  const curated = CURATED_FLOW_PERSON_PROFILES[tag] ||
+    Object.entries(CURATED_FLOW_PERSON_PROFILES).find(([k]) => k.toLowerCase() === tag.toLowerCase())?.[1];
+  if (curated) {
+    return `${curated.article} ${curated.core}`;
+  }
   const isPerson = ref.category === 'persona' || (ref as any).type === 'Persona';
   const promptText = String(ref.prompt || '');
   const depMatch = promptText.match(/,\s*depicting\s+(an?\s+[^,]{8,75}?)(?:,|\s+in\s+1\d{3}|\s+against\b)/i);
@@ -831,90 +1363,477 @@ function extractAnonymousRoleFromReference(ref: ReferenceAsset): string {
       .replace(/\b(?:[1-9]\d?-year-old|aged\s+\d+)\s+/gi, '')
       .replace(/\s+/g, ' ')
       .trim();
-    if (role && !/\b(?:Fleming|Florey|Heatley|Chain|Fletcher|Alexander|Moyer|Mazza|Wright|Callow|Hunt)\b/i.test(role)) {
+    if (role && !/\b(?:Fleming|Florey|Heatley|Chain|Fletcher|Alexander|Moyer|Mazza|Wright|Callow|Hunt|Menocal|Garfias|Zurita|Balb[ií]n)\b/i.test(role)) {
       return /^an?\s+/i.test(role) ? `the ${role.replace(/^an?\s+/i, '')}` : role;
     }
   }
-  return isPerson ? 'the historical figure in authentic period attire' : 'the historical period setting';
+  return isPerson ? 'the adult historical figure in authentic period attire' : 'the historical period setting';
+}
+
+function extractProfileFromReference(ref: ReferenceAsset): CuratedPersonProfile {
+  const tag = String(ref?.tag || '').trim();
+  const atTag = tag.startsWith('@') ? tag : `@${tag}`;
+  const curated =
+    CURATED_FLOW_PERSON_PROFILES[atTag] ||
+    Object.entries(CURATED_FLOW_PERSON_PROFILES).find(
+      ([k]) => k.toLowerCase() === atTag.toLowerCase()
+    )?.[1];
+  if (curated) return curated;
+
+  const isPerson = ref.category === 'persona' || (ref as any).type === 'Persona';
+  if (!isPerson) {
+    const placeName = atTag.replace(/^@+/, '').replace(/_/g, ' ').trim();
+    return {
+      core: placeName ? `${placeName} historical setting` : 'historical period setting',
+      role: 'historical period setting',
+      article: 'the',
+      videoDesc: CURATED_FLOW_VIDEO_TAG_DESC[atTag] || 'the historical period setting',
+    };
+  }
+
+  const rawPrompt = String(ref.prompt || '');
+  const depMatch = rawPrompt.match(
+    /(?:,\s*depicting|portrayed by an anonymous historical reenactment actor,)\s+(?:an?\s+)?([^,.]{8,110}?)(?:,|\s+against\b|\s+dressed\b|\s+8k\b)/i
+  );
+  let core = depMatch?.[1]
+    ? depMatch[1]
+        .replace(/^(?:the|an?)\s+/i, '')
+        .replace(/\b(?:in\s+1\d{3}[^,]*)$/i, '')
+        .replace(/\s+/g, ' ')
+        .trim()
+    : 'adult historical figure in authentic period attire';
+
+  // Ensure any proper names from the reference tag itself are scrubbed from core
+  const rawTagTokens = atTag
+    .slice(1)
+    .split(/[_\s-]+/)
+    .filter((w) => w.length >= 3 && !ANONYMOUS_ROLE_KEYWORDS.has(w.toLowerCase()));
+  for (const tok of rawTagTokens) {
+    core = core.replace(new RegExp(`\\b${escapeRegexLiteral(tok)}\\b`, 'gi'), '');
+  }
+  core = core.replace(/\s{2,}/g, ' ').trim() || 'adult historical figure in authentic period attire';
+
+  // Ensure core contains a noun recognized by humanSubjectRegex
+  if (
+    !/\b(man|woman|person|figure|actor|actress|physician|doctor|scientist|researcher|professor|director|poet|writer|farmer|soldier|worker|laborer|historian|specialist|constable|clerk|leader|politician)\b/i.test(
+      core
+    )
+  ) {
+    core = `adult historical figure (${core})`;
+  }
+
+  const role = core
+    .replace(/\b\d{1,3}-year-old\s+/gi, '')
+    .replace(/\s+(?:in|wearing|with)\s+[\s\S]*$/i, '')
+    .trim() || 'adult historical figure';
+
+  return {
+    core,
+    role,
+    article: 'the',
+    videoDesc: `the ${core.replace(/\b\d{1,3}-year-old\s+/gi, '').trim()}`,
+    isAnonymousRole: isAnonymousRoleReferenceTag(atTag, ref),
+  };
+}
+
+function stripLeakedSpanishNarrationTail(text: string): string {
+  if (!text) return text;
+  // Remove Spanish voiceover tails leaked after the final English closing clause
+  return text.replace(
+    /(\b(?:no\s+music,\s*no\s+speech,\s*no\s+text|no\s+speech,\s*no\s+text|no\s+text,\s*no\s+watermarks(?:,\s*no\s+speech,\s*no\s+music)?|anywhere\s+in\s+the\s+frame|through\s+the\s+final\s+frame)\.|(?:no\s+unintended\s+explosions\s+or\s+flashes|steady\s+continuous\s+lighting\s+with\s+zero\s+sudden\s+flashes)\)\.)(\s+(?:(?!\b(?:STRICT|SINGLE|Smooth|Fixed|Solid|All\s+furniture|Cinematic|Ambient\s+Foley|Audio|no\s+music,\s*no\s+speech)\b)[^[\]]){12,520})$/i,
+    (full, anchor, tail) => {
+      if (
+        /[áéíóúñ¿¡]/i.test(tail) ||
+        /\b(?:el|la|los|las|un|una|del|para|con|que|como|hacia|desde|entre|quien|mientras|despu[eé]s|hasta|se\s+encontraba|escribi[oó]|desembarc[oó]|arrib[oó]|lleg[oó]|campamento|pesetas|barco|carta|madre|padre|doctor|m[eé]dico|poeta|gastado|boina|chamarra|gafas|junto)\b/i.test(
+          tail
+        )
+      ) {
+        return anchor;
+      }
+      return full;
+    }
+  );
+}
+
+function extractContextPersonNames(docContextText?: string): string[] {
+  if (!docContextText || !docContextText.trim()) return [];
+  const names = new Set<string>();
+  const cueRegex =
+    /(?:el|la|al|del|por|con|junto\s+a|llamad[oa]|bautizad[oa]|doctor|doctora|profesor|profesora|general|presidente|presidenta|poeta|cient[ií]fic[oa]|bacteri[oó]log[oa]|investigador(?:a)?|cirujan[oa]|fundador(?:a)?|inventor(?:a)?|empresari[oa]|coronel|capit[aá]n|almirante|ministr[oa]|gobernador(?:a)?|madre|padre|hermano|hermana|esposo|esposa|don|doña|señor|señora)\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ]{2,}(?:\s+(?:de|del|la|y|[A-ZÁÉÍÓÚÑ][a-záéíóúñ]{2,})){1,2})/g;
+  let m: RegExpExecArray | null;
+  while ((m = cueRegex.exec(docContextText)) !== null) {
+    const candidate = m[1].trim();
+    const parts = candidate.split(/\s+/);
+    if (parts.length < 2 || parts.length > 4) continue;
+    const allWhitelisted = parts.every((w) => {
+      const clean = w.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+      return GEO_AND_CINEMA_SINGLE_WHITELIST.has(clean) || /^(de|del|la|y)$/i.test(clean);
+    });
+    if (!allWhitelisted && !PLACE_OR_ENTITY_SUFFIX_RE.test(parts[parts.length - 1])) {
+      names.add(candidate);
+    }
+  }
+  return Array.from(names);
+}
+
+function applyContextAwarePersonReplacement(
+  text: string,
+  pattern: RegExp,
+  profile: CuratedPersonProfile,
+  mode: 'image' | 'video'
+): string {
+  return text.replace(pattern, (fullMatch, ...args) => {
+    const offset = args[args.length - 2] as number;
+    const src = args[args.length - 1] as string;
+    const hasPossessive = /['’]s$/i.test(fullMatch);
+    const before = src.slice(Math.max(0, offset - 45), offset);
+    const after = src.slice(offset + fullMatch.length, offset + fullMatch.length + 75);
+
+    // If preceded by age or age+role (e.g. "28-year-old @Norman_Heatley", "60-year-old mycologist @Andrew_Moyer")
+    const precededByAgeAndRole =
+      /\b\d{1,3}-year-old\s+(?:assistant|mycologist|physician|doctor|scientist|professor|director|poet|historian|researcher|biochemist|technician|constable|clerk|farmer)\s+$/i.test(
+        before
+      );
+    const precededByAgeOnly = /\b\d{1,3}-year-old\s+$/i.test(before);
+    const precededByDeterminer =
+      /\b(?:the|a|an|this|that|his|her|their|same|older|younger|elderly|senior)\s+$/i.test(before);
+    const followedByClothingOrAge =
+      /^\s*(?:at\s+age\s+\d+|in\s+(?:a|an|the|his|her|round|gold|silver|oval|dark|white|black|gray|brown|vintage|period|formal|tailored|buttoned|starched)\b|wearing\b)/i.test(
+        after
+      );
+    const followedByApposition = /^,\s*(?:an?|the)\s+\d{1,3}-year-old\b/i.test(after);
+
+    if (hasPossessive) {
+      const base = precededByDeterminer ? profile.role : `the ${profile.role}`;
+      return `${base}'s`;
+    }
+
+    if (mode === 'video') {
+      if (precededByAgeOnly || precededByDeterminer) {
+        return profile.role;
+      }
+      if (followedByClothingOrAge) {
+        return `${profile.article} ${profile.role}`;
+      }
+      return profile.videoDesc;
+    }
+
+    if (precededByAgeAndRole) {
+      // e.g. "60-year-old mycologist @Andrew_Moyer in..." -> avoid repeating the role word
+      const cleaned = profile.role
+        .replace(/\b(?:assistant|mycologist|physician|doctor|scientist|professor|director|poet|historian|researcher|biochemist|technician|constable|clerk|farmer)\b/gi, '')
+        .replace(/\s{2,}/g, ' ')
+        .trim();
+      return cleaned ? `${cleaned} specialist` : 'specialist';
+    }
+    if (precededByAgeOnly) {
+      return followedByClothingOrAge ? profile.role : profile.core;
+    }
+    if (followedByApposition) {
+      // Next phrase already states ", a 43-year-old British reserve constable"
+      return precededByDeterminer ? 'adult historical subject' : 'the adult historical subject';
+    }
+    if (precededByDeterminer) {
+      return followedByClothingOrAge ? profile.role : profile.core;
+    }
+    return followedByClothingOrAge
+      ? `${profile.article} ${profile.role}`
+      : `${profile.article} ${profile.core}`;
+  });
 }
 
 /**
- * Hardens video-clip prompts (Clip XX) against Google Flow Veo/Omni anti-deepfake & safety filters
- * while leaving Image XX prompts with their @Reference tags completely untouched.
- * Because every video clip starts from its generated initial image (Starting Frame),
- * visual likeness is preserved without re-sending @Person tags or sensitive lexical triggers.
+ * Unified, idempotent sanitizer that strips ALL proper person names, surnames, possessives,
+ * and @Person tags (when required) without harming cinematography vocabulary, geography,
+ * institutions, scientific eponyms, or adult age descriptors.
  */
-export function sanitizeVideoClipPromptForFlowSafety(
-  rawVideoPrompt: string,
-  references?: ReferenceAsset[]
+export function sanitizePromptRemovePersonNames(
+  prompt: string,
+  options: SanitizePersonNamesOptions = {}
 ): string {
-  if (!rawVideoPrompt || !rawVideoPrompt.trim()) return rawVideoPrompt;
-  let p = rawVideoPrompt.trim();
+  if (!prompt || !prompt.trim()) return prompt;
+  const mode: 'image' | 'video' = options.mode === 'video' ? 'video' : 'image';
+  const references = options.references;
 
+  let p = prompt.trim();
+
+  // Preserve leading "Image 01:" / "Clip 01 (00:00 - 00:08):" prefix (including first 6 words boundary)
   let prefix = '';
-  const prefixMatch = p.match(/^(Clip\s+\d+(?:\s*\([^)]*\))?\s*:\s*)/i);
+  const prefixMatch = p.match(/^((?:Image|Imagen|Clip)\s+\d+(?:\s*\([^)]*\))?\s*:\s*)/i);
   if (prefixMatch) {
     prefix = prefixMatch[1];
     p = p.slice(prefix.length).trim();
   }
 
+  // Preserve trailing control tags ([Time:...], [B-Roll:...], [Duration:...], [Model:... [Lower Priority]], fix the name)
   let suffix = '';
   const suffixMatch = p.match(
-    /((?:\s*\[(?:B-Roll|Duration|Video\s+Model|Model)[^\]]*\])+(?:\s*fix\s+the\s+name\.?)?|\s*fix\s+the\s+name\.?)\s*$/i
+    /((?:\s*\[(?:Time|B-Roll|Duration|Video\s+Model|Model|IMAGE\s+ONLY)(?:[^\[\]]|\[[^\]]*\])*\])+(?:\s*\(\s*100%\s*pure\s*ambient\s*foley[^)]*\)\.?)?(?:\s*fix\s+the\s+name(?:\s+to\s+@?[A-Za-z0-9_]+)?\.?)?|\s*fix\s+the\s+name(?:\s+to\s+@?[A-Za-z0-9_]+)?\.?(?:\s*\(\s*100%\s*pure\s*ambient\s*foley[^)]*\)\.?)?(?:\s*\[(?:Time|B-Roll|Duration|Video\s+Model|Model|IMAGE\s+ONLY)(?:[^\[\]]|\[[^\]]*\])*\])*)\s*$/i
   );
   if (suffixMatch) {
     suffix = ` ${suffixMatch[1].trim()}`;
     p = p.slice(0, p.length - suffixMatch[0].length).trim();
   }
 
-  // 1. Replace curated @Reference tags (exact key or case-insensitive lookup)
-  const curatedLowerMap = new Map<string, string>();
-  for (const [k, v] of Object.entries(CURATED_FLOW_VIDEO_TAG_DESC)) {
-    curatedLowerMap.set(k.toLowerCase(), v);
+  // 1. Cut any leaked Spanish narration tail inside video prompts
+  if (mode === 'video') {
+    p = stripLeakedSpanishNarrationTail(p);
   }
 
-  if (Array.isArray(references)) {
-    for (const ref of references) {
-      const cleanTag = String(ref?.tag || '').trim();
-      if (!cleanTag) continue;
-      const atTag = cleanTag.startsWith('@') ? cleanTag : `@${cleanTag}`;
-      const lowerAt = atTag.toLowerCase();
-      const desc = curatedLowerMap.get(lowerAt) || extractAnonymousRoleFromReference(ref);
-      const escTag = atTag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      p = p.replace(new RegExp(`${escTag}\\b`, 'gi'), desc);
+  // 2. Repair legacy Video 76 regex corruption artifacts before applying clean replacements
+  p = p
+    .replace(
+      /\bthe\s+period\s+historical\s+artifact(?=\s+(?:writing|wearing|standing|sitting|holding|walking|looking|speaking|signing|reading))/gi,
+      'the adult historical figure'
+    )
+    .replace(
+      /\b(ancient\s+coral-stone\s+fortress|blackened\s+coral-stone\s+walls)\s+of\s+an\s+elderly\s+historical\s+clergyman(?:[^,.]*,\s*portrayed\s+by\s+an\s+anonymous\s+actor)?/gi,
+      '$1 of the historic coastal fortress'
+    );
 
-      const isPerson = ref.category === 'persona' || (ref as any).type === 'Persona';
-      if (isPerson) {
-        const humanName = atTag.slice(1).replace(/_/g, ' ').trim();
-        const escHuman = humanName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        p = p.replace(new RegExp(`\\b${escHuman}\\b`, 'gi'), desc);
+  // 3. Build unified person profile map from references + curated profiles
+  const profileByAtTag = new Map<string, CuratedPersonProfile>();
+  const locationTagsLower = new Set<string>();
+
+  for (const [tag, prof] of Object.entries(CURATED_FLOW_PERSON_PROFILES)) {
+    profileByAtTag.set(tag.toLowerCase(), prof);
+  }
+  for (const [tag, desc] of Object.entries(CURATED_FLOW_VIDEO_TAG_DESC)) {
+    if (!CURATED_FLOW_PERSON_PROFILES[tag]) {
+      locationTagsLower.add(tag.toLowerCase());
+      if (mode === 'video') {
+        const escTag = escapeRegexLiteral(tag);
+        p = p.replace(new RegExp(`${escTag}\\b`, 'gi'), desc);
       }
     }
   }
 
-  for (const [tag, desc] of Object.entries(CURATED_FLOW_VIDEO_TAG_DESC)) {
-    const escTag = tag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    p = p.replace(new RegExp(`${escTag}\\b`, 'gi'), desc);
-    if (!/Radcliffe|St_Mary|Dunn|Mesa|Sala|Peoria|Pfizer|Normandia|Boticas|Nobel|Historiador/i.test(tag)) {
-      const humanName = tag.slice(1).replace(/_/g, ' ');
-      const escHuman = humanName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      p = p.replace(new RegExp(`\\b${escHuman}\\b`, 'gi'), desc);
+  const nameTokensToReplace: Array<{ term: string; profile: CuratedPersonProfile }> = [];
+
+  if (Array.isArray(references)) {
+    for (const ref of references) {
+      const rawTag = String(ref?.tag || '').trim();
+      if (!rawTag) continue;
+      const atTag = rawTag.startsWith('@') ? rawTag : `@${rawTag}`;
+      const lowerAt = atTag.toLowerCase();
+      const isPerson =
+        ref.category === 'persona' ||
+        (ref as any).type === 'Persona' ||
+        (!KNOWN_LOCATION_AT_TAG_PREFIX_RE.test(atTag) &&
+          ref.category !== 'lugar' &&
+          (ref as any).type !== 'Lugar' &&
+          atTag.startsWith('@'));
+
+      if (!isPerson) {
+        locationTagsLower.add(lowerAt);
+        if (mode === 'video') {
+          const escTag = escapeRegexLiteral(atTag);
+          p = p.replace(new RegExp(`${escTag}\\b`, 'gi'), 'the historical period setting');
+        }
+        continue;
+      }
+
+      const prof = extractProfileFromReference(ref);
+      profileByAtTag.set(lowerAt, prof);
+
+      const humanName = atTag.slice(1).replace(/_/g, ' ').trim();
+      if (humanName && !isAnonymousRoleReferenceTag(atTag, ref)) {
+        nameTokensToReplace.push({ term: humanName, profile: prof });
+        const parts = humanName.split(/\s+/).filter(Boolean);
+        for (const part of parts) {
+          const normPart = part.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+          if (
+            part.length >= 4 &&
+            !GEO_AND_CINEMA_SINGLE_WHITELIST.has(normPart) &&
+            !ANONYMOUS_ROLE_KEYWORDS.has(normPart)
+          ) {
+            nameTokensToReplace.push({ term: part, profile: prof });
+          }
+        }
+      }
     }
   }
 
-  // Also scrub distinctive historical surnames if lingering in video descriptions
+  // Also register curated human names so standalone Video 77/76 mentions are caught even if references wasn't passed
+  for (const [tag, prof] of Object.entries(CURATED_FLOW_PERSON_PROFILES)) {
+    if (prof.isAnonymousRole) continue;
+    const humanName = tag.slice(1).replace(/_/g, ' ').trim();
+    nameTokensToReplace.push({ term: humanName, profile: prof });
+    for (const part of humanName.split(/\s+/)) {
+      const normPart = part.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+      if (
+        part.length >= 5 &&
+        !GEO_AND_CINEMA_SINGLE_WHITELIST.has(normPart) &&
+        !ANONYMOUS_ROLE_KEYWORDS.has(normPart) &&
+        !/^(charles|albert|andrew|frank|pedro|ernst|mary|ruth)$/i.test(normPart)
+      ) {
+        nameTokensToReplace.push({ term: part, profile: prof });
+      }
+    }
+  }
+
+  // 4. Replace @Person tags cleanly:
+  //    - mode === 'video': ALWAYS replace ALL @Tags (person or remaining location) with anonymous description (NEVER body.replace(/_/g, ' '))
+  //    - mode === 'image': keep @Location tags & anonymous-role @Tags (e.g. @Historiador_Antiguo, @Scottish_Bacteriologist);
+  //                        replace real-name @Person tags with anonymous physical+attire description WITHOUT '@'
+  const matchedAtTags = Array.from(
+    new Set(p.match(/@[A-Za-z0-9_ÁÉÍÓÚáéíóúÑñ]+/g) || [])
+  ).sort((a, b) => b.length - a.length);
+
+  for (const atTag of matchedAtTags) {
+    const lowerAt = atTag.toLowerCase();
+    if (locationTagsLower.has(lowerAt) || KNOWN_LOCATION_AT_TAG_PREFIX_RE.test(atTag)) {
+      if (mode === 'video') {
+        const locDesc = CURATED_FLOW_VIDEO_TAG_DESC[atTag] || 'the historical period setting';
+        p = p.replace(new RegExp(`${escapeRegexLiteral(atTag)}\\b`, 'gi'), locDesc);
+      }
+      continue;
+    }
+
+    const matchedRef = Array.isArray(references)
+      ? references.find((r) => String(r?.tag || '').trim().toLowerCase() === lowerAt)
+      : undefined;
+    const isAnonHandle = isAnonymousRoleReferenceTag(atTag, matchedRef);
+
+    if (mode === 'image' && isAnonHandle) {
+      continue;
+    }
+
+    const prof: CuratedPersonProfile = profileByAtTag.get(lowerAt) || {
+      core: 'adult historical figure in authentic period attire',
+      role: 'adult historical figure',
+      article: 'the',
+      videoDesc: 'the adult historical figure in authentic period attire',
+    };
+    const tagRe = new RegExp(`${escapeRegexLiteral(atTag)}(?:['’]s)?\\b`, 'gi');
+    p = applyContextAwarePersonReplacement(p, tagRe, prof, mode);
+  }
+
+  // 5. Replace explicit full names & distinctive surnames from document lexicon (longest first)
+  nameTokensToReplace.sort((a, b) => b.term.length - a.term.length);
+  const seenTerms = new Set<string>();
+  for (const { term, profile } of nameTokensToReplace) {
+    const key = term.toLowerCase();
+    if (seenTerms.has(key)) continue;
+    seenTerms.add(key);
+    const re = new RegExp(`(?<!@)\\b${escapeRegexLiteral(term)}(?:['’]s)?\\b`, 'gi');
+    p = applyContextAwarePersonReplacement(p, re, profile, mode);
+  }
+
+  // 6. Replace Title + Proper Name patterns (EN/ES) & known historical pairs + possessives, protecting geography
+  const PLACE_EXCLUSION =
+    '(?!Mary\\b|Francisco\\b|Diego\\b|Carlos\\b|Juan\\b|Jos[eé]\\b|Luis\\b|Pedro\\b|Pablo\\b|Miguel\\b|Antonio\\b|Mart[ií]n\\b|Sebasti[aá]n\\b|Salvador\\b|Lorenzo\\b|Mateo\\b|Nicol[aá]s\\b|Crist[oó]bal\\b|Fe\\b|Clara\\b|Cruz\\b|Mar[ií]a\\b|Rosa\\b|Ana\\b|Luc[ií]a\\b|B[aá]rbara\\b|Elena\\b|Teresa\\b|Domingo\\b|Tom[aá]s\\b|Sp[ií]ritus\\b)';
+
   p = p.replace(
-    /\b(?:Alexander\s+Fleming|Charles\s+Fletcher|Albert\s+Alexander|Howard\s+Florey|Ernst\s+Chain|Norman\s+Heatley|Almroth\s+Wright|Andrew\s+Moyer|Salvador\s+Mazza|Mary\s+Hunt|Ruth\s+Callow)\b/gi,
-    'the historical figure'
+    /\b(?:Queen|Princess|Empress|Duchess|Lady|Countess|Reina|Princesa|Emperatriz|Duquesa|Doña|Mrs\.?|Ms\.?|Sra\.?)\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+(?:of|de|del|von|I|II|III|IV|V|VI|VII|VIII|IX|X|[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+))*(?:['’]s)?/g,
+    (m) => (m.endsWith("'s") || m.endsWith('’s') ? "the adult historical noblewoman's" : 'the adult historical noblewoman')
+  );
+  p = p.replace(
+    /\b(?:King|Prince|Emperor|Duke|Lord|Count|Sultan|Tsar|Czar|Pharaoh|General|Gral\.?|Colonel|Col\.?|Captain|Capt\.?|Major|Commander|Admiral|President|Presidente|Prime\s+Minister|Chancellor|Minister|Ministro|Governor|Gobernador|Senator|Mayor|Rey|Príncipe|Emperador|Duque|Conde|Faraón|Sir|Don)\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+(?:of|de|del|von|I|II|III|IV|V|VI|VII|VIII|IX|X|XI|XII|XIII|XIV|XV|XVI|[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+))*(?:['’]s)?/g,
+    (m) => (m.endsWith("'s") || m.endsWith('’s') ? "the adult historical leader's" : 'the adult historical leader')
+  );
+  p = p.replace(
+    /\b(?:Dr\.?|Doctor|Doctora|Prof\.?|Professor|Profesor|Poet|Poeta|Surgeon|Cirujano|Inventor|Industrialist|Mr\.?|Sr\.?)\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+(?:de|del|la|von|van|[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+))*(?:['’]s)?/g,
+    (m) => (m.endsWith("'s") || m.endsWith('’s') ? "the adult historical specialist's" : 'the adult historical specialist')
+  );
+  p = p.replace(
+    new RegExp(
+      `\\b(?:Pope|Bishop|Archbishop|Cardinal|Father|Friar|Papa|Obispo|Arzobispo|Cardenal|Fray|(?:Saint|San|Santa|Santo)\\s+${PLACE_EXCLUSION})\\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\\s+(?:of|de|del|I|II|III|IV|V|VI|VII|VIII|IX|X|XI|XII|XIII|XIV|XV|XVI|[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+))*(?:['’]s)?(?!\\s+(?:Hospital|Church|Cathedral|Abbey|Fort|Fortress|Castle|Bay|Harbor|Port|Street|Avenue|Plaza|Square|Island|River|Valley))`,
+      'g'
+    ),
+    (m) => (m.endsWith("'s") || m.endsWith('’s') ? "the elderly clergyman's" : 'the elderly clergyman')
   );
 
-  // Convert any remaining unknown @Tag in a video clip prompt into plain neutral words without '@'
-  p = p.replace(/@([A-Za-z0-9_ÁÉÍÓÚáéíóúÑñ]+)/g, (_m, body) =>
-    String(body).replace(/_/g, ' ')
+  // 7. Extract & scrub any document-context person names (from Spanish voiceover/research if supplied)
+  for (const ctxName of extractContextPersonNames(options.docContextText)) {
+    const ctxRe = new RegExp(`(?<!@)\\b${escapeRegexLiteral(ctxName)}(?:['’]s)?\\b`, 'gi');
+    p = p.replace(ctxRe, (m) =>
+      m.endsWith("'s") || m.endsWith('’s') ? "the adult historical figure's" : 'the adult historical figure'
+    );
+  }
+
+  // 8. Scrub well-known historical person pairs & contextual First Last in human-action positions (strictly whitelist-guarded)
+  p = p.replace(
+    new RegExp(`${KNOWN_HISTORICAL_NAME_PAIR_RE.source}(?:['’]s)?`, 'gi'),
+    (m) => (m.endsWith("'s") || m.endsWith('’s') ? "the adult historical figure's" : 'the adult historical figure')
   );
+
+  p = p.replace(
+    /\b(showing|depicting|portrait\s+of|hands\s+of|beside|behind|near|with|toward|following|while|as)\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ]{2,}\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]{2,}(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]{2,})?)(['’]s)?\b/g,
+    (full, prep, candidate, poss) => {
+      const tokens = String(candidate).split(/\s+/);
+      if (tokens.some((t) => GEO_AND_CINEMA_SINGLE_WHITELIST.has(t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()))) {
+        return full;
+      }
+      if (PLACE_OR_ENTITY_SUFFIX_RE.test(tokens[tokens.length - 1])) {
+        return full;
+      }
+      return `${prep} the adult historical figure${poss ? "'s" : ''}`;
+    }
+  );
+
+  // 9. Clean accidental article/phrase duplications (keeps sanitization 100% idempotent)
+  p = p
+    .replace(/\bthe\s+the\b/gi, 'the')
+    .replace(/\ba\s+the\b/gi, 'the')
+    .replace(/\ban\s+the\b/gi, 'the')
+    .replace(/\b(the adult historical (?:figure|leader|specialist|noblewoman))(?:\s+of\s+\1|\s+\1)+\b/gi, '$1')
+    .replace(/\s+([,.;:!?])/g, '$1')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+
+  return `${prefix}${p}${suffix}`.replace(/\s{2,}/g, ' ').trim();
+}
+
+export function sanitizeImagePromptForFlowSafety(
+  rawImagePrompt: string,
+  references?: ReferenceAsset[],
+  docContextText?: string
+): string {
+  if (!rawImagePrompt || !rawImagePrompt.trim()) return rawImagePrompt;
+  return sanitizePromptRemovePersonNames(rawImagePrompt, {
+    mode: 'image',
+    references,
+    docContextText,
+  });
+}
+
+/**
+ * Hardens video-clip prompts (Clip XX) against Google Flow Veo/Omni anti-deepfake & safety filters
+ * while preserving visual likeness through anonymous role/appearance descriptors.
+ */
+export function sanitizeVideoClipPromptForFlowSafety(
+  rawVideoPrompt: string,
+  references?: ReferenceAsset[],
+  docContextText?: string
+): string {
+  if (!rawVideoPrompt || !rawVideoPrompt.trim()) return rawVideoPrompt;
+
+  // 1. Strip ALL person names, Spanish tails, and @Tags cleanly (never turning @Person_Tag into plain proper names)
+  let full = sanitizePromptRemovePersonNames(rawVideoPrompt, {
+    mode: 'video',
+    references,
+    docContextText,
+  });
+
+  let prefix = '';
+  const prefixMatch = full.match(/^(Clip\s+\d+(?:\s*\([^)]*\))?\s*:\s*)/i);
+  if (prefixMatch) {
+    prefix = prefixMatch[1];
+    full = full.slice(prefix.length).trim();
+  }
+
+  let suffix = '';
+  const suffixMatch = full.match(
+    /((?:\s*\[(?:B-Roll|Duration|Video\s+Model|Model)(?:[^\[\]]|\[[^\]]*\])*\])+(?:\s*\(\s*100%\s*pure\s*ambient\s*foley[^)]*\)\.?)?(?:\s*fix\s+the\s+name\.?)?|\s*fix\s+the\s+name\.?(?:\s*\(\s*100%\s*pure\s*ambient\s*foley[^)]*\)\.?)?(?:\s*\[(?:B-Roll|Duration|Video\s+Model|Model)(?:[^\[\]]|\[[^\]]*\])*\])*)\s*$/i
+  );
+  if (suffixMatch) {
+    suffix = ` ${suffixMatch[1].trim()}`;
+    full = full.slice(0, full.length - suffixMatch[0].length).trim();
+  }
 
   // 2. Neutralize Veo / Omni keyword false-positive triggers
-  p = p
+  let p = full
     .replace(/\(\s*no\s+unintended\s+explosions\s+or\s+flashes\s*\)/gi, '(steady continuous lighting with zero sudden flashes)')
     .replace(/\bno\s+unintended\s+explosions\s+or\s+flashes\b/gi, 'steady continuous lighting with zero sudden flashes')
     .replace(/\b(?:freshly\s+sterilized\s+|vintage\s+)?glass\s+syringe\s+plunger\b/gi, 'glass pipette bulb')
@@ -990,15 +1909,17 @@ export function buildRawClipsTextWithHeader(
           : standardClipDurationSec || 8;
       if (c.isStaticBroll) {
         if (!rawImg) return '';
+        const safeBrollImg = sanitizeImagePromptForFlowSafety(rawImg, references);
         return normalizeBrollImagePrompt(
-          rawImg,
+          safeBrollImg,
           c.clipNumber,
           c.timeRange,
           durSec,
           c.brollCameraMotion || 'zoom_in'
         );
       }
-      const imgClean = stripBrollControlTagsFromImagePrompt(rawImg);
+      const safeImg = rawImg ? sanitizeImagePromptForFlowSafety(rawImg, references) : '';
+      const imgClean = stripBrollControlTagsFromImagePrompt(safeImg);
       const img =
         imgClean && !/\bfix\s+the\s+name\b\.?\s*$/i.test(imgClean)
           ? `${imgClean.replace(/\.?\s*$/, '.')} fix the name`
@@ -4371,7 +5292,7 @@ export function detectClipHasHumanSubjects(
 
   // 4. Check for human subjects, roles, crowds, pronouns, or visible human anatomy in action
   const humanSubjectRegex =
-    /\b(man|men|woman|women|boy|girl|child|children|adult|adults|person|people|crowd|audience|listeners|spectators|delegates|passengers|peasants|workers|laborers|miners|sailors|soldiers|medics|officers|guards|gendarmes|policeman|policemen|constable|officials|inspectors|clerks|notary|moneylender|usurer|merchants|grocer|governor|captain|doctor|doctors|physician|physicians|clinician|clinicians|surgeon|surgeons|nurse|nurses|patient|patients|pharmacist|pharmacists|scientist|scientists|researcher|researchers|scholar|scholars|professor|professors|biochemist|mycologist|chemist|chemists|bacteriologist|technician|technicians|assistant|assistants|journalist|reporter|diplomat|priest|monk|bishop|king|queen|emperor|prince|princess|noble|nobleman|noblewoman|farmer|farmers|villagers|citizens|migrants|emigrants|immigrants|travelers|pedestrians|couple|family|families|mother|father|parents|son|daughter|brother|sister|widow|elder|elders|veteran|blacksmith|carpenter|baker|tailor|weaver|fisherman|fishermen|shepherd|beggar|prisoner|captive|pilgrim|pilgrims|colonists|settlers|he|she|him|his|her|seated\s+beside|in\s+his\s+hands|in\s+her\s+hands|silhouette\s+of\s+a\s+(?:man|woman|person|figure|boy|girl|doctor|scientist|soldier)|figures?\s+(?:walking|standing|working|boarding|carrying|waiting|huddled|gathered|sitting|kneeling|running|looking|watching|leaning|examining)|(?:weathered|gloved|bare|trembling|steady|aged)\s+hands|hands\s+(?:holding|signing|counting|turning|resting|trembling|clutching|writing|tying|stitching|open|opening|closing|pouring|forging|hammering|placing|lifting|adjusting|sealing|labeling|examining|pipetting))\b/i;
+    /\b(man|men|woman|women|boy|girl|child|children|adult|adults|person|people|crowd|audience|listeners|spectators|delegates|passengers|peasants|workers|laborer|laborers|miners|sailors|soldiers|medics|officers|guards|gendarmes|policeman|policemen|constable|constables|contractor|contractors|officials|inspectors|clerks|notary|moneylender|usurer|merchants|grocer|governor|captain|doctor|doctors|physician|physicians|clinician|clinicians|surgeon|surgeons|nurse|nurses|patient|patients|pharmacist|pharmacists|scientist|scientists|researcher|researchers|scholar|scholars|professor|professors|director|directors|specialist|specialists|biochemist|biochemists|mycologist|mycologists|chemist|chemists|bacteriologist|bacteriologists|pathologist|pathologists|microbiologist|microbiologists|historian|historians|technician|technicians|assistant|assistants|journalist|reporter|diplomat|priest|monk|bishop|clergyman|king|queen|emperor|empress|prince|princess|monarch|monarchs|ruler|rulers|sovereign|sovereigns|noble|nobleman|noblewoman|farmer|farmers|villagers|citizens|migrants|emigrants|immigrants|refugee|refugees|exile|exiles|travelers|pedestrians|couple|family|families|mother|father|parents|son|daughter|brother|sister|widow|elder|elders|veteran|blacksmith|carpenter|baker|tailor|weaver|fisherman|fishermen|shepherd|beggar|prisoner|captive|pilgrim|pilgrims|colonists|settlers|actor|actors|actress|actresses|figure|figures|leader|leaders|statesman|statesmen|politician|politicians|poet|poets|writer|writers|author|authors|inventor|inventors|engineer|engineers|industrialist|industrialists|pioneer|pioneers|founder|founders|general|commander|admiral|colonel|minister|mayor|judge|lawyer|philosopher|composer|architect|explorer|operator|operators|\d+-year-old|he|she|him|his|her|seated\s+beside|in\s+his\s+hands|in\s+her\s+hands|silhouette\s+of\s+a\s+(?:man|woman|person|figure|boy|girl|doctor|scientist|soldier)|figures?\s+(?:walking|standing|working|boarding|carrying|waiting|huddled|gathered|sitting|kneeling|running|looking|watching|leaning|examining)|(?:weathered|gloved|bare|trembling|steady|aged)\s+hands|hands\s+(?:holding|signing|counting|turning|resting|trembling|clutching|writing|tying|stitching|open|opening|closing|pouring|forging|hammering|placing|lifting|adjusting|sealing|labeling|examining|pipetting))\b/i;
 
   if (humanSubjectRegex.test(combined)) {
     return true;

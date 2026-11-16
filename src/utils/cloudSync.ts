@@ -42,6 +42,9 @@ import {
   countRealAuthoredClips,
   countAuthoredBlocksInRawText,
   safeRebuildRawClipsText,
+  isAnonymousRoleReferenceTag,
+  sanitizeImagePromptForFlowSafety,
+  sanitizeVideoClipPromptForFlowSafety,
 } from './smartParsers';
 import {
   extractCleanPcmFromGeminiAudio,
@@ -720,480 +723,301 @@ export function normalizeDocumentaryVoiceoverAudio(doc: DocumentaryProject): Doc
     const newImg2 =
       'Image 2: Create an image of an adult Spanish farmer wearing a dark wool beret and brown corduroy jacket standing on the left side of a small wooden registration table on the wet stone dock of Maliaño in Santander, Spain, 1885, holding a single white rectangular paper steamship ticket in his right hand near his chest (strictly no coins or pouches), facing a port clerk in a dark wool coat and cap who is already seated on a wooden chair on the right side of the wooden table with his open hand resting on the tabletop waiting to receive the ticket, 16:9 horizontal, cinematic lighting, historical accuracy, no text, clean uncluttered composition with rigid architectural perspective, stationary period props, and clear anatomical separation between subjects, portrayed by anonymous historical reenactment actors in authentic period costume (no real public figures or prominent people).';
     const newClip2 =
-      "Clip 2 (00:06 - 00:16): Create a video in a steady medium two-shot on the wet stone dock in Santander, Spain, 1885, as the standing Spanish farmer in the dark wool beret reaches his right arm forward across the wooden table and places the single white rectangular paper steamship ticket directly into the waiting hand of the port clerk sitting on the wooden chair at the table, who closes his fingers around the paper ticket, pulls it toward himself over the tabletop, and looks down to inspect it, strictly no voiceover. The paper ticket stays a single flat rectangular paper ticket as it passes smoothly from the farmer's hand into the seated clerk's hand without morphing or transforming into coins or any other object. Both men keep their mouths closed in silent action with zero spoken words, zero narration, and zero voiceover. Ambient Foley: steady rain pattering on wet stone, crisp paper ticket rustle as it changes hands, distant harbor waves, single continuous shot, strictly no shot changes, no music, no speech, no text. Año 1885, muelle de Maliaño, Santander, España. La rampa de piedra húmeda donde miles de campesinos del norte entregaban los ahorros de toda una vida para cruzar. fix the name";
+      "Clip 2 (00:06 - 00:16): Create a video in a steady medium two-shot on the wet stone dock in Santander, Spain, 1885, as the standing Spanish farmer in the dark wool beret reaches his right arm forward across the wooden table and places the single white rectangular paper steamship ticket directly into the waiting hand of the port clerk sitting on the wooden chair at the table, who closes his fingers around the paper ticket, pulls it toward himself over the tabletop, and looks down to inspect it, strictly no voiceover. The paper ticket stays a single flat rectangular paper ticket as it passes smoothly from the farmer's hand into the seated clerk's hand without morphing or transforming into coins or any other object. Both men keep their mouths closed in silent action with zero spoken words, zero narration, and zero voiceover. Ambient Foley: steady rain pattering on wet stone, crisp paper ticket rustle as it changes hands, distant harbor waves, single continuous shot, strictly no shot changes, no music, no speech, no text. fix the name";
 
     const newImg5 =
-      'Image 5: Create an image of a massive black-hulled 1885 transatlantic steamship sailing away into a dark stormy Atlantic night, illuminated by a sweeping golden beam of light from a stone harbor lighthouse in the foreground as waves crash against the wet breakwater, 16:9 horizontal, cinematic lighting, historical accuracy, no text, clean uncluttered composition with rigid architectural perspective, stationary period props, and clear anatomical separation between subjects, portrayed by anonymous historical reenactment actors in authentic period costume (no real public figures or prominent people).';
+      'Image 5: Create an image of a massive black-hulled 1885 transatlantic steamship sailing away into a dark stormy Atlantic night, illuminated by a sweeping golden beam of light from a stone harbor lighthouse in the foreground as waves crash against the wet breakwater, 16:9 horizontal, cinematic lighting, historical accuracy, no text, clean uncluttered composition with rigid architectural perspective, stationary period props, strictly empty environment with no people present.';
     const newClip5 =
-      'Clip 5 (00:36 - 00:46): Create a video showing a slow cinematic push-in along the wet stone breakwater in Santander, Spain, 1885, as the golden lighthouse beam sweeps through the mist over the dark Atlantic waves and the distant black-hulled steamship sails deeper into the night horizon. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 10-second shot. Sustained, unhurried continuous action across the full 10 seconds, holding a natural composed posture through the final frame. Fixed subject count from 0s to 10s: exact same character(s) remain in frame with locked anatomy, no new people appearing out of nowhere mid-shot, no characters vanishing or morphing, background figures stationary in soft f/1.8 bokeh. Solid, non-deforming walls and rigid 3D architectural geometry from 0s to 10s that never warp, breathe, or mutate during camera movement. All furniture, tables, and props remain 100% physically solid and non-deforming from 0s to 10s, with zero self-moving, floating, morphing, mutating, vanishing, or shape-shifting objects. Cinematic historical drama reenactment featuring anonymous fictionalized theatre actors in period costume (no real public figures or prominent people, no unintended explosions or flashes). Ambient Foley: deep distant foghorn echoing, heavy Atlantic waves breaking against stone, wind whistling, single continuous shot, strictly no shot changes, no music, no speech, no text. de hacer la América, desde las bodegas asfixiantes de tercera clase y los campamentos de cuarentena hasta la servidumbre silenciosa de quienes dormían sobre mostradores de madera. fix the name';
+      'Clip 5 (00:36 - 00:46): Create a video showing a slow cinematic push-in along the wet stone breakwater in Santander, Spain, 1885, as the golden lighthouse beam sweeps through the mist over the dark Atlantic waves and the distant black-hulled steamship sails deeper into the night horizon, with no people present. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects, steady continuous lighting with zero sudden flashes. Ambient Foley: deep distant foghorn echoing, heavy Atlantic waves breaking against stone, wind whistling, single continuous shot, strictly no shot changes, no music, no speech, no text. fix the name';
 
     const newImg19 =
       'Image 19: Create an image of a bright sunlit outdoor harbor pier in Santander, Spain, 1885, a weathered peasant hand holding a printed third-class steamship ticket and silver peseta coins in the foreground while a massive black-hulled transatlantic steamship vents white steam in the background, 16:9 horizontal, cinematic daylight, historical accuracy, no text.';
     const newClip19 =
-      "Clip 19 (02:56 - 03:06): Create a video showing a slow camera push-in past the peasant's hand holding the third-class steamship ticket and silver coins on the sunlit stone pier toward the towering black hull of the transatlantic steamship in Santander harbor, Spain, 1885. Ambient Foley: crisp paper ticket fluttering in sea breeze, clinking silver coins, distant steamship horn and harbor waves, single continuous shot, strictly no shot changes, no music, no speech, no text. billete de tercera clase en vapor hacia La Habana o Veracruz costaba entre 205 y 235 pesetas. La aritmética de la supervivencia no dejaba alternativa: o. fix the name";
+      "Clip 19 (02:56 - 03:06): Create a video showing a slow camera push-in past the peasant's hand holding the third-class steamship ticket and silver coins on the sunlit stone pier toward the towering black hull of the transatlantic steamship in Santander harbor, Spain, 1885. Ambient Foley: crisp paper ticket fluttering in sea breeze, clinking silver coins, distant steamship horn and harbor waves, single continuous shot, strictly no shot changes, no music, no speech, no text. fix the name";
 
     const newImg20 =
-      'Image 20: Create an image of @Ricardo_Ruiz_Balbin holding a rope-tied wooden trunk and embracing his weeping mother in black wool shawls in the foreground beside their stone cottage in Lué, Asturias, Spain, 1885, with a long misty dirt road stretching straight away into the background distance, 16:9 horizontal, cinematic lighting, historical accuracy, no text.';
+      'Image 20: Create an image of an adult Asturian peasant emigrant in a dark wool beret and homespun jacket holding a rope-tied wooden trunk and embracing his weeping mother in black wool shawls in the foreground beside their stone cottage in Lué, Asturias, Spain, 1885, with a long misty dirt road stretching straight away into the background distance, 16:9 horizontal, cinematic lighting, historical accuracy, no text.';
     const newClip20 =
-      "Clip 20 (03:06 - 03:16): Create a video showing a steady shot from behind as @Ricardo_Ruiz_Balbin gently releases his weeping mother's embrace in the foreground, turns his back to the camera, and walks straight away from her and away from the camera down the misty dirt road into the distance in Asturias, Spain, 1885, without ever turning back or changing direction. Ambient Foley: rough wool fabric rustling, wooden trunk handle creaking, footsteps receding on wet gravel, single continuous shot, strictly no shot changes, no music, no speech, no text. pagar 2 mil pesetas para no ir a la guerra en la manigua, o embarcar por la décima parte antes de cumplir los 20 años. fix the name";
+      "Clip 20 (03:06 - 03:16): Create a video showing a steady shot from behind as the adult Asturian peasant emigrant in a dark wool beret gently releases his weeping mother's embrace in the foreground, turns his back to the camera, and walks straight away from her and away from the camera down the misty dirt road into the distance in Asturias, Spain, 1885, without ever turning back or changing direction. Ambient Foley: rough wool fabric rustling, wooden trunk handle creaking, footsteps receding on wet gravel, single continuous shot, strictly no shot changes, no music, no speech, no text. fix the name";
 
     const newImg23 =
       'Image 23: Create an image from behind of a single Spanish soldier in a straw hat and canvas pack standing still with his hands resting on the iron deck railing of a transport steamship departing Cádiz harbor, Spain, 1895, looking out at the receding stone pier across the water, 16:9 horizontal, golden late-afternoon light, cinematic lighting, historical accuracy, no text.';
     const newClip23 =
-      "Clip 23 (03:36 - 03:46): Create a video showing a slow over-the-shoulder push-in behind the single Spanish soldier standing still at the ship's iron railing in Cádiz harbor, Spain, 1895, as sea breeze gently moves his hat brim and ocean waves ripple below. Ambient Foley: deep steamship horn echoing across the bay, ocean waves lapping against the hull, sea wind, single continuous shot, strictly no shot changes, no music, no speech, no text. y Gibraltar. Incluso el aparato militar operó como un puente sin retorno: de los 345 mil soldados enviados a Cuba a finales del siglo XIX, cerca. fix the name";
+      "Clip 23 (03:36 - 03:46): Create a video showing a slow over-the-shoulder push-in behind the single Spanish soldier standing still at the ship's iron railing in Cádiz harbor, Spain, 1895, as sea breeze gently moves his hat brim and ocean waves ripple below. Ambient Foley: deep steamship horn echoing across the bay, ocean waves lapping against the hull, sea wind, single continuous shot, strictly no shot changes, no music, no speech, no text. fix the name";
 
     const newImg27 =
       'Image 27: Create an image of two mature 45-year-old Spanish emigrants in wool berets and heavy corduroy coats standing beside rope-tied wooden trunks on the wet cobblestone pier of La Coruña, Spain, 1905, examining a paper steamship ticket while a massive black-hulled steamship rests moored in soft f/1.8 background bokeh, 16:9 horizontal, cinematic lighting, historical accuracy, no text, clean uncluttered composition with rigid architectural perspective, stationary period props, and clear anatomical separation between subjects, portrayed by anonymous historical reenactment actors in authentic period costume (no real public figures or prominent people). STRICT ADULTS-ONLY CAST (AGES 35–60): Every single person in foreground and background is a mature adult aged 35 to 60 years old; strictly zero children, zero infants, zero minors, zero teenagers, and zero underage figures anywhere in the frame.';
     const newClip27 =
-      'Clip 27 (04:16 - 04:26): Create a video showing a slow dolly push-in on the two mature 45-year-old Spanish emigrants in wool berets standing beside their stationary wooden trunks on the wet stone pier in La Coruña, Spain, 1905, looking up from their ticket toward the moored steamship as harbor mist drifts past. STRICT ADULTS-ONLY CAST (AGES 35–60): Every single person in foreground and background is a mature adult aged 35 to 60 years old; strictly zero children, zero infants, zero minors, zero teenagers, and zero underage figures anywhere in the frame. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 10-second shot. Fixed subject count from 0s to 10s with stationary wooden trunks on the stone ground. Ambient Foley: Atlantic harbor breeze, gentle water lapping stone pier, distant steamship horn, single continuous shot, strictly no shot changes, no music, no speech, no text. de La Coruña, de donde partieron cerca de 500 mil pasajeros, así como en Vigo, Santander, el puerto de El Musel en Gijón, Tenerife. fix the name';
+      'Clip 27 (04:16 - 04:26): Create a video showing a slow dolly push-in on the two mature 45-year-old Spanish emigrants in wool berets standing beside their stationary wooden trunks on the wet stone pier in La Coruña, Spain, 1905, looking up from their ticket toward the moored steamship as harbor mist drifts past. STRICT ADULTS-ONLY CAST (AGES 35–60): Every single person in foreground and background is a mature adult aged 35 to 60 years old; strictly zero children, zero infants, zero minors, zero teenagers, and zero underage figures anywhere in the frame. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Fixed subject count from 0s to 8s with stationary wooden trunks on the stone ground. Ambient Foley: Atlantic harbor breeze, gentle water lapping stone pier, distant steamship horn, single continuous shot, strictly no shot changes, no music, no speech, no text. fix the name';
 
     const newImg35 =
       'Image 35: Create an image of the dark iron boiler room of a Spanish transatlantic steamship in 1907, soot-covered stokers resting their shovels as the glowing coal furnaces dim and white steam settles around brass pressure gauges, 16:9 horizontal, cinematic lighting, historical accuracy, no text.';
     const newClip35 =
-      'Clip 35 (05:36 - 05:46): Create a video showing a slow push-in toward the dimming iron coal furnaces and brass pressure gauges in the quiet steamship boiler room in 1907 as thin white steam gently dissipates in the air. Ambient Foley: dying furnace embers crackling softly, final steam valve hiss fading into silence, cooling iron ticking, single continuous shot, strictly no shot changes, no music, no speech, no text. de Alfonso XIII, todos compartían la misma incertidumbre al divisar la costa americana. ¿Qué ocurría realmente cuando las calderas se apagaban y aquellos viajeros exhaustos se. fix the name';
+      'Clip 35 (05:36 - 05:46): Create a video showing a slow push-in toward the dimming iron coal furnaces and brass pressure gauges in the quiet steamship boiler room in 1907 as thin white steam gently dissipates in the air, with no people present. Ambient Foley: dying furnace embers crackling softly, final steam valve hiss fading into silence, cooling iron ticking, single continuous shot, strictly no shot changes, no music, no speech, no text. fix the name';
     const newImg42 =
       "Image 42: Create an image of stacked emigrants' wooden trunks with tied cardboard quarantine tags in the empty sunlit reception hall of Triscornia camp, Havana, Cuba, 1905, beside a wooden table holding amber glass bottles of disinfectant and a brass medical seal, strictly an empty architectural interior with zero people and no human figures anywhere in the frame, 16:9 horizontal, warm window light, cinematic lighting, historical accuracy, no text.";
     const newClip42 =
-      'Clip 42 (06:46 - 06:56): Create a video showing a slow lateral camera dolly across the stacked wooden trunks with quarantine tags and the amber glass disinfectant bottles on the wooden table in the empty sunlit reception hall of Triscornia, Havana, Cuba, 1905, as dust motes float in the warm window light, strictly an empty architectural interior with zero people and no human figures anywhere in the frame. Ambient Foley: paper quarantine tags fluttering softly in the draft, wooden floorboards creaking, distant harbor breeze, single continuous shot, strictly no shot changes, no music, no speech, no text. paseo central por jardines con 35 mil rosales. Al mando del campamento se encontraba el doctor Frank Menocal, cirujano de 39 años de edad hacia 1905. fix the name';
+      'Clip 42 (06:46 - 06:56): Create a video showing a slow lateral camera dolly across the stacked wooden trunks with quarantine tags and the amber glass disinfectant bottles on the wooden table in the empty sunlit reception hall of Triscornia, Havana, Cuba, 1905, as dust motes float in the warm window light, strictly an empty architectural interior with zero people and no human figures anywhere in the frame. Ambient Foley: paper quarantine tags fluttering softly in the draft, wooden floorboards creaking, distant harbor breeze, single continuous shot, strictly no shot changes, no music, no speech, no text. fix the name';
     const newImg45 =
       "Image 45: Create an image of the interior of a wooden dormitory pavilion in Triscornia camp, Havana, Cuba, 1905, showing neat rows of empty folding canvas cots with folded wool blankets and emigrants' wooden trunks resting at the foot of each cot, warm beams of tropical sunlight streaming through screened wooden windows, strictly an empty architectural interior with zero people and no human figures anywhere in the frame, 16:9 horizontal, cinematic lighting, historical accuracy, no text.";
     const newClip45 =
-      'Clip 45 (07:16 - 07:26): Create a video showing a slow, smooth forward dolly shot down the center aisle between the rows of empty canvas cots and wooden trunks inside the sunlit wooden pavilion in Havana, Cuba, 1905, as dust motes float gently in the beams of window light, strictly an empty architectural interior with zero people and no human figures anywhere in the frame. Ambient Foley: wooden floorboards creaking softly, warm tropical breeze rustling window screens, distant harbor ambience, single continuous shot, strictly no shot changes, no music, no speech, no text. varilla de vidrio buscando granulaciones de tracoma, una infección ocular que significaba la deportación inmediata. Entre julio y octubre de 1905 arribaron más de. fix the name';
+      'Clip 45 (07:16 - 07:26): Create a video showing a slow, smooth forward dolly shot down the center aisle between the rows of empty canvas cots and wooden trunks inside the sunlit wooden pavilion in Havana, Cuba, 1905, as dust motes float gently in the beams of window light, strictly an empty architectural interior with zero people and no human figures anywhere in the frame. Ambient Foley: wooden floorboards creaking softly, warm tropical breeze rustling window screens, distant harbor ambience, single continuous shot, strictly no shot changes, no music, no speech, no text. fix the name';
     const newImg52 =
       'Image 52: Create an image of two adult Spanish immigrant women in wool berets and dark shawls walking forward down a cobblestone street in Mexico City, Mexico, 1910, carrying rope-tied wooden trunks, 16:9 horizontal, cinematic lighting, historical accuracy, no text, clean uncluttered composition with rigid architectural perspective, stationary period props, and clear anatomical separation between subjects, portrayed by anonymous historical reenactment actors in authentic period costume (no real public figures or prominent people). STRICT ADULTS-ONLY CAST (AGES 35–60): Every single person in foreground and background is a mature adult aged 35 to 60 years old; strictly zero children, zero infants, zero minors, zero teenagers, and zero underage figures anywhere in the frame.';
     const newClip52 =
-      'Clip 52 (08:26 - 08:36): Create a video showing a smooth backward tracking dolly shot moving continuously ahead of the two Spanish immigrant women in wool berets as they keep walking steadily forward down the cobblestone street in Mexico City, Mexico, 1910, carrying their wooden trunks while the camera follows their uninterrupted walk from start to finish without stopping. SINGLE CONTINUOUS UNBROKEN TAKE (ZERO CUTS): Strict one-shot continuous cinematography from 0s to 10s in a single uninterrupted camera take; strictly zero camera cuts, zero shot jumps, zero angle switches, zero scene changes, and zero split screens throughout the entire clip. STRICT ADULTS-ONLY CAST (AGES 35–60): Every single person in foreground and background is a mature adult aged 35 to 60 years old; strictly zero children, zero infants, zero minors, zero teenagers, and zero underage figures anywhere in the frame. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 10-second shot. Ambient Foley: steady leather boots walking on cobblestones, wooden trunk handles creaking softly, distant carriage wheels, single continuous shot, strictly no shot changes, no music, no speech, no text. pana por el dril blanco y las alpargatas de cáñamo, escribió el 13 de diciembre de 1920 una carta a su madre, Bernarda Ruiz Balbín, tranquilizándola sobre. fix the name';
+      'Clip 52 (08:26 - 08:36): Create a video showing a smooth backward tracking dolly shot moving continuously ahead of the two Spanish immigrant women in wool berets as they keep walking steadily forward down the cobblestone street in Mexico City, Mexico, 1910, carrying their wooden trunks while the camera follows their uninterrupted walk from start to finish without stopping. SINGLE CONTINUOUS UNBROKEN TAKE (ZERO CUTS): Strict one-shot continuous cinematography from 0s to 8s in a single uninterrupted camera take; strictly zero camera cuts, zero shot jumps, zero angle switches, zero scene changes, and zero split screens throughout the entire clip. STRICT ADULTS-ONLY CAST (AGES 35–60): Every single person in foreground and background is a mature adult aged 35 to 60 years old; strictly zero children, zero infants, zero minors, zero teenagers, and zero underage figures anywhere in the frame. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Ambient Foley: steady leather boots walking on cobblestones, wooden trunk handles creaking softly, distant carriage wheels, single continuous shot, strictly no shot changes, no music, no speech, no text. fix the name';
     const newImg55 =
       "Image 55: Create an image of a stern older Spanish store owner in a dark vest standing with both hands resting empty on a polished mahogany counter in a traditional grocery store in Mexico City, Mexico, 1910, speaking seriously to an adult newly arrived Spanish clerk in a white linen apron standing across the counter with empty hands (strictly no brooms or tools in anyone's hands), 16:9 horizontal, cinematic lighting, historical accuracy, no text. STRICT ADULTS-ONLY CAST (AGES 35–60): Every single person in foreground and background is a mature adult aged 35 to 60 years old; strictly zero children, zero infants, zero minors, zero teenagers, and zero underage figures anywhere in the frame.";
     const newClip55 =
-      'Clip 55 (08:56 - 09:06): Create a video showing a steady medium shot as the stern Spanish store owner stands behind the mahogany counter in Mexico City, Mexico, 1910, speaking and giving instructions with a calm authoritative gesture of his empty hand (without handing over any broom or object), while the clerk in the white apron nods respectfully, turns away from the counter, and walks out of the scene to go work. Ambient Foley: hands resting on polished mahogany wood, linen apron rustling, leather boots walking away on wooden floorboards, pocket watch ticking, single continuous shot, strictly no shot changes, no music, no speech, no text. STRICT ADULTS-ONLY CAST (AGES 35–60): Every single person in foreground and background is a mature adult aged 35 to 60 years old; strictly zero children, zero infants, zero minors, zero teenagers, and zero underage figures anywhere in the frame. tiendas y panaderías para alcanzar la prometida prosperidad? Lejos del mito romántico del indiano que amasaba fortuna al instante, los almacenes de abarrotes como El. fix the name';
+      'Clip 55 (08:56 - 09:06): Create a video showing a steady medium shot as the stern Spanish store owner stands behind the mahogany counter in Mexico City, Mexico, 1910, speaking and giving instructions with a calm authoritative gesture of his empty hand (without handing over any broom or object), while the clerk in the white apron nods respectfully, turns away from the counter, and walks out of the scene to go work. Ambient Foley: hands resting on polished mahogany wood, linen apron rustling, leather boots walking away on wooden floorboards, pocket watch ticking, single continuous shot, strictly no shot changes, no music, no speech, no text. STRICT ADULTS-ONLY CAST (AGES 35–60): Every single person in foreground and background is a mature adult aged 35 to 60 years old; strictly zero children, zero infants, zero minors, zero teenagers, and zero underage figures anywhere in the frame. fix the name';
     const newImg58 =
       'Image 58: Create an image captured from behind of a single mature 40-year-old Spanish store clerk in rolled-up white shirt sleeves and a linen apron standing inside the dim empty grocery store in Mexico City, Mexico, 1910, pushing open the tall wooden window shutters at 5 AM as the first blue-gold light of dawn spills across the swept wooden floor and stacked burlap flour sacks, strictly one single adult in frame, 16:9 horizontal, cinematic lighting, historical accuracy, no text. STRICT ADULTS-ONLY CAST (AGES 35–60): Strictly zero children, zero infants, zero minors, zero teenagers, and zero underage figures anywhere in the frame.';
     const newClip58 =
-      'Clip 58 (09:26 - 09:36): Create a video showing a slow push-in from behind the single mature 40-year-old Spanish clerk standing by the tall open wooden shutters at 5 AM dawn inside the quiet grocery store in Mexico City, Mexico, 1910, as early morning light floods across the swept wooden floorboards and stationary burlap sacks. STRICT ADULTS-ONLY CAST (AGES 35–60): Strictly one single mature adult in frame with zero minors. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 10-second shot. Ambient Foley: heavy wooden shutter hinges creaking open, quiet dawn breeze, distant rooster and morning bell, single continuous shot, strictly no shot changes, no music, no speech, no text. que borraba toda frontera entre el trabajo y la vida privada. La jornada arrancaba a las 5 de la mañana barriendo el local, encendiendo la leña de. fix the name';
+      'Clip 58 (09:26 - 09:36): Create a video showing a slow push-in from behind the single mature 40-year-old Spanish clerk standing by the tall open wooden shutters at 5 AM dawn inside the quiet grocery store in Mexico City, Mexico, 1910, as early morning light floods across the swept wooden floorboards and stationary burlap sacks. STRICT ADULTS-ONLY CAST (AGES 35–60): Strictly one single mature adult in frame with zero minors. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Ambient Foley: heavy wooden shutter hinges creaking open, quiet dawn breeze, distant rooster and morning bell, single continuous shot, strictly no shot changes, no music, no speech, no text. fix the name';
     const newImg59 =
       "Image 59: Create an image of an authentic 1910 Spanish bodega counter in Havana, Cuba at 10 PM at night with zero people, featuring a steaming porcelain cup of dark coffee and a glass of clear aguardiente beside a heavy glass bottle on a worn zinc-topped wooden counter, illuminated by a glowing brass carbide gas lamp hanging above, an antique round wall clock in the dim background showing ten o'clock, 16:9 horizontal, moody chiaroscuro lighting, 35mm film grain, photorealistic historical still life, no text, clean uncluttered composition with rigid architectural perspective and stationary period props (strictly zero people or human figures in frame).";
     const newClip59 =
-      'Clip 59 (09:36 - 09:46): Create a video showing a slow, ultra-smooth macro push-in across the empty zinc-topped wooden bodega counter in Havana, Cuba, 1910, with strictly zero people in frame, focusing on gentle steam rising from a porcelain coffee cup beside a glass of aguardiente under the warm flickering glow of an overhead brass carbide gas lamp. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 10-second shot. Strictly zero people or human figures appearing anywhere in the frame from 0s to 10s. Solid, non-deforming walls and rigid 3D architectural geometry from 0s to 10s that never warp, breathe, or mutate during camera movement. All tables, documents, weapons, tools, furniture, and props remain 100% gravity-locked, physically solid, and completely stationary on surfaces from 0s to 10s, with zero self-moving, floating, morphing, mutating, vanishing, or shape-shifting objects. Cinematic historical documentary still-life cinematography (strictly zero people in frame, no unintended explosions or flashes). Ambient Foley: steady hiss of the carbide gas lamp, faint wooden floorboard creak, quiet night room tone, single continuous shot, strictly no shot changes, no music, no speech, no text. los hornos abovedados de ladrillo refractario o despachando café y aguardiente bajo el siseo de las lámparas de gas carburo, y no terminaba hasta las 10. fix the name';
+      'Clip 59 (09:36 - 09:46): Create a video showing a slow, ultra-smooth macro push-in across the empty zinc-topped wooden bodega counter in Havana, Cuba, 1910, with strictly zero people in frame, focusing on gentle steam rising from a porcelain coffee cup beside a glass of aguardiente under the warm flickering glow of an overhead brass carbide gas lamp. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Strictly zero people or human figures appearing anywhere in the frame from 0s to 8s. Solid, non-deforming walls and rigid 3D architectural geometry from 0s to 8s that never warp, breathe, or mutate during camera movement. All tables, documents, weapons, tools, furniture, and props remain 100% gravity-locked, physically solid, and completely stationary on surfaces from 0s to 8s, with zero self-moving, floating, morphing, mutating, vanishing, or shape-shifting objects. Cinematic historical documentary still-life cinematography (strictly zero people in frame, steady continuous lighting with zero sudden flashes). Ambient Foley: steady hiss of the carbide gas lamp, faint wooden floorboard creak, quiet night room tone, single continuous shot, strictly no shot changes, no music, no speech, no text. fix the name';
     const newImg60 =
       'Image 60: Create an image of an exhausted adult Spanish store clerk sitting quietly on an already unrolled straw petate mat and folded canvas blanket atop a long mahogany and zinc store counter at night in Mexico City, Mexico, 1910, beside a stationary brass scale and a dim oil lantern, 16:9 horizontal, cinematic low-key night lighting, historical accuracy, no text.';
     const newClip60 =
-      'Clip 60 (09:46 - 09:56): Create a video showing a slow dolly push-in on the exhausted Spanish clerk sitting still on the straw mat atop the mahogany counter in the dark store in Mexico City, Mexico, 1910, resting his head on his hand beside the brass scale as the oil lantern flame flickers softly. Ambient Foley: quiet night room tone, faint oil lamp hum, tired sigh, wooden counter creaking slightly, single continuous shot, strictly no shot changes, no music, no speech, no text. de la noche. Para ahorrar alquileres y vigilar la mercancía frente a robos o incendios, los dependientes tenían prohibido vivir fuera de la tienda. fix the name';
+      'Clip 60 (09:46 - 09:56): Create a video showing a slow dolly push-in on the exhausted Spanish clerk sitting still on the straw mat atop the mahogany counter in the dark store in Mexico City, Mexico, 1910, resting his head on his hand beside the brass scale as the oil lantern flame flickers softly. Ambient Foley: quiet night room tone, faint oil lamp hum, tired sigh, wooden counter creaking slightly, single continuous shot, strictly no shot changes, no music, no speech, no text. fix the name';
     const newImg72 =
       'Image 72: Create an image of an elderly mother in black wool shawl standing by a stone mailbox on a rainy mountain road in Galicia, Spain, 1931, with the muddy country lane stretching away into the misty distance behind her, 16:9 horizontal, cinematic lighting, historical accuracy, no text, clean uncluttered composition with rigid architectural perspective, stationary period props, and clear anatomical separation between subjects, portrayed by anonymous historical reenactment actors in authentic period costume (no real public figures or prominent people).';
     const newClip72 =
-      'Clip 72 (11:46 - 11:56): Create a video showing a steady shot as the elderly mother in black wool shawl turns her back to the camera and walks slowly and steadily away from the camera down the rainy mountain road into the misty distance in Galicia, Spain, 1931, receding farther down the path without ever turning back. SINGLE CONTINUOUS UNBROKEN TAKE (ZERO CUTS): Strict one-shot continuous cinematography from 0s to 10s in a single uninterrupted camera take; strictly zero camera cuts, zero shot jumps, zero angle switches, zero scene changes, and zero split screens throughout the entire clip. STRICT PURE AMBIENT FOLEY ONLY (NO MUSIC, NO VOICE): Characters keep mouths naturally closed in silent contemplation with zero lip movement or speaking; audio track must contain 100% pure environmental foley and natural room tone only (subtle fabric rustle, soft footsteps, wind, or room acoustics) with strictly zero background music, zero musical instruments, zero singing, zero choir, zero dialogue, zero narration, and zero human voices. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 10-second shot. Ambient Foley: cold rain falling on stone, slow footsteps receding on wet muddy gravel, lonely wind across valley, single continuous shot, strictly no shot changes, no music, no speech, no text. Triscornia o repatriados por caridad. Muchos, consumidos por la tuberculosis en las trastiendas húmedas y avergonzados de haber fracasado, dejaron de escribir a sus madres, prefiriendo. fix the name';
+      'Clip 72 (11:46 - 11:56): Create a video showing a steady shot as the elderly mother in black wool shawl turns her back to the camera and walks slowly and steadily away from the camera down the rainy mountain road into the misty distance in Galicia, Spain, 1931, receding farther down the path without ever turning back. SINGLE CONTINUOUS UNBROKEN TAKE (ZERO CUTS): Strict one-shot continuous cinematography from 0s to 8s in a single uninterrupted camera take; strictly zero camera cuts, zero shot jumps, zero angle switches, zero scene changes, and zero split screens throughout the entire clip. STRICT PURE AMBIENT FOLEY ONLY (NO MUSIC, NO VOICE): Characters keep mouths naturally closed in silent contemplation with zero lip movement or speaking; audio track must contain 100% pure environmental foley and natural room tone only (subtle fabric rustle, soft footsteps, wind, or room acoustics) with strictly zero background music, zero musical instruments, zero singing, zero choir, zero dialogue, zero narration, and zero human voices. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Ambient Foley: cold rain falling on stone, slow footsteps receding on wet muddy gravel, lonely wind across valley, single continuous shot, strictly no shot changes, no music, no speech, no text. fix the name';
     const newImg76 =
-      'Image 76: Create an image of @Pedro_Garfias_Zurita wearing thick tortoise-shell glasses, a black beret, and a worn shepherd jacket standing thoughtfully at the iron railing on the Sinaia steamship deck in Veracruz harbor, Mexico, 1939, surrounded only by adult passengers aged 35 to 60 in the background, 16:9 horizontal, cinematic lighting, historical accuracy, no text. STRICT ADULTS-ONLY CAST (AGES 35–60): Every single person in foreground and background is a mature adult aged 35 to 60 years old; strictly zero children, zero infants, zero minors, zero teenagers, and zero underage figures anywhere in the frame.';
+      'Image 76: Create an image of a 38-year-old exiled Spanish poet wearing thick tortoise-shell glasses, a black beret, and a worn shepherd jacket standing thoughtfully at the iron railing on the Sinaia steamship deck in Veracruz harbor, Mexico, 1939, surrounded only by adult passengers aged 35 to 60 in the background, 16:9 horizontal, cinematic lighting, historical accuracy, no text. STRICT ADULTS-ONLY CAST (AGES 35–60): Every single person in foreground and background is a mature adult aged 35 to 60 years old; strictly zero children, zero infants, zero minors, zero teenagers, and zero underage figures anywhere in the frame.';
     const newClip76 =
-      'Clip 76 (12:26 - 12:36): Create a video showing a slow dolly-in on @Pedro_Garfias_Zurita wearing thick glasses and a black beret standing thoughtfully at the ship railing in Veracruz harbor, Mexico, 1939, looking toward the port as the harbor breeze moves his coat lapel. Ambient Foley: gentle harbor waves against the hull, distant gull cries, soft sea breeze, single continuous shot, strictly no shot changes, no music, no speech, no text. STRICT ADULTS-ONLY CAST (AGES 35–60): Every single person in foreground and background is a mature adult aged 35 to 60 years old; strictly zero children, zero infants, zero minors, zero teenagers, and zero underage figures anywhere in the frame. gastado, boina negra, chamarra de pastor zamorano y gruesas gafas de concha el poeta de 38 años @Pedro_Garfias_Zurita, junto a médicos, científicos, maestros y. fix the name';
+      'Clip 76 (12:26 - 12:36): Create a video showing a slow dolly-in on the 38-year-old exiled Spanish poet wearing thick glasses and a black beret standing thoughtfully at the ship railing in Veracruz harbor, Mexico, 1939, looking toward the port as the harbor breeze moves his coat lapel. Ambient Foley: gentle harbor waves against the hull, distant gull cries, soft sea breeze, single continuous shot, strictly no shot changes, no music, no speech, no text. STRICT ADULTS-ONLY CAST (AGES 35–60): Every single person in foreground and background is a mature adult aged 35 to 60 years old; strictly zero children, zero infants, zero minors, zero teenagers, and zero underage figures anywhere in the frame. fix the name';
+
+    const repairV76LegacyCorruptions = (txt: string, clipNum: number, isImg: boolean): string => {
+      if (!txt) return txt;
+      let out = txt;
+      if (clipNum === 33) {
+        out = out.replace(
+          /\bthe period historical artifact\b/gi,
+          isImg ? 'an adult Spanish emigrant passenger in a worn wool coat' : 'the adult Spanish emigrant passenger'
+        );
+      } else if (clipNum === 36) {
+        out = out
+          .replace(
+            /\bof an elderly historical clergyman in ornate ceremonial vestments,\s*portrayed by an anonymous actor\b/gi,
+            'of the historic coastal island bastion'
+          )
+          .replace(/\bthe ancient coral-stone fortress of the historic coastal island bastion\b/gi, 'the ancient coastal island coral-stone fortress');
+      } else if (clipNum === 41 || clipNum === 43) {
+        out = out
+          .replace(
+            /\bthe period historical artifact,\s*age\s*39\b/gi,
+            'a 39-year-old quarantine camp chief physician'
+          )
+          .replace(
+            /\bthe period historical artifact\b/gi,
+            isImg ? 'a 39-year-old quarantine camp chief physician' : 'the quarantine camp chief physician'
+          );
+      } else if (clipNum === 49) {
+        out = out
+          .replace(
+            /\bthe period historical artifact,\s*age\s*18\b/gi,
+            'a 22-year-old Asturian immigrant laborer'
+          )
+          .replace(
+            /\bthe period historical artifact\b/gi,
+            isImg ? 'a 22-year-old Asturian immigrant laborer' : 'the adult Asturian immigrant laborer'
+          );
+      } else if (clipNum === 50) {
+        out = out.replace(
+          /\bthe period historical artifact\b/gi,
+          isImg ? 'an adult Spanish immigrant laborer' : 'the adult Spanish immigrant laborer'
+        );
+      }
+      out = out
+        .replace(/\btwo mature adult woman in her mid-twenties\b/gi, 'two mature 45-year-old')
+        .replace(/\bsingle mature adult woman in her mid-twenties\b/gi, 'single mature 40-year-old')
+        .replace(/\badult woman in her mid-twenties Spanish\b/gi, 'adult 40-year-old Spanish');
+      return out;
+    };
 
     if (Array.isArray(doc.clips)) {
       let clipsChanged = false;
       const updated = doc.clips.map((c) => {
+        if (!c) return c;
+        let nextImg = c.imagePrompt || '';
+        let nextVid = c.videoPrompt || '';
         if (
-          c &&
           c.clipNumber === 2 &&
-          (/holding a ticket and coin pouch|period historical artifact/i.test(c.imagePrompt || '') ||
-            /handing his savings|narrative voice enters at 00:08|showing a slow dolly push-in on the wet stone dock/i.test(
-              c.videoPrompt || ''
+          (/holding a ticket and coin pouch|period historical artifact/i.test(nextImg) ||
+            /handing his savings|narrative voice enters at 00:08|showing a slow dolly push-in on the wet stone dock|Año 1885/i.test(
+              nextVid
             ) ||
-            !/standing on the left side of a small wooden registration table/i.test(
-              c.imagePrompt || ''
-            ))
+            !/standing on the left side of a small wooden registration table/i.test(nextImg))
         ) {
-          clipsChanged = true;
-          return {
-            ...c,
-            imagePrompt: newImg2,
-            videoPrompt: newClip2,
-          };
-        }
-        if (
-          c &&
+          nextImg = newImg2;
+          nextVid = newClip2;
+        } else if (
           c.clipNumber === 5 &&
-          (/antique historian's|parchment scrolls|feather quill/i.test(c.imagePrompt || '') ||
-            /antique historian's|parchment scrolls|inkpot/i.test(c.videoPrompt || '') ||
-            !/stone harbor lighthouse/i.test(c.imagePrompt || '') ||
-            !/^Image\s+5\s*:/i.test((c.imagePrompt || '').trim()))
+          (/antique historian's|parchment scrolls|feather quill/i.test(nextImg) ||
+            /antique historian's|parchment scrolls|inkpot|de hacer la América/i.test(nextVid) ||
+            !/stone harbor lighthouse/i.test(nextImg) ||
+            !/^Image\s+5\s*:/i.test(nextImg.trim()))
         ) {
-          clipsChanged = true;
-          return {
-            ...c,
-            imagePrompt: newImg5,
-            videoPrompt: newClip5,
-          };
-        }
-        if (
-          c &&
+          nextImg = newImg5;
+          nextVid = newClip5;
+        } else if (
           c.clipNumber === 19 &&
-          (/shipping agent's counter|wooden counter in Santander/i.test(c.imagePrompt || '') ||
-            /shipping agent's hand stamps|wooden counter in Santander/i.test(c.videoPrompt || ''))
+          (/shipping agent's counter|wooden counter in Santander/i.test(nextImg) ||
+            /shipping agent's hand stamps|wooden counter in Santander|billete de tercera clase/i.test(nextVid))
         ) {
-          clipsChanged = true;
-          return {
-            ...c,
-            imagePrompt: newImg19,
-            videoPrompt: newClip19,
-          };
-        }
-        if (
-          c &&
+          nextImg = newImg19;
+          nextVid = newClip19;
+        } else if (
           c.clipNumber === 20 &&
-          (/stone doorway of their cottage/i.test(c.imagePrompt || '') ||
-            /slow dolly-out as @Ricardo_Ruiz_Balbin|picks up his wooden trunk to walk down the misty lane/i.test(
-              c.videoPrompt || ''
+          (/stone doorway of their cottage|@Ricardo_Ruiz_Balbin|Ricardo Ruiz|period historical artifact/i.test(nextImg) ||
+            /@Ricardo_Ruiz_Balbin|Ricardo Ruiz|period historical artifact|picks up his wooden trunk|pagar 2 mil pesetas/i.test(
+              nextVid
             ))
         ) {
-          clipsChanged = true;
-          return {
-            ...c,
-            imagePrompt: newImg20,
-            videoPrompt: newClip20,
-          };
-        }
-        if (
-          c &&
+          nextImg = newImg20;
+          nextVid = newClip20;
+        } else if (
           c.clipNumber === 23 &&
-          (/rayadillo|marching onto a transport ship/i.test(c.imagePrompt || '') ||
-            /rayadillo|boarding the transport vessel/i.test(c.videoPrompt || ''))
+          (/rayadillo|marching onto a transport ship/i.test(nextImg) ||
+            /rayadillo|boarding the transport vessel|y Gibraltar/i.test(nextVid))
         ) {
-          clipsChanged = true;
-          return {
-            ...c,
-            imagePrompt: newImg23,
-            videoPrompt: newClip23,
-          };
-        }
-        if (
-          c &&
+          nextImg = newImg23;
+          nextVid = newClip23;
+        } else if (
           c.clipNumber === 27 &&
-          (/crowded harbor pier in Vigo|hundreds of emigrants/i.test(c.imagePrompt || '') ||
-            /emigrants lifting their wooden trunks|crowded stone pier in Vigo/i.test(c.videoPrompt || ''))
+          (/crowded harbor pier in Vigo|hundreds of emigrants|adult woman in her mid-twenties/i.test(nextImg) ||
+            /emigrants lifting their wooden trunks|crowded stone pier in Vigo|adult woman in her mid-twenties|de La Coruña/i.test(
+              nextVid
+            ))
         ) {
-          clipsChanged = true;
-          return {
-            ...c,
-            imagePrompt: newImg27,
-            videoPrompt: newClip27,
-          };
-        }
-        if (
-          c &&
+          nextImg = newImg27;
+          nextVid = newClip27;
+        } else if (
           c.clipNumber === 35 &&
-          (/heavy iron anchor|anchor chain plunges/i.test(c.imagePrompt || '') ||
-            /heavy iron anchor|anchor chain plunges/i.test(c.videoPrompt || ''))
+          (/heavy iron anchor|anchor chain plunges/i.test(nextImg) ||
+            /heavy iron anchor|anchor chain plunges|de Alfonso XIII/i.test(nextVid))
         ) {
-          clipsChanged = true;
-          return {
-            ...c,
-            imagePrompt: newImg35,
-            videoPrompt: newClip35,
-          };
-        }
-        if (
-          c &&
+          nextImg = newImg35;
+          nextVid = newClip35;
+        } else if (
           c.clipNumber === 42 &&
-          (/Disinfection Brigade|steam autoclave/i.test(c.imagePrompt || '') ||
-            /steam autoclave|iron door of the steam autoclave/i.test(c.videoPrompt || '') ||
-            !/strictly an empty architectural interior with zero people/i.test(c.imagePrompt || '') ||
-            !/strictly an empty architectural interior with zero people/i.test(c.videoPrompt || ''))
+          (/Disinfection Brigade|steam autoclave/i.test(nextImg) ||
+            /steam autoclave|iron door of the steam autoclave|Frank Menocal/i.test(nextVid) ||
+            !/strictly an empty architectural interior with zero people/i.test(nextImg) ||
+            !/strictly an empty architectural interior with zero people/i.test(nextVid))
         ) {
-          clipsChanged = true;
-          return {
-            ...c,
-            imagePrompt: newImg42,
-            videoPrompt: newClip42,
-          };
-        }
-        if (
-          c &&
+          nextImg = newImg42;
+          nextVid = newClip42;
+        } else if (
           c.clipNumber === 45 &&
           (/overcrowded wooden dormitory|hundreds of Spanish immigrants|packed aisle of canvas cots/i.test(
-            c.imagePrompt || ''
+            nextImg
           ) ||
-            /packed aisle of canvas cots|muffled coughing/i.test(c.videoPrompt || '') ||
-            !/empty folding canvas cots/i.test(c.imagePrompt || ''))
+            /packed aisle of canvas cots|muffled coughing|varilla de vidrio/i.test(nextVid) ||
+            !/empty folding canvas cots/i.test(nextImg))
         ) {
-          clipsChanged = true;
-          return {
-            ...c,
-            imagePrompt: newImg45,
-            videoPrompt: newClip45,
-          };
-        }
-        if (
-          c &&
+          nextImg = newImg45;
+          nextVid = newClip45;
+        } else if (
           c.clipNumber === 52 &&
-          (/stopping before heavy wooden store doors|tracking shot behind/i.test(
-            c.videoPrompt || ''
-          ) ||
-            !/smooth backward tracking dolly shot moving continuously ahead/i.test(
-              c.videoPrompt || ''
-            ))
+          (/stopping before heavy wooden store doors|tracking shot behind|Bernarda Ruiz/i.test(nextVid) ||
+            !/smooth backward tracking dolly shot moving continuously ahead/i.test(nextVid))
         ) {
-          clipsChanged = true;
-          return {
-            ...c,
-            imagePrompt: newImg52,
-            videoPrompt: newClip52,
-          };
-        }
-        if (
-          c &&
+          nextImg = newImg52;
+          nextVid = newClip52;
+        } else if (
           c.clipNumber === 55 &&
-          (/hands a broom|wooden broom handle/i.test(c.videoPrompt || '') ||
-            !/without handing over any broom or object/i.test(c.videoPrompt || '') ||
-            !/strictly no brooms or tools in anyone's hands/i.test(c.imagePrompt || ''))
+          (/hands a broom|wooden broom handle|tiendas y panaderías/i.test(nextVid) ||
+            !/without handing over any broom or object/i.test(nextVid) ||
+            !/strictly no brooms or tools in anyone's hands/i.test(nextImg))
         ) {
-          clipsChanged = true;
-          return {
-            ...c,
-            imagePrompt: newImg55,
-            videoPrompt: newClip55,
-          };
-        }
-        if (
-          c &&
+          nextImg = newImg55;
+          nextVid = newClip55;
+        } else if (
           c.clipNumber === 58 &&
-          (/scooping rice and chickpeas|two-pan brass scale in a busy store/i.test(
-            c.imagePrompt || ''
+          (/scooping rice and chickpeas|two-pan brass scale in a busy store|adult woman in her mid-twenties/i.test(
+            nextImg
           ) ||
-            /drops bronze weights onto the brass scale|pours grain from a tin scoop/i.test(
-              c.videoPrompt || ''
+            /drops bronze weights onto the brass scale|pours grain from a tin scoop|adult woman in her mid-twenties|que borraba toda frontera/i.test(
+              nextVid
             ) ||
-            !/pushing open the tall wooden window shutters at 5 AM/i.test(c.imagePrompt || ''))
+            !/pushing open the tall wooden window shutters at 5 AM/i.test(nextImg))
         ) {
-          clipsChanged = true;
-          return {
-            ...c,
-            imagePrompt: newImg58,
-            videoPrompt: newClip58,
-          };
-        }
-        if (
-          c &&
+          nextImg = newImg58;
+          nextVid = newClip58;
+        } else if (
           c.clipNumber === 59 &&
           (/sliding a heavy iron bolt|slides the heavy iron bolt|iron bolt on the wooden shutters/i.test(
-            c.imagePrompt || ''
+            nextImg
           ) ||
-            /sliding a heavy iron bolt|slides the heavy iron bolt|wooden shutters at 10 PM/i.test(
-              c.videoPrompt || ''
+            /sliding a heavy iron bolt|slides the heavy iron bolt|wooden shutters at 10 PM|los hornos abovedados/i.test(
+              nextVid
             ) ||
-            !/steaming porcelain cup of dark coffee/i.test(c.imagePrompt || ''))
+            !/steaming porcelain cup of dark coffee/i.test(nextImg))
         ) {
-          clipsChanged = true;
-          return {
-            ...c,
-            imagePrompt: newImg59,
-            videoPrompt: newClip59,
-          };
-        }
-        if (
-          c &&
+          nextImg = newImg59;
+          nextVid = newClip59;
+        } else if (
           c.clipNumber === 60 &&
-          (/unrolling a straw petate mat/i.test(c.imagePrompt || '') ||
-            /unrolls his straw mat|lies down beside the brass scale/i.test(c.videoPrompt || ''))
+          (/unrolling a straw petate mat/i.test(nextImg) ||
+            /unrolls his straw mat|lies down beside the brass scale|Para ahorrar alquileres/i.test(nextVid))
         ) {
-          clipsChanged = true;
-          return {
-            ...c,
-            imagePrompt: newImg60,
-            videoPrompt: newClip60,
-          };
-        }
-        if (
-          c &&
+          nextImg = newImg60;
+          nextVid = newClip60;
+        } else if (
           c.clipNumber === 72 &&
-          (/turns away empty-handed from the stone mailbox|looking down the empty path/i.test(
-            c.imagePrompt || ''
-          ) ||
-            /turns away empty-handed from the stone mailbox/i.test(c.videoPrompt || '') ||
-            !/walks slowly and steadily away from the camera/i.test(c.videoPrompt || ''))
+          (/turns away empty-handed from the stone mailbox|looking down the empty path/i.test(nextImg) ||
+            /turns away empty-handed from the stone mailbox|Triscornia o repatriados/i.test(nextVid) ||
+            !/walks slowly and steadily away from the camera/i.test(nextVid))
         ) {
-          clipsChanged = true;
-          return {
-            ...c,
-            imagePrompt: newImg72,
-            videoPrompt: newClip72,
-          };
-        }
-        if (
-          c &&
+          nextImg = newImg72;
+          nextVid = newClip72;
+        } else if (
           c.clipNumber === 76 &&
-          (/period historical artifact|Pedro Garfias Zurita/i.test(c.imagePrompt || '') ||
-            /period historical artifact|Pedro Garfias Zurita/i.test(c.videoPrompt || '') ||
-            !/STRICT ADULTS-ONLY CAST/i.test(c.imagePrompt || ''))
+          (/period historical artifact|Pedro Garfias|@Pedro_Garfias_Zurita/i.test(nextImg) ||
+            /period historical artifact|Pedro Garfias|@Pedro_Garfias_Zurita/i.test(nextVid) ||
+            !/STRICT ADULTS-ONLY CAST/i.test(nextImg))
         ) {
-          clipsChanged = true;
-          return {
-            ...c,
-            imagePrompt: newImg76,
-            videoPrompt: newClip76,
-          };
+          nextImg = newImg76;
+          nextVid = newClip76;
         }
-        if (
-          c &&
-          (/8\s*bokeh\)\./i.test(c.imagePrompt || '') || /8\s*bokeh\)\./i.test(c.videoPrompt || ''))
-        ) {
+
+        nextImg = repairV76LegacyCorruptions(nextImg, c.clipNumber, true).replace(/(?:\s*8\s*bokeh\)\.)+/gi, '');
+        nextVid = repairV76LegacyCorruptions(nextVid, c.clipNumber, false).replace(/(?:\s*8\s*bokeh\)\.)+/gi, '');
+        if (nextImg) {
+          nextImg = sanitizeImagePromptForFlowSafety(nextImg, doc.references);
+        }
+        if (nextVid && !c.isStaticBroll) {
+          nextVid = sanitizeVideoClipPromptForFlowSafety(nextVid, doc.references);
+        }
+
+        if (nextImg !== (c.imagePrompt || '') || nextVid !== (c.videoPrompt || '')) {
           clipsChanged = true;
           return {
             ...c,
-            imagePrompt: (c.imagePrompt || '').replace(/(?:\s*8\s*bokeh\)\.)+/gi, ''),
-            videoPrompt: (c.videoPrompt || '').replace(/(?:\s*8\s*bokeh\)\.)+/gi, ''),
+            imagePrompt: nextImg,
+            videoPrompt: nextVid,
           };
         }
         return c;
       });
       if (clipsChanged) {
         nextClips = updated;
+        const { clip1Sec, standardClipSec } = getStage1ClipDurations(doc);
+        nextRawClipsText = safeRebuildRawClipsText(
+          updated,
+          doc.rawClipsText || '',
+          doc.operationalHeader || DEFAULT_OPERATIONAL_HEADER,
+          doc.flowVideoEngine || 'HYBRID_PEOPLE_OMNI_REST_LOWER',
+          clip1Sec,
+          standardClipSec,
+          doc.references
+        );
       }
-    }
-    if (typeof doc.rawClipsText === 'string') {
-      let rawText = doc.rawClipsText;
-      if (/8\s*bokeh\)\./i.test(rawText)) {
-        rawText = rawText.replace(/(?:\s*8\s*bokeh\)\.)+/gi, '');
-      }
-      if (
-        /Image 2:[^\n]*(?:holding a ticket and coin pouch|period historical artifact)/i.test(rawText) ||
-        /Clip 2\s*\([^)]*\):[^\n]*(?:handing his savings|narrative voice enters at 00:08|showing a slow dolly push-in on the wet stone dock)/i.test(
-          rawText
-        ) ||
-        (/Image 2:[^\n]*/i.test(rawText) &&
-          !/Image 2:[^\n]*standing on the left side of a small wooden registration table/i.test(
-            rawText
-          ))
-      ) {
-        rawText = rawText
-          .replace(/Image 2:[^\n]*/i, newImg2)
-          .replace(/Clip 2\s*\([^)]*\):[^\n]*/i, newClip2);
-      }
-      if (
-        /Image 5:[^\n]*(?:antique historian's|parchment scrolls)/i.test(rawText) ||
-        (/Image 5:[^\n]*/i.test(rawText) && !/Image 5:[^\n]*stone harbor lighthouse/i.test(rawText))
-      ) {
-        rawText = rawText
-          .replace(/Image 5:[^\n]*/i, newImg5)
-          .replace(/Clip 5\s*\([^)]*\):[^\n]*/i, newClip5);
-      }
-      if (/Image 19:[^\n]*shipping agent's counter/i.test(rawText)) {
-        rawText = rawText
-          .replace(/Image 19:[^\n]*shipping agent's counter[^\n]*/i, newImg19)
-          .replace(/Clip 19\s*\([^)]*\):[^\n]*wooden counter in Santander[^\n]*/i, newClip19);
-      }
-      if (
-        /Image 20:[^\n]*stone doorway of their cottage/i.test(rawText) ||
-        /Clip 20\s*\([^)]*\):[^\n]*slow dolly-out as @Ricardo_Ruiz_Balbin/i.test(rawText)
-      ) {
-        rawText = rawText
-          .replace(/Image 20:[^\n]*stone doorway of their cottage[^\n]*/i, newImg20)
-          .replace(
-            /Clip 20\s*\([^)]*\):[^\n]*walk down the misty lane in Asturias[^\n]*/i,
-            newClip20
-          );
-      }
-      if (
-        /Image 23:[^\n]*rayadillo/i.test(rawText) ||
-        /Clip 23\s*\([^)]*\):[^\n]*rayadillo/i.test(rawText)
-      ) {
-        rawText = rawText
-          .replace(/Image 23:[^\n]*rayadillo[^\n]*/i, newImg23)
-          .replace(/Clip 23\s*\([^)]*\):[^\n]*rayadillo[^\n]*/i, newClip23);
-      }
-      if (
-        /Image 27:[^\n]*crowded harbor pier in Vigo/i.test(rawText) ||
-        /Clip 27\s*\([^)]*\):[^\n]*crowded stone pier in Vigo/i.test(rawText)
-      ) {
-        rawText = rawText
-          .replace(/Image 27:[^\n]*/i, newImg27)
-          .replace(/Clip 27\s*\([^)]*\):[^\n]*/i, newClip27);
-      }
-      if (
-        /Image 35:[^\n]*heavy iron anchor/i.test(rawText) ||
-        /Clip 35\s*\([^)]*\):[^\n]*anchor chain plunges/i.test(rawText)
-      ) {
-        rawText = rawText
-          .replace(/Image 35:[^\n]*heavy iron anchor[^\n]*/i, newImg35)
-          .replace(/Clip 35\s*\([^)]*\):[^\n]*anchor chain plunges[^\n]*/i, newClip35);
-      }
-      if (
-        /Image 42:[^\n]*/i.test(rawText) &&
-        (!/Image 42:[^\n]*strictly an empty architectural interior with zero people/i.test(rawText) ||
-          /Clip 42\s*\([^)]*\):[^\n]*steam autoclave/i.test(rawText))
-      ) {
-        rawText = rawText
-          .replace(/Image 42:[^\n]*/i, newImg42)
-          .replace(/Clip 42\s*\([^)]*\):[^\n]*/i, newClip42);
-      }
-      if (
-        /Image 45:[^\n]*/i.test(rawText) &&
-        !/Image 45:[^\n]*empty folding canvas cots/i.test(rawText)
-      ) {
-        rawText = rawText
-          .replace(/Image 45:[^\n]*/i, newImg45)
-          .replace(/Clip 45\s*\([^)]*\):[^\n]*/i, newClip45);
-      }
-      if (
-        /Image 52:[^\n]*/i.test(rawText) &&
-        !/Clip 52\s*\([^)]*\):[^\n]*smooth backward tracking dolly shot moving continuously ahead/i.test(
-          rawText
-        )
-      ) {
-        rawText = rawText
-          .replace(/Image 52:[^\n]*/i, newImg52)
-          .replace(/Clip 52\s*\([^)]*\):[^\n]*/i, newClip52);
-      }
-      if (
-        /Image 55:[^\n]*/i.test(rawText) &&
-        (!/Image 55:[^\n]*strictly no brooms or tools in anyone's hands/i.test(rawText) ||
-          /Clip 55\s*\([^)]*\):[^\n]*hands a broom/i.test(rawText))
-      ) {
-        rawText = rawText
-          .replace(/Image 55:[^\n]*/i, newImg55)
-          .replace(/Clip 55\s*\([^)]*\):[^\n]*/i, newClip55);
-      }
-      if (
-        /Image 58:[^\n]*/i.test(rawText) &&
-        !/Image 58:[^\n]*pushing open the tall wooden window shutters at 5 AM/i.test(rawText)
-      ) {
-        rawText = rawText
-          .replace(/Image 58:[^\n]*/i, newImg58)
-          .replace(/Clip 58\s*\([^)]*\):[^\n]*/i, newClip58);
-      }
-      if (
-        /Image 59:[^\n]*/i.test(rawText) &&
-        (!/Image 59:[^\n]*steaming porcelain cup of dark coffee/i.test(rawText) ||
-          /Clip 59\s*\([^)]*\):[^\n]*slides the heavy iron bolt/i.test(rawText))
-      ) {
-        rawText = rawText
-          .replace(/Image 59:[^\n]*/i, newImg59)
-          .replace(/Clip 59\s*\([^)]*\):[^\n]*/i, newClip59);
-      }
-      if (
-        /Image 60:[^\n]*unrolling a straw petate mat/i.test(rawText) ||
-        /Clip 60\s*\([^)]*\):[^\n]*unrolls his straw mat/i.test(rawText)
-      ) {
-        rawText = rawText
-          .replace(/Image 60:[^\n]*/i, newImg60)
-          .replace(/Clip 60\s*\([^)]*\):[^\n]*/i, newClip60);
-      }
-      if (
-        /Image 72:[^\n]*/i.test(rawText) &&
-        !/Clip 72\s*\([^)]*\):[^\n]*walks slowly and steadily away from the camera/i.test(rawText)
-      ) {
-        rawText = rawText
-          .replace(/Image 72:[^\n]*/i, newImg72)
-          .replace(/Clip 72\s*\([^)]*\):[^\n]*/i, newClip72);
-      }
-      if (
-        /Image 76:[^\n]*(?:period historical artifact|Sinaia deck)/i.test(rawText) ||
-        /Clip 76\s*\([^)]*\):[^\n]*Pedro Garfias Zurita/i.test(rawText)
-      ) {
-        rawText = rawText
-          .replace(/Image 76:[^\n]*/i, newImg76)
-          .replace(/Clip 76\s*\([^)]*\):[^\n]*/i, newClip76);
-      }
-      nextRawClipsText = rawText;
     }
   }
 
@@ -1374,7 +1198,7 @@ Línea 2: DE HUIR DE LA GUERRA EN ESPAÑA A LEVANTAR UN IMPERIO EN AMÉRICA`;
     let anyClipTagChanged = false;
     const taggedClips = nextClips.map((c) => {
       if (!c.videoPrompt) return c;
-      const resolvedEngine = resolveClipFlowVideoEngine(c, nextFlowVideoEngine);
+      const resolvedEngine = resolveClipFlowVideoEngine(c, nextFlowVideoEngine, doc.references);
       const taggedPrompt = applyClipFlowVideoEngineTag(c.videoPrompt, resolvedEngine);
       if (taggedPrompt !== c.videoPrompt) {
         anyClipTagChanged = true;
@@ -2823,6 +2647,10 @@ function mergeTwoDocumentaryObjects(
       }
     } else if (authoredClips > 0 && (rawTier < 2 || rawBlocks < authoredClips)) {
       const { clip1Sec, standardClipSec } = getStage1ClipDurations(baseWinner);
+      const mergedReferences =
+        Array.isArray(baseWinner.references) && baseWinner.references.length > 0
+          ? baseWinner.references
+          : oNorm.references;
       finalRawClipsText = safeRebuildRawClipsText(
         mergedClips,
         finalRawClipsText,
@@ -2830,13 +2658,21 @@ function mergeTwoDocumentaryObjects(
         baseWinner.flowVideoEngine || 'HYBRID_PEOPLE_OMNI_REST_LOWER',
         clip1Sec,
         standardClipSec,
-        baseWinner.references
+        mergedReferences
       );
     }
   }
 
+  const finalMergedReferences =
+    Array.isArray(baseWinner.references) && baseWinner.references.length > 0
+      ? baseWinner.references
+      : oNorm.references;
+
   return {
     ...baseWinner,
+    ...(Array.isArray(finalMergedReferences) && finalMergedReferences.length > 0
+      ? { references: finalMergedReferences }
+      : {}),
     rawClipsText: finalRawClipsText,
     clips: mergedClips,
   };
@@ -3540,8 +3376,8 @@ Execute an exhaustive Deep Research investigation on the topic, era, location, a
    - Deep act-by-act historical account with exact dates, verified numbers, laws, contracts, period prices, sensory details (smells, sounds, textures, architecture), and historical answers to audience questions.
 3. COMPLETE PRIMARY-SOURCE RESEARCH DOSSIER (ARCHIVES, CHRONICLES & RECORDS):
    - Documented facts, judicial/commercial/archaeological records, real human micro-stories with verified names, and historical quotes ready to feed the Voiceover Script.
-4. EARLY PRE-DETECTION OF KEY @CHARACTERS & @LOCATIONS (FOR GOOGLE FLOW REFERENCES):
-   - List of historical protagonists (@Character_Name) and primary settings (@Location_Name) with physical traits, age, face, and exact period attire (${cleanTime || 'target era'}, ${cleanLoc || 'target location'}).`;
+4. EARLY PRE-DETECTION OF KEY ANONYMOUS @CHARACTER ROLES & @LOCATIONS (FOR GOOGLE FLOW REFERENCES):
+   - List of historical protagonists mapped to anonymous role handles (e.g., @Scottish_Bacteriologist_1928, @Senior_Oxford_Professor — NEVER real person names in @Tags) and primary settings (@Location_Name) with physical traits, adult age, face, and exact period attire (${cleanTime || 'target era'}, ${cleanLoc || 'target location'}).`;
   } else if (stageNumber === 4) {
     const introPlacement = doc.promptConfig?.UBICACION_INTRO_MARCA || 'INTRO_INICIO_00';
     const FIXED_INTRO_SEC = 8;
@@ -3720,7 +3556,7 @@ Strictly FORBIDDEN to use generic fixed labels like "Face + Shock (13ms)", "Curi
    }
    - Include verbatim: 'a small discreet 5% scale logo in the top-right corner displaying "${badgeLabel}" in metallic gold'
    - Include verbatim: 'official page logo cleanly integrated in the top-left corner from provided reference image at 5% scale, strictly preserving and visibly rendering both the logo emblem and the exact text underneath it "Huellas de la Humanidad" without cropping, blurring, or omitting the sub-text'
-   - ANTI-FILTER SHIELD: Always describe the character by physical traits, approximate adult age, and period attire as an anonymous historical reenactment actor ("portrayed by an anonymous historical reenactment actor in authentic period attire (no real public figures or prominent people)"), NEVER writing real public-figure proper names inside the English prompt.
+   - ANTI-FILTER & ZERO PERSON NAMES SHIELD (MANDATORY): Strictly FORBIDDEN to write any real or fictional person's given name, surname, full name, alias, title + name, possessive (e.g., write "the inventor's", NEVER "Edison's"), or @Tag anywhere inside "PROMPT:". Always describe the character solely by physical traits, approximate adult age, historical role, and period attire as an anonymous historical reenactment actor ("portrayed by an anonymous historical reenactment actor in authentic period attire (no real public figures or prominent people)").
    - End verbatim with: 'cinematic documentary realism, 8k resolution, sharp focus, safe framing composition, no modern objects, no CGI look, no unintended floating text, no music.'
 
 STRICT DELIVERY FORMAT (output ONLY these 3 exact plain-text blocks WITHOUT ** asterisks around field labels and without greetings or closing remarks):
@@ -3752,11 +3588,14 @@ ${doc.voiceoverScript || doc.deepResearchResult || doc.deepResearchPrompt || doc
 Generate STAGE 6: REFERENCE MODEL IMAGE PROMPTS 100% IN ENGLISH for Nano Banana 2.1 in Google Flow (**6 views in each single image** and specifying the **exact ASCII @Tag_With_Underscores** without spaces or accents):
 - Prepend at the very top this exact English operational directive for Google Flow:
   Use Nano Banana 2.1. Generate each image as a single 6-view reference sheet (6 views in a 3x2 grid) and mandatorily rename every generated image to the exact @Tag_With_Underscores identifier specified in each prompt.
-- For each primary CHARACTER (@People), write a single-line prompt 100% in English with this exact format (no accents or spaces in @Character_Name):
-  Image @Character_Name [Image Name: @Character_Name]: Create an image in ${refAspect} structured as a 6-view character reference sheet (6 distinct views in a single 3x2 grid image of the exact same person with 100% identical facial, hair, and wardrobe continuity: 1. front full-body standing view, 2. three-quarter full-body view, 3. side profile full-body view, 4. back full-body view, 5. neutral front close-up portrait of head and shoulders, 6. three-quarter close-up portrait showing skin pores and facial structure), depicting [detailed adult physical traits, hair, facial structure, and head-to-toe authentic historical period attire (${doc.historicalTime}, ${doc.historicalLocation}) against a clean neutral studio background with even lighting, without mentioning real monarchs' or politicians' proper names in the physical description, portrayed by an anonymous historical reenactment actor in authentic period costume, no real public figures or prominent people], 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Character_Name
-- For each primary LOCATION (@Locations), write a single-line prompt 100% in English with this exact format (with @ and underscores _ without accents or spaces in @Location_Name):
+- UNBREAKABLE ZERO PERSON PROPER NAMES RULE IN @TAGS & PROMPTS (CRITICAL FOR OMNI 1.1 FLASH COMPATIBILITY):
+  • NEVER use any real or fictional person's first name, surname, full name, or nickname in ANY @Tag, [Image Name: ...], "fix the name to @...", or anywhere inside the English prompt (STRICTLY FORBIDDEN: @Alexander_Fleming, @Howard_Florey, @Thomas_Edison, @Napoleon_Bonaparte, @Pedro_Garfias).
+  • Every character @Tag MUST be a pure anonymous descriptive role/profession + origin/era handle in English or Spanish ASCII with underscores (e.g., @Scottish_Bacteriologist_1928, @Young_Clinical_Physician, @Senior_Oxford_Professor, @Exiled_Spanish_Poet, @Asturian_Peasant_Emigrant).
+- For each primary CHARACTER (anonymous @Role_Handle), write a single-line prompt 100% in English with this exact format (no accents, no spaces, and ZERO person proper names in @Anonymous_Role_Tag):
+  Image @Anonymous_Role_Tag [Image Name: @Anonymous_Role_Tag]: Create an image in ${refAspect} structured as a 6-view character reference sheet (6 distinct views in a single 3x2 grid image of the exact same person with 100% identical facial, hair, and wardrobe continuity: 1. front full-body standing view, 2. three-quarter full-body view, 3. side profile full-body view, 4. back full-body view, 5. neutral front close-up portrait of head and shoulders, 6. three-quarter close-up portrait showing skin pores and facial structure), depicting [detailed adult physical traits, adult age, hair, facial structure, historical profession/role, and head-to-toe authentic historical period attire (${doc.historicalTime}, ${doc.historicalLocation}) against a clean neutral studio background with even lighting, strictly zero person proper names or surnames anywhere in the prompt, portrayed by an anonymous historical reenactment actor in authentic period costume, no real public figures or prominent people], 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Anonymous_Role_Tag
+- For each primary LOCATION (@Locations — never include a person's proper name in the location handle if avoidable), write a single-line prompt 100% in English with this exact format (with @ and underscores _ without accents or spaces in @Location_Name):
   Image @Location_Name [Image Name: @Location_Name]: Create an image in ${refAspect} structured as a 6-view historical location reference sheet (6 distinct views in a single 3x2 grid image of the exact same historical location with 100% architectural, material, and atmospheric continuity: 1. wide establishing shot, 2. reverse wide angle, 3. medium focal architectural view, 4. ground-level entrance or street perspective, 5. elevated overview angle, 6. close-up structural materials and period lighting detail), depicting [exact historical architecture, materials, period (${doc.historicalTime}, ${doc.historicalLocation}), and atmospheric lighting in English], strictly empty environment with zero people, zero animals, and zero characters anywhere in the frame, 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Location_Name
-- PURE DELIVERY FORMAT (100% ENGLISH): Output ONLY plain text starting with the English operational directive followed by the Image @Name_... lines separated by a blank line, WITHOUT ** asterisks, WITHOUT section headers like "Characters:" or "Locations:", and WITHOUT greetings or closing remarks.`;
+- PURE DELIVERY FORMAT (100% ENGLISH): Output ONLY plain text starting with the English operational directive followed by the Image @... lines separated by a blank line, WITHOUT ** asterisks, WITHOUT section headers like "Characters:" or "Locations:", and WITHOUT greetings or closing remarks.`;
   } else if (stageNumber === 7) {
     const scriptContext = (
       doc.voiceoverScript ||
@@ -3884,30 +3723,39 @@ UNBREAKABLE STAGE 7 RULES:
     const refsListText =
       Array.isArray(doc.references) && doc.references.length > 0
         ? doc.references
-            .map((r) => `${r.tag} (${r.category === 'persona' ? 'Character — triggers Omni 1.1 Flash' : 'Location — use Veo 3.1 - Lite [Lower Priority] if zero humans appear'})`)
+            .map((r) => {
+              if (r.category === 'persona') {
+                return isAnonymousRoleReferenceTag(r.tag || '', r)
+                  ? `${r.tag} (Anonymous Role Sheet — use ONLY in Image NN, NEVER in Clip NN; triggers Omni 1.1 Flash)`
+                  : `Anonymous period role descriptor from reference (DO NOT output ${r.tag} or any real person name; describe by adult age, physical traits, role, and period attire — triggers Omni 1.1 Flash)`;
+              }
+              return `${r.tag} (Location — use ONLY in Image NN, NEVER in Clip NN; use Veo 3.1 - Lite [Lower Priority] if zero humans appear)`;
+            })
             .join(', ')
-        : 'Use characters and locations from the script';
+        : 'Use anonymous period character role descriptions (ZERO proper person names) and locations from the script';
     stagePrompt = `Act as a historian, film director, and professional journalist.
 Generate STAGE 8: INITIAL IMAGE PROMPTS (Nano Banana 2.1) AND VIDEO CLIP PROMPTS (Hybrid Mode: Omni 1.1 Flash when people appear / Veo 3.1 - Lite [Lower Priority] for scenes without people) 100% IN PURE ENGLISH for the documentary "${cleanStage8Topic}" (${cleanStage8Time}, ${cleanStage8Loc}).
-Mandatory visual references (@Characters & @Locations from Stage 4): ${refsListText}.
+Mandatory visual references (Locations & Anonymous Role Sheets from Stage 4): ${refsListText}.
 Stage 1 Selected Clip Durations (MANDATORY inside EVERY video prompt):
 - Clip 01 (${c1RangeLabel}): ${c1Dur} seconds in Google Flow -> write "Create a cinematic ${c1Dur}-second video showing ..." AND place "[Duration: ${c1Dur}s]" right before "[Model: ...] fix the name".
 - Clips 02 through ${expectedTotalClips || 'N'} (starting at ${c2StartLabel}): ${standardClipSec} seconds in Google Flow -> write "Create a cinematic ${standardClipSec}-second video showing ..." AND place "[Duration: ${standardClipSec}s]" right before "[Model: ...] fix the name".${expectedClipsClause}
-Pre-Numbered 1:1 Voiceover Timeline Table (Spanish narration provided strictly so each English visual scene matches that exact spoken phrase in meaning and time — NEVER copy Spanish words into Image N or Clip N):
+Pre-Numbered 1:1 Voiceover Timeline Table (Spanish narration provided strictly so each English visual scene matches that exact spoken phrase in meaning and time — NEVER copy Spanish words or person proper names into Image N or Clip N):
 """
 ${preNumberedTimelineRows}
 """
 Your output MUST BEGIN MANDATORILY AND VERBATIM with this exact 9-line English operational header:
 ${opHeader}
 
-CRITICAL LANGUAGE, DURATION & SAFETY LAWS FOR GOOGLE FLOW:
+CRITICAL LANGUAGE, DURATION, OMNI 1.1 FLASH ZERO-PERSON-NAMES & SAFETY LAWS FOR GOOGLE FLOW:
 - Write EVERY Image N and EVERY Clip N on its own separate line (zero-padded 01..09 for 1..9, NO ** bold markdown, NO bullets) 100% IN PURE ENGLISH from Clip 01 through Clip ${expectedTotalClips || 'N'}, where each Image N + Clip N visually depicts the exact historical moment, action, place, or object described in that numbered row's narration.
+- STRICTLY ZERO PERSON PROPER NAMES, SURNAMES, ALIASES, OR PERSON POSSESSIVES IN BOTH Image N AND Clip N (UNBREAKABLE OMNI 1.1 FLASH RULE): Omni 1.1 Flash strictly blocks any prompt or batch containing real or fictional person names. NEVER write first names, surnames, full names, royal/political/medical titles + names (e.g., forbidden: "Alexander Fleming", "Florey", "Dr. Menocal", "Thomas Edison", "@Alexander_Fleming"), or person possessives (write "the scientist's laboratory" or "the inventor's workbench", NEVER "Fleming's" or "Edison's") anywhere in Image N or Clip N.
+- @REFERENCE HANDLE RULES: In Image N, use @Location_Name tags and ONLY anonymous role @Tags that contain ZERO proper person names (e.g., @Scottish_Bacteriologist_1928, @Young_Clinical_Physician); if a character has no anonymous @Role_Tag, describe them solely by adult age, physical features, historical profession, and period attire without '@'. In Clip N (video prompts), STRICTLY NEVER include ANY @Reference tags (zero @Person and zero @Location tags) — describe people solely by their anonymous role and attire from Image N (e.g., "the 47-year-old silver-haired Scottish bacteriologist in the white lab coat").
 - STRICTLY ZERO SPANISH INSIDE PROMPTS: Never embed, quote, or append the Spanish voiceover sentence or Spanish UI labels inside Image N or Clip N.
-- PRESERVE LITERAL FIRST 6 WORDS OF EVERY CLIP PROMPT: Every video prompt MUST start with "Clip NN (MM:SS - MM:SS): Create a cinematic {D}-second video showing ..." (words 1..6 = Clip NN (MM:SS - MM:SS): Create) and end with "[Duration: {D}s] [Model: Omni 1.1 Flash] fix the name" (when any person/hands/crowd/@Character appear) or "[Duration: {D}s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name" (when zero people appear, even if a @Location tag is used; explicitly write "with no people present" on empty scenes).${periodicBrollClause}
-- Apply Anti-"Prominent People" Filter Shield (describe historical characters by adult physical traits and period attire as anonymous historical reenactment actors, never real public-figure proper names) + Anti-Mutation Physics + UNBREAKABLE NON-DUPLICATION RULE ACROSS CONSECUTIVE CLIPS (never repeat the same room, desk, or camera framing back-to-back; alternate angles, focal lengths, and interior/exterior spaces):
-Image 01: Create an image of [clear ~25-40 word English visual scene matching Clip 01's visual Hook in ${cleanStage8Loc}, ${cleanStage8Time}, invoking matching @Character/@Location tags], clean uncluttered composition with rigid architectural perspective, stationary period props, clear anatomical separation between subjects, portrayed by anonymous historical reenactment actors in authentic period costume (no real public figures or prominent people), cinematic lighting, historical accuracy, no text.
+- PRESERVE LITERAL FIRST 6 WORDS OF EVERY CLIP PROMPT: Every video prompt MUST start with "Clip NN (MM:SS - MM:SS): Create a cinematic {D}-second video showing ..." (words 1..6 = Clip NN (MM:SS - MM:SS): Create) and end with "[Duration: {D}s] [Model: Omni 1.1 Flash] fix the name" (when any person/hands/crowd/human role appear) or "[Duration: {D}s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name" (when zero people appear, even if a @Location tag was used in Image NN; explicitly write "with no people present" on empty scenes).${periodicBrollClause}
+- Apply Anti-"Prominent People" Filter Shield (describe historical characters solely by adult physical traits, role, and period attire as anonymous historical reenactment actors, zero proper names) + Anti-Mutation Physics + UNBREAKABLE NON-DUPLICATION RULE ACROSS CONSECUTIVE CLIPS (never repeat the same room, desk, or camera framing back-to-back; alternate angles, focal lengths, and interior/exterior spaces):
+Image 01: Create an image of [clear ~25-40 word English visual scene matching Clip 01's visual Hook in ${cleanStage8Loc}, ${cleanStage8Time}, invoking matching @Location / anonymous @Role tags with ZERO person proper names], clean uncluttered composition with rigid architectural perspective, stationary period props, clear anatomical separation between subjects, portrayed by anonymous historical reenactment actors in authentic period costume (no real public figures or prominent people), cinematic lighting, historical accuracy, no text.
 
-Clip 01 (${c1RangeLabel}): Create a cinematic ${c1Dur}-second video showing [smooth controlled Steadicam/fluid-head camera movement + 1 continuous measured physical action matching Clip 01's visual Hook sustained smoothly across the full ${c1Dur} seconds (from 0s to ${c1Dur}s)]. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the ${c1Dur}-second shot. Sustained, unhurried continuous action across the full ${c1Dur} seconds, holding a natural composed posture through the final frame. Fixed subject count from 0s to ${c1Dur}s (no new people appearing out of nowhere, vanishing, or morphing; background figures stationary in soft f/1.8 bokeh). Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects. Cinematic historical drama reenactment featuring anonymous fictionalized theatre actors in period costume (no real public figures or prominent people, no unintended explosions or flashes). Ambient Foley: [specific English Foley sounds], single continuous shot, strictly no shot changes, no music, no speech, no text. [Duration: ${c1Dur}s] [Model: Omni 1.1 Flash or Veo 3.1 - Lite [Lower Priority]] fix the name`;
+Clip 01 (${c1RangeLabel}): Create a cinematic ${c1Dur}-second video showing [smooth controlled Steadicam/fluid-head camera movement + 1 continuous measured physical action matching Clip 01's visual Hook sustained smoothly across the full ${c1Dur} seconds (from 0s to ${c1Dur}s), with ZERO person proper names and ZERO @Tags]. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the ${c1Dur}-second shot. Sustained, unhurried continuous action across the full ${c1Dur} seconds, holding a natural composed posture through the final frame. Fixed subject count from 0s to ${c1Dur}s (no new people appearing out of nowhere, vanishing, or morphing; background figures stationary in soft f/1.8 bokeh). Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects. Cinematic historical drama reenactment featuring anonymous fictionalized theatre actors in period costume (no real public figures or prominent people, steady continuous lighting with zero sudden flashes). Ambient Foley: [specific English Foley sounds], single continuous shot, strictly no shot changes, no music, no speech, no text. [Duration: ${c1Dur}s] [Model: Omni 1.1 Flash or Veo 3.1 - Lite [Lower Priority]] fix the name`;
   } else if (stageNumber === 80) {
     // Compute exact documentary duration from last clip, voiceover audio, or confirmed duration
     const parseMmSsToSec = (str?: string): number => {
@@ -4315,11 +4163,26 @@ ${JSON.stringify(
   2
 )}
 UNBREAKABLE NON-DUPLICATION RULE ACROSS CONSECUTIVE CLIPS (Clip N vs Clip N-1): If narration stays on the same topic across consecutive clips, Clip [N] MUST NOT visually duplicate the staging, room, desk, or framing of Clip [N-1]. If Clip [N] repeats a similar setting or framing, mark "auditStatus" as "warning" or "mismatch" and write in "suggestedImagePrompt" (~20-35 words, 100% in English starting with "Image [N]: Create an image of ...") and "suggestedVideoPrompt" (100% in English starting with "Clip [N] ([MM:SS - MM:SS]): Create a video showing ..." and ending with "fix the name", ZERO Spanish words inside prompts) a visually distinct scene matching the narration.
+STRICT OMNI 1.1 FLASH ZERO PERSON PROPER NAMES LAW: NEVER write any real or fictional person's first name, surname, full name, title + name, possessive (e.g. write "the scientist's", NEVER "Fleming's"), or @Person tag inside "suggestedImagePrompt" or "suggestedVideoPrompt" (and ZERO @Tags of any kind inside "suggestedVideoPrompt"); describe human subjects exclusively by adult age, physical traits, anonymous historical role, and period attire.
 Write "summary" and "auditReason" in Spanish for the producer UI.
 Return EXCLUSIVELY valid JSON: {"summary": "...", "audits": [{"clipNumber": 1, "auditStatus": "ok"|"warning"|"mismatch", "auditReason": "...", "suggestedImagePrompt": "", "suggestedVideoPrompt": ""}]}`;
 
   const raw = await callGeminiGenerateContentClientSide([{ text: auditPrompt }], true);
-  return JSON.parse(raw.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim());
+  const parsed = JSON.parse(raw.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim());
+  if (parsed && Array.isArray(parsed.audits)) {
+    parsed.audits = parsed.audits.map((item: any) => ({
+      ...item,
+      suggestedImagePrompt:
+        typeof item?.suggestedImagePrompt === 'string' && item.suggestedImagePrompt.trim()
+          ? sanitizeImagePromptForFlowSafety(item.suggestedImagePrompt, doc.references)
+          : item?.suggestedImagePrompt || '',
+      suggestedVideoPrompt:
+        typeof item?.suggestedVideoPrompt === 'string' && item.suggestedVideoPrompt.trim()
+          ? sanitizeVideoClipPromptForFlowSafety(item.suggestedVideoPrompt, doc.references)
+          : item?.suggestedVideoPrompt || '',
+    }));
+  }
+  return parsed;
 }
 
 export async function auditClipVideoClientSide(
@@ -4358,7 +4221,7 @@ Inspect the attached frames and evaluate:
 VERDICT CRITERIA:
 - "approved": Strong visual quality matching narration and prompt (score >= 75).
 - "warning": Usable clip with minor imperfections (score 60-74).
-- "rejected": Fails narration coherence, ignores prompt, or shows severe AI artifacts/anachronisms (score < 60). If "rejected", write in "fixedVideoPrompt" a clean, corrected 100% English Google Flow prompt starting with "Clip ${clip.clipNumber} (${clip.timeRange || '00:00 - 00:10'}): Create a video showing ..." and ending with "fix the name" (strictly ZERO Spanish words inside fixedVideoPrompt).
+- "rejected": Fails narration coherence, ignores prompt, or shows severe AI artifacts/anachronisms (score < 60). If "rejected", write in "fixedVideoPrompt" a clean, corrected 100% English Google Flow prompt starting with "Clip ${clip.clipNumber} (${clip.timeRange || '00:00 - 00:10'}): Create a video showing ..." and ending with "fix the name" (strictly ZERO Spanish words, ZERO @Tags, and ZERO real or fictional person proper names, surnames, or person possessives inside fixedVideoPrompt — describe people solely by anonymous period role, adult age, and attire for Omni 1.1 Flash compatibility).
 
 Write "auditReason" and "issues" in Spanish for the producer UI.
 Return EXCLUSIVELY valid JSON:
@@ -4388,7 +4251,14 @@ Return EXCLUSIVELY valid JSON:
   }
 
   const raw = await callGeminiGenerateContentClientSide(parts, true);
-  return JSON.parse(raw.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim());
+  const parsed = JSON.parse(raw.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim());
+  if (parsed && typeof parsed.fixedVideoPrompt === 'string' && parsed.fixedVideoPrompt.trim()) {
+    parsed.fixedVideoPrompt = sanitizeVideoClipPromptForFlowSafety(
+      parsed.fixedVideoPrompt,
+      doc.references
+    );
+  }
+  return parsed;
 }
 
 export interface ThumbnailPsychologyAuditResult {

@@ -105,6 +105,9 @@ import {
   countRealAuthoredClips,
   safeRebuildRawClipsText,
   applyAutomaticFlowPolicyShield,
+  sanitizePromptRemovePersonNames,
+  sanitizeImagePromptForFlowSafety,
+  sanitizeVideoClipPromptForFlowSafety,
   normalizeClip1Line1Format,
   reformatSrtText,
   detectClipHasHumanSubjects,
@@ -183,7 +186,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '9:56 PM - 11/15/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '10:38 PM - 11/15/2026';
 
 const PROTECTED_DOC_TEXT_FIELDS = [
   'rawClipsText',
@@ -5263,7 +5266,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       const textWithHeader = ensureOperationalHeaderInRawClips(text, cleanOpHeader);
       const { clip1Sec, standardClipSec } = getStage1ClipDurations(activeDoc);
       const parsedDirectly = parseClipsFromRawText(textWithHeader, [], clip1Sec, standardClipSec);
-      const syncedClips = syncAndAuditProductionClips({
+      const docRefs = activeDoc.references || [];
+      const docCtxText = `${activeDoc.topic || ''} ${activeDoc.voiceoverScript || ''}`;
+      const rawSyncedClips = syncAndAuditProductionClips({
         rawVoiceoverWithPauses: activeDoc.voiceoverScript || '',
         timelineText: activeDoc.timelineFormattedText || '',
         rawClipsText: textWithHeader,
@@ -5274,9 +5279,20 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         topic: activeDoc.topic || activeDoc.title || '',
         historicalTime: activeDoc.historicalTime || '',
         historicalLocation: activeDoc.historicalLocation || '',
-        references: activeDoc.references || [],
+        references: docRefs,
         includeNarrationInClip: activeDoc.promptConfig?.VOZ_NARRATIVA_EN_CLIPS !== 'EXCLUIR',
       });
+      const syncedClips = rawSyncedClips.map((c) => ({
+        ...c,
+        imagePrompt: (c.imagePrompt || '').trim()
+          ? sanitizeImagePromptForFlowSafety(c.imagePrompt || '', docRefs, docCtxText)
+          : c.imagePrompt,
+        videoPrompt: c.isStaticBroll
+          ? ''
+          : (c.videoPrompt || '').trim()
+            ? sanitizeVideoClipPromptForFlowSafety(c.videoPrompt || '', docRefs, docCtxText)
+            : c.videoPrompt,
+      }));
       const rebuiltRaw = safeRebuildRawClipsText({
         clips: syncedClips,
         previousRawText: textWithHeader || activeDoc.rawClipsText || '',
@@ -5284,6 +5300,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         engineMode: activeDoc.flowVideoEngine || 'HYBRID_PEOPLE_OMNI_REST_LOWER',
         clip1Sec,
         standardClipSec,
+        references: docRefs,
       });
 
       // Auto-calculate total documentary duration from the last clip's end timestamp or voiceover duration
@@ -6796,181 +6813,45 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
   const evadeFlowPolicyFilterInPrompt = (
     rawPrompt: string,
     doc?: DocumentaryProject | null,
-    retryAttempt: number = 1,
+    _retryAttempt: number = 1,
     stripAtTags: boolean = false
   ): string => {
     if (!rawPrompt || !rawPrompt.trim()) return '';
-    let p = rawPrompt.trim();
+    const effDoc = doc || activeDocRef.current || activeDoc;
+    const refs = effDoc?.references || [];
+    const docContextText = `${effDoc?.topic || ''} ${effDoc?.voiceoverScript || ''} ${effDoc?.deepResearchResult || ''}`;
+    const trimmed = rawPrompt.trim();
+    const isVideoMode =
+      /^Clip\s+\d+/i.test(trimmed) ||
+      (stripAtTags && !/^(?:Image|Imagen|Thumbnail)\b/i.test(trimmed));
 
-    // Preserve prefix like "Image 1:" or "Clip 1:" if present
-    let prefix = '';
-    const prefixMatch = p.match(/^((?:Image|Clip|Imagen)\s+\d+\s*:\s*)/i);
-    if (prefixMatch) {
-      prefix = prefixMatch[1];
-      p = p.slice(prefix.length).trim();
-    }
-
-    // 1. Replace @Persona tags and character names from doc.references with anonymous physical/wardrobe descriptions
-    const refs = doc?.references || [];
-    for (const ref of refs) {
-      const cleanTag = (ref.tag || '').replace(/^@+/, '').trim();
-      if (!cleanTag) continue;
-      const humanName = cleanTag.replace(/_/g, ' ').trim();
-      const nameParts = humanName.split(/\s+/).filter((w) => w.length >= 4);
-      const isPersonRef =
-        ref.category === 'persona' ||
-        (ref as any).type === 'Persona' ||
-        /queen|king|princess|prince|pope|emperor|reina|rey|princesa|papa/i.test(ref.prompt || humanName);
-      const isPlaceRef = ref.category === 'lugar' || (ref as any).type === 'Lugar';
-
-      if (isPersonRef) {
-        // Extract clean physical/wardrobe traits from ref.prompt without proper names
-        let anonDesc = (ref.prompt || '')
-          .replace(/^@[^\s:]+\s*:?\s*/i, '')
-          .replace(/\b(?:Queen|King|Princess|Prince|Pope|Emperor|Empress|Duke|Duchess|Bishop|Cardinal|Saint|Reina|Rey|Princesa|Príncipe|Papa)\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+(?:of|de|del|II|III|IV|V|VI|VII|VIII|IX|X|[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+))*/g, 'an adult historical noble figure')
-          .replace(/--ar\s+\S+/gi, '')
-          .split(/\.\s*/)[0]
-          .trim();
-
-        const isFemale = /\b(woman|female|queen|princess|duchess|lady|she|her|reina|princesa|dama|mujer|blonde|braided|gown|wimple|veil)\b/i.test(
-          `${humanName} ${ref.prompt || ''}`
-        );
-        if (!anonDesc || anonDesc.length < 18 || anonDesc.length > 180) {
-          anonDesc = isFemale
-            ? 'an adult medieval noblewoman in her twenties with expressive eyes and regal period attire, portrayed by an anonymous historical reenactment actress'
-            : 'an adult historical nobleman in regal period attire, portrayed by an anonymous historical reenactment actor';
-        } else {
-          // Strip remaining proper name tokens from anonDesc
-          for (const part of nameParts) {
-            if (!/^(of|de|del|the|la|el|las|los|von|van|and)$/i.test(part)) {
-              anonDesc = anonDesc.replace(new RegExp(`\\b${part}\\b`, 'gi'), '');
-            }
-          }
-          anonDesc = anonDesc.replace(/\s{2,}/g, ' ').trim();
-          if (!/anonymous|reenactment|actor|actress/i.test(anonDesc)) {
-            anonDesc += isFemale
-              ? ', portrayed by an anonymous historical reenactment actress'
-              : ', portrayed by an anonymous historical reenactment actor';
-          }
-        }
-
-        const escapedTag = cleanTag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        if (stripAtTags) {
-          p = p.replace(new RegExp(`@${escapedTag}\\b`, 'gi'), anonDesc);
-        }
-        // Replace full humanName only when not prefixed by @
-        const escapedHuman = humanName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        p = p.replace(new RegExp(`(?<!@)\\b${escapedHuman}\\b`, 'gi'), anonDesc);
-        // Replace distinctive first/last name tokens (>= 5 chars, not common words), never touching @Tag tokens
-        for (const part of nameParts) {
-          if (
-            part.length >= 5 &&
-            !/^(queen|king|prince|princess|reina|rey|france|francia|denmark|dinamarca|england|inglaterra|castile|castilla|spain|espana|roman|empire|castle|palace|church|abbey|tower|north|south|saint|santa|santo)$/i.test(
-              part
-            )
-          ) {
-            const escPart = part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            p = p.replace(
-              new RegExp(`(?<!@_)\\b${escPart}\\b`, 'gi'),
-              isFemale ? 'the adult noblewoman' : 'the adult historical sovereign'
-            );
-          }
-        }
-      } else {
-        // For Lugar / Objeto @Tags, preserve @Tag unless caller explicitly requests stripAtTags === true
-        const escapedTag = cleanTag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const placeLabel = isPlaceRef
-          ? 'the historical stone fortress chamber'
-          : 'the period historical artifact';
-        if (stripAtTags && retryAttempt >= 2) {
-          p = p.replace(new RegExp(`@${escapedTag}\\b`, 'gi'), placeLabel);
-        }
-      }
-    }
-
-    // 2. Replace Royal / Political / Religious Titles + Proper Names ("Prominent People" filter trigger)
-    p = p.replace(
-      /\b(?:Queen|Princess|Empress|Duchess|Lady|Countess|Reina|Princesa|Emperatriz|Duquesa)\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+(?:of|de|del|von|II|III|IV|[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+))*/g,
-      'an adult historical noblewoman in regal period attire, portrayed by an anonymous dramatic actress'
-    );
-    p = p.replace(
-      /\b(?:King|Prince|Emperor|Duke|Lord|Count|Sultan|Tsar|Czar|Pharaoh|General|President|Prime Minister|Chancellor|Rey|Príncipe|Emperador|Duque|Conde|Faraón)\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+(?:of|de|del|von|I|II|III|IV|V|VI|VII|VIII|IX|X|XI|XII|XIII|XIV|XV|XVI|[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+))*/g,
-      'an adult historical monarch in ceremonial period wardrobe, portrayed by an anonymous dramatic actor'
-    );
-    p = p.replace(
-      /\b(?:Pope|Bishop|Archbishop|Cardinal|Saint|Father|Friar|Papa|Obispo|Arzobispo|Cardenal|San|Santa|Santo)\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+(?:of|de|del|I|II|III|IV|V|VI|VII|VIII|IX|X|XI|XII|XIII|XIV|XV|XVI|[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+))*/g,
-      'an elderly historical clergyman in ornate ceremonial vestments, portrayed by an anonymous actor'
-    );
-
-    // 3. Replace remaining standalone historical proper names commonly blocked by Google Flow's prominent-people detector
-    p = p.replace(
-      /\b(Ingeborg|Isambour|Blanche|Blanca|Eleanor|Leonor|Agnes|Inés|Cleopatra|Nefertiti|Boleyn|Elizabeth|Isabel|Mary Stuart|Marie Antoinette|Victoria|Catherine|Catalina)\b/gi,
-      'the adult noblewoman in period attire'
-    );
-    p = p.replace(
-      /\b(Philip Augustus|Felipe Augusto|Philip II|Felipe II|Philip|Felipe|Augustus|Augusto|Innocent III|Inocencio III|Innocent|Inocencio|Louis VIII|Louis IX|King John|Canute|Knut|Valdemar|Napoleon|Bonaparte|Caesar|Nero|Caligula|Charlemagne|Carlomagno|Henry VIII|Enrique VIII|Richard|Ricardo|Medici|Borgia|Habsburg|Romanov|Tudor|Plantagenet|Capet|Capeto)\b/gi,
-      'the adult historical ruler in period attire'
-    );
-
-    // 4. Replace any remaining @Persona-style tags so Flow doesn't treat unknown @Names as prominent people
-    p = p.replace(/@([A-Za-zÁÉÍÓÚÑáéíóúñ0-9_]+)/g, (_m, tagBody) => {
-      const lower = String(tagBody).toLowerCase();
-      if (/castillo|torre|catedral|palacio|abadia|sala|camara|bosque|ciudad|trono|corona|carta|sello|espada|barco|mapa/.test(lower)) {
-        return tagBody.replace(/_/g, ' ');
-      }
-      return 'an anonymous historical reenactment actor in authentic period wardrobe';
+    let cleaned = sanitizePromptRemovePersonNames(trimmed, {
+      mode: isVideoMode ? 'video' : 'image',
+      references: refs,
+      docContextText,
     });
+    cleaned = applyAutomaticFlowPolicyShield(cleaned, false);
 
-    // 5. Neutralize minor/age & graphic/violence/"muerte"/"asesino" words that trigger Flow or brand-safety rejections
-    p = p.replace(
-      /\b(\d{1,2}-year-old|child bride|young girl|teenage girl|little girl|little boy|adolescent|minor|underage|niña|adolescente|menor)\b/gi,
-      'adult woman in her mid-twenties'
-    );
-    p = p
-      .replace(/\bdead\s+of\s+night\b/gi, 'deepest hour of night')
-      .replace(/\bdead\s+silence\b/gi, 'utter silence')
-      .replace(/\bdead\s+center\b/gi, 'exact center')
-      .replace(/\b(assassin|assassins|murderer|murderers|killer|killers)\b/gi, 'cloaked historical adversary')
-      .replace(
-        /\b(assassination|assassinations|murder|murders|homicide|homicides|manslaughter|slaughter|massacre|massacres)\b/gi,
-        'dramatic historical confrontation'
-      )
-      .replace(/\b(murdered|assassinated|killed|slain)\b/gi, 'fallen')
-      .replace(/\b(murderous|deadly)\b/gi, 'perilous')
-      .replace(/\b(killing|assassinating|murdering|dying)\b/gi, 'collapsing in dramatic shadow')
-      .replace(/\bdeathbed\b/gi, 'final resting chamber')
-      .replace(/\b(death|deaths)\b/gi, 'fateful end')
-      .replace(/\b(dead\s+bodies|corpses|cadavers)\b/gi, 'fallen figures in shadow')
-      .replace(/\b(dead\s+body|corpse|cadaver)\b/gi, 'fallen figure in shadow')
-      .replace(/\bdead\b/gi, 'motionless')
-      .replace(/\bdied\b/gi, 'faded away')
-      .replace(/\bdies\b/gi, 'fades away')
-      .replace(/\b(kill|kills|assassinate|die)\b/gi, 'fall in shadow');
-    p = p.replace(
-      /\b(blood|bleeding|bloody|gore|execution|beheading|decapitation|torture|suicide|suicidal|self-harm|naked|nude|undressed|sangre|cadáver|ejecución|tortura|desnuda|desnudo)\b/gi,
-      'dramatic chiaroscuro shadow'
-    );
-    p = sanitizeBrandSafeEditorialText(p);
-
-    // Clean up duplicate phrases if replacements overlapped
-    p = p
-      .replace(/(portrayed by an anonymous (?:historical reenactment |dramatic )?(?:actor|actress))(?:,\s*\1)+/gi, '$1')
-      .replace(/\b(the adult (?:noblewoman|historical ruler|historical sovereign))(?:[\s,]+\1)+/gi, '$1')
-      .replace(/\s{2,}/g, ' ')
-      .trim();
-
-    // 6. Add explicit anti-prominent-people theatrical disclaimer if not already present
-    const safetyClause =
-      'Cinematic historical drama reenactment featuring anonymous fictionalized theatre actors in period costume (no real public figures or prominent people).';
-    if (!/no real public figures|anonymous fictionalized theatre actors/i.test(p)) {
-      if (p.includes('Audio:')) {
-        p = p.replace(/\bAudio:\s*/i, `${safetyClause} Audio: `);
+    if (
+      isVideoMode &&
+      !/\bzero\s+people\b|\bno\s+human\s+figures\b/i.test(cleaned) &&
+      !/no real public figures|anonymous fictionalized theatre actors/i.test(cleaned)
+    ) {
+      const safetyClause =
+        'Cinematic historical drama reenactment featuring anonymous fictionalized theatre actors in period costume (no real public figures or prominent people).';
+      if (/\bAmbient\s+Foley:/i.test(cleaned)) {
+        cleaned = cleaned.replace(/\bAmbient\s+Foley:/i, `${safetyClause} Ambient Foley:`);
+      } else if (cleaned.includes('Audio:')) {
+        cleaned = cleaned.replace(/\bAudio:\s*/i, `${safetyClause} Audio: `);
       } else {
-        p = `${p} ${safetyClause}`;
+        cleaned = cleaned.replace(
+          /(\s*(?:\[(?:Duration|Video\s+Model|Model)[^\]]*\]\s*)*(?:fix\s+the\s+name\.?)?)\s*$/i,
+          ` ${safetyClause}$1`
+        );
       }
     }
 
-    return `${prefix}${p}`.trim();
+    return cleaned.replace(/\s{2,}/g, ' ').trim();
   };
 
   // Extract 3 genuinely distinct keyframes (Inicio 1.0s, Mitad 4.5s, Final 7.2s) in the foreground tab
@@ -7761,6 +7642,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       engineMode: activeRetryEngine,
       clip1Sec: retryClip1Sec,
       standardClipSec: retryStdSec,
+      references: currentDoc.references || [],
     });
 
     updateActiveDoc({
@@ -7825,6 +7707,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       engineMode: activeShieldEngine,
       clip1Sec,
       standardClipSec,
+      references: currentDoc.references || [],
     });
 
     updateActiveDoc({
@@ -8845,6 +8728,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                 engineMode: activeEngine,
                 clip1Sec: latestClip1Sec,
                 standardClipSec: latestStdSec,
+                references: latestDoc.references || [],
               }),
             });
           }
@@ -8940,6 +8824,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         engineMode: activeEngine,
         clip1Sec,
         standardClipSec,
+        references: currentDoc.references || [],
       }),
     });
 
@@ -9961,6 +9846,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                   engineMode: activeEngine,
                   clip1Sec,
                   standardClipSec,
+                  references: currentDoc.references || [],
                 });
               }
               updateActiveDoc({
@@ -10747,6 +10633,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
             engineMode: activeEngine,
             clip1Sec: shieldClip1Sec,
             standardClipSec: shieldStdSec,
+            references: activeDoc.references || [],
           })
         : activeDoc.rawClipsText || '';
       const actuallyChangedClips =
@@ -10900,12 +10787,23 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
   ) => {
     const rawPromptCandidate = (customPrompt || clip.videoPrompt || '').trim();
     if (!rawPromptCandidate) return;
-    const promptToSend = applyAntiMutationShieldToPrompt(rawPromptCandidate, 'ALL', false);
+    const currentDoc = activeDocRef.current || activeDoc;
+    const docRefs = currentDoc?.references || [];
+    const docCtxText = `${currentDoc?.topic || ''} ${currentDoc?.voiceoverScript || ''}`;
+    const safeRawVid = sanitizeVideoClipPromptForFlowSafety(
+      rawPromptCandidate,
+      docRefs,
+      docCtxText
+    );
+    const promptToSend = applyAntiMutationShieldToPrompt(safeRawVid, 'ALL', false);
     const imagePromptToSend = (clip.imagePrompt || '').trim()
-      ? applyAntiMutationShieldToPrompt(clip.imagePrompt, 'ALL', true)
+      ? applyAntiMutationShieldToPrompt(
+          sanitizeImagePromptForFlowSafety(clip.imagePrompt, docRefs, docCtxText),
+          'ALL',
+          true
+        )
       : '';
 
-    const currentDoc = activeDocRef.current;
     if (currentDoc) {
       const sendNowMs = Date.now();
       const nextClips = (currentDoc.clips || []).map((c) =>
@@ -11032,6 +10930,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       engineMode: activeEvadeEngine,
       clip1Sec: evadeClip1Sec,
       standardClipSec: evadeStdSec,
+      references: currentDoc.references || [],
     });
 
     updateActiveDoc({
@@ -11052,7 +10951,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     sendClipToFlowWithAutoAudit(updatedClipObj, safeVidPrompt || updatedClipObj.videoPrompt, retryAttempt);
   };
 
-  // 3.6 Batch Shield All Clips in Stage 8 Against Google Flow "Prominent People" / Policy Filter
+  // 3.6 Batch Shield All Clips in Stage 8 Against Google Flow "Prominent People" / Person Names Policy Filter
   const handleEvadeFilterAllClips = () => {
     const currentDoc = activeDocRef.current || activeDoc;
     if (!currentDoc) return;
@@ -11060,14 +10959,18 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     const baseClips = hydrateClipsFromRawIfNeeded(currentDoc, clip1Sec, standardClipSec);
     if (baseClips.length === 0) return;
 
+    const docRefs = currentDoc.references || [];
+    const docCtxText = `${currentDoc.topic || ''} ${currentDoc.voiceoverScript || ''} ${currentDoc.deepResearchResult || ''}`;
     const nextClips = baseClips.map((c) => ({
       ...c,
       imagePrompt: (c.imagePrompt || '').trim()
-        ? evadeFlowPolicyFilterInPrompt(c.imagePrompt || '', currentDoc, 2)
+        ? sanitizeImagePromptForFlowSafety(c.imagePrompt || '', docRefs, docCtxText)
         : c.imagePrompt,
-      videoPrompt: (c.videoPrompt || '').trim()
-        ? evadeFlowPolicyFilterInPrompt(c.videoPrompt || '', currentDoc, 2)
-        : c.videoPrompt,
+      videoPrompt: c.isStaticBroll
+        ? ''
+        : (c.videoPrompt || '').trim()
+          ? sanitizeVideoClipPromptForFlowSafety(c.videoPrompt || '', docRefs, docCtxText)
+          : c.videoPrompt,
     }));
 
     const activeBatchEngine = currentDoc.flowVideoEngine || 'HYBRID_PEOPLE_OMNI_REST_LOWER';
@@ -11082,14 +10985,16 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       engineMode: activeBatchEngine,
       clip1Sec,
       standardClipSec,
+      references: docRefs,
     });
 
     updateActiveDoc({
+      operationalHeader: currentBatchHeader,
       clips: nextClips,
       rawClipsText: nextRawClipsText,
     });
 
-    const msg = `🛡️ ¡${nextClips.length} Clips blindados contra el filtro "Prominent People" de Google Flow! Todos los nombres propios y títulos reales fueron reemplazados por descripciones físicas anónimas de recreación histórica.`;
+    const msg = `🛡️ ¡${nextClips.length} Clips limpiados para Omni 1.1 Flash! Se quitaron todos los nombres propios de personas y @Nombres_Personas reemplazándolos por descripciones anónimas de rol y época.`;
     setFlowStatusLog(msg);
     setBridgeStatusType('SUCCESS');
     setBridgeStatusMsg(msg);
@@ -11381,13 +11286,40 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       return;
     }
 
-    const opHeader = (doc.operationalHeader || DEFAULT_OPERATIONAL_HEADER).trim();
-    const pairsBlock = batchClips
-      .map((c) => {
-        const imgLine = (c.imagePrompt || '').trim();
-        const vidLine = (c.videoPrompt || '').trim();
-        return [imgLine, vidLine].filter(Boolean).join('\n\n');
-      })
+    const activeBatchMode = doc.flowVideoEngine || 'HYBRID_PEOPLE_OMNI_REST_LOWER';
+    const opHeader = applyFlowVideoEngineToDirectiveText(
+      doc.operationalHeader || DEFAULT_OPERATIONAL_HEADER,
+      activeBatchMode
+    ).trim();
+    const docRefs = doc.references || [];
+    const docCtxText = `${doc.topic || ''} ${doc.voiceoverScript || ''}`;
+    const { clip1Sec, standardClipSec } = getStage1ClipDurations(doc);
+    const sanitizedBatchClips = batchClips.map((c) => {
+      const durForClip = c.clipNumber === 1 ? clip1Sec : standardClipSec;
+      const rawImg = (c.imagePrompt || '').trim();
+      const safeImg = rawImg
+        ? c.isStaticBroll
+          ? normalizeBrollImagePrompt(
+              sanitizeImagePromptForFlowSafety(rawImg, docRefs, docCtxText),
+              c.clipNumber,
+              c.timeRange,
+              durForClip,
+              c.brollCameraMotion || 'zoom_in'
+            )
+          : sanitizeImagePromptForFlowSafety(rawImg, docRefs, docCtxText)
+        : '';
+      const rawVid = c.isStaticBroll ? '' : (c.videoPrompt || '').trim();
+      const safeVid = rawVid
+        ? applyClipFlowVideoEngineTag(
+            sanitizeVideoClipPromptForFlowSafety(rawVid, docRefs, docCtxText),
+            resolveClipFlowVideoEngine(c, activeBatchMode, docRefs),
+            durForClip
+          )
+        : '';
+      return { ...c, imagePrompt: safeImg, videoPrompt: safeVid };
+    });
+    const pairsBlock = sanitizedBatchClips
+      .map((c) => [c.imagePrompt, c.videoPrompt].filter(Boolean).join('\n\n'))
       .join('\n\n');
 
     const fullBatchPrompt = `${opHeader}\n\n${pairsBlock}`;
@@ -11404,21 +11336,19 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       `📦 Lote #${normalizedBatchNum} (Clips ${rangeLabel}) enviado a Google Flow con Orden Operativa de 9 líneas + ${batchClips.length} pares Image/Clip. Vigilando los ${batchClips.length} videos...`
     );
 
-    const refAssets = (doc.references || []).map((r) => ({
+    const refAssets = docRefs.map((r) => ({
       id: r.id,
       tag: r.tag,
       name: r.tag.replace(/^@+/, '').replace(/_/g, ' ').trim(),
     }));
 
-    const { clip1Sec, standardClipSec } = getStage1ClipDurations(doc);
-
     sendCommandToWebBridge('FLOW', {
       action: 'SEND_PROMPT',
       prompt: fullBatchPrompt,
-      imagePrompt: batchClips[0].imagePrompt || '',
+      imagePrompt: sanitizedBatchClips[0]?.imagePrompt || '',
       aspectRatio: flowAspectRatio,
       referenceAssetsForClips: refAssets,
-      batchClipsData: batchClips.map((c) => ({
+      batchClipsData: sanitizedBatchClips.map((c) => ({
         id: c.id,
         clipNumber: c.clipNumber,
         imagePrompt: c.imagePrompt || '',
@@ -14204,7 +14134,19 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     preferredTabId?: number
   ) => {
     if (!promptText.trim()) return;
-    navigator.clipboard.writeText(promptText).catch(() => {});
+    const docRefs = activeDoc?.references || [];
+    const docCtxText = `${activeDoc?.topic || ''} ${activeDoc?.voiceoverScript || ''}`;
+    const matchedRef =
+      mediaType === 'IMAGE' && clipIdentifier
+        ? docRefs.find((r) => r.id === String(clipIdentifier))
+        : undefined;
+    const sanitizedPromptText =
+      mediaType === 'VIDEO'
+        ? sanitizeVideoClipPromptForFlowSafety(promptText, docRefs, docCtxText)
+        : matchedRef
+          ? promptText
+          : sanitizeImagePromptForFlowSafety(promptText, docRefs, docCtxText);
+    navigator.clipboard.writeText(sanitizedPromptText).catch(() => {});
 
     // Ensure the single download folder permission is active on user gesture
     if (mediaType === 'VIDEO' && clipIdentifier) {
@@ -14219,14 +14161,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       null;
 
     if (matchedClip && mediaType === 'VIDEO') {
-      sendClipToFlowWithAutoAudit(matchedClip, promptText, 1);
+      sendClipToFlowWithAutoAudit(matchedClip, sanitizedPromptText, 1);
       return;
     }
-
-    const matchedRef =
-      mediaType === 'IMAGE' && clipIdentifier
-        ? activeDoc?.references?.find((r) => r.id === String(clipIdentifier))
-        : undefined;
 
     setBridgeStatusType('WORKING');
     setBridgeStatusMsg(
@@ -14236,8 +14173,10 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     const resolvedClipNum = matchedClip ? matchedClip.clipNumber : Number(clipIdentifier) || 1;
     sendCommandToWebBridge('FLOW', {
       action: 'SEND_PROMPT',
-      prompt: promptText,
-      imagePrompt: matchedClip ? matchedClip.imagePrompt : undefined,
+      prompt: sanitizedPromptText,
+      imagePrompt: matchedClip
+        ? sanitizeImagePromptForFlowSafety(matchedClip.imagePrompt || '', docRefs, docCtxText)
+        : undefined,
       aspectRatio: flowAspectRatio,
       referenceAssetsForClips: (activeDoc?.references || []).map((r) => ({
         id: r.id,
@@ -14470,6 +14409,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       engineMode: activeDoc.flowVideoEngine || 'HYBRID_PEOPLE_OMNI_REST_LOWER',
       clip1Sec,
       standardClipSec,
+      references: activeDoc.references || [],
     });
     updateActiveDoc({
       clips: synced,
@@ -14612,11 +14552,17 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
             : {}),
           suggestedImagePrompt:
             found.suggestedImagePrompt && found.suggestedImagePrompt.trim()
-              ? found.suggestedImagePrompt.trim()
+              ? sanitizeImagePromptForFlowSafety(
+                  found.suggestedImagePrompt.trim(),
+                  activeDoc.references || []
+                )
               : undefined,
           suggestedVideoPrompt:
             found.suggestedVideoPrompt && found.suggestedVideoPrompt.trim()
-              ? found.suggestedVideoPrompt.trim()
+              ? sanitizeVideoClipPromptForFlowSafety(
+                  found.suggestedVideoPrompt.trim(),
+                  activeDoc.references || []
+                )
               : undefined,
         };
       });
@@ -14644,13 +14590,18 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
   const handleApplyClipSuggestion = (clipId: string) => {
     if (!activeDoc) return;
     const { clip1Sec, standardClipSec } = getStage1ClipDurations(activeDoc);
+    const docRefs = activeDoc.references || [];
     const baseClips = hydrateClipsFromRawIfNeeded(activeDoc, clip1Sec, standardClipSec);
     const updatedClips = baseClips.map((c) => {
       if (c.id !== clipId) return c;
       return {
         ...c,
-        imagePrompt: c.suggestedImagePrompt ? c.suggestedImagePrompt : c.imagePrompt,
-        videoPrompt: c.suggestedVideoPrompt ? c.suggestedVideoPrompt : c.videoPrompt,
+        imagePrompt: c.suggestedImagePrompt
+          ? sanitizeImagePromptForFlowSafety(c.suggestedImagePrompt, docRefs)
+          : c.imagePrompt,
+        videoPrompt: c.suggestedVideoPrompt
+          ? sanitizeVideoClipPromptForFlowSafety(c.suggestedVideoPrompt, docRefs)
+          : c.videoPrompt,
         auditStatus: 'ok' as const,
         auditReason: '✅ Cambio sugerido aplicado y sincronizado con la voz narrativa.',
         suggestedImagePrompt: undefined,
@@ -14664,6 +14615,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       engineMode: activeDoc.flowVideoEngine || 'HYBRID_PEOPLE_OMNI_REST_LOWER',
       clip1Sec,
       standardClipSec,
+      references: docRefs,
     });
     updateActiveDoc({
       clips: updatedClips,
@@ -14675,13 +14627,18 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
   const handleApplyAllClipSuggestions = () => {
     if (!activeDoc) return;
     const { clip1Sec, standardClipSec } = getStage1ClipDurations(activeDoc);
+    const docRefs = activeDoc.references || [];
     const baseClips = hydrateClipsFromRawIfNeeded(activeDoc, clip1Sec, standardClipSec);
     const updatedClips = baseClips.map((c) => {
       if (!c.suggestedImagePrompt && !c.suggestedVideoPrompt) return c;
       return {
         ...c,
-        imagePrompt: c.suggestedImagePrompt ? c.suggestedImagePrompt : c.imagePrompt,
-        videoPrompt: c.suggestedVideoPrompt ? c.suggestedVideoPrompt : c.videoPrompt,
+        imagePrompt: c.suggestedImagePrompt
+          ? sanitizeImagePromptForFlowSafety(c.suggestedImagePrompt, docRefs)
+          : c.imagePrompt,
+        videoPrompt: c.suggestedVideoPrompt
+          ? sanitizeVideoClipPromptForFlowSafety(c.suggestedVideoPrompt, docRefs)
+          : c.videoPrompt,
         auditStatus: 'ok' as const,
         auditReason: '✅ Cambio sugerido aplicado y sincronizado con la voz narrativa.',
         suggestedImagePrompt: undefined,
@@ -14695,6 +14652,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       engineMode: activeDoc.flowVideoEngine || 'HYBRID_PEOPLE_OMNI_REST_LOWER',
       clip1Sec,
       standardClipSec,
+      references: docRefs,
     });
     updateActiveDoc({
       clips: updatedClips,
@@ -22104,6 +22062,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                     engineMode: eng.id,
                                     clip1Sec: engClip1Sec,
                                     standardClipSec: engStdSec,
+                                    references: docRefsList,
                                   });
                                   updateActiveDoc({
                                     flowVideoEngine: eng.id,
@@ -22193,6 +22152,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                   engineMode: activeEngine,
                                   clip1Sec: bClip1,
                                   standardClipSec: bStd,
+                                  references: activeDoc.references || [],
                                 });
                                 updateActiveDoc({
                                   promptConfig: {
@@ -22361,6 +22321,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             engineMode: activeEngine,
                             clip1Sec: cpClip1,
                             standardClipSec: cpStd,
+                            references: activeDoc.references || [],
                           });
                           if (!textToCopy.trim()) {
                             setFlowStatusLog(
@@ -23371,6 +23332,15 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             </span>
 
                             <button
+                              type="button"
+                              onClick={handleEvadeFilterAllClips}
+                              className="px-3.5 py-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 border border-rose-400/50 text-rose-200 text-xs font-black cursor-pointer transition"
+                              title="Elimina todos los nombres propios de personas, apellidos y @Nombres_Personas en los prompts de Imagen y Video para evitar rechazos en Omni 1.1 Flash"
+                            >
+                              🛡️ Quitar Nombres de Personas (Omni Flash)
+                            </button>
+
+                            <button
                               onClick={() => {
                                 const activeEngine =
                                   activeDoc.flowVideoEngine || 'HYBRID_PEOPLE_OMNI_REST_LOWER';
@@ -23381,6 +23351,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                 const { clip1Sec: batchClip1Sec, standardClipSec: batchStdSec } =
                                   getStage1ClipDurations(activeDoc);
                                 const docRefsList = activeDoc.references || [];
+                                const batchDocCtx = `${activeDoc.topic || ''} ${activeDoc.voiceoverScript || ''}`;
                                 const visible = visibleFilteredClips;
                                 const isVisibleContiguous = visible.every(
                                   (c, idx) =>
@@ -23410,9 +23381,14 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                   .map((c) => {
                                     const durForClip =
                                       c.clipNumber === 1 ? batchClip1Sec : batchStdSec;
+                                    const safeImg = sanitizeImagePromptForFlowSafety(
+                                      c.imagePrompt || '',
+                                      docRefsList,
+                                      batchDocCtx
+                                    );
                                     if (c.isStaticBroll) {
                                       return normalizeBrollImagePrompt(
-                                        c.imagePrompt || '',
+                                        safeImg,
                                         c.clipNumber,
                                         c.timeRange,
                                         durForClip,
@@ -23424,12 +23400,17 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                       activeEngine,
                                       docRefsList
                                     );
-                                    const taggedVid = applyClipFlowVideoEngineTag(
+                                    const safeVid = sanitizeVideoClipPromptForFlowSafety(
                                       c.videoPrompt || '',
+                                      docRefsList,
+                                      batchDocCtx
+                                    );
+                                    const taggedVid = applyClipFlowVideoEngineTag(
+                                      safeVid,
                                       resolved,
                                       durForClip
                                     );
-                                    return `${c.imagePrompt}\n${taggedVid}`;
+                                    return `${safeImg}\n${taggedVid}`;
                                   })
                                   .join('\n\n');
                                 copyText(headerPrefix + body, 'copy-batch-clips');
@@ -23807,6 +23788,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                           engineMode: nextMode,
                                           clip1Sec: cardClip1Sec,
                                           standardClipSec: cardStdSec,
+                                          references: docRefsForCard,
                                         }),
                                       });
                                     }}
@@ -23876,6 +23858,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                           engineMode: activeEngineMode,
                                           clip1Sec: cardClip1Sec,
                                           standardClipSec: cardStdSec,
+                                          references: docRefsForCard,
                                         }),
                                       });
                                     }}
@@ -23919,9 +23902,15 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                         activeDoc.operationalHeader || DEFAULT_OPERATIONAL_HEADER,
                                         activeEngineMode
                                       );
+                                      const cardDocCtx = `${activeDoc.topic || ''} ${activeDoc.voiceoverScript || ''}`;
+                                      const safeImg = sanitizeImagePromptForFlowSafety(
+                                        clip.imagePrompt || '',
+                                        docRefsForCard,
+                                        cardDocCtx
+                                      );
                                       if (clip.isStaticBroll) {
                                         const brollImgOnly = normalizeBrollImagePrompt(
-                                          clip.imagePrompt || '',
+                                          safeImg,
                                           clip.clipNumber,
                                           clip.timeRange,
                                           cardClipDurSec,
@@ -23930,13 +23919,18 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                         copyText(`${header}\n\n${brollImgOnly}`, `copy-clip-${clip.id}`);
                                         return;
                                       }
-                                      const taggedVid = applyClipFlowVideoEngineTag(
+                                      const safeVid = sanitizeVideoClipPromptForFlowSafety(
                                         clip.videoPrompt || '',
+                                        docRefsForCard,
+                                        cardDocCtx
+                                      );
+                                      const taggedVid = applyClipFlowVideoEngineTag(
+                                        safeVid,
                                         clipResolvedEngine,
                                         cardClipDurSec
                                       );
                                       copyText(
-                                        `${header}\n\n${clip.imagePrompt}\n${taggedVid}`,
+                                        `${header}\n\n${safeImg}\n${taggedVid}`,
                                         `copy-clip-${clip.id}`
                                       );
                                     }}
@@ -24603,9 +24597,15 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             <button
                               type="button"
                               onClick={() => {
+                                const cardDocCtx = `${activeDoc.topic || ''} ${activeDoc.voiceoverScript || ''}`;
+                                const safeImg = sanitizeImagePromptForFlowSafety(
+                                  (clip.imagePrompt || '').trim(),
+                                  docRefsForCard,
+                                  cardDocCtx
+                                );
                                 if (clip.isStaticBroll) {
                                   const brollImgOnly = normalizeBrollImagePrompt(
-                                    (clip.imagePrompt || '').trim(),
+                                    safeImg,
                                     clip.clipNumber,
                                     clip.timeRange,
                                     cardClipDurSec,
@@ -24614,13 +24614,18 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                   copyText(brollImgOnly, `both-prompts-${clip.id}`);
                                   return;
                                 }
-                                const taggedVid = applyClipFlowVideoEngineTag(
+                                const safeVid = sanitizeVideoClipPromptForFlowSafety(
                                   (clip.videoPrompt || '').trim(),
+                                  docRefsForCard,
+                                  cardDocCtx
+                                );
+                                const taggedVid = applyClipFlowVideoEngineTag(
+                                  safeVid,
                                   clipResolvedEngine,
                                   cardClipDurSec
                                 );
                                 copyText(
-                                  `${(clip.imagePrompt || '').trim()}\n${taggedVid}`,
+                                  `${safeImg}\n${taggedVid}`,
                                   `both-prompts-${clip.id}`
                                 );
                               }}
@@ -24689,7 +24694,16 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                       🚀 Flow Imagen
                                     </button>
                                     <button
-                                      onClick={() => copyText(clip.imagePrompt, `img-${clip.id}`)}
+                                      onClick={() =>
+                                        copyText(
+                                          sanitizeImagePromptForFlowSafety(
+                                            clip.imagePrompt || '',
+                                            docRefsForCard,
+                                            `${activeDoc.topic || ''} ${activeDoc.voiceoverScript || ''}`
+                                          ),
+                                          `img-${clip.id}`
+                                        )
+                                      }
                                       className="px-2.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-[11px] text-amber-300 cursor-pointer"
                                     >
                                       {copiedId === `img-${clip.id}` ? '✓ Copiado' : '📋 Copiar Image'}
@@ -24817,7 +24831,11 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                         onClick={() =>
                                           copyText(
                                             applyClipFlowVideoEngineTag(
-                                              clip.videoPrompt || '',
+                                              sanitizeVideoClipPromptForFlowSafety(
+                                                clip.videoPrompt || '',
+                                                docRefsForCard,
+                                                `${activeDoc.topic || ''} ${activeDoc.voiceoverScript || ''}`
+                                              ),
                                               clipResolvedEngine,
                                               cardClipDurSec
                                             ),

@@ -31,6 +31,8 @@ import {
   normalizeFirstDayOfMonthInVoiceover,
   parseReferencesFromRawText,
   normalizeReferenceTagSlug,
+  sanitizeImagePromptForFlowSafety,
+  sanitizeVideoClipPromptForFlowSafety,
 } from './src/utils/smartParsers';
 import {
   extractCleanPcmFromGeminiAudio,
@@ -299,12 +301,12 @@ app.post('/api/settings/gemini-key', async (req, res) => {
 // ============================================================================
 // DOCUMENTARIES DATABASE CRUD (/api/documentaries)
 // ============================================================================
-const DEFAULT_OPERATIONAL_HEADER_SERVER = `Act as a historian, film director, and professional journalist. Before starting the generation of any images or video clips, first analyze all provided prompts, check scene by scene whether people/human subjects are present or whether the scene is tagged [IMAGE ONLY — DO NOT GENERATE VIDEO CLIP], and give me a clear pre-generation report stating: (1) the exact total number of scenes, (2) how many video clips will be made with Omni (Omni 1.1 Flash), (3) how many video clips will be made with Lower Priority (Veo 3.1 - Lite [Lower Priority]), and (4) how many scenes are [IMAGE ONLY — DO NOT GENERATE VIDEO CLIP] Static B-Roll plates (for which ONLY the image is generated in Nano Banana 2.1 and NO video clip is created in Flow because optical camera motion is rendered locally in our editor), and only after delivering that report proceed with generation.
-Rename every generated image and video clip using these exact prefixes followed by the 2-digit scene number (01 to 09 for 1 to 9) and the first 6 words of its pasted prompt: start initial clip images with "Inicial_##_" (e.g., Inicial_01_create_an_image_in_16_9), start [IMAGE ONLY — DO NOT GENERATE VIDEO CLIP] Static B-Roll plates with "Broll_##_" (e.g., Broll_18_create_an_image_in_16_9), and start video clips with "Clip_##_" (e.g., Clip_01_create_a_cinematic_8_second_video).
+const DEFAULT_OPERATIONAL_HEADER_SERVER = `Act as a professional historian, film director, and journalist. Before starting the generation of any images or video clips, first analyze all provided prompts, check scene by scene whether people/human subjects are present or whether the scene is tagged [IMAGE ONLY — DO NOT GENERATE VIDEO CLIP], and give me a clear pre-generation report stating: (1) exact total number of initial images (Nano Banana 2.1), (2) how many video clips will be made with Omni (Omni 1.1 Flash), (3) how many video clips will be made with Lower Priority (Veo 3.1 - Lite [Lower Priority]), and (4) how many scenes are Image-Only Static B-Roll plates ([IMAGE ONLY — DO NOT GENERATE VIDEO CLIP] [B-Roll: STATIC_...]) that require ONLY the Nano Banana 2.1 still image and ZERO video clip generation, and only after delivering that report proceed with generation.
+Rename every generated image and video clip using these exact prefixes followed by the 2-digit scene number (01 to 09 for 1 to 9) and the first 6 words of the prompt: start initial clip images with "Inicial_##_" (e.g., Inicial_01_create_an_image_in_16_9), start [IMAGE ONLY — DO NOT GENERATE VIDEO CLIP] Static B-Roll plates with "Broll_##_" (e.g., Broll_18_create_an_image_in_16_9), and start video clips with "Clip_##_" (e.g., Clip_01_create_a_cinematic_8_second_video).
 Use Omni 1.1 Flash exclusively for video clips featuring people and use Veo 3.1 - Lite [Lower Priority] for all remaining video clips without people; use Nano Banana 2.1 for the initial images of each clip and for all [IMAGE ONLY — DO NOT GENERATE VIDEO CLIP] Static B-Roll plates.
-Create the images first and then the video clips using each image as the starting frame, EXCEPT for any prompt tagged [IMAGE ONLY — DO NOT GENERATE VIDEO CLIP] [B-Roll: STATIC_...]: for those B-Roll scenes, generate ONLY the high-resolution Nano Banana 2.1 still image and strictly SKIP creating any video clip in Flow.
-Use the @Reference images of people and locations ONLY when generating the initial images ("Inicial_##") with Nano Banana 2.1 to maintain visual fidelity; when generating each video clip ("Clip_##"), use ONLY its corresponding generated initial image ("Inicial_##") as the starting frame without re-attaching @Person reference sheets or real historical person names.
-Never make shot changes in any clip (except in that specific clip where the prompt explicitly instructs making two 5-second shots each because the narration voice changed scenes) and ensure video clips have no disappearances or transformations; the created initial image will be used as the start of each clip.
+Create the images first and then create video clips ONLY for scenes that include a "Clip XX:" prompt (using each corresponding image as the starting frame). STRICT RULE FOR STATIC B-ROLL PLATES: Whenever an "Image XX:" prompt is tagged [IMAGE ONLY — DO NOT GENERATE VIDEO CLIP] (with no "Clip XX:" prompt), generate ONLY the still image with Nano Banana 2.1 and DO NOT generate any video clip for that scene number (4K 60fps camera motion is applied locally in our video editor).
+Use the @Reference images of locations and anonymous role sheets ONLY when generating the initial images ("Inicial_##") with Nano Banana 2.1 to maintain visual fidelity; when generating each video clip ("Clip_##")—especially with Omni 1.1 Flash—use ONLY its corresponding generated initial image ("Inicial_##") as the starting frame and STRICTLY NEVER include any real or fictional person proper names, surnames, or @Reference tags in any video prompt (describe people solely by anonymous period role, adult age, and attire).
+Never make shot changes in any clip (except in that specific clip where the prompt explicitly instructs making two 5-second shots each because the narration voice changed scenes) and ensure video clips have no disappearances or transformations; the created initial image will be used as the start of each video clip.
 Divide creation into batches of 10.
 rename everything adding _ as the blank spaces between words and replacing any colons (:) or hyphens with _ (never use : in filenames)
 from 1 to 9 change the scene number to 01 to 09 (e.g., Inicial_01, Clip_01, Broll_08)`;
@@ -331,6 +333,7 @@ function sanitizeOperationalHeaderServer(
     !/^Act as a (?:professional |master )?historian/i.test(trimmed) ||
     !/pre-generation\s+report/i.test(trimmed) ||
     !/IMAGE\s+ONLY\s*[—–-]?\s*DO\s+NOT\s+GENERATE\s+VIDEO\s+CLIP/i.test(trimmed) ||
+    !/STRICTLY NEVER include any real or fictional person proper names/i.test(trimmed) ||
     !/Inicial_/i.test(trimmed) ||
     !/Broll_/i.test(trimmed) ||
     !/Clip_/i.test(trimmed) ||
@@ -4047,7 +4050,8 @@ ${doc.voiceoverScript || doc.sectionsStructure || ''}
 Generate STAGE 6: REFERENCE MODEL IMAGE PROMPTS for Nano Banana 2.1 in Google Flow (**6 views in every image** and specifying the **exact identifier** of every image with @ and underscores _ with zero spaces or accents), written 100% IN PURE ENGLISH:
 - Prepend this exact operational header in English:
   Use Nano Banana 2.1. Generate each image as a 6-view reference sheet in a single 3x2 grid image and strictly rename each generated image to the exact @Name_With_Underscores identifier specified in each prompt.
-- For each main character (@People): Image @Character_Name [Image Name: @Character_Name]: Create an image in ${refAspect} structured as a 6-view character reference sheet (6 distinct views in a single 3x2 grid image of the exact same person with 100% identical facial, hair, and wardrobe continuity: 1. front full-body standing view, 2. three-quarter full-body view, 3. side profile full-body view, 4. back full-body view, 5. neutral front close-up portrait of head and shoulders, 6. three-quarter close-up portrait showing skin pores and facial structure), depicting [detailed physical traits and authentic period wardrobe (${doc.historicalTime}, ${doc.historicalLocation}), portrayed by an anonymous historical reenactment actor in authentic period costume, no real public figures or prominent people], 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Character_Name
+- UNBREAKABLE ANONYMOUS ROLE HANDLE RULE FOR PEOPLE (ZERO REAL PERSON NAMES IN @TAGS OR PROMPTS): Google Flow / Omni 1.1 Flash blocks prompts containing real historical or public-figure proper names or surnames. Therefore, for every character (@People), NEVER use a real person's first name or surname in the @Tag or anywhere in the prompt (e.g., NEVER write @Alexander_Fleming, @Charles_Fletcher, @Howard_Florey, or @Napoleon_Bonaparte). ALWAYS name every character reference using an ANONYMOUS DESCRIPTIVE ROLE HANDLE in English with @ and underscores (e.g., @Scottish_Bacteriologist, @Young_Clinical_Physician, @Oxford_Pathology_Professor, @Exiled_Spanish_Poet).
+- For each main character (@People): Image @Anonymous_Role_Tag [Image Name: @Anonymous_Role_Tag]: Create an image in ${refAspect} structured as a 6-view character reference sheet (6 distinct views in a single 3x2 grid image of the exact same person with 100% identical facial, hair, and wardrobe continuity: 1. front full-body standing view, 2. three-quarter full-body view, 3. side profile full-body view, 4. back full-body view, 5. neutral front close-up portrait of head and shoulders, 6. three-quarter close-up portrait showing skin pores and facial structure), depicting [detailed adult age, physical traits, hair, and authentic period wardrobe (${doc.historicalTime}, ${doc.historicalLocation}) with strictly ZERO real person proper names or surnames anywhere in the text, portrayed by an anonymous historical reenactment actor in authentic period costume, no real public figures or prominent people], 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Anonymous_Role_Tag
 - For each primary location (@Locations): Image @Location_Name [Image Name: @Location_Name]: Create an image in ${refAspect} structured as a 6-view historical location reference sheet (6 distinct views in a single 3x2 grid image of the exact same historical location with 100% architectural, material, and atmospheric continuity: 1. wide establishing shot, 2. reverse wide angle, 3. medium focal architectural view, 4. ground-level entrance or street perspective, 5. elevated overview angle, 6. close-up structural materials and period lighting detail), depicting [historical architecture, era (${doc.historicalTime}, ${doc.historicalLocation}), and atmospheric lighting], strictly empty environment with zero people, zero animals, and zero characters anywhere in the frame, 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Location_Name`;
     } else if (stageNumber === 7) {
       stagePrompt = `Act as creative director for the Spanish-language historical documentary channel "Huellas de la Humanidad".
@@ -4072,7 +4076,7 @@ Clip 1 Sync and Voice Entry: ${
       }
 Approximate Duration Rule: Total video duration is approximate to the requested target (~${doc.targetDurationSeconds || 120}s); all clips from Clip 2 to the end maintain their standard ${clipDurationLabel} length without forcing 2s or 4s micro-filler clips at the end.
 Clip 1 On-Screen Text Context: ${doc.clip1Line1LocationTime} — ${doc.clip1Line2Hook}
-Available @References: ${(doc.references || []).map((r: any) => r.tag).join(', ')}
+Available @References (Locations and Anonymous Role Sheets): ${(doc.references || []).map((r: any) => r.tag).join(', ')}
 
 Narrator Voice Timeline (Spanish reference context — DO NOT copy Spanish sentences into Image or Clip prompts):
 """
@@ -4083,17 +4087,18 @@ UNBREAKABLE 9-LINE OPERATIONAL HEADER REQUIREMENT:
 Your output MUST BEGIN VERBATIM WITH THIS EXACT 9-LINE ENGLISH PARAGRAPH (omitting zero lines) before "Image 1: Create an image":
 ${opHeader}
 
-Immediately after the 9-line header paragraph, output every Clip (starting with Clip 1 without narrator voice, followed by Clip 2 onward covering the entire timeline) strictly obeying these UNBREAKABLE SIMPLICITY, PRECISION, PURE ENGLISH, AND ANTI-DUPLICATION RULES:
+Immediately after the 9-line header paragraph, output every Clip (starting with Clip 1 without narrator voice, followed by Clip 2 onward covering the entire timeline) strictly obeying these UNBREAKABLE SIMPLICITY, PRECISION, PURE ENGLISH, ZERO PERSON PROPER NAMES, AND ANTI-DUPLICATION RULES:
 - 100% PURE ENGLISH PROMPTS FOR GOOGLE FLOW: Every single Image [N] and Clip [N] prompt MUST be written 100% in pure English. NEVER embed Spanish voiceover sentences inside Image [N] or Clip [N].
+- STRICT ZERO PERSON PROPER NAMES RULE (CRITICAL FOR OMNI 1.1 FLASH): Omni 1.1 Flash rejects video generation whenever any real or fictional person's proper name, surname, title+name, or @Person_Name handle appears in the prompt. You are STRICTLY FORBIDDEN from writing any person's first name, surname, or possessive name (e.g., NEVER write "Alexander Fleming", "Fleming's", "@Alexander_Fleming", "Charles Fletcher", "Howard Florey", "Frank Menocal", "Pedro Garfias", etc.) in EITHER Image [N] OR Clip [N]. Always describe every human character strictly by their anonymous historical role, adult age, physical features, and period attire (e.g., "a 47-year-old silver-haired Scottish bacteriologist in a white cotton lab coat and bow tie", "the young British clinical physician in the white coat", "the scientist's workbench"). Never include any @Tag inside Clip [N].
 - HYBRID VIDEO ENGINE RULE: In every Clip [N], immediately before "fix the name", write [Model: Omni 1.1 Flash] if people or human characters appear in that clip, or write [Model: Veo 3.1 - Lite [Lower Priority]] if ZERO people appear in that clip (landscapes, ships at sea, maps, documents, lithographs, or objects).
 - UNBREAKABLE VISUAL NON-DUPLICATION BETWEEN CONSECUTIVE CLIPS (Clip [N] vs Clip [N+1]): Whenever the narrator stays on the same topic or scene across consecutive clips, Clip [N+1] MUST NEVER visually duplicate Clip [N] (strictly forbidden to chain two consecutive offices, two wooden desks/counters with documents/coins, or the same staging twice in a row). Each subsequent clip must shift radically in environment, lighting, scale, and camera perspective while remaining faithful to the narration (e.g., if Clip N is a dim interior desk, Clip N+1 must cut to a bright exterior harbor dock facing a steamship, an open street, or a distinct visual angle).
-- Image [N]: Concise, direct, and clear (~20 to 35 English words), describing only the primary subject/scene, historical era and location (${doc.historicalTime}, ${doc.historicalLocation}), and lighting, closing with "cinematic lighting, historical accuracy, no text."
-- Clip [N] ([MM:SS - MM:SS]): Because Google Flow already uses Image [N] as the starting keyframe, DO NOT repeat wardrobe or architectural descriptions. Write ONE SINGLE SIMPLE, DIRECT ENGLISH SENTENCE (~12 to 22 words) specifying ONLY ONE smooth camera movement (e.g., slow zoom-in, panning slowly, gliding slowly, slow tilt-up) and ONE natural physical micro-action on the starting image, followed by "Ambient Foley: [2-3 specific period sounds], single continuous shot, strictly no shot changes, no music, no speech, no text." followed by the corresponding [Model: ...] tag and closing with "fix the name".
+- Image [N]: Concise, direct, and clear (~20 to 35 English words), describing only the primary subject/scene (using anonymous role + wardrobe descriptions for any person, with zero proper person names), historical era and location (${doc.historicalTime}, ${doc.historicalLocation}), and lighting, closing with "cinematic lighting, historical accuracy, no text."
+- Clip [N] ([MM:SS - MM:SS]): Because Google Flow already uses Image [N] as the starting keyframe, DO NOT repeat wardrobe or architectural descriptions and NEVER include any @Tag or person proper name. Write ONE SINGLE SIMPLE, DIRECT ENGLISH SENTENCE (~12 to 22 words) specifying ONLY ONE smooth camera movement (e.g., slow zoom-in, panning slowly, gliding slowly, slow tilt-up) and ONE natural physical micro-action on the starting image (referring to any human subject solely by anonymous role, e.g., "the young British physician", "the silver-haired scientist"), followed by "Ambient Foley: [2-3 specific period sounds], single continuous shot, strictly no shot changes, no music, no speech, no text." followed by the corresponding [Model: ...] tag and closing with "fix the name".
 
 Exact output format example:
-Image [N]: Create an image of [clear English scene with historical era and location], cinematic lighting, historical accuracy, no text.
+Image [N]: Create an image of [clear English scene with historical era and location and ZERO person proper names], cinematic lighting, historical accuracy, no text.
 
-Clip [N] ([MM:SS - MM:SS]): Create a video showing [1 smooth camera movement + 1 simple physical micro-action on the starting image]. Ambient Foley: [specific period sounds], single continuous shot, strictly no shot changes, no music, no speech, no text. [Model: Omni 1.1 Flash or Veo 3.1 - Lite [Lower Priority]] fix the name`;
+Clip [N] ([MM:SS - MM:SS]): Create a video showing [1 smooth camera movement + 1 simple physical micro-action by the anonymous role subject on the starting image, ZERO person proper names and ZERO @Tags]. Ambient Foley: [specific period sounds], single continuous shot, strictly no shot changes, no music, no speech, no text. [Model: Omni 1.1 Flash or Veo 3.1 - Lite [Lower Priority]] fix the name`;
     } else if (stageNumber === 10) {
       const parseMmSsToSec = (str?: string): number => {
         if (!str) return 0;
@@ -4469,7 +4474,7 @@ CLIP-BY-CLIP AUDIT RULES:
   2. STRICT NON-DUPLICATION BETWEEN CONSECUTIVE CLIPS (Clip N vs Clip N-1): If the narration stays on the same scene or storyline across multiple clips, Clip [N] MUST NEVER visually duplicate the staging of Clip [N-1] (forbidden to chain two wooden office desks with documents or two identical rooms back-to-back). If Clip [N] repeats a setting or composition similar to Clip [N-1], flag it as "warning" or "mismatch" and propose in "suggestedImagePrompt" and "suggestedVideoPrompt" una escena visualmente diferente pero referente a la locución (ej. pasar de un interior de oficina a un exterior luminoso en un muelle frente a un buque de vapor, o cambiar radicalmente de entorno y escala).
   3. If the narrator speaks about a specific place, object, or action while the clip depicts something disconnected or repetitive, flag it as "mismatch" or "warning".
   4. Check pause tags ([pausa: Xs]): If mid-clip the narrator pauses and shifts to a completely new scene, suggest a two-shot 5s+5s sequence; otherwise enforce "single continuous shot, strictly no shot changes".
-  5. 100% PURE ENGLISH PROMPTS FOR GOOGLE FLOW: Whenever a clip has empty, overloaded, or improvable prompts, write "suggestedImagePrompt" IN PURE ENGLISH (starting with "Image [N]: Create an image of ", concise ~20-35 English words with era, location, clear subject, ending with "cinematic lighting, historical accuracy, no text.") and "suggestedVideoPrompt" IN PURE ENGLISH (starting with "Clip [N] ([timeRange]): Create a video showing ", 1 short English sentence with 1 smooth camera movement + 1 physical micro-action on the starting image, followed by "Ambient Foley: [2-3 period sounds], single continuous shot, strictly no shot changes, no music, no speech, no text. [Model: Omni 1.1 Flash or Veo 3.1 - Lite [Lower Priority]] fix the name" — NEVER embed Spanish voiceover sentences).
+  5. 100% PURE ENGLISH PROMPTS FOR GOOGLE FLOW & ZERO PERSON PROPER NAMES (CRITICAL FOR OMNI 1.1 FLASH): Whenever a clip has empty, overloaded, or improvable prompts, write "suggestedImagePrompt" IN PURE ENGLISH (starting with "Image [N]: Create an image of ", concise ~20-35 English words with era, location, clear subject, ending with "cinematic lighting, historical accuracy, no text.") and "suggestedVideoPrompt" IN PURE ENGLISH (starting with "Clip [N] ([timeRange]): Create a video showing ", 1 short English sentence with 1 smooth camera movement + 1 physical micro-action on the starting image, followed by "Ambient Foley: [2-3 period sounds], single continuous shot, strictly no shot changes, no music, no speech, no text. [Model: Omni 1.1 Flash or Veo 3.1 - Lite [Lower Priority]] fix the name" — NEVER embed Spanish voiceover sentences). STRICTLY FORBIDDEN to include any real or fictional person proper names, surnames, or @Person tags in "suggestedImagePrompt" or "suggestedVideoPrompt" (always describe people solely by anonymous historical role, adult age, and period attire, e.g., "the 47-year-old silver-haired Scottish bacteriologist in a white lab coat").
   6. If the clip is already coherent and obeys all rules, set auditStatus: "ok", briefly explain why in Spanish in "auditReason", and leave "suggestedImagePrompt" and "suggestedVideoPrompt" as empty strings ("").
 
 Return EXCLUSIVELY a valid JSON object with the "audits" array property:
@@ -4480,8 +4485,8 @@ Return EXCLUSIVELY a valid JSON object with the "audits" array property:
       "clipNumber": 1,
       "auditStatus": "ok" | "warning" | "mismatch",
       "auditReason": "Clear explanation in Spanish of whether the clip matches the voiceover or what change is suggested",
-      "suggestedImagePrompt": "Image N: Create an image ... (100% pure English only if change needed, otherwise empty string)",
-      "suggestedVideoPrompt": "Clip N (MM:SS - MM:SS): Create a video ... fix the name (100% pure English only if change needed, otherwise empty string)"
+      "suggestedImagePrompt": "Image N: Create an image ... (100% pure English with ZERO person proper names only if change needed, otherwise empty string)",
+      "suggestedVideoPrompt": "Clip N (MM:SS - MM:SS): Create a video ... fix the name (100% pure English with ZERO person proper names and ZERO @Tags only if change needed, otherwise empty string)"
     }
   ]
 }`;
@@ -4518,6 +4523,23 @@ Return EXCLUSIVELY a valid JSON object with the "audits" array property:
     }
 
     const parsed = JSON.parse(responseText.trim());
+    const docRefs = Array.isArray(doc.references) ? doc.references : [];
+    if (parsed && Array.isArray(parsed.audits)) {
+      parsed.audits = parsed.audits.map((item: any) => {
+        if (!item || typeof item !== 'object') return item;
+        const rawSugImg = typeof item.suggestedImagePrompt === 'string' ? item.suggestedImagePrompt.trim() : '';
+        const rawSugVid = typeof item.suggestedVideoPrompt === 'string' ? item.suggestedVideoPrompt.trim() : '';
+        return {
+          ...item,
+          ...(rawSugImg
+            ? { suggestedImagePrompt: sanitizeImagePromptForFlowSafety(rawSugImg, docRefs) }
+            : {}),
+          ...(rawSugVid
+            ? { suggestedVideoPrompt: sanitizeVideoClipPromptForFlowSafety(rawSugVid, docRefs) }
+            : {}),
+        };
+      });
+    }
     res.json(parsed);
   } catch (err: any) {
     console.error('Error en /api/ai/audit-clips:', err);
@@ -4577,7 +4599,7 @@ Carefully inspect the attached real video frames and evaluate:
 VERDICT CRITERIA:
 - "approved": Video looks solid, matches both the voiceover and the prompt (score >= 75).
 - "warning": Video is usable with only a minor imperfection (score 60-74).
-- "rejected": Video FAILS to match the voiceover, ignored the prompt, or exhibits severe visual artifacts/anachronisms (score < 60). If "rejected", you MUST write in "fixedVideoPrompt" a clearer, simpler, corrected video prompt IN 100% PURE ENGLISH for Google Flow starting with "Clip ${clipObj.clipNumber || 1} (${clipObj.timeRange || '00:00 - 00:10'}): Create a video showing ..." (NEVER embed Spanish voiceover sentences inside fixedVideoPrompt) and ending with "[Model: Omni 1.1 Flash or Veo 3.1 - Lite [Lower Priority]] fix the name".
+- "rejected": Video FAILS to match the voiceover, ignored the prompt, or exhibits severe visual artifacts/anachronisms (score < 60). If "rejected", you MUST write in "fixedVideoPrompt" a clearer, simpler, corrected video prompt IN 100% PURE ENGLISH for Google Flow starting with "Clip ${clipObj.clipNumber || 1} (${clipObj.timeRange || '00:00 - 00:10'}): Create a video showing ..." (NEVER embed Spanish voiceover sentences inside fixedVideoPrompt, and STRICTLY NEVER include any real or fictional person proper names, surnames, or @Tags—describe people solely by anonymous historical role, adult age, and period attire) and ending with "[Model: Omni 1.1 Flash or Veo 3.1 - Lite [Lower Priority]] fix the name".
 
 Return EXCLUSIVELY a valid JSON object:
 {
@@ -4589,7 +4611,7 @@ Return EXCLUSIVELY a valid JSON object:
   "visualQualityOk": true,
   "auditReason": "Concise explanation in Spanish for the producer UI describing what is visible in the video and why it passes or fails",
   "issues": ["List of detected issues in Spanish if any"],
-  "fixedVideoPrompt": "100% pure English corrected prompt ready to re-send to Google Flow if verdict is rejected, or empty string if approved"
+  "fixedVideoPrompt": "100% pure English corrected prompt with ZERO person proper names and ZERO @Tags ready to re-send to Google Flow if verdict is rejected, or empty string if approved"
 }`;
 
     const parts: any[] = [{ text: promptText }];
@@ -4637,6 +4659,10 @@ Return EXCLUSIVELY a valid JSON object:
     }
 
     const parsed = JSON.parse(responseText.trim());
+    const docRefs = Array.isArray(doc.references) ? doc.references : [];
+    if (parsed && typeof parsed.fixedVideoPrompt === 'string' && parsed.fixedVideoPrompt.trim()) {
+      parsed.fixedVideoPrompt = sanitizeVideoClipPromptForFlowSafety(parsed.fixedVideoPrompt.trim(), docRefs);
+    }
     res.json(parsed);
   } catch (err: any) {
     console.error('Error en /api/ai/audit-clip-video:', err);
@@ -10572,6 +10598,8 @@ app.post('/api/flow/sync-reference-downloads', async (req, res) => {
       cleanBase: string;
       asciiSlug: string;
       mangledSlug: string;
+      legacyAsciiSlugs: string[];
+      legacyMangledSlugs: string[];
       tokens: string[];
     }
 
@@ -10596,10 +10624,41 @@ app.post('/api/flow/sync-reference-downloads', async (req, res) => {
           .toLowerCase()
           .replace(/[^a-z0-9]+/g, '_')
           .replace(/^_+|_+$/g, '');
+        const rawLegacyList: string[] = [
+          ...(Array.isArray(r?.legacyTags) ? r.legacyTags : []),
+          ...(typeof r?.historicalIdentityNote === 'string' && r.historicalIdentityNote.trim()
+            ? [r.historicalIdentityNote.trim()]
+            : []),
+        ];
+        const legacyAsciiSlugs: string[] = [];
+        const legacyMangledSlugs: string[] = [];
+        const legacyTokens: string[] = [];
+        for (const leg of rawLegacyList) {
+          const cleanLeg = String(leg || '')
+            .replace(/^(?:Image|Imagen)\s+/i, '')
+            .replace(/^@+/, '')
+            .replace(/^(?:Ref_Image_|Ref_|Referencia_)+/i, '')
+            .trim();
+          if (!cleanLeg) continue;
+          const legAscii = cleanLeg
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '_')
+            .replace(/^_+|_+$/g, '');
+          const legMangled = cleanLeg
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '_')
+            .replace(/^_+|_+$/g, '');
+          if (legAscii) legacyAsciiSlugs.push(legAscii);
+          if (legMangled) legacyMangledSlugs.push(legMangled);
+          legacyTokens.push(...extractMeaningfulTokens(cleanLeg));
+        }
         const tokens = Array.from(
           new Set([
             ...extractMeaningfulTokens(strippedHeader),
             ...extractMeaningfulTokens(String(r?.description || '')),
+            ...legacyTokens,
           ])
         );
         return {
@@ -10609,6 +10668,8 @@ app.post('/api/flow/sync-reference-downloads', async (req, res) => {
           cleanBase,
           asciiSlug,
           mangledSlug,
+          legacyAsciiSlugs,
+          legacyMangledSlugs,
           tokens,
         };
       })
@@ -10665,18 +10726,24 @@ app.post('/api/flow/sync-reference-downloads', async (req, res) => {
       const cand = normalizeCandidateFile(fileName);
       if (cand.isExcluded || !cand.asciiSlug) return null;
 
-      // Pass 1: Exact or clean prefix/suffix slug match
+      // Pass 1: Exact or clean prefix/suffix slug match (including legacyTags)
       for (const rm of refMatchers) {
-        if (
-          cand.asciiSlug === rm.asciiSlug ||
-          (rm.mangledSlug && cand.rawAsciiSlug === rm.mangledSlug) ||
-          (rm.asciiSlug.length >= 6 &&
-            (cand.asciiSlug.startsWith(`${rm.asciiSlug}_`) ||
-              cand.asciiSlug.endsWith(`_${rm.asciiSlug}`))) ||
-          (rm.mangledSlug.length >= 6 &&
-            (cand.rawAsciiSlug.startsWith(`${rm.mangledSlug}_`) ||
-              cand.rawAsciiSlug.endsWith(`_${rm.mangledSlug}`)))
-        ) {
+        const allAsciiSlugs = [rm.asciiSlug, ...(rm.legacyAsciiSlugs || [])].filter(Boolean);
+        const allMangledSlugs = [rm.mangledSlug, ...(rm.legacyMangledSlugs || [])].filter(Boolean);
+        const matchedAscii = allAsciiSlugs.some(
+          (slug) =>
+            cand.asciiSlug === slug ||
+            (slug.length >= 6 &&
+              (cand.asciiSlug.startsWith(`${slug}_`) || cand.asciiSlug.endsWith(`_${slug}`)))
+        );
+        const matchedMangled = allMangledSlugs.some(
+          (slug) =>
+            cand.rawAsciiSlug === slug ||
+            (slug.length >= 6 &&
+              (cand.rawAsciiSlug.startsWith(`${slug}_`) ||
+                cand.rawAsciiSlug.endsWith(`_${slug}`)))
+        );
+        if (matchedAscii || matchedMangled) {
           return rm;
         }
       }

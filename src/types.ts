@@ -168,6 +168,8 @@ export interface ReferenceAsset {
   prompt: string;
   imageUrl?: string;
   isCreated: boolean;
+  legacyTags?: string[];
+  historicalIdentityNote?: string;
 }
 
 export type BrollCameraMotion =
@@ -429,7 +431,7 @@ export const DEFAULT_OPERATIONAL_HEADER = `Act as a professional historian, film
 Rename every generated image and video clip using these exact prefixes followed by the 2-digit scene number (01 to 09 for 1 to 9) and the first 6 words of the prompt: start initial clip images with "Inicial_##_" (e.g., Inicial_01_create_an_image_in_16_9), start [IMAGE ONLY — DO NOT GENERATE VIDEO CLIP] Static B-Roll plates with "Broll_##_" (e.g., Broll_18_create_an_image_in_16_9), and start video clips with "Clip_##_" (e.g., Clip_01_create_a_cinematic_8_second_video).
 Use Omni 1.1 Flash exclusively for video clips featuring people and use Veo 3.1 - Lite [Lower Priority] for all remaining video clips without people; use Nano Banana 2.1 for the initial images of each clip and for all [IMAGE ONLY — DO NOT GENERATE VIDEO CLIP] Static B-Roll plates.
 Create the images first and then create video clips ONLY for scenes that include a "Clip XX:" prompt (using each corresponding image as the starting frame). STRICT RULE FOR STATIC B-ROLL PLATES: Whenever an "Image XX:" prompt is tagged [IMAGE ONLY — DO NOT GENERATE VIDEO CLIP] (with no "Clip XX:" prompt), generate ONLY the still image with Nano Banana 2.1 and DO NOT generate any video clip for that scene number (4K 60fps camera motion is applied locally in our video editor).
-Use the @Reference images of people and locations ONLY when generating the initial images ("Inicial_##") with Nano Banana 2.1 to maintain visual fidelity; when generating each video clip ("Clip_##"), use ONLY its corresponding generated initial image ("Inicial_##") as the starting frame without re-attaching @Person reference sheets or real historical person names.
+Use the @Reference images of locations and anonymous role sheets ONLY when generating the initial images ("Inicial_##") with Nano Banana 2.1 to maintain visual fidelity; when generating each video clip ("Clip_##")—especially with Omni 1.1 Flash—use ONLY its corresponding generated initial image ("Inicial_##") as the starting frame and STRICTLY NEVER include any real or fictional person proper names, surnames, or @Reference tags in any video prompt (describe people solely by anonymous period role, adult age, and attire).
 Never make shot changes in any clip (except in that specific clip where the prompt explicitly instructs making two 5-second shots each because the narration voice changed scenes) and ensure video clips have no disappearances or transformations; the created initial image will be used as the start of each video clip.
 Divide creation into batches of 10.
 rename everything adding _ as the blank spaces between words and replacing any colons (:) or hyphens with _ (never use : in filenames)
@@ -457,6 +459,7 @@ export function sanitizeOperationalHeader(
     !/^Act as a (?:(?:professional|master)\s+)?historian/i.test(trimmed) ||
     !/pre-generation\s+report|how\s+many\s+(?:video\s+)?clips\s+will\s+be\s+(?:made|generated)\s+with\s+Omni/i.test(trimmed) ||
     !/IMAGE\s+ONLY\s*[—–-]\s*DO\s+NOT\s+GENERATE\s+VIDEO\s+CLIP/i.test(trimmed) ||
+    !/STRICTLY NEVER include any real or fictional person proper names/i.test(trimmed) ||
     !/Inicial_/i.test(trimmed) ||
     !/Broll_/i.test(trimmed) ||
     !/Clip_/i.test(trimmed) ||
