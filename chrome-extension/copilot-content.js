@@ -130,10 +130,15 @@
       'button.fai-SendButton',
       'button.fai-BebopLiteChatInput__send',
       'button[data-testid="submit-button"]',
+      'button[data-testid*="submit" i]',
+      'button[data-testid*="send" i]',
       'button[aria-label="Submit message" i]',
       'button[aria-label*="Submit message" i]',
       'button[aria-label*="Send message" i]',
       'button[aria-label*="Enviar mensaje" i]',
+      'button[aria-label*="Submit" i]',
+      'button[aria-label*="Send" i]',
+      'button[aria-label*="Enviar" i]',
       'button[aria-label="Send" i]',
       'button[aria-label="Enviar" i]',
       'button[title*="Submit" i]',
@@ -193,8 +198,10 @@
       'button[data-testid*="mode-selector" i]',
       'button[data-testid*="model-selector" i]',
       'button[data-testid*="composer-mode" i]',
+      'button[aria-label*="Auto" i]',
       'button[aria-label*="Think Deeper" i]',
       'button[aria-label*="Quick response" i]',
+      'button[aria-label*="Respuesta rápida" i]',
       'button[aria-label*="Smart" i]',
     ];
     for (const sel of selectors) {
@@ -209,6 +216,79 @@
       }
     }
     return 'Microsoft Copilot Web';
+  }
+
+  async function ensureCopilotQuickResponseMode() {
+    try {
+      const triggerSelectors = [
+        'button[aria-label*="Selector de modelos" i]',
+        'button[aria-label*="Model selector" i]',
+        'button[data-testid*="mode-selector" i]',
+        'button[data-testid*="model-selector" i]',
+        'button[data-testid*="composer-mode" i]',
+        'button[aria-label*="Auto" i]',
+        'button[aria-label*="Think Deeper" i]',
+        'button[aria-label*="Quick response" i]',
+        'button[aria-label*="Respuesta rápida" i]',
+        'button[aria-label*="Smart" i]',
+      ];
+      let modeBtn = null;
+      for (const sel of triggerSelectors) {
+        for (const el of deepQueryAll(sel)) {
+          if (isVisible(el) && !el.disabled) {
+            modeBtn = el;
+            break;
+          }
+        }
+        if (modeBtn) break;
+      }
+      if (!modeBtn) {
+        for (const b of deepQueryAll('button')) {
+          if (!isVisible(b) || b.disabled) continue;
+          const t = (b.innerText || b.textContent || '').replace(/\s+/g, ' ').trim();
+          if (/^(Auto|Smart|Think Deeper|Think deeper|Profundizar)$/i.test(t)) {
+            modeBtn = b;
+            break;
+          }
+        }
+      }
+      if (!modeBtn) return;
+      const currentLabel = (modeBtn.innerText || modeBtn.textContent || modeBtn.getAttribute('aria-label') || '')
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (/quick\s*response|respuesta\s*r[aá]pida/i.test(currentLabel)) return;
+
+      for (const evType of ['pointerdown', 'mousedown', 'mouseup']) {
+        modeBtn.dispatchEvent(new MouseEvent(evType, { bubbles: true, cancelable: true, view: window }));
+      }
+      modeBtn.click();
+
+      for (let poll = 0; poll < 10; poll++) {
+        await sleep(90);
+        const candidates = deepQueryAll(
+          '[role="menuitem"], [role="menuitemradio"], [role="option"], [data-radix-collection-item], [data-testid*="quick" i], [class*="MenuItem" i], li, button'
+        ).filter((el) => el !== modeBtn && isVisible(el) && !modeBtn.contains(el));
+        const matching = candidates.filter((el) => {
+          const txt = (el.innerText || el.textContent || el.getAttribute('aria-label') || '')
+            .replace(/\s+/g, ' ')
+            .trim();
+          return txt.length <= 140 && /quick\s*response|respuesta\s*r[aá]pida/i.test(txt);
+        });
+        const innermost = matching.filter(
+          (el, _i, arr) => !arr.some((other) => other !== el && el.contains(other))
+        );
+        const pick = innermost[0] || matching[0];
+        if (pick) {
+          for (const evType of ['pointerdown', 'mousedown', 'mouseup']) {
+            pick.dispatchEvent(new MouseEvent(evType, { bubbles: true, cancelable: true, view: window }));
+          }
+          pick.click();
+          await sleep(180);
+          return;
+        }
+      }
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }));
+    } catch {}
   }
 
   function getUserTurnCount() {
@@ -394,20 +474,21 @@
             return;
           }
 
+          await ensureCopilotQuickResponseMode();
+          inputEl = findCopilotComposer() || inputEl;
           const verifiedModel = readDetectedModelLabel();
           const initialCount = getAssistantTurnElements().length;
           const initialLastText = (extractLatestCopilotResponse().text || '').trim();
           const initialUserCount = getUserTurnCount();
           const initialUrl = window.location.href;
 
-          const mainInjectRes = await chrome.runtime
+          await chrome.runtime
             .sendMessage({
               type: 'COPILOT_MAIN_WORLD_INJECT_AND_SUBMIT',
               prompt: rawPrompt,
               autoSubmit: true,
             })
             .catch(() => null);
-          const mainHandled = Boolean(mainInjectRes && mainInjectRes.ok);
           const normalizedTarget = String(rawPrompt || '').replace(/\s+/g, ' ').trim();
           const expectedPrefix = normalizedTarget.slice(0, Math.min(28, normalizedTarget.length));
 
@@ -427,12 +508,9 @@
             const curText = String(curInput.value ?? curInput.innerText ?? curInput.textContent ?? '')
               .replace(/\s+/g, ' ')
               .trim();
-            if (mainHandled && curText.length === 0) {
-              break;
-            }
             if (!curText || (expectedPrefix && !curText.startsWith(expectedPrefix))) {
               setComposerTextDomFallback(curInput, rawPrompt);
-              await sleep(220);
+              await sleep(300);
             }
             const sendBtn = findSendButton();
             if (sendBtn) {

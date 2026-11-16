@@ -94,7 +94,7 @@
         <path id="activeBeamPath" d="M 75 50 Q 150 12 225 50" fill="none" stroke="url(#gradBeam)" stroke-width="2.5" class="beam-active" />
       </svg>
 
-      <div id="robotsGrid" class="relative z-10 grid grid-cols-4 gap-1 items-center">
+      <div id="robotsGrid" class="relative z-10 grid grid-cols-5 gap-1 items-center">
         <div id="robotCard0" onclick="selectSpeaker(0)" class="cursor-pointer flex flex-col items-center py-1 px-1 rounded-lg border border-transparent transition">
           <div id="robotWrap0" class="robot-speaking">
             <svg width="48" height="52" viewBox="0 0 80 86">
@@ -113,7 +113,7 @@
           <span id="status0" class="text-xs text-[var(--muted-foreground)] leading-tight truncate max-w-full">🎙️ Habla</span>
         </div>
 
-        <div id="robotCard4" onclick="selectSpeaker(4)" style="display: none;" class="cursor-pointer flex flex-col items-center py-1 px-1 rounded-lg border border-transparent transition">
+        <div id="robotCard4" onclick="selectSpeaker(4)" class="cursor-pointer flex flex-col items-center py-1 px-1 rounded-lg border border-transparent transition">
           <div id="robotWrap4" class="robot-idle">
             <svg width="48" height="52" viewBox="0 0 80 86">
               <circle cx="40" cy="8" r="4.5" fill="none" stroke="#fb7185" stroke-width="2" />
@@ -194,10 +194,10 @@
     const allDialogueTurns = {
       0: {
         speaker: 0,
-        target: 1,
+        target: 4,
         badge: '🌐 Web Carbon',
         badgeClass: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/40',
-        text: '"Perspectiva externa lista desde ventana limpia fuera de Notebooks con 4 Carbon en High."',
+        text: '"Perspectiva externa lista desde pestaña limpia en la ventana de Huellas Master con 4 Carbon en Low."',
         statuses: ['🎙️ Habla', '👀 Oye', '🧠 Analiza', '⚡ Audita', '🌐 Contrasta']
       },
       4: {
@@ -235,14 +235,14 @@
     };
 
     const modeTurnOrder = {
-      duo: [0, 1, 2],
-      trio: [0, 1, 2, 3],
+      duo: [0, 4, 1, 2],
+      trio: [0, 4, 1, 2, 3],
       cuatro: [0, 4, 1, 2, 3]
     };
 
     const xCoordsCuatro = [60, 300, 420, 540, 180];
-    const xCoordsTrio = [75, 225, 375, 525, 75];
-    const xCoordsDuo = [100, 300, 500, 300, 100];
+    const xCoordsTrio = [60, 300, 420, 540, 180];
+    const xCoordsDuo = [75, 375, 525, 375, 225];
     let currentTurnIndex = 0;
     let currentMode = 'trio';
     const mouthColors = ['#22d3ee', '#c084fc', '#34d399', '#fbbf24', '#fb7185'];
@@ -267,7 +267,6 @@
       const turn = allDialogueTurns[speakerId];
       let targetId = turn.target;
       if (currentMode === 'duo' && targetId === 3) targetId = 1;
-      if (speakerId === 0 && currentMode === 'cuatro') targetId = 4;
 
       const badgeEl = document.getElementById('speakerBadge');
       badgeEl.className = `px-2 py-0.5 rounded text-xs font-bold shrink-0 border ${turn.badgeClass}`;
@@ -337,9 +336,9 @@
 
       if (mode === 'duo') {
         card3.style.display = 'none';
-        card4.style.display = 'none';
-        grid.className = 'relative z-10 grid grid-cols-3 gap-1 items-center';
-        title.textContent = '🤝 MODO DUO — Debate en Vivo';
+        card4.style.display = 'flex';
+        grid.className = 'relative z-10 grid grid-cols-4 gap-1 items-center';
+        title.textContent = '🤝 MODO DUO — Debate en Vivo (Gemini + ChatGPT)';
       } else if (mode === 'cuatro') {
         card3.style.display = 'flex';
         card4.style.display = 'flex';
@@ -347,9 +346,9 @@
         title.textContent = '🤝 MODO CUATRO — Debate en Vivo (Gemini + ChatGPT)';
       } else {
         card3.style.display = 'flex';
-        card4.style.display = 'none';
-        grid.className = 'relative z-10 grid grid-cols-4 gap-1 items-center';
-        title.textContent = '🤝 MODO TRIO — Debate en Vivo';
+        card4.style.display = 'flex';
+        grid.className = 'relative z-10 grid grid-cols-5 gap-1 items-center';
+        title.textContent = '🤝 MODO TRIO — Debate en Vivo (Gemini + ChatGPT)';
       }
       currentTurnIndex = 0;
       updateScene();

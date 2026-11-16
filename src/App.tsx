@@ -183,7 +183,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '8:48 PM - 11/15/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '9:00 PM - 11/15/2026';
 
 const PROTECTED_DOC_TEXT_FIELDS = [
   'rawClipsText',
@@ -1690,6 +1690,103 @@ export default function App() {
     return localStorage.getItem('huellas_master_auth') === 'true';
   });
   const [passwordInput, setPasswordInput] = useState('');
+
+  // Estado para detección y visualización de actualización de la app (círculo animado + "Actualizando")
+  const [isAppUpdating, setIsAppUpdating] = useState<boolean>(() => {
+    try {
+      return sessionStorage.getItem('hm_is_waiting_update') === '1';
+    } catch {
+      return false;
+    }
+  });
+
+  const checkBuildUpdate = useCallback(async (isManualTrigger = false) => {
+    try {
+      if (isManualTrigger) {
+        setIsAppUpdating(true);
+        try { sessionStorage.setItem('hm_is_waiting_update', '1'); } catch {}
+      }
+      const res = await fetch(window.location.pathname + '?_vcheck=' + Date.now(), {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          Pragma: 'no-cache',
+        },
+      });
+      if (!res.ok) {
+        if (isManualTrigger) {
+          setTimeout(() => {
+            setIsAppUpdating(false);
+            try { sessionStorage.removeItem('hm_is_waiting_update'); } catch {}
+          }, 1500);
+        }
+        return;
+      }
+      const html = await res.text();
+      const m = html.match(/name="app-build-version"\s+content="([^"]+)"/);
+      const remoteVer = m && m[1] ? m[1].trim() : '';
+      const localMeta = document.querySelector('meta[name="app-build-version"]');
+      const currentVer = localMeta?.getAttribute('content')?.trim() || '';
+
+      if (remoteVer && currentVer && remoteVer !== currentVer) {
+        setIsAppUpdating(true);
+        try { sessionStorage.removeItem('hm_is_waiting_update'); } catch {}
+        const aiBusyUntil = Number(sessionStorage.getItem('huellas_ai_busy_until') || 0);
+        if (aiBusyUntil > Date.now()) return;
+        const lastReloaded = sessionStorage.getItem('hm_reloaded_ver');
+        if (lastReloaded !== remoteVer) {
+          sessionStorage.setItem('hm_reloaded_ver', remoteVer);
+          const url = new URL(window.location.href);
+          url.searchParams.set('v', remoteVer);
+          setTimeout(() => {
+            window.location.replace(url.toString());
+          }, 1200);
+        }
+      } else if (isManualTrigger) {
+        setTimeout(() => {
+          setIsAppUpdating(false);
+          try { sessionStorage.removeItem('hm_is_waiting_update'); } catch {}
+        }, 1500);
+      }
+    } catch {
+      if (isManualTrigger) {
+        setTimeout(() => {
+          setIsAppUpdating(false);
+          try { sessionStorage.removeItem('hm_is_waiting_update'); } catch {}
+        }, 1200);
+      }
+    }
+  }, []);
+
+  const triggerManualUpdateCheck = useCallback(() => {
+    checkBuildUpdate(true);
+  }, [checkBuildUpdate]);
+
+  useEffect(() => {
+    const handleUpdatingEvent = () => setIsAppUpdating(true);
+    window.addEventListener('hm:app-updating', handleUpdatingEvent);
+
+    if (sessionStorage.getItem('hm_is_waiting_update') === '1') {
+      checkBuildUpdate(true);
+    }
+
+    const timer = setInterval(() => {
+      checkBuildUpdate(false);
+    }, 15000);
+
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') {
+        checkBuildUpdate(false);
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
+
+    return () => {
+      window.removeEventListener('hm:app-updating', handleUpdatingEvent);
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [checkBuildUpdate]);
 
   // Navigation: 'dashboard' | 'studio' | 'standalone_prompt' | 'capcut_editor' | 'viral_clips' | 'flow_pc'
   const [mainView, setMainView] = useState<
@@ -16377,8 +16474,26 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center text-slate-100 relative p-4">
-        <div className="fixed bottom-2 right-3 text-[11px] text-amber-300/90 font-mono bg-slate-900/45 backdrop-blur-sm px-2.5 py-0.5 rounded border border-amber-500/30 z-50 opacity-35 pointer-events-none">
-          Actualizado: {LAST_UPDATED_TEXT}
+        <div
+          onClick={() => triggerManualUpdateCheck()}
+          title={isAppUpdating ? "Actualizando... Buscando la versión más reciente en el servidor" : "Clic para verificar si hay una nueva versión en el servidor"}
+          className={`fixed bottom-2 right-3 text-[11px] font-mono backdrop-blur-sm px-2.5 py-0.5 rounded border z-50 pointer-events-auto cursor-pointer select-none transition flex items-center gap-1.5 ${
+            isAppUpdating
+              ? 'text-amber-300 bg-slate-900/80 border-amber-400/50 shadow-lg shadow-amber-500/10 opacity-95'
+              : 'text-amber-300/90 bg-slate-900/45 border-amber-500/30 opacity-35 hover:opacity-100'
+          }`}
+        >
+          {isAppUpdating ? (
+            <>
+              <span className="w-2 h-2 rounded-full border-[1.5px] border-amber-300 border-t-transparent animate-spin shrink-0" />
+              <span>Actualizando</span>
+            </>
+          ) : (
+            <>
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400/80 shrink-0" />
+              <span>Actualizado: {LAST_UPDATED_TEXT}</span>
+            </>
+          )}
         </div>
         <form
           onSubmit={handleLogin}
@@ -16411,7 +16526,23 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           >
             Entrar al Estudio
           </button>
-          <span className="text-[11px] text-slate-500 font-mono">Actualizado: {LAST_UPDATED_TEXT}</span>
+          <span
+            onClick={() => triggerManualUpdateCheck()}
+            title={isAppUpdating ? "Actualizando... Buscando la versión más reciente en el servidor" : "Clic para verificar si hay una nueva versión en el servidor"}
+            className="text-[11px] text-slate-500 font-mono hover:text-slate-400 transition cursor-pointer select-none inline-flex items-center gap-1.5"
+          >
+            {isAppUpdating ? (
+              <>
+                <span className="w-2 h-2 rounded-full border-[1.5px] border-amber-400 border-t-transparent animate-spin shrink-0" />
+                <span>Actualizando</span>
+              </>
+            ) : (
+              <>
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400/60 shrink-0" />
+                <span>Actualizado: {LAST_UPDATED_TEXT}</span>
+              </>
+            )}
+          </span>
         </form>
       </div>
     );
@@ -16455,8 +16586,26 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
             <ArrowUp className="w-4 h-4 stroke-[2.5]" />
           </button>
         )}
-        <div className="text-[11px] text-amber-300/90 font-mono bg-slate-900/45 backdrop-blur-sm px-2.5 py-0.5 rounded border border-amber-500/30 opacity-35">
-          Actualizado: {LAST_UPDATED_TEXT}
+        <div
+          onClick={() => triggerManualUpdateCheck()}
+          title={isAppUpdating ? "Actualizando... Buscando la versión más reciente en el servidor" : "Clic para verificar si hay una nueva versión en el servidor"}
+          className={`text-[11px] font-mono backdrop-blur-sm px-2.5 py-0.5 rounded border transition flex items-center gap-1.5 pointer-events-auto cursor-pointer select-none ${
+            isAppUpdating
+              ? 'text-amber-300 bg-slate-900/80 border-amber-400/50 shadow-lg shadow-amber-500/10 opacity-95'
+              : 'text-amber-300/90 bg-slate-900/45 border-amber-500/30 opacity-35 hover:opacity-100'
+          }`}
+        >
+          {isAppUpdating ? (
+            <>
+              <span className="w-2 h-2 rounded-full border-[1.5px] border-amber-300 border-t-transparent animate-spin shrink-0" />
+              <span>Actualizando</span>
+            </>
+          ) : (
+            <>
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400/80 shrink-0" />
+              <span>Actualizado: {LAST_UPDATED_TEXT}</span>
+            </>
+          )}
         </div>
       </div>
 
