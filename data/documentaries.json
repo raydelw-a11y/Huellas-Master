@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-11-08T12:13:00.000Z",
-    "updatedAt": "2026-11-16T12:26:23.331Z",
+    "updatedAt": "2026-11-16T12:26:35.475Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -61,7 +61,7 @@
       "REMOTE_GEMINI_STAGE_COMMAND_JSON": "{\"type\":\"REMOTE_GEMINI_STAGE\",\"commandId\":\"rgs_thumb_1794402632127_q8jih\",\"docId\":\"doc-video-77-huellas\",\"stageNumber\":505,\"requestedAt\":1794402632127,\"prompt\":\"Thumbnail: Create an image in 16:9 horizontal aspect ratio featuring an ultra-clean three-element composition with zero visual clutter, dominated on the right sixty percent of the frame by a dramatic medium close-up of a young British male physician in his late twenties with tousled dark hair, sweat beads, visible skin pores, and wide-open anguished eyes showing crisp white sclera making direct piercing eye contact into the camera lens, portrayed by an anonymous historical reenactment actor in authentic period attire (no real public figures or prominent people) wearing a 1941 white clinical coat over a tweed vest, holding up in the foreground a completely dry empty vintage glass medicine vial with tiny traces of yellow powder clinging to its inner walls, set against a cold midnight cyan-blue darkened 1941 British hospital ward with heavy black wartime blackout curtains in deep abyssal shadow, lit by dramatic chiaroscuro warm golden-amber key light across his face and a sharp rim light separating him from the cold dark background. In the bottom-left area of the image, a bold high-contrast cinematic documentary typography text overlay stacked across 2 exact separate lines reads (Line 1: \\\"FALTÓ UNA GOTA\\\" / Line 2: \\\"Y SE APAGÓ\\\"). In the top-right corner, a small discreet 5% scale logo displays \\\"8K\\\" in metallic gold. In the top-left corner, the official page logo from the provided reference image is cleanly integrated at 5% scale, strictly preserving and visibly rendering both the logo emblem and the exact text underneath it \\\"Huellas de la Humanidad\\\" without cropping, blurring, or omitting the sub-text. The scene has cinematic documentary realism, 8k resolution, sharp focus, safe framing composition, no modern objects, no CGI look, no unintended floating text, no music.\",\"taskType\":\"THUMBNAIL_IMAGE_GENERATION\",\"enableCreateImage\":true,\"standaloneNewChat\":true,\"noNotebook\":true,\"mediaType\":\"THUMBNAILS\",\"optionLabel\":\"A\",\"aspectRatio\":\"16:9\",\"enableHighModel\":false,\"enableArgonLow\":true,\"enableCarbonLow\":true,\"preferredModel\":\"CARBON_4_LOW\",\"thinkingLevel\":\"LOW\",\"enableDeepResearch\":false,\"videoName\":\"\",\"deepResearchVideoName\":\"\",\"geminiChatUrl\":\"\",\"geminiDeepResearchChatUrl\":\"\",\"notebookName\":\"\"}",
       "REMOTE_GEMINI_STAGE_ACK_ID": "rgs_1794399996476_23q8n",
       "GEMINI_CHAT_URL": "https://gemini.google.com/app/03cabb86628532c8",
-      "PROMPTS_RESTORED_AT": "1794831983331",
+      "PROMPTS_RESTORED_AT": "1794831995475",
       "FIELD_CLEARED_AT_rawClipsText": "0"
     },
     "compiledMasterPrompt": "",
@@ -4170,6 +4170,12 @@
         "brollCameraMotion": "pan_left",
         "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F05_Clips_Video%2F93_Imagen_Inicial_Create_an_image_in_16.jpg&t=1794831962722&v=1794831962791",
         "reviewedUpdatedAt": 1794831962791,
+        "reframe9x16Mode": "auto_focus",
+        "reframeFocusXStart": 84,
+        "reframeFocusXEnd": 84,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.58,
+        "reframeReason": "Enfoque inteligente IA en tercio derecho (84%)",
         "videoFrames": []
       },
       {
@@ -4230,7 +4236,13 @@
         "isStaticBroll": true,
         "brollCameraMotion": "tilt_down",
         "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2077%20%E2%80%94%20La%20Penicilina%2F05_Clips_Video%2F95_Imagen_Inicial_Create_an_image_in_16.jpg&t=1794831877471&v=1794831877546",
-        "reviewedUpdatedAt": 1794831877546
+        "reviewedUpdatedAt": 1794831877546,
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 78,
+        "reframeFocusXEnd": 24,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.82,
+        "reframeReason": "Paneo dinámico IA (78% → 24%) desde sujeto derecho hacia escena izquierda (Der → Izq)"
       },
       {
         "id": "clip-96-1794442732186-06fb",
@@ -4290,7 +4302,13 @@
         "reviewedUpdatedAt": 1794831697842,
         "videoAuditStatus": "approved",
         "videoAuditReason": "",
-        "videoAuditIssues": []
+        "videoAuditIssues": [],
+        "reframe9x16Mode": "auto_pan",
+        "reframeFocusXStart": 68,
+        "reframeFocusXEnd": 84,
+        "reframeFocusY": 50,
+        "reframeConfidence": 0.55,
+        "reframeReason": "Paneo dinámico IA (68% → 84%) siguiendo acción/sujeto"
       },
       {
         "id": "clip-98-1794442732208-3o3n",
