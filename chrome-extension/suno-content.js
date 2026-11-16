@@ -367,7 +367,9 @@
     }, 2500);
   }
 
-  async function handleScanSunoTracks() {
+  const capturedAudioUrls = new Set();
+
+  async function handleScanSunoTracks(silent = false) {
     const allUrls = Array.from(collectAllCurrentMp3Urls());
     // Exclude preloaded showcase tracks from __NEXT_DATA__ if possible
     const showcaseUrls = new Set();
@@ -388,30 +390,51 @@
     const serviceLabel = isFlowMusicSite() ? 'Flow Music' : 'Suno';
 
     if (targetUrls.length === 0) {
-      reportStatus(
-        'ERROR',
-        `No se detectaron pistas de audio activas en la página actual de ${serviceLabel}.`
-      );
+      if (!silent) {
+        reportStatus(
+          'IDLE',
+          `Esperando pistas de audio en la página de ${serviceLabel}...`
+        );
+      }
       return;
     }
+
+    const uncaptured = targetUrls.filter((u) => !capturedAudioUrls.has(u));
+    if (uncaptured.length === 0) return;
+
     reportStatus(
       'WORKING',
-      `🎵 Capturando ${targetUrls.length} pista(s) desde ${serviceLabel}...`
+      `🎵 Auto-capturando ${uncaptured.length} nueva(s) pista(s) de audio desde ${serviceLabel}...`
     );
-    let idx = 1;
-    for (const u of targetUrls.slice(0, 12)) {
-      const audioDataUrl = await fetchAudioAsDataUrl(u);
-      chrome.runtime
-        .sendMessage({
-          type: 'SUNO_AUDIO_CAPTURED',
-          trackNumber: idx,
-          trackTitle: `FlowMusic_${String(idx).padStart(2, '0')}`,
-          audioUrl: u,
-          audioDataUrl,
-        })
-        .catch(() => {});
-      idx++;
+
+    let idx = capturedAudioUrls.size + 1;
+    for (const u of uncaptured.slice(0, 12)) {
+      try {
+        const audioDataUrl = await fetchAudioAsDataUrl(u);
+        capturedAudioUrls.add(u);
+        chrome.runtime
+          .sendMessage({
+            type: 'SUNO_AUDIO_CAPTURED',
+            trackNumber: idx,
+            trackTitle: `FlowMusic_${String(idx).padStart(2, '0')}`,
+            audioUrl: u,
+            audioDataUrl,
+          })
+          .catch(() => {});
+        idx++;
+      } catch (err) {
+        console.warn('[Huellas FlowMusic] Error descargando audio:', err);
+      }
     }
+  }
+
+  // Auto-detector pasivo en FlowMusic: vigila la creación de nuevas pistas de audio en segundo plano
+  if (isFlowMusicSite()) {
+    setInterval(() => {
+      try {
+        handleScanSunoTracks(true);
+      } catch {}
+    }, 12000);
   }
 
   chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {

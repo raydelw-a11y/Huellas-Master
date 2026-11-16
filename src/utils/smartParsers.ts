@@ -6402,7 +6402,120 @@ export function cleanAndNormalizeStage5ThumbnailPrompt(
     .trim();
 }
 
+/**
+ * Auto-calcula la duración real del documental desde el Clip 1 (después del intro)
+ * hasta el último clip antes del outro oficial, combinando timestamps de clips y voz narrativa.
+ */
+export function computeDocumentaryContentDuration(
+  clips?: DocumentaryClip[],
+  audioTracks?: any[],
+  fallback: string = '02:00'
+): string {
+  const parseSec = (timeStr: string): number | null => {
+    const m = String(timeStr || '').match(/(\d{1,3}):(\d{2})/);
+    return m ? parseInt(m[1], 10) * 60 + parseInt(m[2], 10) : null;
+  };
 
+  if (!Array.isArray(clips) || clips.length === 0) {
+    if (Array.isArray(audioTracks) && audioTracks[0]?.duration) {
+      const voiceSec = Math.round(Number(audioTracks[0].duration));
+      if (voiceSec > 0) {
+        const mins = Math.floor(voiceSec / 60);
+        const secs = voiceSec % 60;
+        return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+      }
+    }
+    return fallback || '02:00';
+  }
 
+  // Filtrar exclusivamente los clips de contenido del documental:
+  // - Excluir Intro oficial (clipNumber <= 0 o clips marcados como intro)
+  // - Excluir Outro oficial (clipNumber >= 999 o clips marcados como outro)
+  const bodyClips = clips.filter((c) => {
+    const num = Number(c.clipNumber);
+    if (!Number.isFinite(num)) return false;
+    if (num <= 0 || num >= 999) return false;
+    const range = String(c.timeRange || '').toLowerCase();
+    const prompt = String(c.imagePrompt || '').toLowerCase();
+    if (
+      range.includes('intro') ||
+      prompt.includes('intro oficial') ||
+      prompt.includes('logo oficial')
+    ) {
+      return false;
+    }
+    if (range.includes('outro') || prompt.includes('outro oficial')) {
+      return false;
+    }
+    return true;
+  });
 
+  if (bodyClips.length === 0) {
+    if (Array.isArray(audioTracks) && audioTracks[0]?.duration) {
+      const voiceSec = Math.round(Number(audioTracks[0].duration));
+      if (voiceSec > 0) {
+        const mins = Math.floor(voiceSec / 60);
+        const secs = voiceSec % 60;
+        return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+      }
+    }
+    return fallback || '02:00';
+  }
+
+  const firstClip = bodyClips[0];
+  const lastClip = bodyClips[bodyClips.length - 1];
+
+  const firstParts = String(firstClip.timeRange || '').split('-');
+  const firstStartSec = firstParts[0] ? parseSec(firstParts[0]) : null;
+
+  const lastParts = String(lastClip.timeRange || '').split('-');
+  const lastEndSec =
+    lastParts.length > 1 && lastParts[1]
+      ? parseSec(lastParts[1])
+      : lastParts[0]
+      ? parseSec(lastParts[0])
+      : null;
+
+  if (lastEndSec !== null && lastEndSec > 0) {
+    const startOffset = firstStartSec !== null && firstStartSec >= 0 ? firstStartSec : 0;
+    const durationSec = Math.max(0, lastEndSec - startOffset);
+    if (durationSec > 0) {
+      const mins = Math.floor(durationSec / 60);
+      const secs = durationSec % 60;
+      return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    }
+  }
+
+  // Si los clips no tienen timestamps precisos en timeRange, acumular duraciones de clips
+  let accumulatedSec = 0;
+  for (const c of bodyClips) {
+    const parts = String(c.timeRange || '').split('-');
+    if (parts.length === 2) {
+      const s = parseSec(parts[0]);
+      const e = parseSec(parts[1]);
+      if (s !== null && e !== null && e > s) {
+        accumulatedSec += e - s;
+        continue;
+      }
+    }
+    accumulatedSec += c.clipNumber === 1 ? 6 : 8;
+  }
+
+  if (accumulatedSec > 0) {
+    const mins = Math.floor(accumulatedSec / 60);
+    const secs = accumulatedSec % 60;
+    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  }
+
+  if (Array.isArray(audioTracks) && audioTracks[0]?.duration) {
+    const voiceSec = Math.round(Number(audioTracks[0].duration));
+    if (voiceSec > 0) {
+      const mins = Math.floor(voiceSec / 60);
+      const secs = voiceSec % 60;
+      return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    }
+  }
+
+  return fallback || '02:00';
+}
 

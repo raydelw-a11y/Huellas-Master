@@ -94,6 +94,7 @@ import {
   parseReferencesFromRawText,
   normalizeReferenceTagSlug,
   parseSunoTracksFromRawText,
+  computeDocumentaryContentDuration,
   ensureLyricsEndDurationTag,
   fixCapcutSrtWithVoiceover,
   normalizeQuantitiesToMil,
@@ -194,7 +195,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '01:10 PM - 11/16/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '01:22 PM - 11/16/2026';
 
 const PROTECTED_DOC_TEXT_FIELDS = [
   'rawClipsText',
@@ -5326,18 +5327,12 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         references: docRefs,
       });
 
-      // Auto-calculate total documentary duration from the last clip's end timestamp or voiceover duration
-      let autoFinalDuration = activeDoc.confirmedFinalDuration || '02:00';
-      if (syncedClips.length > 0) {
-        const lastClip = syncedClips[syncedClips.length - 1];
-        const endMatch = String(lastClip.timeRange || '')
-          .split('-')[1]
-          ?.trim()
-          .match(/(\d{1,3}:\d{2})/);
-        if (endMatch && endMatch[1]) {
-          autoFinalDuration = endMatch[1];
-        }
-      }
+      // Auto-calculate total documentary duration from Clip 1 (after intro) to the last clip before outro
+      const autoFinalDuration = computeDocumentaryContentDuration(
+        syncedClips,
+        activeDoc.audioTracks,
+        activeDoc.confirmedFinalDuration || '02:00'
+      );
       updateActiveDoc({
         operationalHeader: cleanOpHeader,
         rawClipsText: rebuiltRaw,
@@ -5372,11 +5367,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         rawSunoText: text,
         sunoTracks: parsedTracks.length > 0 ? parsedTracks : activeDoc.sunoTracks,
       });
-      if (parsedTracks.length > 0) {
-        setTimeout(() => {
-          handleStartFlowMusicAutoPilot(parsedTracks);
-        }, 900);
-      }
+      // El piloto automático NO se activa solo: el usuario lo inicia con el botón cuando lo desee
     } else if (stageNum === 11 || stageNum === 111) {
       const hasExplicitSectionMarkers = /===\s*SECCI[OÓ]N_(?:YOUTUBE|FACEBOOK|COMENTARIO|TAGS)\s*===/i.test(
         text
@@ -15823,6 +15814,51 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     activeDoc?.rawSunoText,
     activeDoc?.sunoTracks?.length,
   ]);
+
+  // Auto-ajustar automáticamente la Duración Total del Documental desde el Clip 1 (después del intro) hasta el último antes del outro
+  useEffect(() => {
+    if (!activeDoc || !Array.isArray(activeDoc.clips) || activeDoc.clips.length === 0) return;
+    const computedDuration = computeDocumentaryContentDuration(
+      activeDoc.clips,
+      activeDoc.audioTracks,
+      activeDoc.confirmedFinalDuration || '02:00'
+    );
+    if (
+      computedDuration &&
+      computedDuration !== activeDoc.confirmedFinalDuration &&
+      (!activeDoc.confirmedFinalDuration ||
+        activeDoc.confirmedFinalDuration === '02:00' ||
+        activeDoc.confirmedFinalDuration === '30:00' ||
+        activeDoc.confirmedFinalDuration !== computedDuration)
+    ) {
+      updateActiveDoc({ confirmedFinalDuration: computedDuration });
+    }
+  }, [activeDoc?.id, activeDoc?.clips, activeDoc?.audioTracks]);
+
+  // Auto-capturar y descargar pistas de FlowMusic en segundo plano automáticamente (sin requerir botón manual)
+  useEffect(() => {
+    if (activeStage !== 80 && activeStage !== 10) return;
+    const tracks = activeDoc?.sunoTracks || [];
+    const hasPendingTracks = tracks.length > 0 && tracks.some((t) => !t.audioUrl || !t.isGenerated);
+    const intervalMs = hasPendingTracks ? 7000 : 20000;
+
+    const runAutoScan = () => {
+      try {
+        sendCommandToWebBridge('SUNO', {
+          action: 'SCAN_SUNO_TRACKS',
+        });
+      } catch {}
+    };
+
+    const interval = setInterval(runAutoScan, intervalMs);
+    const onWindowFocus = () => runAutoScan();
+    window.addEventListener('focus', onWindowFocus);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', onWindowFocus);
+    };
+  }, [activeStage, activeDoc?.id, activeDoc?.sunoTracks]);
 
   // VoxFlow TTS Generation inside Stage 4 (Local Server + Mobile Client-Side Fallback + Permanent Vault + Exact 8s Timeline)
   const handleSynthesizeVoxFlow = async (textToSpeak: string, labelTitle: string) => {
@@ -26506,7 +26542,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                           className="px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs flex items-center gap-1.5 cursor-pointer shadow"
                           title="Envía automáticamente todas las canciones una por una a https://www.flowmusic.app/, descarga los audios en 02_Audio y los coloca en la Pista 5 del Editor con Fade-In, Fade-Out y Ducking"
                         >
-                          🚀 Piloto Automático FlowMusic (Crear Todas las Canciones)
+                          🚀 Crear Todas las Canciones (FlowMusic)
                         </button>
                       ) : (
                         <button
@@ -26517,27 +26553,6 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                           ⏹️ Detener Cola FlowMusic (Pista #{sunoCurrentTrackNum || 1})
                         </button>
                       )}
-                      <button
-                        type="button"
-                        onClick={() =>
-                          sendCommandToWebBridge('SUNO', {
-                            action: 'SCAN_SUNO_TRACKS',
-                          })
-                        }
-                        className="px-3 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 text-xs font-bold cursor-pointer"
-                        title="Captura automáticamente las pistas de audio generadas en la pestaña abierta de FlowMusic (flowmusic.app), las guarda en 02_Audio y las inyecta en la Pista 5 del Editor"
-                      >
-                        🔍 Auto-Capturar Pistas de FlowMusic
-                      </button>
-                      <button
-                        onClick={() => {
-                          const tracks = parseSunoTracksFromRawText(activeDoc.rawSunoText);
-                          if (tracks.length > 0) updateActiveDoc({ sunoTracks: tracks });
-                        }}
-                        className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs font-semibold cursor-pointer"
-                      >
-                        🔍 Separar Pistas del Texto
-                      </button>
                       <button
                         onClick={() => {
                           const nextNum = (activeDoc.sunoTracks?.length || 0) + 1;
@@ -26577,13 +26592,18 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                   <textarea
                     rows={4}
                     value={activeDoc.rawSunoText}
-                    onChange={(e) =>
+                    onChange={(e) => {
+                      const newText = e.target.value;
+                      const parsed = parseSunoTracksFromRawText(newText);
                       updateActiveDoc(
-                        { rawSunoText: e.target.value },
+                        {
+                          rawSunoText: newText,
+                          ...(parsed.length > 0 ? { sunoTracks: parsed } : {}),
+                        },
                         { allowClearFields: ['rawSunoText'], source: 'user-textarea' }
-                      )
-                    }
-                    placeholder="Pega o genera aquí la entrega de la Etapa 8 — Música (FlowMusic) con sus 6 campos por canción para separarla en tarjetas..."
+                      );
+                    }}
+                    placeholder="Pega o genera aquí la entrega de la Etapa 8 — Música (FlowMusic) con sus 6 campos por canción para separarla en tarjetas automáticamente..."
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs font-mono text-slate-300"
                   />
                 </div>
