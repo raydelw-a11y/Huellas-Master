@@ -578,6 +578,14 @@ function formatTimeMMSS(sec: number): string {
   return `${String(mins).padStart(2, '0')}:${String(rem).padStart(2, '0')}`;
 }
 
+function formatViewerTimecode(sec: number): string {
+  const s = Math.max(0, Math.floor(sec));
+  const hrs = Math.floor(s / 3600);
+  const mins = Math.floor((s % 3600) / 60);
+  const rem = s % 60;
+  return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(rem).padStart(2, '0')}`;
+}
+
 function parseSrtToCaptionItems(
   srtText: string,
   alignStartSec?: number
@@ -3910,6 +3918,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const playheadBadgeTextRef = useRef<HTMLDivElement | null>(null);
   const timelineToolbarTimeRef = useRef<HTMLSpanElement | null>(null);
   const viewerTimecodeRef = useRef<HTMLSpanElement | null>(null);
+  const viewerTotalDurationRef = useRef<HTMLSpanElement | null>(null);
   const viewerRangeInputRef = useRef<HTMLInputElement | null>(null);
   const playheadRafIdRef = useRef<number | null>(null);
   const lastFlushedClipIdRef = useRef<string | null>(null);
@@ -9515,7 +9524,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     if (secInt !== lastSecIntRef.current) {
       lastSecIntRef.current = secInt;
       if (viewerTimecodeRef.current) {
-        viewerTimecodeRef.current.textContent = `00:${formatTimeMMSS(safeT)}`;
+        viewerTimecodeRef.current.textContent = formatViewerTimecode(safeT);
+      }
+      if (viewerTotalDurationRef.current) {
+        viewerTotalDurationRef.current.textContent = formatViewerTimecode(totalDurationSecRef.current);
       }
     }
   }, []);
@@ -9942,6 +9954,12 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   isViewerFullscreenRef.current = isViewerFullscreen;
   const totalDurationSecRef = useRef(totalDurationSec);
   totalDurationSecRef.current = totalDurationSec;
+
+  useEffect(() => {
+    if (viewerTotalDurationRef.current) {
+      viewerTotalDurationRef.current.textContent = formatViewerTimecode(totalDurationSec);
+    }
+  }, [totalDurationSec]);
   const clipsWithTimelineBoundsRef = useRef(clipsWithTimelineBounds);
   clipsWithTimelineBoundsRef.current = clipsWithTimelineBounds;
   const captionsRef = useRef(captions);
@@ -15402,6 +15420,13 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   ? `${activePreset.width16x9}×${activePreset.height16x9}`
                   : `${activePreset.width9x16}×${activePreset.height9x16}`}
               </span>
+              <span
+                className="shrink-0 font-mono px-2 py-0.5 rounded bg-slate-900/90 border border-slate-700/80 text-[10px] font-bold text-amber-300 flex items-center gap-1 shadow-sm"
+                title={`Duración total del video: ${formatViewerTimecode(totalDurationSec)} (${Math.round(totalDurationSec)}s)`}
+              >
+                <Clock className="w-3 h-3 text-amber-400" />
+                <span>Total: {formatViewerTimecode(totalDurationSec)}</span>
+              </span>
               <div
                 data-keep-canvas-selection="true"
                 className="shrink-0 flex items-center gap-1 bg-slate-950 border border-slate-800 rounded-lg p-0.5"
@@ -16562,10 +16587,20 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   : ''
               }`}
             >
-              {/* Left: CapCut Cyan/Teal Timecode */}
-              <span ref={viewerTimecodeRef} className="font-mono tabular-nums text-[11px] text-teal-300 font-bold shrink-0">
-                00:{formatTimeMMSS(currentTime)} <span className="text-slate-500">/</span> 00:{formatTimeMMSS(totalDurationSec)}
-              </span>
+              {/* Left: CapCut Cyan/Teal Timecode (Current / Total Duration) */}
+              <div className="flex items-center gap-1 font-mono tabular-nums text-[11px] shrink-0 select-none">
+                <span ref={viewerTimecodeRef} className="text-teal-300 font-bold">
+                  {formatViewerTimecode(currentTime)}
+                </span>
+                <span className="text-slate-500 font-normal">/</span>
+                <span
+                  ref={viewerTotalDurationRef}
+                  className="text-slate-400 font-semibold"
+                  title={`Duración total del video: ${formatViewerTimecode(totalDurationSec)} (${Math.round(totalDurationSec)}s)`}
+                >
+                  {formatViewerTimecode(totalDurationSec)}
+                </span>
+              </div>
 
               {/* Center-Left: Compact Transport Controls */}
               <div className="flex items-center gap-1 shrink-0">
@@ -16631,6 +16666,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   max={totalDurationSec}
                   step={0.05}
                   value={currentTime}
+                  title={`Progreso: ${formatViewerTimecode(currentTime)} / ${formatViewerTimecode(totalDurationSec)}`}
                   onPointerDown={() => {
                     isScrubbingRulerRef.current = true;
                   }}
