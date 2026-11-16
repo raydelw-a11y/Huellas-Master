@@ -78,79 +78,204 @@
   }
 
   function findSunoPromptTextarea() {
-    const exactFlowMusic =
-      document.querySelector('textarea[aria-label="Chat message"]') ||
-      document.querySelector('textarea[placeholder*="Describe your song" i]');
-    if (exactFlowMusic) return exactFlowMusic;
+    // 1. Specific known selectors for Flow Music (flowmusic.app / producer.ai) & Suno
+    const exactSelectors = [
+      'textarea[aria-label="Chat message"]',
+      'textarea[placeholder*="Describe your song" i]',
+      'textarea[placeholder*="Describe" i]',
+      'textarea[placeholder*="song" i]',
+      'textarea[placeholder*="music" i]',
+      'textarea[placeholder*="prompt" i]',
+      'textarea[placeholder*="track" i]',
+      'textarea[placeholder*="style" i]',
+      'textarea[data-testid*="prompt" i]',
+      'textarea[data-testid*="chat" i]',
+      'textarea[name="prompt"]',
+      'textarea[name="message"]',
+      'input[type="text"][placeholder*="Describe" i]',
+      'input[type="text"][placeholder*="song" i]',
+      'input[type="text"][placeholder*="music" i]',
+      'input[type="text"][placeholder*="prompt" i]',
+      'input[type="text"][aria-label*="prompt" i]',
+      'input[type="text"][aria-label*="message" i]',
+      '[contenteditable="true"][aria-label*="prompt" i]',
+      '[contenteditable="true"][aria-label*="message" i]',
+      '[contenteditable="true"][role="textbox"]',
+      'div[contenteditable="true"]',
+      '[role="textbox"]',
+    ];
 
+    for (const sel of exactSelectors) {
+      try {
+        const found = document.querySelector(sel);
+        if (found) {
+          const r = found.getBoundingClientRect();
+          if (r.width > 40 && r.height >= 14 && window.getComputedStyle(found).display !== 'none') {
+            return found;
+          }
+        }
+      } catch {}
+    }
+
+    // 2. Any visible textarea on screen
     const textareas = Array.from(document.querySelectorAll('textarea'));
-    const visible = textareas.filter((el) => {
+    const visibleTextareas = textareas.filter((el) => {
       const r = el.getBoundingClientRect();
-      return r.width > 100 && r.height >= 16;
+      return r.width > 40 && r.height >= 14 && window.getComputedStyle(el).display !== 'none';
     });
-    if (visible.length === 0) return null;
-    const byPlaceholder = visible.find((el) => {
-      const ph = (
-        (el.getAttribute('placeholder') || '') +
-        ' ' +
-        (el.getAttribute('aria-label') || '')
-      ).toLowerCase();
-      return (
-        ph.includes('song') ||
-        ph.includes('chat message') ||
-        ph.includes('style') ||
-        ph.includes('describe') ||
-        ph.includes('prompt') ||
-        ph.includes('instrumental')
-      );
+    if (visibleTextareas.length > 0) {
+      const byKeyword = visibleTextareas.find((el) => {
+        const ph = (
+          (el.getAttribute('placeholder') || '') +
+          ' ' +
+          (el.getAttribute('aria-label') || '')
+        ).toLowerCase();
+        return (
+          ph.includes('song') ||
+          ph.includes('chat') ||
+          ph.includes('style') ||
+          ph.includes('describe') ||
+          ph.includes('prompt') ||
+          ph.includes('music') ||
+          ph.includes('instrumental')
+        );
+      });
+      return byKeyword || visibleTextareas[0];
+    }
+
+    // 3. Any visible text input in main or forms
+    const inputs = Array.from(
+      document.querySelectorAll(
+        'main input[type="text"], main input:not([type]), form input[type="text"], form input:not([type]), input[type="text"], input:not([type])'
+      )
+    );
+    const visibleInputs = inputs.filter((el) => {
+      const r = el.getBoundingClientRect();
+      return r.width > 80 && r.height >= 16 && window.getComputedStyle(el).display !== 'none';
     });
-    return byPlaceholder || visible[0];
+    if (visibleInputs.length > 0) {
+      const byKeyword = visibleInputs.find((el) => {
+        const ph = (
+          (el.getAttribute('placeholder') || '') +
+          ' ' +
+          (el.getAttribute('aria-label') || '')
+        ).toLowerCase();
+        return (
+          ph.includes('song') ||
+          ph.includes('chat') ||
+          ph.includes('describe') ||
+          ph.includes('prompt') ||
+          ph.includes('music')
+        );
+      });
+      return byKeyword || visibleInputs[0];
+    }
+
+    return null;
   }
 
   function setNativeTextareaValue(el, text) {
     if (!el) return;
-    const proto = window.HTMLTextAreaElement.prototype;
-    const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
     el.focus();
-    try {
-      if (el._valueTracker) {
-        el._valueTracker.setValue('');
+
+    if (el instanceof HTMLTextAreaElement || el.tagName === 'TEXTAREA') {
+      const proto = window.HTMLTextAreaElement.prototype;
+      const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+      try {
+        if (el._valueTracker) el._valueTracker.setValue('');
+      } catch {}
+      if (setter) setter.call(el, text);
+      else el.value = text;
+      el.dispatchEvent(
+        new InputEvent('input', {
+          bubbles: true,
+          cancelable: true,
+          inputType: 'insertText',
+          data: text,
+        })
+      );
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    } else if (el instanceof HTMLInputElement || el.tagName === 'INPUT') {
+      const proto = window.HTMLInputElement.prototype;
+      const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+      try {
+        if (el._valueTracker) el._valueTracker.setValue('');
+      } catch {}
+      if (setter) setter.call(el, text);
+      else el.value = text;
+      el.dispatchEvent(
+        new InputEvent('input', {
+          bubbles: true,
+          cancelable: true,
+          inputType: 'insertText',
+          data: text,
+        })
+      );
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    } else if (el.isContentEditable || el.getAttribute('contenteditable') === 'true') {
+      try {
+        document.execCommand('selectAll', false, null);
+        document.execCommand('insertText', false, text);
+      } catch {}
+      if ((el.innerText || '').trim() !== text.trim()) {
+        el.innerText = text;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
       }
-    } catch {}
-    if (setter) {
-      setter.call(el, text);
-    } else {
-      el.value = text;
     }
-    el.dispatchEvent(
-      new InputEvent('input', {
-        bubbles: true,
-        cancelable: true,
-        inputType: 'insertText',
-        data: text,
-      })
-    );
-    el.dispatchEvent(new Event('change', { bubbles: true }));
   }
 
-  function findSunoCreateButton() {
+  function findSunoCreateButton(inputEl) {
+    // 1. Direct explicit button match
     const flowSendBtn =
       document.querySelector('button[aria-label="Send message"]:not([disabled])') ||
       document.querySelector('button[aria-label="Send message"]') ||
-      document.querySelector('button[aria-label*="Send" i]:not([disabled])');
+      document.querySelector('button[aria-label*="Send" i]:not([disabled])') ||
+      document.querySelector('button[aria-label*="Generate" i]:not([disabled])') ||
+      document.querySelector('button[aria-label*="Create" i]:not([disabled])') ||
+      document.querySelector('button[aria-label*="Submit" i]:not([disabled])') ||
+      document.querySelector('button[type="submit"]:not([disabled])');
     if (flowSendBtn) return flowSendBtn;
 
-    const buttons = Array.from(document.querySelectorAll('button'));
+    // 2. Sibling / child button inside same form or container as input
+    if (inputEl) {
+      const container = inputEl.closest('form, div[class*="chat" i], div[class*="prompt" i], div[class*="input" i], section');
+      if (container) {
+        const containerBtns = Array.from(container.querySelectorAll('button:not([disabled])'));
+        for (const btn of containerBtns) {
+          const txt = (btn.innerText || btn.getAttribute('aria-label') || '').toLowerCase();
+          if (
+            txt.includes('send') ||
+            txt.includes('create') ||
+            txt.includes('generate') ||
+            txt.includes('crear') ||
+            txt.includes('submit')
+          ) {
+            return btn;
+          }
+          if (btn.querySelector('svg')) {
+            return btn;
+          }
+        }
+        if (containerBtns.length === 1) return containerBtns[0];
+      }
+    }
+
+    // 3. Any visible button on the page with matching text
+    const buttons = Array.from(document.querySelectorAll('button:not([disabled])'));
     for (const btn of buttons) {
       const r = btn.getBoundingClientRect();
-      if (r.width < 22 || r.height < 22) continue;
+      if (r.width < 18 || r.height < 18) continue;
       const txt = (btn.innerText || btn.getAttribute('aria-label') || '').trim().toLowerCase();
       if (
         txt === 'send message' ||
         txt === 'create' ||
         txt.startsWith('create') ||
         txt === 'crear' ||
-        txt === 'generate'
+        txt === 'generate' ||
+        txt === 'generar' ||
+        txt === 'submit'
       ) {
         return btn;
       }
@@ -158,35 +283,80 @@
     return null;
   }
 
+  function triggerSubmit(inputEl) {
+    const btn = findSunoCreateButton(inputEl);
+    if (btn && !btn.disabled) {
+      btn.click();
+      return true;
+    }
+    if (inputEl) {
+      inputEl.focus();
+      inputEl.dispatchEvent(
+        new KeyboardEvent('keydown', {
+          key: 'Enter',
+          code: 'Enter',
+          keyCode: 13,
+          which: 13,
+          bubbles: true,
+          cancelable: true,
+        })
+      );
+      inputEl.dispatchEvent(
+        new KeyboardEvent('keypress', {
+          key: 'Enter',
+          code: 'Enter',
+          keyCode: 13,
+          which: 13,
+          bubbles: true,
+          cancelable: true,
+        })
+      );
+      inputEl.dispatchEvent(
+        new KeyboardEvent('keyup', {
+          key: 'Enter',
+          code: 'Enter',
+          keyCode: 13,
+          which: 13,
+          bubbles: true,
+          cancelable: true,
+        })
+      );
+      const form = inputEl.closest('form');
+      if (form) {
+        try {
+          if (typeof form.requestSubmit === 'function') form.requestSubmit();
+          else form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+        } catch {}
+      }
+      return true;
+    }
+    return false;
+  }
+
   function collectAllCurrentMp3Urls() {
     const urls = new Set();
-    const clipRegex =
-      /https:\/\/storage\.googleapis\.com\/producer-app-public\/clips\/[a-zA-Z0-9_-]+\.(?:m4a|mp3|wav)/g;
-    const sunoRegex = /https:\/\/cdn[12]?\.suno\.ai\/[a-zA-Z0-9_-]+\.mp3/g;
+    const audioUrlRegex =
+      /https?:\/\/[^\s"'<>\\]+?\.(?:m4a|mp3|wav|aac|webm|ogg)(?:\?[^\s"'<>\\]*)?/gi;
+    const gcsAudioRegex =
+      /https?:\/\/storage\.googleapis\.com\/[^\s"'<>\\]+?(?:producer|audio|clip|track)[^\s"'<>\\]*/gi;
+    const serviceAudioRegex =
+      /https?:\/\/(?:cdn[12]?\.suno\.ai|[a-zA-Z0-9_.-]+\.flowmusic\.app|[a-zA-Z0-9_.-]+\.producer\.ai)\/[^\s"'<>\\]+/gi;
+    const blobRegex =
+      /blob:https?:\/\/[^\s"'<>\\]+/gi;
 
     const addMatchesFromText = (txt) => {
-      if (!txt) return;
+      if (!txt || typeof txt !== 'string') return;
       let m;
-      while ((m = clipRegex.exec(txt)) !== null) {
-        urls.add(m[0]);
-      }
-      while ((m = sunoRegex.exec(txt)) !== null) {
-        urls.add(m[0]);
-      }
+      while ((m = audioUrlRegex.exec(txt)) !== null) urls.add(m[0]);
+      while ((m = gcsAudioRegex.exec(txt)) !== null) urls.add(m[0]);
+      while ((m = serviceAudioRegex.exec(txt)) !== null) urls.add(m[0]);
+      while ((m = blobRegex.exec(txt)) !== null) urls.add(m[0]);
     };
 
-    // 1. Check <audio> and <source> elements
+    // 1. Check <audio> and <source> elements (including blob: and direct CDN URLs)
     for (const a of Array.from(document.querySelectorAll('audio, source'))) {
       const src = a.currentSrc || a.src || '';
-      if (
-        src &&
-        (src.includes('.m4a') ||
-          src.includes('.mp3') ||
-          src.includes('.wav') ||
-          src.includes('producer-app-public/clips/') ||
-          src.includes('suno.ai') ||
-          src.includes('suno.com'))
-      ) {
+      if (src && (src.startsWith('http') || src.startsWith('blob:'))) {
         urls.add(src);
       }
     }
@@ -198,7 +368,9 @@
         const parsed = JSON.parse(attr);
         if (Array.isArray(parsed)) {
           for (const u of parsed) {
-            if (typeof u === 'string' && u.startsWith('http')) urls.add(u);
+            if (typeof u === 'string' && (u.startsWith('http') || u.startsWith('blob:'))) {
+              urls.add(u);
+            }
           }
         }
       }
@@ -210,16 +382,22 @@
       for (const entry of entries) {
         const name = entry?.name || '';
         if (
-          name.includes('producer-app-public/clips/') ||
-          name.includes('cdn1.suno.ai') ||
-          name.includes('cdn2.suno.ai')
+          name.includes('.mp3') ||
+          name.includes('.m4a') ||
+          name.includes('.wav') ||
+          name.includes('.aac') ||
+          name.includes('.webm') ||
+          name.includes('storage.googleapis.com') ||
+          name.includes('producer') ||
+          name.includes('flowmusic') ||
+          name.includes('suno.ai')
         ) {
           addMatchesFromText(name);
         }
       }
     } catch {}
 
-    // 4. Check HTML and __NEXT_DATA__ (ensures showcase baseline tracks are known before generation)
+    // 4. Check HTML and __NEXT_DATA__
     addMatchesFromText(document.body?.innerHTML || '');
     const nextDataEl = document.getElementById('__NEXT_DATA__');
     if (nextDataEl) {
@@ -230,6 +408,25 @@
   }
 
   async function fetchAudioAsDataUrl(audioUrl) {
+    if (!audioUrl) return '';
+    if (audioUrl.startsWith('data:')) return audioUrl;
+
+    // A. If blob: URL, fetch directly in the page document context
+    if (audioUrl.startsWith('blob:')) {
+      try {
+        const r = await fetch(audioUrl);
+        const b = await r.blob();
+        const dataUrl = await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result || '');
+          reader.onerror = () => resolve('');
+          reader.readAsDataURL(b);
+        });
+        if (dataUrl) return dataUrl;
+      } catch {}
+    }
+
+    // B. Fetch via background service worker (bypasses CORS restrictions)
     try {
       const resp = await new Promise((resolve) => {
         chrome.runtime.sendMessage(
@@ -241,6 +438,22 @@
         return resp.dataUrl;
       }
     } catch {}
+
+    // C. Fallback: direct fetch in page context
+    try {
+      const r = await fetch(audioUrl, { credentials: 'include' }).catch(() => fetch(audioUrl));
+      if (r && r.ok) {
+        const b = await r.blob();
+        const dataUrl = await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result || '');
+          reader.onerror = () => resolve('');
+          reader.readAsDataURL(b);
+        });
+        if (dataUrl) return dataUrl;
+      }
+    } catch {}
+
     return '';
   }
 
@@ -254,7 +467,7 @@
     const maxWaitMs = 240000; // 4 minutes
     let capturing = false;
     const baselinePlayBtns = new Set(
-      Array.from(document.querySelectorAll('main button[aria-label="Play"]'))
+      Array.from(document.querySelectorAll('main button[aria-label="Play"], button[aria-label="Play"]'))
     );
     const clickedNewPlayBtns = new Set();
     const serviceLabel = isFlowMusicSite() ? 'Flow Music' : 'Suno';
@@ -274,29 +487,36 @@
 
       const currentUrls = collectAllCurrentMp3Urls();
       let newUrl = '';
-      // Prefer .m4a or .mp3 over .wav if multiple formats of the new clip appear
       const newCandidates = [];
       for (const u of currentUrls) {
         if (!baselineUrls.has(u)) {
           newCandidates.push(u);
         }
       }
+
+      // Check direct <audio> elements in DOM for any new src not in baseline
+      for (const aud of Array.from(document.querySelectorAll('audio, source'))) {
+        const src = aud.currentSrc || aud.src || '';
+        if (src && (src.startsWith('http') || src.startsWith('blob:')) && !baselineUrls.has(src)) {
+          if (!newCandidates.includes(src)) newCandidates.push(src);
+        }
+      }
+
       if (newCandidates.length > 0) {
         newUrl =
-          newCandidates.find((u) => u.endsWith('.m4a') || u.endsWith('.mp3')) ||
+          newCandidates.find((u) => u.includes('.mp3') || u.includes('.m4a')) ||
           newCandidates[0];
       }
 
-      // On flowmusic.app, only probe a new Play button silently if 18s+ passed and URL wasn't in network/Fiber yet
-      if (!newUrl && isFlowMusicSite() && elapsedSec >= 18) {
+      // On flowmusic.app, probe new Play button silently if 16s+ passed and URL wasn't in network/Fiber yet
+      if (!newUrl && isFlowMusicSite() && elapsedSec >= 16) {
         const currentPlayBtns = Array.from(
-          document.querySelectorAll('main button[aria-label="Play"]')
+          document.querySelectorAll('main button[aria-label="Play"], button[aria-label="Play"], button[aria-label*="Play" i], button[aria-label*="Reproducir" i]')
         );
         for (const pb of currentPlayBtns) {
           if (!baselinePlayBtns.has(pb) && !clickedNewPlayBtns.has(pb)) {
             clickedNewPlayBtns.add(pb);
             try {
-              // Mark synthetic click so anti-autoplay guard keeps audio 100% muted and paused
               document.documentElement.setAttribute('data-huellas-synthetic-click', '1');
               for (const aud of Array.from(document.querySelectorAll('audio'))) {
                 try {
@@ -351,7 +571,7 @@
         `🎵 ¡Pista #${trackNumber || 1} generada en ${serviceLabel}! Descargando audio e inyectando en Pista 5 del Editor (con Fade-In/Out y Ducking)...`
       );
 
-      await new Promise((r) => setTimeout(r, 1500));
+      await new Promise((r) => setTimeout(r, 1200));
       const audioDataUrl = await fetchAudioAsDataUrl(newUrl);
 
       chrome.runtime
@@ -364,7 +584,7 @@
           audioDataUrl,
         })
         .catch(() => {});
-    }, 2500);
+    }, 2000);
   }
 
   const capturedAudioUrls = new Set();
@@ -437,54 +657,66 @@
     }, 12000);
   }
 
+  async function waitForFlowMusicInputAndInject(msg) {
+    const serviceLabel = isFlowMusicSite() ? 'Flow Music (flowmusic.app)' : 'Suno';
+    const baselineUrls = collectAllCurrentMp3Urls();
+    const trackNum = msg.trackNumber || 1;
+    const trackTitle =
+      msg.trackTitle || `FlowMusic_${String(trackNum).padStart(2, '0')}`;
+    const maxAttempts = 100; // ~35 seconds
+    let attempts = 0;
+    let input = null;
+
+    reportStatus(
+      'WORKING',
+      `🎵 Conectando con ${serviceLabel}... buscando campo de prompt musical...`
+    );
+
+    while (attempts < maxAttempts) {
+      input = findSunoPromptTextarea();
+      if (input) break;
+      attempts++;
+      if (attempts % 12 === 0) {
+        const sec = Math.round(attempts * 0.35);
+        reportStatus(
+          'WORKING',
+          `🎵 Conectando con ${serviceLabel}... cargando interfaz (${sec}s)...`
+        );
+      }
+      await new Promise((r) => setTimeout(r, 350));
+    }
+
+    if (!input) {
+      reportStatus(
+        'ERROR',
+        `⚠️ No se encontró el campo de texto en ${serviceLabel}. Abre la pestaña e inicia sesión en https://www.flowmusic.app/ para componer la pista #${trackNum}.`
+      );
+      return;
+    }
+
+    setNativeTextareaValue(input, msg.prompt || '');
+    reportStatus(
+      'PROMPT_INJECTED',
+      `🎵 Prompt de Pista #${trackNum} enviado a ${serviceLabel}.`
+    );
+
+    if (msg.autoSubmit !== false) {
+      await new Promise((r) => setTimeout(r, 450));
+      triggerSubmit(input);
+      startSunoAudioWatcher({
+        trackNumber: trackNum,
+        trackTitle,
+        baselineUrls,
+      });
+    }
+  }
+
   chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     if (!msg || msg.target !== 'SUNO') return false;
 
     if (msg.action === 'SEND_PROMPT') {
-      const baselineUrls = collectAllCurrentMp3Urls();
-      const input = findSunoPromptTextarea();
-      const serviceLabel = isFlowMusicSite() ? 'Flow Music (flowmusic.app)' : 'Suno';
-      if (!input) {
-        reportStatus(
-          'ERROR',
-          `Abre ${serviceLabel} para pegar el prompt musical automáticamente.`
-        );
-        sendResponse({ handled: false });
-        return false;
-      }
-      setNativeTextareaValue(input, msg.prompt || '');
-      reportStatus(
-        'PROMPT_INJECTED',
-        `🎵 Prompt de Pista #${msg.trackNumber || 1} enviado a ${serviceLabel}.`
-      );
-
-      if (msg.autoSubmit !== false) {
-        setTimeout(() => {
-          const btn = findSunoCreateButton();
-          if (btn && !btn.disabled) {
-            btn.click();
-          } else {
-            input.dispatchEvent(
-              new KeyboardEvent('keydown', {
-                key: 'Enter',
-                code: 'Enter',
-                keyCode: 13,
-                which: 13,
-                bubbles: true,
-                cancelable: true,
-              })
-            );
-          }
-          startSunoAudioWatcher({
-            trackNumber: msg.trackNumber || 1,
-            trackTitle:
-              msg.trackTitle ||
-              `FlowMusic_${String(msg.trackNumber || 1).padStart(2, '0')}`,
-            baselineUrls,
-          });
-        }, 450);
-      }
       sendResponse({ handled: true });
+      waitForFlowMusicInputAndInject(msg);
       return false;
     }
 

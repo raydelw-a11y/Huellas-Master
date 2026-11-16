@@ -44,7 +44,8 @@
     "https://*.onrender.com/*",
     "https://raydelw-a11y.github.io/*",
     "https://huellasdelahumanidad.com/*",
-    "https://*.huellasdelahumanidad.com/*"
+    "https://*.huellasdelahumanidad.com/*",
+    "https://*.trycloudflare.com/*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -57,7 +58,8 @@
         "https://*.onrender.com/*",
         "https://raydelw-a11y.github.io/*",
         "https://huellasdelahumanidad.com/*",
-        "https://*.huellasdelahumanidad.com/*"
+        "https://*.huellasdelahumanidad.com/*",
+        "https://*.trycloudflare.com/*"
       ],
       "js": ["huellas-bridge.js"],
       "run_at": "document_idle"

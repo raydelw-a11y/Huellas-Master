@@ -2410,8 +2410,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         preferredServiceTab || serviceTabs.find((t) => t.id === payload.tabId) || serviceTabs[0] || null;
 
       const shouldFocusTargetTab =
-        targetService === 'GEMINI' || targetService === 'FLOW' || targetService === 'SUNO'
+        targetService === 'GEMINI' || targetService === 'FLOW'
           ? false
+          : targetService === 'SUNO'
+          ? payload.focusTab !== false
           : payload.focusTab === true;
 
       if (!targetTab) {
@@ -2429,7 +2431,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
               : targetService === 'SUNO'
               ? 'Flow Music (flowmusic.app)'
               : 'Gemini Web'
-          } en segundo plano...`,
+          }${targetService === 'SUNO' ? '...' : ' en segundo plano...'}`,
         });
         const created = await chrome.tabs.create({
           windowId: senderWindowId,
@@ -2991,13 +2993,38 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                       } catch {}
                     };
 
+                    const audioUrlRegex =
+                      /https?:\/\/[^\s"'<>\\]+?\.(?:m4a|mp3|wav|aac|webm|ogg)(?:\?[^\s"'<>\\]*)?/gi;
+                    const gcsAudioRegex =
+                      /https?:\/\/storage\.googleapis\.com\/[^\s"'<>\\]+?(?:producer|audio|clip|track)[^\s"'<>\\]*/gi;
+                    const serviceAudioRegex =
+                      /https?:\/\/(?:cdn[12]?\.suno\.ai|[a-zA-Z0-9_.-]+\.flowmusic\.app|[a-zA-Z0-9_.-]+\.producer\.ai)\/[^\s"'<>\\]+/gi;
+                    const blobRegex =
+                      /blob:https?:\/\/[^\s"'<>\\]+/gi;
+
                     const extractClipUrlsFromText = (txt) => {
                       if (!txt || typeof txt !== 'string') return;
-                      const rx =
-                        /https:\/\/storage\.googleapis\.com\/producer-app-public\/clips\/[a-zA-Z0-9_-]+\.(?:m4a|mp3|wav)/g;
                       let m;
                       let added = false;
-                      while ((m = rx.exec(txt)) !== null) {
+                      while ((m = audioUrlRegex.exec(txt)) !== null) {
+                        if (!window.__HUELLAS_FLOWMUSIC_URLS__.has(m[0])) {
+                          window.__HUELLAS_FLOWMUSIC_URLS__.add(m[0]);
+                          added = true;
+                        }
+                      }
+                      while ((m = gcsAudioRegex.exec(txt)) !== null) {
+                        if (!window.__HUELLAS_FLOWMUSIC_URLS__.has(m[0])) {
+                          window.__HUELLAS_FLOWMUSIC_URLS__.add(m[0]);
+                          added = true;
+                        }
+                      }
+                      while ((m = serviceAudioRegex.exec(txt)) !== null) {
+                        if (!window.__HUELLAS_FLOWMUSIC_URLS__.has(m[0])) {
+                          window.__HUELLAS_FLOWMUSIC_URLS__.add(m[0]);
+                          added = true;
+                        }
+                      }
+                      while ((m = blobRegex.exec(txt)) !== null) {
                         if (!window.__HUELLAS_FLOWMUSIC_URLS__.has(m[0])) {
                           window.__HUELLAS_FLOWMUSIC_URLS__.add(m[0]);
                           added = true;
@@ -3005,6 +3032,27 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                       }
                       if (added) publishUrls();
                     };
+
+                    // Hook URL.createObjectURL to detect audio blobs
+                    try {
+                      const origCreateObjectURL = URL.createObjectURL;
+                      if (typeof origCreateObjectURL === 'function') {
+                        URL.createObjectURL = function (obj) {
+                          const url = origCreateObjectURL.apply(this, arguments);
+                          try {
+                            if (
+                              url &&
+                              obj &&
+                              (String(obj.type || '').includes('audio') ||
+                                String(obj.type || '').includes('octet-stream'))
+                            ) {
+                              extractClipUrlsFromText(url);
+                            }
+                          } catch {}
+                          return url;
+                        };
+                      }
+                    } catch {}
 
                     const origFetch = window.fetch;
                     window.fetch = async function (...args) {
@@ -3075,9 +3123,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                       try {
                         const els = document.querySelectorAll('main *, audio, source');
                         for (const el of els) {
-                          if (el.src && el.src.includes('producer-app-public/clips/')) {
-                            extractClipUrlsFromText(el.src);
-                          }
+                          if (el.src) extractClipUrlsFromText(el.src);
                           for (const k of Object.keys(el)) {
                             if (k.startsWith('__reactProps$') || k.startsWith('__reactFiber$')) {
                               try {
@@ -3086,9 +3132,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                                     return undefined;
                                   return val;
                                 });
-                                if (s && s.includes('producer-app-public/clips/')) {
-                                  extractClipUrlsFromText(s);
-                                }
+                                if (s) extractClipUrlsFromText(s);
                               } catch {}
                             }
                           }
@@ -3097,60 +3141,124 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     }, 2200);
                   }
 
-                  // 2. Ensure prompt is injected into Flow Music React textarea and submitted
-                  setTimeout(() => {
-                    try {
-                      const inputEl =
-                        document.querySelector('textarea[aria-label="Chat message"]') ||
-                        document.querySelector('textarea[placeholder*="Describe your song" i]') ||
-                        document.querySelector('textarea');
-                      if (!inputEl || !expectedPrompt) return;
+                  // 2. Ensure prompt is injected into Flow Music React textarea/input and submitted with polling
+                  if (expectedPrompt) {
+                    let injectTries = 0;
+                    const maxInjectTries = 80; // ~28s
+                    const tryInjectPromptInMain = () => {
+                      injectTries++;
+                      try {
+                        const inputEl =
+                          document.querySelector('textarea[aria-label="Chat message"]') ||
+                          document.querySelector('textarea[placeholder*="Describe your song" i]') ||
+                          document.querySelector('textarea[placeholder*="Describe" i]') ||
+                          document.querySelector('textarea[placeholder*="song" i]') ||
+                          document.querySelector('textarea[placeholder*="music" i]') ||
+                          document.querySelector('textarea[placeholder*="prompt" i]') ||
+                          document.querySelector('input[type="text"][placeholder*="Describe" i]') ||
+                          document.querySelector('input[type="text"][placeholder*="song" i]') ||
+                          document.querySelector('input[type="text"][placeholder*="music" i]') ||
+                          document.querySelector('input[type="text"][placeholder*="prompt" i]') ||
+                          document.querySelector('[contenteditable="true"][aria-label*="prompt" i]') ||
+                          document.querySelector('[contenteditable="true"][role="textbox"]') ||
+                          document.querySelector('textarea');
 
-                      const currentVal = (inputEl.value || '').trim();
-                      if (currentVal.length < Math.min(12, expectedPrompt.length)) {
-                        inputEl.focus();
-                        const proto = window.HTMLTextAreaElement.prototype;
-                        const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
-                        const tracker = inputEl._valueTracker;
-                        if (tracker) tracker.setValue('');
-                        if (setter) setter.call(inputEl, expectedPrompt);
-                        else inputEl.value = expectedPrompt;
-                        inputEl.dispatchEvent(
-                          new InputEvent('input', {
-                            bubbles: true,
-                            cancelable: true,
-                            inputType: 'insertText',
-                            data: expectedPrompt,
-                          })
-                        );
-                        inputEl.dispatchEvent(new Event('change', { bubbles: true }));
-                      }
-
-                      if (shouldSubmit) {
-                        setTimeout(() => {
-                          const rem = (inputEl.value || '').trim();
-                          if (rem.length < 3) return;
-                          const sendBtn =
-                            document.querySelector('button[aria-label="Send message"]:not([disabled])') ||
-                            document.querySelector('button[aria-label*="Send" i]:not([disabled])');
-                          if (sendBtn) {
-                            sendBtn.click();
-                          } else {
-                            inputEl.dispatchEvent(
-                              new KeyboardEvent('keydown', {
-                                key: 'Enter',
-                                code: 'Enter',
-                                keyCode: 13,
-                                which: 13,
-                                bubbles: true,
-                                cancelable: true,
-                              })
-                            );
+                        if (!inputEl) {
+                          if (injectTries < maxInjectTries) {
+                            setTimeout(tryInjectPromptInMain, 350);
                           }
-                        }, 250);
-                      }
-                    } catch {}
-                  }, 300);
+                          return;
+                        }
+
+                        const currentVal = (inputEl.value || inputEl.innerText || '').trim();
+                        if (currentVal.length < Math.min(12, expectedPrompt.length)) {
+                          inputEl.focus();
+                          if (inputEl instanceof HTMLTextAreaElement || inputEl.tagName === 'TEXTAREA') {
+                            const proto = window.HTMLTextAreaElement.prototype;
+                            const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+                            const tracker = inputEl._valueTracker;
+                            if (tracker) tracker.setValue('');
+                            if (setter) setter.call(inputEl, expectedPrompt);
+                            else inputEl.value = expectedPrompt;
+                          } else if (inputEl instanceof HTMLInputElement || inputEl.tagName === 'INPUT') {
+                            const proto = window.HTMLInputElement.prototype;
+                            const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+                            const tracker = inputEl._valueTracker;
+                            if (tracker) tracker.setValue('');
+                            if (setter) setter.call(inputEl, expectedPrompt);
+                            else inputEl.value = expectedPrompt;
+                          } else if (inputEl.isContentEditable) {
+                            try {
+                              document.execCommand('selectAll', false, null);
+                              document.execCommand('insertText', false, expectedPrompt);
+                            } catch {}
+                            if ((inputEl.innerText || '').trim() !== expectedPrompt.trim()) {
+                              inputEl.innerText = expectedPrompt;
+                            }
+                          }
+                          inputEl.dispatchEvent(
+                            new InputEvent('input', {
+                              bubbles: true,
+                              cancelable: true,
+                              inputType: 'insertText',
+                              data: expectedPrompt,
+                            })
+                          );
+                          inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+                          inputEl.dispatchEvent(new Event('change', { bubbles: true }));
+                        }
+
+                        if (shouldSubmit) {
+                          setTimeout(() => {
+                            const rem = (inputEl.value || inputEl.innerText || '').trim();
+                            if (rem.length < 3) return;
+                            const sendBtn =
+                              document.querySelector('button[aria-label="Send message"]:not([disabled])') ||
+                              document.querySelector('button[aria-label="Send message"]') ||
+                              document.querySelector('button[aria-label*="Send" i]:not([disabled])') ||
+                              document.querySelector('button[aria-label*="Generate" i]:not([disabled])') ||
+                              document.querySelector('button[aria-label*="Create" i]:not([disabled])') ||
+                              document.querySelector('button[type="submit"]:not([disabled])');
+                            if (sendBtn) {
+                              sendBtn.click();
+                            } else {
+                              inputEl.dispatchEvent(
+                                new KeyboardEvent('keydown', {
+                                  key: 'Enter',
+                                  code: 'Enter',
+                                  keyCode: 13,
+                                  which: 13,
+                                  bubbles: true,
+                                  cancelable: true,
+                                })
+                              );
+                              inputEl.dispatchEvent(
+                                new KeyboardEvent('keypress', {
+                                  key: 'Enter',
+                                  code: 'Enter',
+                                  keyCode: 13,
+                                  which: 13,
+                                  bubbles: true,
+                                  cancelable: true,
+                                })
+                              );
+                              inputEl.dispatchEvent(
+                                new KeyboardEvent('keyup', {
+                                  key: 'Enter',
+                                  code: 'Enter',
+                                  keyCode: 13,
+                                  which: 13,
+                                  bubbles: true,
+                                  cancelable: true,
+                                })
+                              );
+                            }
+                          }, 300);
+                        }
+                      } catch {}
+                    };
+                    setTimeout(tryInjectPromptInMain, 250);
+                  }
                 } catch {}
               },
             })
@@ -8414,6 +8522,17 @@ async function ensureResidentGeminiAndChatGptTabs(presence) {
       reusedExternalTabIds.add(copilotTabs[0].id);
       if (copilotTabs[0].autoDiscardable !== false) {
         await chrome.tabs.update(copilotTabs[0].id, { autoDiscardable: false }).catch(() => {});
+      }
+    }
+
+    // 6. Ensure Flow Music tab is kept alive and not discarded if present
+    const flowMusicTabs = await chrome.tabs
+      .query({ url: ['https://flowmusic.app/*', 'https://*.flowmusic.app/*', 'https://producer.ai/*', 'https://*.producer.ai/*'] })
+      .catch(() => []);
+    if (flowMusicTabs[0] && flowMusicTabs[0].id) {
+      reusedExternalTabIds.add(flowMusicTabs[0].id);
+      if (flowMusicTabs[0].autoDiscardable !== false) {
+        await chrome.tabs.update(flowMusicTabs[0].id, { autoDiscardable: false }).catch(() => {});
       }
     }
   } catch {
