@@ -47,6 +47,7 @@ import {
   computeVoiceScriptAlignHash,
   spokenSpanishSyllableWeight,
   buildAudioCaptionsFromSidecarWords,
+  balanceCaptionsFor16x9,
   BROLL_MOTION_UI_LABEL_ES,
   normalizeBrollImagePrompt,
 } from '../utils/smartParsers';
@@ -1952,6 +1953,96 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       ? initialSessionState.autoIsolateFoleyAllClips
       : false
   );
+
+  interface PreviewProxyStatusState {
+    quality: 'low' | 'medium';
+    total: number;
+    ready: number;
+    building: number;
+    queued: number;
+    missing: number;
+    percent: number;
+    activeWorkers: number;
+    items: Record<string, { status: 'ready' | 'building' | 'queued' | 'missing'; size?: number }>;
+    isWarmingAll: boolean;
+  }
+
+  const [previewProxyStatus, setPreviewProxyStatus] = useState<PreviewProxyStatusState>({
+    quality: 'medium',
+    total: 0,
+    ready: 0,
+    building: 0,
+    queued: 0,
+    missing: 0,
+    percent: 0,
+    activeWorkers: 0,
+    items: {},
+    isWarmingAll: false,
+  });
+
+  const fetchPreviewProxyStatus = useCallback(
+    async (autoWarm = false) => {
+      if (previewQuality === 'high') return;
+      const targetQuality = previewQuality === 'low' ? 'low' : 'medium';
+      const fileUrls: string[] = [];
+      for (const c of timelineClips) {
+        if (c.videoUrl) fileUrls.push(c.videoUrl);
+      }
+      if (officialIntroUrl) fileUrls.push(officialIntroUrl);
+      if (fileUrls.length === 0) return;
+
+      if (autoWarm) {
+        setPreviewProxyStatus((prev) => ({ ...prev, isWarmingAll: true }));
+      }
+
+      try {
+        const res = await fetch('/api/flow/preview-proxy-status', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            quality: targetQuality,
+            urls: fileUrls,
+            autoWarm,
+          }),
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data && data.ok) {
+          setPreviewProxyStatus({
+            quality: targetQuality,
+            total: data.total || 0,
+            ready: data.ready || 0,
+            building: data.building || 0,
+            queued: data.queued || 0,
+            missing: data.missing || 0,
+            percent: data.percent ?? 0,
+            activeWorkers: data.activeWorkers || 0,
+            items: data.items || {},
+            isWarmingAll: autoWarm ? true : data.building + data.queued > 0,
+          });
+          if (autoWarm && (data.building > 0 || data.queued > 0)) {
+            setStatusMessage(
+              `⚡ Generando proxies ${targetQuality === 'low' ? '540p' : '720p'} en segundo plano (${data.ready}/${data.total} listos • ${data.percent}%).`
+            );
+          } else if (autoWarm && data.ready === data.total) {
+            setStatusMessage(
+              `✅ ¡Todos los proxies ${targetQuality === 'low' ? '540p' : '720p'} (${data.ready}/${data.total}) están listos!`
+            );
+          }
+        }
+      } catch {}
+    },
+    [previewQuality, timelineClips, officialIntroUrl]
+  );
+
+  useEffect(() => {
+    if (previewQuality === 'high') return;
+    void fetchPreviewProxyStatus(false);
+    const interval = setInterval(() => {
+      void fetchPreviewProxyStatus(false);
+    }, 3500);
+    return () => clearInterval(interval);
+  }, [fetchPreviewProxyStatus, previewQuality]);
   const autoAttemptedFoleyClipIdsRef = useRef<Set<string>>(new Set());
   const [draggedClipIndex, setDraggedClipIndex] = useState<number | null>(null);
   const [showOnlyReviewedClips, setShowOnlyReviewedClips] = useState<boolean>(true);
@@ -2206,7 +2297,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   });
 
   const formatCaptionTextCase = (text: string): string => {
-    const raw = String(text || '');
+    let raw = String(text || '');
+    if (aspectRatio === '16:9') {
+      raw = balanceCaptionsFor16x9(raw);
+    }
     if (captionTextCase === 'uppercase') return raw.toLocaleUpperCase('es-ES');
     if (captionTextCase === 'lowercase') return raw.toLocaleLowerCase('es-ES');
     return raw;
@@ -12904,6 +12998,26 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           }
           wrapped.push(currentLine);
         }
+        // Anti-orphan guard for 16:9: never leave a single word alone on any line
+        if (aspectRatio === '16:9' && wrapped.length >= 2) {
+          for (let i = wrapped.length - 1; i >= 1; i--) {
+            const lineWords = wrapped[i].trim().split(/\s+/).filter(Boolean);
+            if (lineWords.length === 1) {
+              const prevLineWords = wrapped[i - 1].trim().split(/\s+/).filter(Boolean);
+              if (prevLineWords.length >= 3) {
+                const shifted = prevLineWords.pop()!;
+                wrapped[i - 1] = prevLineWords.join(' ');
+                wrapped[i] = `${shifted} ${wrapped[i]}`;
+              } else if (prevLineWords.length === 2) {
+                const candidateCombined = `${wrapped[i - 1]} ${wrapped[i]}`;
+                if (context.measureText(candidateCombined).width <= maxLineWidth * 1.08) {
+                  wrapped[i - 1] = candidateCombined;
+                  wrapped.splice(i, 1);
+                }
+              }
+            }
+          }
+        }
         return wrapped;
       };
 
@@ -13703,6 +13817,26 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               }
             }
             wrapped.push(currentLine);
+          }
+          // Anti-orphan guard for 16:9: never leave a single word alone on any line
+          if (aspectRatio === '16:9' && wrapped.length >= 2) {
+            for (let i = wrapped.length - 1; i >= 1; i--) {
+              const lineWords = wrapped[i].trim().split(/\s+/).filter(Boolean);
+              if (lineWords.length === 1) {
+                const prevLineWords = wrapped[i - 1].trim().split(/\s+/).filter(Boolean);
+                if (prevLineWords.length >= 3) {
+                  const shifted = prevLineWords.pop()!;
+                  wrapped[i - 1] = prevLineWords.join(' ');
+                  wrapped[i] = `${shifted} ${wrapped[i]}`;
+                } else if (prevLineWords.length === 2) {
+                  const candidateCombined = `${wrapped[i - 1]} ${wrapped[i]}`;
+                  if (context.measureText(candidateCombined).width <= maxLineWidth * 1.08) {
+                    wrapped[i - 1] = candidateCombined;
+                    wrapped.splice(i, 1);
+                  }
+                }
+              }
+            }
           }
           return wrapped;
         };
@@ -16386,6 +16520,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     style={{
                       fontFamily: captionFontFamily,
                       fontSize: `${Math.max(13, captionFontSize * 0.76)}px`,
+                      textWrap: (aspectRatio === '16:9' ? 'pretty' : undefined) as any,
                       color:
                         captionColor === 'amber'
                           ? '#fde047'
@@ -16557,6 +16692,58 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   </option>
                 </select>
               </div>
+
+              {/* Preview Proxies Live Status Badge */}
+              {previewQuality !== 'high' ? (
+                <button
+                  type="button"
+                  onClick={() => void fetchPreviewProxyStatus(true)}
+                  title={
+                    previewProxyStatus.ready === previewProxyStatus.total && previewProxyStatus.total > 0
+                      ? `✅ Todos los proxies de ${previewQuality === 'low' ? '540p' : '720p'} están creados (${previewProxyStatus.ready}/${previewProxyStatus.total}). Clic para forzar reverificación.`
+                      : previewProxyStatus.building + previewProxyStatus.queued > 0
+                      ? `🔄 Generando proxies en segundo plano: ${previewProxyStatus.ready}/${previewProxyStatus.total} listos (${previewProxyStatus.percent}%). ${previewProxyStatus.building} procesando con FFmpeg, ${previewProxyStatus.queued} en cola.`
+                      : `⚡ ${previewProxyStatus.ready}/${previewProxyStatus.total} proxies creados (${previewProxyStatus.percent}%). ¡Haz clic aquí para generar todos los proxies restantes en segundo plano!`
+                  }
+                  className={`flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-bold border transition cursor-pointer select-none shrink-0 ${
+                    previewProxyStatus.ready === previewProxyStatus.total && previewProxyStatus.total > 0
+                      ? 'bg-emerald-950/80 border-emerald-500/60 text-emerald-300 hover:bg-emerald-900/90'
+                      : previewProxyStatus.building + previewProxyStatus.queued > 0
+                      ? 'bg-amber-950/90 border-amber-400 text-amber-200 animate-pulse'
+                      : 'bg-sky-950/80 border-sky-500/60 text-sky-200 hover:bg-sky-900/90'
+                  }`}
+                >
+                  {previewProxyStatus.building + previewProxyStatus.queued > 0 ? (
+                    <>
+                      <span className="inline-block animate-spin text-amber-400">⏳</span>
+                      <span>
+                        Proxies {previewQuality === 'low' ? '540p' : '720p'}: {previewProxyStatus.ready}/{previewProxyStatus.total} ({previewProxyStatus.percent}%)
+                      </span>
+                    </>
+                  ) : previewProxyStatus.ready === previewProxyStatus.total && previewProxyStatus.total > 0 ? (
+                    <>
+                      <span className="text-emerald-400">✅</span>
+                      <span>
+                        Proxies {previewQuality === 'low' ? '540p' : '720p'}: {previewProxyStatus.ready}/{previewProxyStatus.total} Listos
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-sky-400">⚡</span>
+                      <span>
+                        Proxies {previewQuality === 'low' ? '540p' : '720p'}: {previewProxyStatus.ready}/{previewProxyStatus.total} (Generar)
+                      </span>
+                    </>
+                  )}
+                </button>
+              ) : (
+                <div
+                  className="hidden md:flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-900/80 border border-slate-700/60 text-[10px] text-slate-400 shrink-0 select-none"
+                  title="En calidad Alta (4K Nativa), los proxies están apagados y se reproduce el video maestro original."
+                >
+                  <span>⚡ Proxies: 4K Nativa</span>
+                </div>
+              )}
               <span className="hidden sm:inline-block px-1.5 py-0.5 rounded bg-slate-900 border border-slate-700 text-[10px] font-mono text-slate-300 shrink-0">
                 {aspectRatio}
               </span>
@@ -20163,6 +20350,38 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                                   🌊 {clip.speed}x
                                 </span>
                               )}
+                              {previewQuality !== 'high' && clip.videoUrl && (() => {
+                                const pxy = previewProxyStatus.items[clip.videoUrl];
+                                if (!pxy) return null;
+                                if (pxy.status === 'ready') {
+                                  return (
+                                    <span
+                                      className="px-0.5 py-0.2 rounded bg-emerald-500/90 text-[7px] font-black text-slate-950 leading-none"
+                                      title={`Proxy ${previewQuality === 'low' ? '540p' : '720p'} listo`}
+                                    >
+                                      ⚡ Pxy
+                                    </span>
+                                  );
+                                }
+                                if (pxy.status === 'building' || pxy.status === 'queued') {
+                                  return (
+                                    <span
+                                      className="px-0.5 py-0.2 rounded bg-amber-400/95 text-[7px] font-black text-slate-950 leading-none animate-pulse"
+                                      title={`Proxy ${previewQuality === 'low' ? '540p' : '720p'} generándose en segundo plano`}
+                                    >
+                                      🔄 Pxy
+                                    </span>
+                                  );
+                                }
+                                return (
+                                  <span
+                                    className="px-0.5 py-0.2 rounded bg-slate-700/80 text-[7px] font-black text-slate-300 leading-none"
+                                    title={`Proxy ${previewQuality === 'low' ? '540p' : '720p'} pendiente de creación`}
+                                  >
+                                    ⏳ Pxy
+                                  </span>
+                                );
+                              })()}
                               {clip.audioMuted || (clip.foleyVolume ?? 20) <= 0 ? (
                                 <span className="px-0.5 py-0.2 rounded bg-rose-600/95 text-[7px] font-black text-white leading-none">
                                   🔇 0%
@@ -20198,6 +20417,38 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                                 {clip.reviewedForEditor && (
                                   <span title="Revisado y enviado desde Etapa 8">✅</span>
                                 )}
+                                {previewQuality !== 'high' && clip.videoUrl && (() => {
+                                  const pxy = previewProxyStatus.items[clip.videoUrl];
+                                  if (!pxy) return null;
+                                  if (pxy.status === 'ready') {
+                                    return (
+                                      <span
+                                        className="px-1 py-0.5 rounded bg-emerald-500/90 text-[8px] font-black text-slate-950 leading-none"
+                                        title={`Proxy ${previewQuality === 'low' ? '540p' : '720p'} listo`}
+                                      >
+                                        ⚡ Pxy listo
+                                      </span>
+                                    );
+                                  }
+                                  if (pxy.status === 'building' || pxy.status === 'queued') {
+                                    return (
+                                      <span
+                                        className="px-1 py-0.5 rounded bg-amber-400/95 text-[8px] font-black text-slate-950 leading-none animate-pulse"
+                                        title={`Proxy ${previewQuality === 'low' ? '540p' : '720p'} creándose en segundo plano`}
+                                      >
+                                        🔄 Pxy creando...
+                                      </span>
+                                    );
+                                  }
+                                  return (
+                                    <span
+                                      className="px-1 py-0.5 rounded bg-slate-700/80 text-[8px] font-black text-slate-300 leading-none"
+                                      title={`Proxy ${previewQuality === 'low' ? '540p' : '720p'} pendiente`}
+                                    >
+                                      ⏳ Pxy
+                                    </span>
+                                  );
+                                })()}
                               </span>
                               <span className="text-[10px] font-mono text-slate-200 shrink-0">
                                 {formatTimeMMSS(clip.start)}-{formatTimeMMSS(clip.end)}

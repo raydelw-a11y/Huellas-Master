@@ -5091,6 +5091,77 @@ export function spokenSpanishSyllableWeight(text: string): number {
   return Math.max(1, letters + commas * 2 + semicolons * 3 + periods * 4 + dashes * 3.5);
 }
 
+/**
+ * Balances caption text for 16:9 widescreen format so that no line is EVER left with a single word alone.
+ * - If text has multiple lines (\n): shifts words between lines or merges lines if needed so each line has >= 2 words.
+ * - In each line with >= 2 words: binds the last space as a non-breaking space (\u00A0) preventing browser wrapping orphans.
+ */
+export function balanceCaptionsFor16x9(text: string): string {
+  if (!text) return '';
+  const raw = String(text);
+
+  if (!raw.includes('\n')) {
+    const words = raw.trim().split(/\s+/).filter(Boolean);
+    if (words.length <= 1) return raw;
+    const lastWord = words.pop()!;
+    const secondLast = words.pop()!;
+    return (words.length > 0 ? words.join(' ') + ' ' : '') + secondLast + '\u00A0' + lastWord;
+  }
+
+  // Multiline caption
+  const lines = raw.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  if (lines.length <= 1) return balanceCaptionsFor16x9(lines[0] || '');
+
+  // Step 1: Rebalance lines so no line has a single word alone
+  for (let i = lines.length - 1; i >= 1; i--) {
+    const curWords = lines[i].split(/\s+/).filter(Boolean);
+    if (curWords.length === 1) {
+      const prevWords = lines[i - 1].split(/\s+/).filter(Boolean);
+      if (prevWords.length >= 3) {
+        // Shift last word from previous line down to current line
+        const shifted = prevWords.pop()!;
+        lines[i - 1] = prevWords.join(' ');
+        lines[i] = `${shifted} ${lines[i]}`;
+      } else if (prevWords.length === 2) {
+        // Total words across 2 lines is 3 (e.g. "BUSCABAN UNA" / "RESPUESTA") -> in 16:9 merge into 1 line
+        lines[i - 1] = `${prevWords.join(' ')} ${curWords[0]}`;
+        lines.splice(i, 1);
+      } else if (prevWords.length === 1) {
+        // Both lines have 1 word -> merge
+        lines[i - 1] = `${prevWords[0]} ${curWords[0]}`;
+        lines.splice(i, 1);
+      }
+    }
+  }
+
+  // Step 2: Also guard the first line if it was left with 1 word and line 2 has >= 3 words
+  if (lines.length >= 2) {
+    const firstWords = lines[0].split(/\s+/).filter(Boolean);
+    if (firstWords.length === 1) {
+      const secondWords = lines[1].split(/\s+/).filter(Boolean);
+      if (secondWords.length >= 3) {
+        const shifted = secondWords.shift()!;
+        lines[0] = `${firstWords[0]} ${shifted}`;
+        lines[1] = secondWords.join(' ');
+      } else {
+        lines[0] = `${firstWords[0]} ${secondWords.join(' ')}`;
+        lines.splice(1, 1);
+      }
+    }
+  }
+
+  // Step 3: For each line, bind the last two words with a non-breaking space
+  return lines
+    .map((l) => {
+      const words = l.trim().split(/\s+/).filter(Boolean);
+      if (words.length <= 1) return l;
+      const lastWord = words.pop()!;
+      const secondLast = words.pop()!;
+      return (words.length > 0 ? words.join(' ') + ' ' : '') + secondLast + '\u00A0' + lastWord;
+    })
+    .join('\n');
+}
+
 export function buildAudioCaptionsFromSidecarWords(
   words: Array<[string, number, number, number]>,
   options?: { maxWordsPerLine?: number; maxCharsPerLine?: number; lineMode?: 'single' | 'wrap' }
@@ -5192,7 +5263,7 @@ export function buildAudioCaptionsFromSidecarWords(
 
       if (canPair && l2) {
         rawCaptions.push({
-          text: `${l1.text}\n${l2.text}`,
+          text: balanceCaptionsFor16x9(`${l1.text}\n${l2.text}`),
           start: l1.start,
           end: l2.end,
           words: [...l1.words, ...l2.words],
@@ -5415,9 +5486,10 @@ export function reformatCaptionItems<
           !(lastL1Break === 1 && gapL1L2 >= 0.16);
 
         const wordsToEmit = canPair && l2 ? [...l1, ...l2] : l1;
-        const textToEmit = canPair && l2
+        const rawTextToEmit = canPair && l2
           ? `${l1.map((w) => w.word).join(' ')}\n${l2.map((w) => w.word).join(' ')}`
           : l1.map((w) => w.word).join(' ');
+        const textToEmit = balanceCaptionsFor16x9(rawTextToEmit);
 
         const fTw = wordsToEmit[0];
         const lTw = wordsToEmit[wordsToEmit.length - 1];

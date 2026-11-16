@@ -34,6 +34,7 @@ import {
   normalizeReferenceTagSlug,
   sanitizeImagePromptForFlowSafety,
   sanitizeVideoClipPromptForFlowSafety,
+  balanceCaptionsFor16x9,
 } from './src/utils/smartParsers';
 import {
   extractCleanPcmFromGeminiAudio,
@@ -7112,10 +7113,28 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
             prevAssLocalE = localE;
             const fadeInMs = startsInsideSeg ? 60 : 0;
             const fadeOutMs = endsInsideSeg ? 65 : 0;
-            const rawLines = String(cp.text || '')
+            const is16x9 = !isVertical916;
+            const captionTextToUse = is16x9 ? balanceCaptionsFor16x9(cp.text) : cp.text;
+            const rawLines = String(captionTextToUse || '')
               .split(/\r?\n/)
               .map((l) => l.trim())
               .filter(Boolean);
+            if (is16x9 && rawLines.length >= 2) {
+              for (let li = rawLines.length - 1; li >= 1; li--) {
+                const curWords = rawLines[li].split(/\s+/).filter(Boolean);
+                if (curWords.length === 1) {
+                  const prevWords = rawLines[li - 1].split(/\s+/).filter(Boolean);
+                  if (prevWords.length >= 3) {
+                    const shifted = prevWords.pop()!;
+                    rawLines[li - 1] = prevWords.join(' ');
+                    rawLines[li] = `${shifted} ${rawLines[li]}`;
+                  } else if (prevWords.length === 2) {
+                    rawLines[li - 1] = `${prevWords.join(' ')} ${curWords[0]}`;
+                    rawLines.splice(li, 1);
+                  }
+                }
+              }
+            }
             for (let rIdx = 0; rIdx < rawLines.length; rIdx++) {
               const rowRaw = rawLines[rIdx];
               const rowEsc = escapeAssText(rowRaw);
@@ -9060,7 +9079,7 @@ type PreviewProxyQuality = 'low' | 'medium';
 
 const PREVIEW_PROXY_CACHE_DIR = path.join(os.tmpdir(), 'huellas-preview-cache');
 const MAX_PREVIEW_PROXY_WORKERS = 2;
-const MAX_PREVIEW_PROXY_QUEUE = 16;
+const MAX_PREVIEW_PROXY_QUEUE = 300;
 const MAX_PREVIEW_PROXY_CACHE_BYTES = 3 * 1024 * 1024 * 1024; // 3 GB cap outside iCloud
 const inFlightPreviewProxies = new Map<string, Promise<void>>();
 const queuedPreviewProxyKeys = new Set<string>();
@@ -9419,6 +9438,113 @@ app.get('/api/assets/official-outro-poster', (req, res) => {
 
 app.head('/api/assets/official-outro-poster', (req, res) => {
   void officialAssetsManager.handlePoster('outro', req, res);
+});
+
+app.post('/api/flow/preview-proxy-status', async (req, res) => {
+  try {
+    const rawQuality = String(req.body?.quality || 'low').toLowerCase();
+    const quality: PreviewProxyQuality = rawQuality === 'medium' ? 'medium' : 'low';
+    const autoWarm = Boolean(req.body?.autoWarm);
+    const rawFiles: string[] = Array.isArray(req.body?.files)
+      ? req.body.files
+      : Array.isArray(req.body?.urls)
+      ? req.body.urls
+      : [];
+
+    let total = 0;
+    let readyCount = 0;
+    let buildingCount = 0;
+    let queuedCount = 0;
+    let missingCount = 0;
+    const items: Record<string, { status: 'ready' | 'building' | 'queued' | 'missing'; size?: number }> = {};
+
+    for (const raw of rawFiles) {
+      if (!raw || typeof raw !== 'string') continue;
+      let filePath = raw.trim();
+
+      // Check official Intro/Outro stream URLs
+      if (filePath.includes('/api/assets/official-intro-stream')) {
+        const webCandidate = path.join(ASSETS_DIR, 'official_huellas_intro_web.mp4');
+        const st = await fsp.stat(webCandidate).catch(() => null);
+        if (st && st.isFile()) {
+          filePath = webCandidate;
+        }
+      } else if (filePath.includes('/api/assets/official-outro-stream')) {
+        const webCandidate = path.join(ASSETS_DIR, 'official_huellas_outro_web.mp4');
+        const st = await fsp.stat(webCandidate).catch(() => null);
+        if (st && st.isFile()) {
+          filePath = webCandidate;
+        }
+      } else if (filePath.includes('/api/flow/serve-folder-file')) {
+        try {
+          const u = new URL(filePath, 'http://localhost');
+          filePath = u.searchParams.get('filePath') || filePath;
+        } catch {
+          const match = filePath.match(/[?&]filePath=([^&#]+)/);
+          if (match) filePath = decodeURIComponent(match[1]);
+        }
+      }
+
+      if (!filePath || filePath.includes('huellas-preview-cache') || !/\.(?:mp4|webm|mov)$/i.test(filePath)) {
+        continue;
+      }
+
+      total++;
+      let st: fs.Stats | null = null;
+      try {
+        st = await fsp.stat(filePath);
+      } catch {
+        st = null;
+      }
+
+      if (!st || !st.isFile()) {
+        items[raw] = { status: 'missing' };
+        missingCount++;
+        continue;
+      }
+
+      const { cacheKey, proxyPath } = getPreviewProxyCacheMeta(filePath, st.size, st.mtimeMs, quality);
+      const ready = getReadyPreviewProxySync(filePath, st.size, st.mtimeMs, quality);
+
+      if (ready) {
+        items[raw] = { status: 'ready', size: ready.size };
+        readyCount++;
+      } else if (inFlightPreviewProxies.has(cacheKey)) {
+        items[raw] = { status: 'building' };
+        buildingCount++;
+      } else if (queuedPreviewProxyKeys.has(cacheKey)) {
+        items[raw] = { status: 'queued' };
+        queuedCount++;
+      } else {
+        if (autoWarm) {
+          enqueuePreviewProxyBuild(filePath, st.size, st.mtimeMs, quality);
+          const isNowBuilding = inFlightPreviewProxies.has(cacheKey);
+          items[raw] = { status: isNowBuilding ? 'building' : 'queued' };
+          if (isNowBuilding) buildingCount++;
+          else queuedCount++;
+        } else {
+          items[raw] = { status: 'missing' };
+          missingCount++;
+        }
+      }
+    }
+
+    const percent = total > 0 ? Math.round((readyCount / total) * 100) : 100;
+    res.json({
+      ok: true,
+      quality,
+      total,
+      ready: readyCount,
+      building: buildingCount,
+      queued: queuedCount,
+      missing: missingCount,
+      percent,
+      activeWorkers: activePreviewProxyWorkers,
+      items,
+    });
+  } catch (err: any) {
+    res.status(500).json({ ok: false, error: err?.message || String(err) });
+  }
 });
 
 // ============================================================================
