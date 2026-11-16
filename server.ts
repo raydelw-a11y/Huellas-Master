@@ -978,8 +978,8 @@ function mergeServerClipsPreservingAuthored(
         : targetProjectEngine === 'OMNI_1_1_FLASH'
         ? 'OMNI_1_1_FLASH'
         : useOtherPrompt
-        ? o.flowClipEngine || c.flowClipEngine
-        : c.flowClipEngine || o.flowClipEngine;
+        ? o.flowClipEngine ?? c.flowClipEngine
+        : c.flowClipEngine;
 
     const promptWinnerMeta = useOtherPrompt
       ? {
@@ -1001,7 +1001,7 @@ function mergeServerClipsPreservingAuthored(
             : {}),
         }
       : {
-          ...(resolvedClipFlowEngine ? { flowClipEngine: resolvedClipFlowEngine } : {}),
+          flowClipEngine: resolvedClipFlowEngine,
           ...(resolvedIsBroll
             ? {
                 isStaticBroll: true,
@@ -1462,16 +1462,18 @@ function mergeServerDocObjects(winner: any, other: any) {
         ? oCleanDoc.audioTracks
         : wCleanDoc.audioTracks || [];
   } catch {}
-  if (
-    (other.flowVideoEngine === 'VEO_3_1_LITE_LOWER_PRIORITY' || other.flowVideoEngine === 'OMNI_1_1_FLASH') &&
-    (!baseWinner.flowVideoEngine || baseWinner.flowVideoEngine === 'HYBRID_PEOPLE_OMNI_REST_LOWER')
-  ) {
-    const winnerHasOmniClip =
-      Array.isArray(baseWinner.clips) &&
-      baseWinner.clips.some((c: any) => c?.flowClipEngine === 'OMNI_1_1_FLASH');
-    if (!winnerHasOmniClip) {
-      baseWinner.flowVideoEngine = other.flowVideoEngine;
+  const wEngineTs = Number(baseWinner.promptConfig?.FLOW_VIDEO_ENGINE_UPDATED_AT || 0);
+  const oEngineTs = Number(other.promptConfig?.FLOW_VIDEO_ENGINE_UPDATED_AT || 0);
+  if (oEngineTs > wEngineTs && other.flowVideoEngine) {
+    baseWinner.flowVideoEngine = other.flowVideoEngine;
+    if (other.promptConfig?.FLOW_VIDEO_ENGINE_UPDATED_AT) {
+      baseWinner.promptConfig = {
+        ...(baseWinner.promptConfig || {}),
+        FLOW_VIDEO_ENGINE_UPDATED_AT: other.promptConfig.FLOW_VIDEO_ENGINE_UPDATED_AT,
+      };
     }
+  } else if (!baseWinner.flowVideoEngine && other.flowVideoEngine) {
+    baseWinner.flowVideoEngine = other.flowVideoEngine;
   }
   let mergedClips = mergeServerClipsPreservingAuthored(
     baseWinner.clips,
@@ -2148,8 +2150,11 @@ app.put('/api/documentaries/:id', (req, res) => {
   let updated: any;
   if (patchKeys && patchKeys.length > 0) {
     const surgicalPatch: Record<string, any> = {};
+    if (patchKeys.includes('flowVideoEngine') && incomingBody.flowVideoEngine) {
+      surgicalPatch.flowVideoEngine = incomingBody.flowVideoEngine;
+    }
     for (const key of patchKeys) {
-      if (key === 'id' || key === 'createdAt') continue;
+      if (key === 'id' || key === 'createdAt' || key === 'flowVideoEngine') continue;
       if (key === 'promptConfig' && incomingBody.promptConfig && typeof incomingBody.promptConfig === 'object') {
         surgicalPatch.promptConfig = {
           ...(currentDiskDoc.promptConfig || {}),
@@ -2164,22 +2169,8 @@ app.put('/api/documentaries/:id', (req, res) => {
           ...(currentDiskDoc.timelineSettings || {}),
           ...incomingBody.timelineSettings,
         };
-      } else if (
-        key === 'clips' &&
-        Array.isArray(incomingBody.clips) &&
-        Array.isArray(currentDiskDoc.clips) &&
-        currentDiskDoc.clips.length > 0
-      ) {
-        const effEngineForClips =
-          surgicalPatch.flowVideoEngine ||
-          currentDiskDoc.flowVideoEngine ||
-          incomingBody.flowVideoEngine;
-        surgicalPatch.clips = mergeServerClipsPreservingAuthored(
-          incomingBody.clips,
-          currentDiskDoc.clips,
-          hasValidExplicitPromptClear,
-          effEngineForClips
-        );
+      } else if (key === 'clips' && Array.isArray(incomingBody.clips)) {
+        surgicalPatch.clips = incomingBody.clips;
       } else if (key in incomingBody) {
         surgicalPatch[key] = incomingBody[key];
       }

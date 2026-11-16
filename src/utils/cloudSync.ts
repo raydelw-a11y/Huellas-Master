@@ -2265,30 +2265,70 @@ function mergeTwoDocumentaryObjects(
     ? oNorm.clips.map(sanitizeSingleClipSkeleton)
     : [];
 
-  if (
-    (oNorm.flowVideoEngine === 'VEO_3_1_LITE_LOWER_PRIORITY' || oNorm.flowVideoEngine === 'OMNI_1_1_FLASH') &&
-    (!baseWinner.flowVideoEngine || baseWinner.flowVideoEngine === 'HYBRID_PEOPLE_OMNI_REST_LOWER')
-  ) {
-    const winnerHasOmni = wClipsInit.some((c) => c.flowClipEngine === 'OMNI_1_1_FLASH');
-    if (!winnerHasOmni) {
-      baseWinner.flowVideoEngine = oNorm.flowVideoEngine;
-    }
-  }
+  const wEngineUpdatedAt = Number(baseWinner.promptConfig?.FLOW_VIDEO_ENGINE_UPDATED_AT || 0);
+  const oEngineUpdatedAt = Number(oNorm.promptConfig?.FLOW_VIDEO_ENGINE_UPDATED_AT || 0);
+  const maxEngineUpdatedAt = Math.max(wEngineUpdatedAt, oEngineUpdatedAt);
+  const oWinsFlowEngine =
+    oEngineUpdatedAt > wEngineUpdatedAt &&
+    (oNorm.flowVideoEngine === 'HYBRID_PEOPLE_OMNI_REST_LOWER' ||
+      oNorm.flowVideoEngine === 'VEO_3_1_LITE_LOWER_PRIORITY' ||
+      oNorm.flowVideoEngine === 'OMNI_1_1_FLASH');
+  const resolvedMergedFlowEngine:
+    | 'HYBRID_PEOPLE_OMNI_REST_LOWER'
+    | 'VEO_3_1_LITE_LOWER_PRIORITY'
+    | 'OMNI_1_1_FLASH' = oWinsFlowEngine
+    ? oNorm.flowVideoEngine!
+    : baseWinner.flowVideoEngine === 'HYBRID_PEOPLE_OMNI_REST_LOWER' ||
+      baseWinner.flowVideoEngine === 'VEO_3_1_LITE_LOWER_PRIORITY' ||
+      baseWinner.flowVideoEngine === 'OMNI_1_1_FLASH'
+    ? baseWinner.flowVideoEngine
+    : oNorm.flowVideoEngine === 'VEO_3_1_LITE_LOWER_PRIORITY' ||
+      oNorm.flowVideoEngine === 'OMNI_1_1_FLASH'
+    ? oNorm.flowVideoEngine
+    : 'HYBRID_PEOPLE_OMNI_REST_LOWER';
+
+  baseWinner = {
+    ...baseWinner,
+    flowVideoEngine: resolvedMergedFlowEngine,
+    operationalHeader: sanitizeOperationalHeader(
+      baseWinner.operationalHeader || oNorm.operationalHeader || DEFAULT_OPERATIONAL_HEADER,
+      resolvedMergedFlowEngine
+    ),
+    ...(maxEngineUpdatedAt > 0
+      ? {
+          promptConfig: {
+            ...(baseWinner.promptConfig || {}),
+            FLOW_VIDEO_ENGINE_UPDATED_AT: String(maxEngineUpdatedAt),
+          },
+        }
+      : {}),
+  };
+
+  const wWasHybrid =
+    (wNorm.flowVideoEngine || 'HYBRID_PEOPLE_OMNI_REST_LOWER') ===
+    'HYBRID_PEOPLE_OMNI_REST_LOWER';
+  const oWasHybrid =
+    (oNorm.flowVideoEngine || 'HYBRID_PEOPLE_OMNI_REST_LOWER') ===
+    'HYBRID_PEOPLE_OMNI_REST_LOWER';
+  const wSafeHybridClipEngine = (c: DocumentaryProject['clips'][number]) =>
+    wWasHybrid && !oWinsFlowEngine ? c.flowClipEngine : undefined;
+  const oSafeHybridClipEngine = (o: DocumentaryProject['clips'][number]) =>
+    oWasHybrid && !(wEngineUpdatedAt > oEngineUpdatedAt) ? o.flowClipEngine : undefined;
 
   const enforcedWinnerClipEngine:
     | 'VEO_3_1_LITE_LOWER_PRIORITY'
     | 'OMNI_1_1_FLASH'
     | null =
-    baseWinner.flowVideoEngine === 'VEO_3_1_LITE_LOWER_PRIORITY' ||
-    baseWinner.flowVideoEngine === 'OMNI_1_1_FLASH'
-      ? baseWinner.flowVideoEngine
+    resolvedMergedFlowEngine === 'VEO_3_1_LITE_LOWER_PRIORITY' ||
+    resolvedMergedFlowEngine === 'OMNI_1_1_FLASH'
+      ? resolvedMergedFlowEngine
       : null;
 
   let mergedClips: DocumentaryProject['clips'] = wClipsInit;
   if (wClipsInit.length === 0 && oClipsInit.length > 0 && !rawClipsLegitimatelyTombstoned) {
     mergedClips = enforcedWinnerClipEngine
       ? oClipsInit.map((oc) => ({ ...oc, flowClipEngine: enforcedWinnerClipEngine }))
-      : oClipsInit;
+      : oClipsInit.map((oc) => ({ ...oc, flowClipEngine: oSafeHybridClipEngine(oc) }));
   } else if (wClipsInit.length > 0 && oClipsInit.length > 0) {
     const otherClipByNum = new Map<number, DocumentaryProject['clips'][number]>();
     for (const c of oClipsInit) {
@@ -2400,7 +2440,7 @@ function mergeTwoDocumentaryObjects(
               : undefined,
             isStaticBroll: effectiveStaticBroll,
             brollCameraMotion: o.brollCameraMotion || c.brollCameraMotion,
-            flowClipEngine: enforcedWinnerClipEngine ?? o.flowClipEngine,
+            flowClipEngine: enforcedWinnerClipEngine ?? oSafeHybridClipEngine(o),
             cameraSelection: useOtherPrompt ? o.cameraSelection || c.cameraSelection : c.cameraSelection,
             visualExplanation: useOtherPrompt
               ? o.visualExplanation || c.visualExplanation
@@ -2419,7 +2459,7 @@ function mergeTwoDocumentaryObjects(
             previousVideoPrompt: c.isStaticBroll
               ? c.previousVideoPrompt || o.previousVideoPrompt || (o.videoPrompt || undefined)
               : undefined,
-            flowClipEngine: enforcedWinnerClipEngine ?? c.flowClipEngine,
+            flowClipEngine: enforcedWinnerClipEngine ?? wSafeHybridClipEngine(c),
           };
 
       if (isActivelyRejected) {
@@ -2636,7 +2676,7 @@ function mergeTwoDocumentaryObjects(
           ...mergedClips,
           ...(enforcedWinnerClipEngine
             ? tailFromOther.map((tc) => ({ ...tc, flowClipEngine: enforcedWinnerClipEngine }))
-            : tailFromOther),
+            : tailFromOther.map((tc) => ({ ...tc, flowClipEngine: oSafeHybridClipEngine(tc) }))),
         ];
       }
     }
@@ -2679,7 +2719,7 @@ function mergeTwoDocumentaryObjects(
                   isStaticBroll: nextIsBroll,
                   brollCameraMotion: pc.brollCameraMotion || mc.brollCameraMotion,
                   flowClipEngine:
-                    enforcedWinnerClipEngine ?? (pc.flowClipEngine ?? mc.flowClipEngine),
+                    enforcedWinnerClipEngine ?? (pc.flowClipEngine ?? wSafeHybridClipEngine(mc)),
                   auditStatus: keepMismatch ? ('mismatch' as const) : ('ok' as const),
                   auditReason: keepMismatch
                     ? mc.auditReason || pc.auditReason
@@ -2702,10 +2742,17 @@ function mergeTwoDocumentaryObjects(
         mergedClips,
         finalRawClipsText,
         baseWinner.operationalHeader || DEFAULT_OPERATIONAL_HEADER,
-        baseWinner.flowVideoEngine || 'HYBRID_PEOPLE_OMNI_REST_LOWER',
+        resolvedMergedFlowEngine,
         clip1Sec,
         standardClipSec,
         mergedReferences
+      );
+    }
+    if (finalRawClipsText.trim()) {
+      finalRawClipsText = ensureOperationalHeaderInRawClips(
+        finalRawClipsText,
+        baseWinner.operationalHeader,
+        resolvedMergedFlowEngine
       );
     }
   }

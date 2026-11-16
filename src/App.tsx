@@ -186,7 +186,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '07:34 AM - 11/16/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '07:42 AM - 11/16/2026';
 
 const PROTECTED_DOC_TEXT_FIELDS = [
   'rawClipsText',
@@ -22093,6 +22093,10 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                     operationalHeader: nextHeader,
                                     clips: updatedClips,
                                     rawClipsText: nextRaw,
+                                    promptConfig: {
+                                      ...(activeDoc.promptConfig || {}),
+                                      FLOW_VIDEO_ENGINE_UPDATED_AT: String(Date.now()),
+                                    },
                                   });
                                 }}
                                 className={`px-2.5 py-1 rounded-lg text-[11px] font-black border transition cursor-pointer ${
@@ -23902,7 +23906,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                     {/* 1-Click Per-Clip Video Engine Toggle (Omni 1.1 Flash vs Lower Priority Gratis) */}
                                   <button
                                     type="button"
+                                    disabled={activeEngineMode !== 'HYBRID_PEOPLE_OMNI_REST_LOWER'}
                                     onClick={() => {
+                                      if (activeEngineMode !== 'HYBRID_PEOPLE_OMNI_REST_LOWER') return;
                                       const nextClipEngine:
                                         | 'OMNI_1_1_FLASH'
                                         | 'VEO_3_1_LITE_LOWER_PRIORITY' =
@@ -23927,43 +23933,34 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                               ...c,
                                               flowClipEngine: nextClipEngine,
                                               videoPrompt: updatedVidPrompt,
+                                              promptUpdatedAt: Date.now(),
                                             }
                                           : c
                                       );
-                                      const hasOmniClip = nextClips.some((c) => c.flowClipEngine === 'OMNI_1_1_FLASH');
-                                      const hasLowerClip = nextClips.some((c) => c.flowClipEngine === 'VEO_3_1_LITE_LOWER_PRIORITY');
-                                      const nextMode: DocumentaryProject['flowVideoEngine'] =
-                                        hasOmniClip && hasLowerClip
-                                          ? 'HYBRID_PEOPLE_OMNI_REST_LOWER'
-                                          : hasOmniClip
-                                          ? 'OMNI_1_1_FLASH'
-                                          : 'VEO_3_1_LITE_LOWER_PRIORITY';
-                                      const nextHeader = applyFlowVideoEngineToDirectiveText(
-                                        activeDoc.operationalHeader || DEFAULT_OPERATIONAL_HEADER,
-                                        nextMode
-                                      );
                                       updateActiveDoc({
-                                        flowVideoEngine: nextMode,
-                                        operationalHeader: nextHeader,
                                         clips: nextClips,
                                         rawClipsText: safeRebuildRawClipsText({
                                           clips: nextClips,
                                           previousRawText: activeDoc.rawClipsText || '',
-                                          operationalHeader: nextHeader,
-                                          engineMode: nextMode,
+                                          operationalHeader: activeDoc.operationalHeader || DEFAULT_OPERATIONAL_HEADER,
+                                          engineMode: activeEngineMode,
                                           clip1Sec: cardClip1Sec,
                                           standardClipSec: cardStdSec,
                                           references: docRefsForCard,
                                         }),
                                       });
                                     }}
-                                    className={`px-2 py-0.5 rounded border text-[10px] font-black cursor-pointer transition ${
-                                      clipResolvedEngine === 'OMNI_1_1_FLASH'
-                                        ? 'bg-amber-500/20 hover:bg-amber-500/35 border-amber-400/60 text-amber-200'
-                                        : 'bg-emerald-500/15 hover:bg-emerald-500/30 border-emerald-400/50 text-emerald-200'
+                                    className={`px-2 py-0.5 rounded border text-[10px] font-black transition ${
+                                      activeEngineMode !== 'HYBRID_PEOPLE_OMNI_REST_LOWER'
+                                        ? 'opacity-60 cursor-not-allowed bg-slate-900 border-slate-700 text-slate-400'
+                                        : clipResolvedEngine === 'OMNI_1_1_FLASH'
+                                        ? 'cursor-pointer bg-amber-500/20 hover:bg-amber-500/35 border-amber-400/60 text-amber-200'
+                                        : 'cursor-pointer bg-emerald-500/15 hover:bg-emerald-500/30 border-emerald-400/50 text-emerald-200'
                                     }`}
                                     title={
-                                      clipResolvedEngine === 'OMNI_1_1_FLASH'
+                                      activeEngineMode !== 'HYBRID_PEOPLE_OMNI_REST_LOWER'
+                                        ? "Modo de proyecto activo — selecciona '🔀 Híbrido' arriba para alternar clips individuales"
+                                        : clipResolvedEngine === 'OMNI_1_1_FLASH'
                                         ? `Este clip usa Omni 1.1 Flash (${
                                             clipAutoHasPeople
                                               ? 'personas detectadas automáticamente'
