@@ -183,7 +183,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '8:15 PM - 11/15/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '8:38 PM - 11/15/2026';
 
 const PROTECTED_DOC_TEXT_FIELDS = [
   'rawClipsText',

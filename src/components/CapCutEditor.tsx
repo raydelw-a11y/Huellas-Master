@@ -5419,13 +5419,15 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       officialLogoUrl ||
       undefined;
 
-    // 1. Build Clips Track (Track 3) — Stage 6 reviewedForEditor is the sole eligibility gate when documentary clips exist
+    // 1. Build Clips Track (Track 3) — El timeline conserva la cuadrícula completa de TODOS los clips del guion (1..N).
+    // Los clips no revisados conservan su ranura de tiempo (8s/10s) y se quedan vacíos, sin colapsar hacia la izquierda
+    // ni rellenar el espacio de otros clips, preservando la sincronía 1:1 absoluta con la voz narrativa.
     const allDocClips = activeDoc.clips || [];
     const hasStage6ScriptClips = allDocClips.length > 0;
     const reviewedClips = allDocClips
       .filter((c) => Boolean(c.reviewedForEditor))
       .sort((a, b) => a.clipNumber - b.clipNumber);
-    const docClips = hasStage6ScriptClips ? reviewedClips : allDocClips;
+    const docClips = allDocClips.slice().sort((a, b) => a.clipNumber - b.clipNumber);
     const allStage6Nums = new Set(allDocClips.map((c) => c.clipNumber));
     const reviewedSet = new Set(reviewedClips.map((c) => c.clipNumber));
     const isSyncFullScheduleReviewed =
@@ -5510,10 +5512,12 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           tc.id !== 'fixed-doc-outro' &&
           !tc.id.endsWith('-slogan-partB')
       );
-      const activeCombinedUrl = combinedClipVideosMap[c.clipNumber] || '';
-      const existingRewrittenUrl = rewriteMediaBridgeUrl(existingItem?.videoUrl);
+      const isClipReviewed = Boolean(c.reviewedForEditor);
+      const activeCombinedUrl = isClipReviewed ? combinedClipVideosMap[c.clipNumber] || '' : '';
+      const existingRewrittenUrl = isClipReviewed ? rewriteMediaBridgeUrl(existingItem?.videoUrl) : '';
       const existingMeta = extractEditorMediaUrlMeta(existingRewrittenUrl);
       const canReuseExistingUrl =
+        isClipReviewed &&
         Boolean(existingRewrittenUrl) &&
         !isEditorClipRejectedOrQuarantined(c) &&
         !isEditorFolderItemDiscarded(
@@ -5522,19 +5526,24 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           existingMeta.mtimeMs,
           existingRewrittenUrl
         );
-      const videoUrl = activeCombinedUrl || (canReuseExistingUrl ? existingRewrittenUrl : '');
+      const videoUrl = isClipReviewed ? (activeCombinedUrl || (canReuseExistingUrl ? existingRewrittenUrl : '')) : '';
 
       // Strictly use each clip's own first frame (never repeat the documentary thumbnail or shared @Reference across clips)
-      const posterUrl = rewriteMediaBridgeUrl(
-        firstFrameByClip[c.clipNumber] ||
-          (c.videoFrames && c.videoFrames[0]) ||
-          c.imagePreviewUrl ||
-          ''
-      );
+      const posterUrl = isClipReviewed
+        ? rewriteMediaBridgeUrl(
+            firstFrameByClip[c.clipNumber] ||
+              (c.videoFrames && c.videoFrames[0]) ||
+              c.imagePreviewUrl ||
+              ''
+          )
+        : c.imagePreviewUrl
+          ? rewriteMediaBridgeUrl(c.imagePreviewUrl)
+          : undefined;
 
       const computedFileName = c.videoSavedFileName || buildClipSixWordFileName(c, activeDoc);
       const isBrollClip = Boolean(
-        c.isStaticBroll || /_broll_4k/i.test(computedFileName) || /_broll_4k/i.test(videoUrl)
+        isClipReviewed &&
+          (c.isStaticBroll || /_broll_4k/i.test(computedFileName) || /_broll_4k/i.test(videoUrl))
       );
       const nextVideoTs = getUrlTimestampMs(videoUrl);
       const prevVideoTs = getUrlTimestampMs(existingRewrittenUrl);
@@ -5550,11 +5559,12 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       if (isNewerBodyVideo || becameBrollClip) {
         delete extractedVideoUrlByClipRef.current[c.clipNumber];
       }
-      const existingOpticalFlowUrl = existingItem?.opticalFlowUrl
+      const existingOpticalFlowUrl = isClipReviewed && existingItem?.opticalFlowUrl
         ? rewriteMediaBridgeUrl(existingItem.opticalFlowUrl)
         : undefined;
       const existingOpticalFlowTs = getUrlTimestampMs(existingOpticalFlowUrl);
       const keepExistingOpticalFlow =
+        isClipReviewed &&
         Boolean(existingOpticalFlowUrl) &&
         !becameBrollClip &&
         !isNewerBodyVideo &&
@@ -5941,7 +5951,13 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 ? rewrittenTcVideoUrl
                 : '');
 
-          const effectiveVideoUrl = rewriteMediaBridgeUrl(cleanBaseVideoUrl || freshVideoUrl);
+          const isClipReviewed = Boolean(
+            docClipMatch?.reviewedForEditor ??
+              (tc.id === 'fixed-doc-intro' || tc.clipNumber === 0 || tc.id === 'fixed-doc-outro' || tc.clipNumber === 999
+                ? true
+                : tc.reviewedForEditor)
+          );
+          const effectiveVideoUrl = isClipReviewed ? rewriteMediaBridgeUrl(cleanBaseVideoUrl || freshVideoUrl) : '';
           const baseOpticalFlowUrl = rewrittenOrigOpticalFlowUrl || rewrittenOpticalFlowUrl;
           const effectiveOpticalFlowUrl =
             opticalFlowStillValid &&
@@ -6067,10 +6083,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             reframeFocusY: repairedFocusY,
             reframeReason: repairedReframeReason,
             userReframed9x16: repairedUserReframed,
-            reviewedForEditor:
-              hasStage6ScriptClips && allStage6Nums.has(tc.clipNumber)
-                ? true
-                : Boolean(tc.reviewedForEditor),
+            reviewedForEditor: isClipReviewed,
           };
         }
         );
@@ -19280,9 +19293,16 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                               </div>
                             ) : (
                               <div className="relative z-10 h-12 w-full rounded overflow-hidden bg-slate-950/90 border border-slate-800/80 flex flex-col items-center justify-center p-1 text-center">
-                                <span className="text-[10px] font-bold text-amber-300/90">
-                                  🎬 Escena {String(clip.clipNumber).padStart(2, '0')}
-                                </span>
+                                <div className="flex items-center gap-1">
+                                  <span className="text-[10px] font-bold text-amber-300/90">
+                                    🎬 Escena {String(clip.clipNumber).padStart(2, '0')}
+                                  </span>
+                                  {!clip.reviewedForEditor && (
+                                    <span className="px-1 py-0.2 rounded bg-amber-500/15 border border-amber-400/30 text-[7px] font-bold text-amber-300">
+                                      ⏳ Reservado
+                                    </span>
+                                  )}
+                                </div>
                                 {activeDoc?.clips?.some(
                                 (dc) => dc.clipNumber === clip.clipNumber && dc.isStaticBroll
                               ) && (
