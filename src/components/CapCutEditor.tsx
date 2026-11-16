@@ -7066,6 +7066,29 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       );
       const evenPreLastDurSec = Number((availablePreLastSpanSec / nonLastCount).toFixed(2));
 
+      // Etapa 8: si la tarjeta trae el rango de Gemini ("00:08 - 02:38 ...") y su duración ("2:30"),
+      // la canción se coloca exactamente ahí. Sin datos válidos se usa el reparto automático de abajo.
+      const parseClockSec = (s: string): number | null => {
+        const p = String(s || '').trim().match(/^(?:(\d{1,2}):)?(\d{1,2}):(\d{2})$/);
+        if (!p) return null;
+        return (Number(p[1] || 0) * 3600) + Number(p[2]) * 60 + Number(p[3]);
+      };
+      const geminiPlacementFor = (st: { videoTimeRange?: string; duration?: string }) => {
+        const range = String(st.videoTimeRange || '').match(
+          /(\d{1,2}:\d{2}(?::\d{2})?)\s*[-–—]\s*(\d{1,2}:\d{2}(?::\d{2})?)/
+        );
+        if (!range) return null;
+        const rStart = parseClockSec(range[1]);
+        const rEnd = parseClockSec(range[2]);
+        if (rStart === null || rEnd === null || rEnd <= rStart) return null;
+        const cardDur = parseClockSec((String(st.duration || '').match(/\d{1,2}:\d{2}/) || [''])[0]);
+        const start = Math.max(FIXED_INTRO_SEC, rStart);
+        const dur = cardDur && cardDur > 0 ? cardDur : rEnd - rStart;
+        const end = Math.min(bodySpanEndSec, start + dur);
+        if (end - start < 5) return null;
+        return { start: Number(start.toFixed(2)), duration: Number((end - start).toFixed(2)) };
+      };
+
       const builtMusic: TimelineMusicItem[] = sunoList.map((st, idx) => {
         const trackNum = idx + 1;
         const trackId = st.id || `music-${trackNum}`;
@@ -7074,8 +7097,13 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
         let startSec = cursorSec;
         let durSec = isLast ? lastSongDurSec : evenPreLastDurSec;
+        const geminiPlacement = geminiPlacementFor(st);
 
-        if (isLast) {
+        if (geminiPlacement) {
+          // Posición y duración que propone Gemini en la tarjeta de la Etapa 8
+          startSec = geminiPlacement.start;
+          durSec = geminiPlacement.duration;
+        } else if (isLast) {
           // Always anchor the last song so it reaches 100% to the end of Clip 82 right before the Outro
           startSec = sunoList.length > 1 ? lastSongTargetStartSec : Math.max(FIXED_INTRO_SEC, lastSongTargetStartSec);
           durSec = Math.max(10, Number((bodySpanEndSec - startSec).toFixed(2)));
@@ -8707,6 +8735,18 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         preLastSpanSec - nonLastCount * silenceGapSec
       );
       const evenPreLastDurSec = Number((availablePreLastSpanSec / nonLastCount).toFixed(2));
+
+
+      // Etapa 8: las canciones colocadas según el rango de Gemini conservan su posición;
+      // solo se recortan para no pasar del Outro. Las demás siguen el reparto automático.
+      const hasGeminiRange = (mt: { videoTimeRange?: string }) =>
+        /(\d{1,2}:\d{2}(?::\d{2})?)\s*[-–—]\s*(\d{1,2}:\d{2}(?::\d{2})?)/.test(String(mt.videoTimeRange || ''));
+      if (prev.every((mt) => hasGeminiRange(mt))) {
+        return prev.map((mt) => {
+          const maxDur = Number((outroClipStartSec - mt.start).toFixed(2));
+          return maxDur > 5 && mt.duration > maxDur ? { ...mt, duration: maxDur } : mt;
+        });
+      }
 
       let cursorSec = FIXED_INTRO_SEC;
       return prev.map((mt, idx) => {

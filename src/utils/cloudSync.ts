@@ -1063,10 +1063,13 @@ Línea 2: DE HUIR DE LA GUERRA EN ESPAÑA A LEVANTAR UN IMPERIO EN AMÉRICA`;
     if (!nextConfirmedFinalDuration || nextConfirmedFinalDuration === '02:00') {
       nextConfirmedFinalDuration = '13:26';
     }
+    // Solo se siembran las canciones del Video 76 si nunca existieron; si el usuario las borró
+    // (tombstone FIELD_CLEARED_AT_sunoTracks) o dejó pocas, se respeta su decisión.
+    const sunoClearedByUser = Number((doc.promptConfig as any)?.FIELD_CLEARED_AT_sunoTracks || 0) > 0;
     if (
-      !Array.isArray(nextSunoTracks) ||
-      nextSunoTracks.length <= 3 ||
-      nextSunoTracks.some((t: any) => String(t?.videoTimeRange || '').includes('13:26'))
+      !sunoClearedByUser &&
+      (!Array.isArray(nextSunoTracks) ||
+        nextSunoTracks.some((t: any) => String(t?.videoTimeRange || '').includes('13:26')))
     ) {
       nextSunoTracks = [
         {
@@ -2785,10 +2788,53 @@ function mergeTwoDocumentaryObjects(
       ? baseWinner.references
       : oNorm.references;
 
+  const winnerSavedAt = toMs((baseWinner as any).updatedAt || (baseWinner as any).createdAt);
+  const wSunoClearedAt = Number((baseWinner.promptConfig as any)?.FIELD_CLEARED_AT_sunoTracks || 0);
+  const oSunoClearedAt = Number((oNorm.promptConfig as any)?.FIELD_CLEARED_AT_sunoTracks || 0);
+  const sunoClearedAt = Math.max(wSunoClearedAt, oSunoClearedAt);
+  let mergedSunoTracks = baseWinner.sunoTracks;
+  let mergedPromptConfig = baseWinner.promptConfig;
+  if (sunoClearedAt > 0) {
+    const winnerRecreatedAfterClear =
+      wSunoClearedAt === 0 &&
+      Array.isArray(baseWinner.sunoTracks) &&
+      baseWinner.sunoTracks.length > 0 &&
+      winnerSavedAt > oSunoClearedAt;
+    const otherRecreatedAfterClear =
+      oSunoClearedAt === 0 &&
+      Array.isArray(oNorm.sunoTracks) &&
+      oNorm.sunoTracks.length > 0 &&
+      otherSavedAt > wSunoClearedAt;
+    if (!winnerRecreatedAfterClear && !otherRecreatedAfterClear) {
+      mergedSunoTracks = [];
+      mergedPromptConfig = {
+        ...(baseWinner.promptConfig || {}),
+        FIELD_CLEARED_AT_sunoTracks: String(sunoClearedAt),
+      } as any;
+    } else if (otherRecreatedAfterClear && (!Array.isArray(mergedSunoTracks) || mergedSunoTracks.length === 0)) {
+      mergedSunoTracks = oNorm.sunoTracks;
+      mergedPromptConfig = {
+        ...(baseWinner.promptConfig || {}),
+        FIELD_CLEARED_AT_sunoTracks: '0',
+      } as any;
+    }
+  } else if (
+    (!Array.isArray(mergedSunoTracks) || mergedSunoTracks.length === 0) &&
+    Array.isArray(oNorm.sunoTracks) &&
+    oNorm.sunoTracks.length > 0
+  ) {
+    mergedSunoTracks = oNorm.sunoTracks;
+  }
+
   return {
     ...baseWinner,
+    ...(mergedPromptConfig ? { promptConfig: mergedPromptConfig } : {}),
     ...(Array.isArray(finalMergedReferences) && finalMergedReferences.length > 0
       ? { references: finalMergedReferences }
+      : {}),
+    ...(mergedSunoTracks !== undefined ? { sunoTracks: mergedSunoTracks } : {}),
+    ...(baseWinner.musicEngine || oNorm.musicEngine
+      ? { musicEngine: baseWinner.musicEngine || oNorm.musicEngine }
       : {}),
     rawClipsText: finalRawClipsText,
     clips: mergedClips,

@@ -1577,6 +1577,46 @@ function mergeServerDocObjects(winner: any, other: any) {
       }
     } catch {}
   }
+  const toDocMs = (v: any) => (typeof v === 'number' ? v : Date.parse(String(v || '')) || Number(v) || 0);
+  const winnerSavedMs = toDocMs(baseWinner.updatedAt || baseWinner.createdAt);
+  const otherSavedMsForSuno = toDocMs(other.updatedAt || other.createdAt);
+  const wSunoClearedAt = Number(baseWinner.promptConfig?.FIELD_CLEARED_AT_sunoTracks || 0);
+  const oSunoClearedAt = Number(other.promptConfig?.FIELD_CLEARED_AT_sunoTracks || 0);
+  const sunoClearedAt = Math.max(wSunoClearedAt, oSunoClearedAt);
+  if (sunoClearedAt > 0) {
+    const winnerRecreated =
+      wSunoClearedAt === 0 &&
+      Array.isArray(baseWinner.sunoTracks) &&
+      baseWinner.sunoTracks.length > 0 &&
+      winnerSavedMs > oSunoClearedAt;
+    const otherRecreated =
+      oSunoClearedAt === 0 &&
+      Array.isArray(other.sunoTracks) &&
+      other.sunoTracks.length > 0 &&
+      otherSavedMsForSuno > wSunoClearedAt;
+    if (!winnerRecreated && !otherRecreated) {
+      baseWinner.sunoTracks = [];
+      baseWinner.promptConfig = {
+        ...(baseWinner.promptConfig || {}),
+        FIELD_CLEARED_AT_sunoTracks: String(sunoClearedAt),
+      };
+    } else if (otherRecreated && (!Array.isArray(baseWinner.sunoTracks) || baseWinner.sunoTracks.length === 0)) {
+      baseWinner.sunoTracks = other.sunoTracks;
+      baseWinner.promptConfig = {
+        ...(baseWinner.promptConfig || {}),
+        FIELD_CLEARED_AT_sunoTracks: '0',
+      };
+    }
+  } else if (
+    (!Array.isArray(baseWinner.sunoTracks) || baseWinner.sunoTracks.length === 0) &&
+    Array.isArray(other.sunoTracks) &&
+    other.sunoTracks.length > 0
+  ) {
+    baseWinner.sunoTracks = other.sunoTracks;
+  }
+  if (!baseWinner.musicEngine && other.musicEngine) {
+    baseWinner.musicEngine = other.musicEngine;
+  }
   return { ...baseWinner, clips: mergedClips };
 }
 
@@ -5687,6 +5727,56 @@ app.post('/api/flow/save-video-to-folder', async (req, res) => {
   } catch (err: any) {
     console.error('Error guardando video en carpeta elegida:', err);
     res.status(500).json({ error: err.message || 'Error guardando el archivo MP4.' });
+  }
+});
+
+// Etapa 8: convierte cualquier audio (m4a de Flow Music, wav, etc.) a MP3 192k con FFmpeg y lo devuelve como data URL.
+// Conversión pura en archivos temporales; el guardado en 02_Audio lo hace el flujo normal de la app.
+app.post('/api/music/convert-to-mp3', async (req, res) => {
+  const { dataUrl } = req.body || {};
+  const m = String(dataUrl || '').match(/^data:([^;,]*);base64,(.+)$/s);
+  if (!m) {
+    res.status(400).json({ ok: false, error: 'dataUrl de audio inválido.' });
+    return;
+  }
+  const mime = (m[1] || '').toLowerCase();
+  if (mime === 'audio/mpeg' || mime === 'audio/mp3') {
+    res.json({ ok: true, mp3DataUrl: String(dataUrl), converted: false });
+    return;
+  }
+  const inBuf = Buffer.from(m[2], 'base64');
+  if (inBuf.length < 2048) {
+    res.status(400).json({ ok: false, error: 'Audio demasiado pequeño.' });
+    return;
+  }
+  const ext = mime.includes('mp4') || mime.includes('m4a') || mime.includes('aac') ? 'm4a' : mime.includes('wav') ? 'wav' : mime.includes('ogg') ? 'ogg' : mime.includes('webm') ? 'webm' : 'bin';
+  const tmpBase = path.join(os.tmpdir(), `huellas-music-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
+  const inPath = `${tmpBase}.${ext}`;
+  const outPath = `${tmpBase}.mp3`;
+  try {
+    fs.writeFileSync(inPath, inBuf);
+    const ffmpegBin = resolveFfmpegBin();
+    await new Promise<void>((resolve, reject) => {
+      execFile(
+        ffmpegBin,
+        ['-y', '-i', inPath, '-vn', '-codec:a', 'libmp3lame', '-b:a', '192k', '-ar', '44100', outPath],
+        { timeout: 180000 },
+        (err) => (err ? reject(err) : resolve())
+      );
+    });
+    const outBuf = fs.readFileSync(outPath);
+    if (outBuf.length < 2048) throw new Error('FFmpeg produjo un MP3 vacío.');
+    res.json({ ok: true, mp3DataUrl: `data:audio/mpeg;base64,${outBuf.toString('base64')}`, converted: true });
+  } catch (err: any) {
+    console.error('[convert-to-mp3] Error:', err);
+    res.status(500).json({ ok: false, error: err?.message || 'Error convirtiendo a MP3.' });
+  } finally {
+    try {
+      fs.unlinkSync(inPath);
+    } catch {}
+    try {
+      fs.unlinkSync(outPath);
+    } catch {}
   }
 });
 
@@ -11195,8 +11285,8 @@ app.get('/api/flow/list-folder-media', async (req, res) => {
             fsp.unlink(full).then(() => invalidateDirScanCache(dir)).catch(() => {});
             continue;
           }
-          const sunoMatch = entry.match(
-            /(?:flowmusic|flow_music|suno|musica|pista|track)[_\-\s]*0*(\d+)/i
+          const sunoMatch = entry.normalize('NFC').match(
+            /(?:canci[oó]n|flowmusic|flow_music|suno|musica|pista|track)[_\-\s]*0*(\d+)/i
           );
           if (sunoMatch) {
             sunoFiles.push({

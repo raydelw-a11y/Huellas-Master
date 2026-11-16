@@ -91,6 +91,12 @@ export interface WebBridgeCommandPayload {
   expectedCount?: number;
   trackNumber?: number;
   trackTitle?: string;
+  // Etapa 8: motor de música y campos separados para Suno (Lyrics / Styles / Duration / Song Title)
+  engine?: 'FLOWMUSIC' | 'SUNO';
+  stylePrompt?: string;
+  lyricsPrompt?: string;
+  durationLabel?: string;
+  songTitle?: string;
   option?: string;
   optionLabel?: string;
   logoDataUrl?: string;

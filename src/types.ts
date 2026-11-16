@@ -240,7 +240,14 @@ export interface SunoTrack {
   explanation: string;
   audioUrl?: string;
   isGenerated: boolean;
+  ready?: boolean;
+  /** Nombre real del archivo en 02_Audio (p. ej. Canción_01_El_Muelle.mp3). Rehidrata el audio por nombre, no por número. */
+  audioFileName?: string;
+  /** Motor con el que se creó el audio de esta canción. */
+  musicEngine?: MusicEngine;
 }
+
+export type MusicEngine = 'FLOWMUSIC' | 'SUNO';
 
 export type ProductionFormatType =
   | 'DOCUMENTAL_16X9'
@@ -385,6 +392,8 @@ export interface DocumentaryProject {
   confirmedFinalDuration: string;
   rawSunoText: string;
   sunoTracks: SunoTrack[];
+  /** Etapa 8: motor elegido para crear las canciones (Flow Music por defecto). */
+  musicEngine?: MusicEngine;
 
   // Etapa 10: Miniatura Oficial (Nano Banana 2.1)
   thumbnailOrientation?: 'HORIZONTAL_16X9' | 'VERTICAL_9X16';

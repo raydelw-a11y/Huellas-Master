@@ -70,6 +70,7 @@ import {
   DocumentaryClip,
   ReferenceAsset,
   SunoTrack,
+  MusicEngine,
   ProductionFormatType,
   DocumentaryStatusType,
   AudienceCommentReply,
@@ -195,7 +196,38 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '04:47 PM - 11/16/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '05:55 PM - 11/16/2026';
+
+// Etapa 8: nombre de archivo canónico de cada canción → "Canción_01_El_Muelle_de_la_Despedida"
+// (quita prefijos "Pista 1:" / "Canción 1:", comillas y rangos de tiempo "00:08 - 02:38" del título)
+const buildSongFileBase = (trackNumber: number, rawTitle?: string): string => {
+  const padded = String(Math.max(1, Number(trackNumber) || 1)).padStart(2, '0');
+  const cleanTitle = String(rawTitle || '')
+    .replace(/^\s*(?:pista|canci[oó]n|track|song)\s*#?\s*\d+\s*[:.\-–—]?\s*/i, '')
+    .replace(/\(?\s*\d{1,2}:\d{2}\s*[-–—]\s*\d{1,2}:\d{2}\s*\)?/g, ' ')
+    .replace(/["'“”‘’«»]/g, '')
+    .replace(/[\\/:*?<>|#%&{}$!@+=`~^\[\]]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/\s/g, '_')
+    .replace(/_+/g, '_')
+    .slice(0, 70)
+    .replace(/_+$/, '');
+  return `Canción_${padded}${cleanTitle ? `_${cleanTitle}` : ''}`;
+};
+
+// Etapa 8: duración de la tarjeta ("2:30", "2:30 min", "150s") → "M:SS" dentro del rango de Suno (0:10–6:00)
+const toSongDurationLabel = (rawDuration?: string): string => {
+  const raw = String(rawDuration || '').trim();
+  let sec = 0;
+  const mmss = raw.match(/(\d{1,2})\s*:\s*(\d{2})/);
+  if (mmss) sec = Number(mmss[1]) * 60 + Number(mmss[2]);
+  else if (/^\d+(\.\d+)?\s*s/i.test(raw)) sec = Math.round(parseFloat(raw));
+  else if (/^\d+(\.\d+)?\s*min/i.test(raw)) sec = Math.round(parseFloat(raw) * 60);
+  if (!sec) return '';
+  sec = Math.min(360, Math.max(10, sec));
+  return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
+};
 
 const PROTECTED_DOC_TEXT_FIELDS = [
   'rawClipsText',
@@ -5378,10 +5410,32 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         updateActiveDoc({ correctedSrt: cleanSrt });
       }
     } else if (stageNum === 80) {
-      const parsedTracks = parseSunoTracksFromRawText(text);
+      const liveDoc = activeDocRef.current || activeDoc;
+      const parsedRaw = parseSunoTracksFromRawText(text);
+      const prevTracks = liveDoc?.sunoTracks || [];
+      const mergedParsed = parsedRaw.map((t, i) => {
+        const prev = prevTracks[i];
+        return prev && (prev.audioUrl || prev.audioFileName || prev.isGenerated)
+          ? {
+              ...t,
+              id: prev.id || t.id,
+              audioUrl: prev.audioUrl,
+              audioFileName: prev.audioFileName,
+              musicEngine: prev.musicEngine,
+              isGenerated: prev.isGenerated,
+            }
+          : prev?.id
+          ? { ...t, id: prev.id }
+          : t;
+      });
       updateActiveDoc({
         rawSunoText: text,
-        sunoTracks: parsedTracks.length > 0 ? parsedTracks : activeDoc.sunoTracks,
+        sunoTracks: mergedParsed.length > 0 ? mergedParsed : liveDoc?.sunoTracks || [],
+        promptConfig: {
+          ...(liveDoc?.promptConfig || {}),
+          FIELD_CLEARED_AT_rawSunoText: '0',
+          FIELD_CLEARED_AT_sunoTracks: '0',
+        } as any,
       });
       // El piloto automático NO se activa solo: el usuario lo inicia con el botón cuando lo desee
     } else if (stageNum === 11 || stageNum === 111) {
@@ -9910,11 +9964,27 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           }
 
           if (Array.isArray(data.sunoFiles) && data.sunoFiles.length > 0) {
+            const srvTracks: SunoTrack[] = (activeDocRef.current || currentDoc)?.sunoTracks || [];
+            const srvNorm = (n: string) => String(n || '').normalize('NFC').toLowerCase();
             setCapturedSunoAudioMap((prev) => {
               let changed = false;
               const next = { ...prev };
+              // 1) Archivo con el nombre exacto guardado en la tarjeta (siempre gana)
               for (const s of data.sunoFiles) {
                 const fullUrl = prefixUrl(s.url);
+                const idx = srvTracks.findIndex(
+                  (t) => t?.audioFileName && srvNorm(t.audioFileName) === srvNorm(s.fileName)
+                );
+                if (idx >= 0 && fullUrl && next[idx + 1] !== fullUrl) {
+                  next[idx + 1] = fullUrl;
+                  changed = true;
+                }
+              }
+              // 2) Por número, solo en tarjetas que aún no tienen su propio archivo registrado
+              for (const s of data.sunoFiles) {
+                const fullUrl = prefixUrl(s.url);
+                const slot = srvTracks[s.trackNumber - 1];
+                if (slot?.audioFileName && srvNorm(slot.audioFileName) !== srvNorm(s.fileName)) continue;
                 if (s.trackNumber > 0 && fullUrl && !next[s.trackNumber]) {
                   next[s.trackNumber] = fullUrl;
                   changed = true;
@@ -10209,6 +10279,14 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           // Scan 02_Audio / Audio for Voiceover and Flow Music tracks (and clean duplicate legacy Suno_0X.mp3 files)
           const audioSubCandidates = ['02_Audio', 'Audio', ''];
           const newSunoUrls: Record<number, string> = {};
+          // Prioridad: nombre exacto guardado en la tarjeta (3) > Canción_## (2) > FlowMusic_## (1) > otros nombres legados (0)
+          const newSunoRank: Record<number, number> = {};
+          const tracksNow: SunoTrack[] = currentDoc?.sunoTracks || [];
+          const normName = (n: string) => String(n || '').normalize('NFC').toLowerCase();
+          const trackNumByFileName = new Map<string, number>();
+          tracksNow.forEach((t, i) => {
+            if (t?.audioFileName) trackNumByFileName.set(normName(t.audioFileName), i + 1);
+          });
           for (const sub of audioSubCandidates) {
             try {
               const audioDir = sub
@@ -10221,18 +10299,37 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                 if (/^suno[_\-\s]*0*\d+\.(mp3|wav|m4a|ogg)$/i.test(entryName)) {
                   legacySunoEntriesToDelete.push(String(entryName));
                 }
-                const sunoMatch = String(entryName).match(
-                  /(?:flowmusic|flow_music|suno|musica|pista|track)[_\-\s]*0*(\d+)/i
-                );
-                if (sunoMatch) {
-                  const tNum = parseInt(sunoMatch[1], 10) || 1;
-                  const isFlowMusicName = /^(?:flowmusic|flow_music)/i.test(String(entryName));
+                const exactNum = trackNumByFileName.get(normName(String(entryName))) || 0;
+                const sunoMatch = exactNum
+                  ? null
+                  : String(entryName).normalize('NFC').match(
+                      /(?:canci[oó]n|flowmusic|flow_music|suno|musica|pista|track)[_\-\s]*0*(\d+)/i
+                    );
+                if (exactNum || sunoMatch) {
+                  const tNum = exactNum || parseInt(sunoMatch![1], 10) || 1;
+                  const slotTrack = tracksNow[tNum - 1];
+                  // Si la tarjeta ya tiene su propio archivo con otro nombre, este archivo viejo no le pertenece
+                  if (
+                    !exactNum &&
+                    slotTrack?.audioFileName &&
+                    normName(slotTrack.audioFileName) !== normName(String(entryName))
+                  ) {
+                    continue;
+                  }
+                  const rank = exactNum
+                    ? 3
+                    : /^canci[oó]n/i.test(String(entryName).normalize('NFC'))
+                    ? 2
+                    : /^(?:flowmusic|flow_music)/i.test(String(entryName))
+                    ? 1
+                    : 0;
                   const file = await entryHandle.getFile();
-                  if (file.size >= 1024 && (!newSunoUrls[tNum] || isFlowMusicName)) {
+                  if (file.size >= 1024 && (!newSunoUrls[tNum] || rank >= (newSunoRank[tNum] ?? -1))) {
                     newSunoUrls[tNum] = getCachedBlobUrl(
                       `${currentDoc?.id || ''}:${sub}:${entryName}`,
                       file
                     );
+                    newSunoRank[tNum] = rank;
                   }
                 } else {
                   const file = await entryHandle.getFile();
@@ -12606,24 +12703,38 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       : `${cleanPrompt}${durationClause}, smooth 2.5-second fade-in intro, gentle 3-second fade-out outro, mixed as warm low-mid frequency documentary underscore designed to sit softly below a deep male narrator voice without competing in the 1kHz-4kHz vocal clarity range, 100% instrumental, strictly no vocals, no singing, no spoken words`;
     const enrichedPrompt = /\[End\s*[-–—:]\s*\d{1,2}:\d{2}\]/i.test(styleWithDucking)
       ? styleWithDucking
-      : `${styleWithDucking}\n${normalizedLyricsWithEnd}`;
+      : `${styleWithDucking}\n\n${normalizedLyricsWithEnd}`;
 
-    navigator.clipboard.writeText(enrichedPrompt).catch(() => {});
+    const engine = (activeDocRef.current?.musicEngine || activeDoc?.musicEngine || 'FLOWMUSIC') as MusicEngine;
+    const engineName = engine === 'SUNO' ? 'Suno' : 'Flow Music';
+    const songFileBase = buildSongFileBase(trackNumber, title);
+    const durationLabel = toSongDurationLabel(duration);
+    // Suno recibe Lyrics y Styles por separado (la duración va en More Options → Duration), sin la cláusula de duración en el estilo
+    const sunoStyles = /fade-in/i.test(cleanPrompt)
+      ? cleanPrompt
+      : `${cleanPrompt}, smooth 2.5-second fade-in intro, gentle 3-second fade-out outro, warm low-mid documentary underscore below a narrator voice, 100% instrumental, no vocals, no singing, no spoken words`;
+
+    navigator.clipboard.writeText(engine === 'SUNO' ? sunoStyles : enrichedPrompt).catch(() => {});
     setSunoCurrentTrackNum(trackNumber);
     const padded = String(trackNumber).padStart(2, '0');
     const folderLabel =
       flowDownloadDirHandleRef.current?.name || effectiveDocFolderName || 'tu carpeta raíz';
-    const statusText = `🎵 FlowMusic (Pista #${padded} • ${
+    const statusText = `🎵 ${engineName} (Canción #${padded} • ${
       title || 'Instrumental'
-    }): Enviando prompt instrumental con Fade-In/Out y Ducking a flowmusic.app y vigilando para guardar FlowMusic_${padded}.mp3 en "${folderLabel}/02_Audio" y Pista 5...`;
+    }): creando la canción${durationLabel ? ` de ${durationLabel}` : ''} y vigilando para guardar ${songFileBase}.mp3 en "${folderLabel}/02_Audio" y en la Pista 5...`;
     setFlowStatusLog(statusText);
     setBridgeStatusType('WORKING');
     setBridgeStatusMsg(statusText);
     sendCommandToWebBridge('SUNO', {
       action: 'SEND_PROMPT',
+      engine,
       prompt: enrichedPrompt,
+      stylePrompt: sunoStyles,
+      lyricsPrompt: normalizedLyricsWithEnd,
+      durationLabel,
+      songTitle: songFileBase,
       trackNumber,
-      trackTitle: title || `FlowMusic_${padded}`,
+      trackTitle: title || songFileBase,
       autoSubmit: true,
       focusTab: false,
     });
@@ -12672,6 +12783,30 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     );
   };
 
+  // Etapa 8: aplica en 02_Audio los cambios de archivos de canciones (borrar y renombrar) sin tocar otros archivos.
+  // Renombra copiando y borrando el original (compatible con todos los Chrome con File System Access).
+  const applySongFileOps = async (ops: Array<{ from: string; to?: string }>) => {
+    const root = flowDownloadDirHandleRef.current;
+    if (!root || ops.length === 0) return;
+    try {
+      const audioDir = await root.getDirectoryHandle('02_Audio', { create: false });
+      for (const op of ops) {
+        if (!op.from || op.from === op.to) continue;
+        try {
+          if (op.to) {
+            const srcHandle = await audioDir.getFileHandle(op.from, { create: false });
+            const file = await srcHandle.getFile();
+            const dstHandle = await audioDir.getFileHandle(op.to, { create: true });
+            const writable = await (dstHandle as any).createWritable();
+            await writable.write(file);
+            await writable.close();
+          }
+          await (audioDir as any).removeEntry(op.from).catch(() => {});
+        } catch {}
+      }
+    } catch {}
+  };
+
   const handleStopFlowMusicAutoPilot = () => {
     setSunoAutoPilotActive(false);
     sunoAutoPilotActiveRef.current = false;
@@ -12706,10 +12841,14 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       if (!flowDownloadDirHandleRef.current && activeServerPath && !isCloudMode) {
         const sunoTracksPayload = Object.entries(capturedSunoAudioMap)
           .filter(([, dataUrl]) => typeof dataUrl === 'string' && dataUrl.startsWith('data:audio'))
-          .map(([num, dataUrl]) => ({
-            fileName: `FlowMusic_${String(num).padStart(2, '0')}.mp3`,
-            audioDataUrl: dataUrl,
-          }));
+          .map(([num, dataUrl]) => {
+            const tIdx = Math.max(0, Number(num) - 1);
+            const tMeta = doc.sunoTracks?.[tIdx];
+            return {
+              fileName: tMeta?.audioFileName || `${buildSongFileBase(Number(num) || 1, tMeta?.title)}.mp3`,
+              audioDataUrl: dataUrl,
+            };
+          });
         const thumbsPayload = Object.entries(capturedThumbnailsMap).map(([opt, dataUrl]) => ({
           option: opt,
           fileName: `Miniatura_Opcion_${opt}.png`,
@@ -12818,8 +12957,11 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       }
       for (const [num, dataUrl] of Object.entries(capturedSunoAudioMap)) {
         if (typeof dataUrl === 'string' && dataUrl.startsWith('data:audio')) {
+          const tIdx = Math.max(0, Number(num) - 1);
+          const tMeta = doc.sunoTracks?.[tIdx];
+          const exportSongName = tMeta?.audioFileName || `${buildSongFileBase(Number(num) || 1, tMeta?.title)}.mp3`;
           await handleSaveAnyFileToChosenFolder(
-            `FlowMusic_${String(num).padStart(2, '0')}.mp3`,
+            exportSongName,
             String(dataUrl),
             '02_Audio'
           );
@@ -13657,42 +13799,89 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         // Marcar como atendida de inmediato para que un segundo aviso del mismo audio no se procese dos veces
         setSunoCurrentTrackNum(null);
         {
-          setCapturedSunoAudioMap((prev) => ({ ...prev, [trackNum]: dataUrl }));
+          const engineUsed: MusicEngine = msg.engine === 'SUNO' ? 'SUNO' : 'FLOWMUSIC';
+          const engineName = engineUsed === 'SUNO' ? 'Suno' : 'Flow Music';
+          // 1) Todo en MP3: si llega m4a/wav se convierte con el FFmpeg del servidor local
+          let mp3DataUrl = dataUrl;
+          let fileExt = 'mp3';
+          if (!/^data:audio\/(mpeg|mp3)/i.test(dataUrl)) {
+            setFlowStatusLog(`🎵 ${engineName}: Canción #${padded} recibida, convirtiendo a MP3...`);
+            let converted = '';
+            for (const baseOrigin of getMacMediaBridgeBases()) {
+              try {
+                const res = await fetch(`${baseOrigin}/api/music/convert-to-mp3`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ dataUrl }),
+                });
+                if (res.ok) {
+                  const j = await res.json().catch(() => null);
+                  if (j?.ok && typeof j.mp3DataUrl === 'string' && j.mp3DataUrl.startsWith('data:audio/mpeg')) {
+                    converted = j.mp3DataUrl;
+                    break;
+                  }
+                }
+              } catch {}
+            }
+            if (converted) {
+              mp3DataUrl = converted;
+            } else {
+              // Sin servidor local no hay FFmpeg: se guarda en su formato original para no perder la canción
+              fileExt = /mp4|m4a|aac/i.test(dataUrl.slice(0, 40)) ? 'm4a' : /wav/i.test(dataUrl.slice(0, 40)) ? 'wav' : 'mp3';
+            }
+          }
           const currentDoc = activeDocRef.current;
+          const prevTrack = currentDoc?.sunoTracks?.[trackNum - 1];
+          const songFileName = `${buildSongFileBase(trackNum, prevTrack?.title || msg.trackTitle)}.${fileExt}`;
+          setCapturedSunoAudioMap((prev) => ({ ...prev, [trackNum]: mp3DataUrl }));
           let updatedTracks: SunoTrack[] = [];
           if (currentDoc && Array.isArray(currentDoc.sunoTracks)) {
             updatedTracks = currentDoc.sunoTracks.map((st, idx) =>
               idx + 1 === trackNum
-                ? { ...st, audioUrl: dataUrl, isGenerated: true, ready: true }
+                ? {
+                    ...st,
+                    audioUrl: mp3DataUrl,
+                    isGenerated: true,
+                    ready: true,
+                    audioFileName: songFileName,
+                    musicEngine: engineUsed,
+                  }
                 : st
             );
             updateActiveDoc({ sunoTracks: updatedTracks });
           }
           const trackTitleObj = updatedTracks[trackNum - 1];
-          const safeSlug = String(trackTitleObj?.title || msg.trackTitle || `Pista_${padded}`)
-            .replace(/[^a-zA-Z0-9_-]/g, '_')
-            .replace(/_+/g, '_')
-            .slice(0, 36);
-          const flowMusicFileName = `FlowMusic_${padded}_${safeSlug}.mp3`;
-          await handleSaveAnyFileToChosenFolder(flowMusicFileName, dataUrl, '02_Audio');
-          // Remove any legacy duplicate Suno_0X.mp3 in 02_Audio if present
+          await handleSaveAnyFileToChosenFolder(songFileName, mp3DataUrl, '02_Audio');
+          // Limpiar el archivo anterior de esta canción si tenía otro nombre, y los nombres legados (Suno_0X / FlowMusic_0X)
           try {
             if (flowDownloadDirHandleRef.current) {
-              const audioSubDir = await flowDownloadDirHandleRef.current.getDirectoryHandle(
-                '02_Audio',
-                { create: false }
-              );
+              const audioSubDir = await flowDownloadDirHandleRef.current.getDirectoryHandle('02_Audio', {
+                create: false,
+              });
               if (audioSubDir && typeof (audioSubDir as any).removeEntry === 'function') {
-                await (audioSubDir as any).removeEntry(`Suno_${padded}.mp3`).catch(() => {});
+                const stale = new Set<string>([`Suno_${padded}.mp3`]);
+                if (prevTrack?.audioFileName && prevTrack.audioFileName !== songFileName) {
+                  stale.add(prevTrack.audioFileName);
+                }
+                for await (const [entryName] of (audioSubDir as any).entries()) {
+                  if (new RegExp(`^FlowMusic_${padded}(?:_|\\.)`, 'i').test(String(entryName))) {
+                    stale.add(String(entryName));
+                  }
+                }
+                for (const name of stale) {
+                  await (audioSubDir as any).removeEntry(name).catch(() => {});
+                }
               }
             }
           } catch {}
           const folderLabel =
             flowDownloadDirHandleRef.current?.name || effectiveDocFolderName || 'tu carpeta raíz';
           setBridgeStatusType('SUCCESS');
-          const doneMsg = `🎵 ¡Pista #${padded} (${
+          const doneMsg = `🎵 ¡Canción #${padded} (${
             trackTitleObj?.title || 'Instrumental'
-          }) creada en Flow Music, guardada en "${folderLabel}/02_Audio/${flowMusicFileName}" e inyectada en la Pista 5 del Editor (con Fade-In 2.5s, Fade-Out 3s y Ducking bajo la Voz)!`;
+          }) creada en ${engineName}, guardada en "${folderLabel}/02_Audio/${songFileName}" y colocada en la Pista 5 del Editor!${
+            fileExt !== 'mp3' ? ' ⚠️ No se pudo convertir a MP3 (servidor local apagado): quedó en su formato original.' : ''
+          }`;
           setBridgeStatusMsg(doneMsg);
           setFlowStatusLog(doneMsg);
 
@@ -26574,14 +26763,38 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                           ? 'Componiendo Música (FlowMusic)...'
                           : '✨ Diseñar Música (Gemini + FlowMusic)'}
                       </button>
+                      <div
+                        className="flex items-center rounded-xl border border-slate-700 bg-slate-950 p-0.5 text-[11px] font-bold"
+                        title="Motor con el que se crean y descargan las canciones de la Etapa 8"
+                      >
+                        <span className="px-2 text-slate-400">🎵 Motor:</span>
+                        {(['FLOWMUSIC', 'SUNO'] as MusicEngine[]).map((eng) => {
+                          const selected = (activeDoc.musicEngine || 'FLOWMUSIC') === eng;
+                          return (
+                            <button
+                              key={eng}
+                              type="button"
+                              disabled={sunoAutoPilotActive || sunoCurrentTrackNum !== null}
+                              onClick={() => updateActiveDoc({ musicEngine: eng })}
+                              className={`px-2.5 py-1 rounded-lg cursor-pointer transition disabled:opacity-50 disabled:cursor-not-allowed ${
+                                selected
+                                  ? 'bg-emerald-500 text-slate-950'
+                                  : 'text-slate-300 hover:bg-slate-800'
+                              }`}
+                            >
+                              {eng === 'SUNO' ? 'Suno' : 'Flow Music'}
+                            </button>
+                          );
+                        })}
+                      </div>
                       {!sunoAutoPilotActive ? (
                         <button
                           type="button"
                           onClick={() => handleStartFlowMusicAutoPilot()}
                           className="px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs flex items-center gap-1.5 cursor-pointer shadow"
-                          title="Envía automáticamente todas las canciones una por una a https://www.flowmusic.app/, descarga los audios en 02_Audio y los coloca en la Pista 5 del Editor con Fade-In, Fade-Out y Ducking"
+                          title="Crea las canciones una por una con el motor elegido, las guarda en MP3 como Canción_##_Título en 02_Audio y las coloca en la Pista 5 del Editor"
                         >
-                          🚀 Crear Todas las Canciones (FlowMusic)
+                          🚀 Crear Todas las Canciones ({activeDoc.musicEngine === 'SUNO' ? 'Suno' : 'Flow Music'})
                         </button>
                       ) : (
                         <button
@@ -26610,6 +26823,10 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                           };
                           updateActiveDoc({
                             sunoTracks: [...(activeDoc.sunoTracks || []), newTrack],
+                            promptConfig: {
+                              ...(activeDoc.promptConfig || {}),
+                              FIELD_CLEARED_AT_sunoTracks: '0',
+                            } as any,
                           });
                         }}
                         className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs cursor-pointer"
@@ -26626,8 +26843,22 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                 `¿Estás seguro de que deseas borrar TODAS las ${count} canciones de la Etapa 8? Esta acción no se puede deshacer.`
                               )
                             ) {
+                              void applySongFileOps(
+                                (activeDoc.sunoTracks || [])
+                                  .filter((t) => t.audioFileName)
+                                  .map((t) => ({ from: t.audioFileName as string }))
+                              );
                               updateActiveDoc(
-                                { sunoTracks: [], rawSunoText: '' },
+                                {
+                                  sunoTracks: [],
+                                  rawSunoText: '',
+                                  // Marcas de borrado: ninguna copia vieja (caché, servidor, GitHub) puede resucitarlas
+                                  promptConfig: {
+                                    ...(activeDoc.promptConfig || {}),
+                                    FIELD_CLEARED_AT_rawSunoText: String(Date.now()),
+                                    FIELD_CLEARED_AT_sunoTracks: String(Date.now()),
+                                  } as any,
+                                },
                                 { allowClearFields: ['rawSunoText'], source: 'user-delete-all-suno' }
                               );
                               setCapturedSunoAudioMap({});
@@ -26667,11 +26898,13 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                       const prevTracks = activeDocRef.current?.sunoTracks || activeDoc.sunoTracks || [];
                       const parsed = parsedRaw.map((t, i) => {
                         const prev = prevTracks[i];
-                        return prev && (prev.audioUrl || prev.isGenerated)
+                        return prev && (prev.audioUrl || prev.audioFileName || prev.isGenerated)
                           ? {
                               ...t,
                               id: prev.id || t.id,
                               audioUrl: prev.audioUrl,
+                              audioFileName: prev.audioFileName,
+                              musicEngine: prev.musicEngine,
                               isGenerated: prev.isGenerated,
                             }
                           : prev?.id
@@ -26681,7 +26914,16 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                       updateActiveDoc(
                         {
                           rawSunoText: newText,
-                          ...(parsed.length > 0 ? { sunoTracks: parsed } : {}),
+                          ...(parsed.length > 0
+                            ? {
+                                sunoTracks: parsed,
+                                promptConfig: {
+                                  ...(activeDoc.promptConfig || {}),
+                                  FIELD_CLEARED_AT_rawSunoText: '0',
+                                  FIELD_CLEARED_AT_sunoTracks: '0',
+                                } as any,
+                              }
+                            : {}),
                         },
                         { allowClearFields: ['rawSunoText'], source: 'user-textarea' }
                       );
@@ -26725,6 +26967,18 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             next[idx] = { ...track, title: e.target.value };
                             updateActiveDoc({ sunoTracks: next });
                           }}
+                          onBlur={() => {
+                            if (!track.audioFileName) return;
+                            const ext = (track.audioFileName.match(/\.[a-z0-9]+$/i) || ['.mp3'])[0];
+                            const newName = `${buildSongFileBase(idx + 1, track.title)}${ext}`;
+                            if (newName === track.audioFileName) return;
+                            void applySongFileOps([{ from: track.audioFileName, to: newName }]);
+                            const next = [...(activeDocRef.current?.sunoTracks || activeDoc.sunoTracks)];
+                            if (next[idx]) {
+                              next[idx] = { ...next[idx], audioFileName: newName };
+                              updateActiveDoc({ sunoTracks: next });
+                            }
+                          }}
                           className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-sm font-bold text-amber-300 flex-1 min-w-[160px]"
                         />
                         <div className="flex items-center gap-1.5">
@@ -26761,20 +27015,37 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                 )
                               ) {
                                 const keptOldNums: number[] = [];
+                                const fileOps: Array<{ from: string; to?: string }> = [];
+                                const removedTrack = activeDoc.sunoTracks[idx];
+                                if (removedTrack?.audioFileName) fileOps.push({ from: removedTrack.audioFileName });
                                 const next = activeDoc.sunoTracks
                                   .filter((_, i) => {
                                     if (i === idx) return false;
                                     keptOldNums.push(i + 1);
                                     return true;
                                   })
-                                  .map((t, newIdx) => ({
-                                    ...t,
-                                    trackNumber: newIdx + 1,
-                                  }));
+                                  .map((t, newIdx) => {
+                                    // Renombrar Canción_03_X → Canción_02_X para que el archivo siga a su tarjeta
+                                    if (!t.audioFileName) return { ...t, trackNumber: newIdx + 1 };
+                                    const ext = (t.audioFileName.match(/\.[a-z0-9]+$/i) || ['.mp3'])[0];
+                                    const newName = `${buildSongFileBase(newIdx + 1, t.title)}${ext}`;
+                                    if (newName !== t.audioFileName) fileOps.push({ from: t.audioFileName, to: newName });
+                                    return { ...t, trackNumber: newIdx + 1, audioFileName: newName };
+                                  });
+                                void applySongFileOps(fileOps);
                                 updateActiveDoc(
                                   {
                                     sunoTracks: next,
-                                    ...(next.length === 0 ? { rawSunoText: '' } : {}),
+                                    ...(next.length === 0
+                                      ? {
+                                          rawSunoText: '',
+                                          promptConfig: {
+                                            ...(activeDoc.promptConfig || {}),
+                                            FIELD_CLEARED_AT_rawSunoText: String(Date.now()),
+                                            FIELD_CLEARED_AT_sunoTracks: String(Date.now()),
+                                          } as any,
+                                        }
+                                      : {}),
                                   },
                                   next.length === 0
                                     ? { allowClearFields: ['rawSunoText'], source: 'user-delete-suno' }
@@ -26877,10 +27148,11 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                 track.lyricsPrompt
                               )
                             }
-                            className="px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs cursor-pointer flex items-center gap-1.5 shadow"
-                            title="Envía la pista a FlowMusic (flowmusic.app), vigila cuando termina, descarga FlowMusic_0X.mp3 en 02_Audio y la coloca en la Pista 5 del Editor con Fade-In 2.5s, Fade-Out 3s y Ducking"
+                            disabled={sunoCurrentTrackNum !== null}
+                            className="px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs cursor-pointer flex items-center gap-1.5 shadow disabled:opacity-50 disabled:cursor-not-allowed"
+                            title="Crea esta canción con el motor elegido, la guarda en MP3 como Canción_##_Título en 02_Audio y la coloca en la Pista 5 del Editor"
                           >
-                            🎵 Auto-Crear & Descargar en FlowMusic (Pista 5)
+                            🎵 Crear con {activeDoc.musicEngine === 'SUNO' ? 'Suno' : 'Flow Music'} (Pista 5)
                           </button>
                           <label className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-xs text-amber-300 cursor-pointer flex items-center gap-1.5 border border-slate-700">
                             <Upload className="w-3.5 h-3.5" /> Adjuntar Audio Manual

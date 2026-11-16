@@ -383,6 +383,94 @@ async function ensureFlowMusicAntiAutoplayInMainWorld(tabId) {
   } catch {}
 }
 
+// Suno (suno.com): su diálogo Download crea un Blob MP3 y lo guarda con un <a download> oculto.
+// Mientras data-huellas-suno-capture="1", se intercepta ese clic, el MP3 se entrega al content script
+// por postMessage y NO se descarga a la carpeta Descargas del usuario.
+async function ensureSunoDownloadInterceptorInMainWorld(tabId) {
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      world: 'MAIN',
+      func: () => {
+        try {
+          if (window.__HUELLAS_SUNO_DL_HOOK__) return;
+          window.__HUELLAS_SUNO_DL_HOOK__ = true;
+          const blobByUrl = new Map();
+          const origCreate = URL.createObjectURL;
+          URL.createObjectURL = function (obj) {
+            const u = origCreate.apply(this, arguments);
+            try {
+              if (obj && typeof obj === 'object' && 'size' in obj) {
+                blobByUrl.set(u, obj);
+                if (blobByUrl.size > 30) blobByUrl.delete(blobByUrl.keys().next().value);
+              }
+            } catch {}
+            return u;
+          };
+          const isCapturing = () =>
+            document.documentElement.getAttribute('data-huellas-suno-capture') === '1';
+          const deliver = (anchor) => {
+            const href = anchor.href || '';
+            const fileName = anchor.download || '';
+            document.documentElement.removeAttribute('data-huellas-suno-capture');
+            const send = (blob) => {
+              const reader = new FileReader();
+              reader.onloadend = () =>
+                window.postMessage(
+                  {
+                    source: 'HUELLAS_SUNO_DL',
+                    dataUrl: typeof reader.result === 'string' ? reader.result : '',
+                    fileName,
+                    mime: blob.type || '',
+                    size: blob.size || 0,
+                    href: href.startsWith('blob:') ? '' : href,
+                  },
+                  '*'
+                );
+              reader.readAsDataURL(blob);
+            };
+            const known = blobByUrl.get(href);
+            if (known) return send(known);
+            fetch(href)
+              .then((r) => r.blob())
+              .then(send)
+              .catch(() =>
+                window.postMessage(
+                  { source: 'HUELLAS_SUNO_DL', dataUrl: '', fileName, mime: '', size: 0, href },
+                  '*'
+                )
+              );
+          };
+          const origClick = HTMLAnchorElement.prototype.click;
+          HTMLAnchorElement.prototype.click = function () {
+            try {
+              if (isCapturing() && (this.download || String(this.href || '').startsWith('blob:'))) {
+                deliver(this);
+                return;
+              }
+            } catch {}
+            return origClick.apply(this, arguments);
+          };
+          document.addEventListener(
+            'click',
+            (e) => {
+              try {
+                const a = e.target && e.target.closest ? e.target.closest('a[download]') : null;
+                if (a && isCapturing()) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  deliver(a);
+                }
+              } catch {}
+            },
+            true
+          );
+        } catch {}
+      },
+    });
+  } catch {}
+}
+
 async function ensureScriptInjected(tabId, scriptFile) {
   try {
     await chrome.scripting.executeScript({
@@ -2504,17 +2592,27 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     (async () => {
       try {
       const { geminiTabs, flowTabs, sunoTabs } = await getConnectedAiTabsInWindow(senderWindowId);
+      // Etapa 8: el motor de música decide la pestaña (Flow Music o Suno), nunca se mezclan
+      const musicEngine = String(payload.engine || '').toUpperCase() === 'SUNO' ? 'SUNO' : 'FLOWMUSIC';
+      const isEngineTab = (t) => {
+        const u = String((t && t.url) || '').toLowerCase();
+        return musicEngine === 'SUNO'
+          ? u.includes('suno.com')
+          : u.includes('flowmusic.app') || u.includes('producer.ai');
+      };
       let serviceTabs =
         targetService === 'FLOW'
           ? flowTabs
           : targetService === 'SUNO'
-          ? sunoTabs || []
+          ? (sunoTabs || []).filter(isEngineTab)
           : geminiTabs;
       const defaultUrl =
         targetService === 'FLOW'
           ? 'https://flow.google.com/'
           : targetService === 'SUNO'
-          ? 'https://www.flowmusic.app/'
+          ? musicEngine === 'SUNO'
+            ? 'https://suno.com/create'
+            : 'https://www.flowmusic.app/session'
           : 'https://gemini.google.com/app';
       const contentScriptFile =
         targetService === 'FLOW'
@@ -2612,7 +2710,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             targetService === 'FLOW'
               ? 'Google Flow'
               : targetService === 'SUNO'
-              ? 'Flow Music (flowmusic.app)'
+              ? musicEngine === 'SUNO'
+                ? 'Suno (suno.com/create)'
+                : 'Flow Music (flowmusic.app)'
               : 'Gemini Web'
           } en segundo plano...`,
         });
@@ -3132,6 +3232,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             finalDispatchPayload = await prePositionGeminiTabForOrder(targetTab, finalDispatchPayload);
           }
           await ensureScriptInjected(targetTab.id, 'gemini-content.js');
+        }
+
+        if (targetService === 'SUNO' && musicEngine === 'SUNO') {
+          await ensureSunoDownloadInterceptorInMainWorld(targetTab.id);
         }
 
         let deliveredToTab = false;
@@ -6061,6 +6165,29 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         sendResponse({ ok: true, dataUrl: `data:${rawMime};base64,${b64}` });
       } catch (err) {
         sendResponse({ ok: false, error: String(err?.message || err) });
+      }
+    })();
+    return true;
+  }
+
+  // 3Z. Etapa 8: sondeo HEAD de un audio (Flow Music .m4a) para saber si ya existe y si su tamaño dejó de crecer
+  if (message.type === 'PROBE_AUDIO_URL' && message.url) {
+    const probeUrl = String(message.url || '');
+    if (!/^https:\/\/storage\.googleapis\.com\/producer-app-public\//i.test(probeUrl)) {
+      sendResponse({ ok: false, status: 0, error: 'URL no permitida para sondeo' });
+      return false;
+    }
+    (async () => {
+      try {
+        const r = await fetch(probeUrl, { method: 'HEAD', cache: 'no-store' });
+        sendResponse({
+          ok: r.ok,
+          status: r.status,
+          contentType: (r.headers.get('content-type') || '').toLowerCase(),
+          length: Number(r.headers.get('content-length') || 0),
+        });
+      } catch (err) {
+        sendResponse({ ok: false, status: 0, error: String(err?.message || err) });
       }
     })();
     return true;
