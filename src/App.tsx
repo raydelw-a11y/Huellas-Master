@@ -186,7 +186,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '07:42 AM - 11/16/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '08:35 AM - 11/16/2026';
 
 const PROTECTED_DOC_TEXT_FIELDS = [
   'rawClipsText',
@@ -8602,7 +8602,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
             Number(clip.videoDiscardedAt || 0) + 1,
             Number(clip.videoDiscardOverriddenAt || 0) + 1,
             Number(clip.videoSavedAt || 0) + 1,
-            Number(clip.promptUpdatedAt || 0) + 1
+            Number(clip.promptUpdatedAt || 0) + 1,
+            Number(clip.reviewedUpdatedAt || 0) + 1
           );
           const resolvedMotion: BrollCameraMotion =
             (data.motion as BrollCameraMotion) || motion;
@@ -8713,13 +8714,14 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                 videoFrames: safeRelFrameForDoc
                   ? [safeRelFrameForDoc, safeRelFrameForDoc, safeRelFrameForDoc]
                   : cleanedPrevFrames,
-                reviewedForEditor: true,
+                reviewedForEditor: false,
                 reviewedUpdatedAt: Math.max(
                   acceptedAt,
                   Number(c.reviewedUpdatedAt || 0) + 1
                 ),
                 auditStatus: 'ok' as const,
-                auditReason: '🖼️ Imagen inicial aceptada como B-Roll 4K 60fps y marcada como Revisado.',
+                auditReason:
+                  '🖼️ Imagen inicial aceptada como B-Roll 4K 60fps (pendiente de revisión por el editor).',
                 videoAuditStatus: 'approved' as const,
                 videoAuditReason: '',
                 videoAuditIssues: [],
@@ -8748,7 +8750,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
             });
           }
 
-          const okMsg = `🖼️ Clip ${padded} convertido a B-Roll 4K · 60fps (${resolvedMotionLabel}) y marcado como ✅ Revisado (${data.fileName || `${expectedFileName}_Broll_4K.mp4`}).`;
+          const okMsg = `🖼️ Clip ${padded} convertido a B-Roll 4K · 60fps (${resolvedMotionLabel}) — pendiente de revisión (${data.fileName || `${expectedFileName}_Broll_4K.mp4`}).`;
           setFlowStatusLog(okMsg);
           setBridgeStatusType('SUCCESS');
           setBridgeStatusMsg(okMsg);

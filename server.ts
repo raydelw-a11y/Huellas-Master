@@ -16117,6 +16117,7 @@ app.post('/api/flow/accept-initial-image-as-broll', async (req, res) => {
                     Number(clipEntry.videoDiscardedAt || 0) + 1,
                     Number(clipEntry.videoDiscardOverriddenAt || 0) + 1,
                     Number(clipEntry.promptUpdatedAt || 0) + 1,
+                    Number(clipEntry.reviewedUpdatedAt || 0) + 1,
                     effDiscardedAt + 1
                   );
                   const prevNonBroll =
@@ -16140,7 +16141,7 @@ app.post('/api/flow/accept-initial-image-as-broll', async (req, res) => {
                   clipEntry.promptUpdatedAt = acceptedAt;
                   clipEntry.imageReady = true;
                   clipEntry.videoReady = true;
-                  clipEntry.reviewedForEditor = true;
+                  clipEntry.reviewedForEditor = false;
                   clipEntry.reviewedUpdatedAt = Math.max(
                     acceptedAt,
                     Number(clipEntry.reviewedUpdatedAt || 0) + 1
@@ -16154,7 +16155,7 @@ app.post('/api/flow/accept-initial-image-as-broll', async (req, res) => {
                   delete clipEntry.suggestedVideoPrompt;
                   clipEntry.auditStatus = 'ok';
                   clipEntry.auditReason =
-                    '🖼️ Escena B-Roll Solo Imagen lista — movimiento 4K 60fps local en Editor.';
+                    '🖼️ Escena B-Roll Solo Imagen lista (pendiente de revisión) — movimiento 4K 60fps local en Editor.';
                   clipEntry.videoAuditStatus = 'approved';
                   clipEntry.videoAuditReason = '';
                   clipEntry.videoAuditIssues = [];
