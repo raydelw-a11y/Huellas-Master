@@ -37,6 +37,7 @@
             version: response?.version || '2.6.3',
             geminiTabs: response?.geminiTabs || [],
             flowTabs: response?.flowTabs || [],
+            sunoTabs: response?.sunoTabs || [],
           },
           '*'
         );

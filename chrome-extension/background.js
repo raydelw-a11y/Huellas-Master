@@ -122,8 +122,10 @@ async function ensureFlowMusicAntiAutoplayInMainWorld(tabId) {
       world: 'MAIN',
       func: () => {
         try {
-          if (window.__HUELLAS_FLOWMUSIC_ANTI_AUTOPLAY__) return;
+          if (window.__HUELLAS_FLOWMUSIC_MAIN_INSTALLED__) return;
+          window.__HUELLAS_FLOWMUSIC_MAIN_INSTALLED__ = true;
           window.__HUELLAS_FLOWMUSIC_ANTI_AUTOPLAY__ = true;
+          window.__HUELLAS_FLOWMUSIC_NET_HOOK__ = true;
           window.__HUELLAS_FLOWMUSIC_URLS__ = window.__HUELLAS_FLOWMUSIC_URLS__ || new Set();
 
           const publishUrls = () => {
@@ -135,21 +137,153 @@ async function ensureFlowMusicAntiAutoplayInMainWorld(tabId) {
             } catch {}
           };
 
+          const isBlockedNonMediaUrl = (u) => {
+            if (!u || typeof u !== 'string') return true;
+            const clean = u.trim().toLowerCase();
+            if (!clean) return true;
+            if (
+              clean.includes('/cdn-cgi/') ||
+              clean.includes('cloudflareinsights') ||
+              (clean.includes('rum') && clean.includes('cloudflare'))
+            ) {
+              return true;
+            }
+            if (
+              clean.includes('/_next/') ||
+              clean.includes('/static/') ||
+              clean.includes('/api/auth') ||
+              clean.includes('/api/trpc')
+            ) {
+              return true;
+            }
+            const noQ = clean.split(/[?#]/)[0];
+            return /\.(?:js|css|json|html|png|jpe?g|svg|ico|webp|map|txt|woff2?|ttf)$/i.test(noQ);
+          };
+
+          const isGenuineAudioUrl = (u) => {
+            if (isBlockedNonMediaUrl(u)) return false;
+            const clean = u.trim().toLowerCase();
+            const noQ = clean.split(/[?#]/)[0];
+            if (
+              /\.(?:mp3|m4a|wav|aac|webm|ogg|flac|opus)$/i.test(noQ) ||
+              /[?&](?:format|ext|type|mime)=(?:audio\/)?(?:mp3|m4a|mpeg|wav|aac|ogg|flac|webm)\b/i.test(
+                clean
+              )
+            ) {
+              return true;
+            }
+            if (clean.startsWith('blob:')) return true;
+            if (
+              (clean.includes('storage.googleapis.com') || clean.includes('googleusercontent.com')) &&
+              (clean.includes('/clips/') ||
+                clean.includes('/tracks/') ||
+                clean.includes('/audio') ||
+                clean.includes('producer-app-public') ||
+                clean.includes('flowmusic') ||
+                clean.includes('suno'))
+            ) {
+              return true;
+            }
+            if (
+              (clean.includes('flowmusic.app') ||
+                clean.includes('producer.ai') ||
+                clean.includes('suno.com') ||
+                clean.includes('suno.ai')) &&
+              /\/(?:audio|stream|download|clips?|tracks?|songs?|generation|music|api\/audio)\b/i.test(
+                noQ
+              )
+            ) {
+              return true;
+            }
+            return false;
+          };
+
+          const addAudioUrl = (rawUrl, verifiedAudioStream = false) => {
+            if (!rawUrl || typeof rawUrl !== 'string') return false;
+            const candidate = rawUrl.trim();
+            if (!candidate || isBlockedNonMediaUrl(candidate)) return false;
+            if (!verifiedAudioStream && !isGenuineAudioUrl(candidate)) return false;
+            if (!(candidate.startsWith('http') || candidate.startsWith('blob:'))) return false;
+            if (window.__HUELLAS_FLOWMUSIC_URLS__.has(candidate)) return false;
+            window.__HUELLAS_FLOWMUSIC_URLS__.add(candidate);
+            publishUrls();
+            return true;
+          };
+
+          const audioUrlRegex =
+            /https?:\/\/[^\s"'<>\\]+?\.(?:m4a|mp3|wav|aac|webm|ogg|flac|opus)(?:\?[^\s"'<>\\]*)?/gi;
+          const gcsAudioRegex =
+            /https?:\/\/(?:storage\.googleapis\.com|[^\s"'<>\\]*googleusercontent\.com)\/(?:producer-app-public\/[^\s"'<>\\]+|[^\s"'<>\\]+?(?:\/(?:clips|tracks|audio)\/[^\s"'<>\\]+|\.(?:m4a|mp3|wav|aac|webm|ogg|flac|opus)(?:\?[^\s"'<>\\]*)?))/gi;
+          const serviceAudioRegex =
+            /https?:\/\/(?:cdn[12]?\.suno\.ai|[a-zA-Z0-9_.-]+\.(?:flowmusic\.app|producer\.ai|suno\.com))\/[^\s"'<>\\]+?(?:\.(?:m4a|mp3|wav|aac|webm|ogg|flac|opus)(?:\?[^\s"'<>\\]*)?|\/(?:audio|stream|download|clips?|tracks?|songs?|generation|music)\/[^\s"'<>\\]+)/gi;
+          const blobRegex = /blob:https?:\/\/[^\s"'<>\\]+/gi;
+
           const extractClipUrlsFromText = (txt) => {
-            if (!txt || typeof txt !== 'string') return;
-            const rx =
-              /https:\/\/storage\.googleapis\.com\/producer-app-public\/clips\/[a-zA-Z0-9_-]+\.(?:m4a|mp3|wav)/g;
-            let m;
+            if (!txt || typeof txt !== 'string' || txt.includes('/cdn-cgi/')) return;
             let added = false;
-            while ((m = rx.exec(txt)) !== null) {
-              if (!window.__HUELLAS_FLOWMUSIC_URLS__.has(m[0])) {
-                window.__HUELLAS_FLOWMUSIC_URLS__.add(m[0]);
-                added = true;
+            for (const rx of [audioUrlRegex, gcsAudioRegex, serviceAudioRegex, blobRegex]) {
+              rx.lastIndex = 0;
+              let m;
+              while ((m = rx.exec(txt)) !== null) {
+                if (isGenuineAudioUrl(m[0]) && !window.__HUELLAS_FLOWMUSIC_URLS__.has(m[0])) {
+                  window.__HUELLAS_FLOWMUSIC_URLS__.add(m[0]);
+                  added = true;
+                }
               }
             }
             if (added) publishUrls();
           };
 
+          // 1. Hook URL.createObjectURL to detect audio blobs
+          try {
+            const origCreateObjectURL = URL.createObjectURL;
+            if (typeof origCreateObjectURL === 'function') {
+              URL.createObjectURL = function (obj) {
+                const url = origCreateObjectURL.apply(this, arguments);
+                try {
+                  if (
+                    url &&
+                    obj &&
+                    (String(obj.type || '').includes('audio') ||
+                      String(obj.type || '').includes('octet-stream'))
+                  ) {
+                    addAudioUrl(url, true);
+                  }
+                } catch {}
+                return url;
+              };
+            }
+          } catch {}
+
+          // 2. Hook window.fetch by Content-Type (binary audio URLs direct; text() only for JSON/text)
+          try {
+            const origFetch = window.fetch;
+            if (typeof origFetch === 'function') {
+              window.fetch = async function (...args) {
+                const res = await origFetch.apply(this, args);
+                try {
+                  const ct = String(res?.headers?.get?.('content-type') || '').toLowerCase();
+                  if (
+                    ct.startsWith('audio/') ||
+                    ct === 'application/ogg' ||
+                    ct.includes('audio/mpeg') ||
+                    ct.includes('audio/mp4')
+                  ) {
+                    if (res.url) addAudioUrl(res.url, true);
+                  } else if (ct.includes('json') || ct.startsWith('text/')) {
+                    const clone = res.clone();
+                    clone
+                      .text()
+                      .then((t) => extractClipUrlsFromText(t))
+                      .catch(() => {});
+                  }
+                } catch {}
+                return res;
+              };
+            }
+          } catch {}
+
+          // 3. Intercept HTMLMediaElement.src & .play() for URL capture + anti-autoplay
           const mediaProto = window.HTMLMediaElement && window.HTMLMediaElement.prototype;
           if (mediaProto) {
             const srcDesc = Object.getOwnPropertyDescriptor(mediaProto, 'src');
@@ -160,7 +294,7 @@ async function ensureFlowMusicAntiAutoplayInMainWorld(tabId) {
                 get: srcDesc.get,
                 set(val) {
                   try {
-                    if (typeof val === 'string') extractClipUrlsFromText(val);
+                    if (typeof val === 'string') addAudioUrl(val, this.tagName === 'AUDIO');
                   } catch {}
                   return srcDesc.set.call(this, val);
                 },
@@ -172,7 +306,7 @@ async function ensureFlowMusicAntiAutoplayInMainWorld(tabId) {
               mediaProto.play = function (...playArgs) {
                 try {
                   const currentUrl = this.currentSrc || this.src || '';
-                  if (currentUrl) extractClipUrlsFromText(currentUrl);
+                  if (currentUrl) addAudioUrl(currentUrl, this.tagName === 'AUDIO');
                   const isSynthetic =
                     document.documentElement.getAttribute('data-huellas-synthetic-click') === '1';
                   const lastManual = Number(
@@ -194,6 +328,55 @@ async function ensureFlowMusicAntiAutoplayInMainWorld(tabId) {
               };
             }
           }
+
+          // 4. Lightweight shallow React props & audio element scanner (zero Fiber JSON.stringify)
+          const inspectShallowAudioProps = (obj) => {
+            if (!obj || typeof obj !== 'object') return;
+            const checkKeys = (target) => {
+              if (!target || typeof target !== 'object') return;
+              for (const propName of [
+                'src',
+                'audioUrl',
+                'audio_url',
+                'streamUrl',
+                'stream_url',
+                'downloadUrl',
+                'download_url',
+                'mediaUrl',
+                'url',
+              ]) {
+                const v = target[propName];
+                if (typeof v === 'string') addAudioUrl(v);
+              }
+            };
+            checkKeys(obj);
+            for (const nestedKey of ['clip', 'track', 'song', 'item', 'audio', 'data']) {
+              if (obj[nestedKey] && typeof obj[nestedKey] === 'object') {
+                checkKeys(obj[nestedKey]);
+              }
+            }
+          };
+
+          setInterval(() => {
+            try {
+              const els = document.querySelectorAll(
+                'audio, source, [data-track-id], [data-clip-id], main [role="listitem"], main [role="row"]'
+              );
+              for (const el of els) {
+                if (el.src) addAudioUrl(el.src, el.tagName === 'AUDIO' || el.tagName === 'SOURCE');
+                if (el.currentSrc) {
+                  addAudioUrl(el.currentSrc, el.tagName === 'AUDIO' || el.tagName === 'SOURCE');
+                }
+                for (const k of Object.keys(el)) {
+                  if (k.startsWith('__reactProps$')) {
+                    inspectShallowAudioProps(el[k]);
+                  } else if (k.startsWith('__reactFiber$') && el[k]?.memoizedProps) {
+                    inspectShallowAudioProps(el[k].memoizedProps);
+                  }
+                }
+              }
+            } catch {}
+          }, 2200);
         } catch {}
       },
     });
@@ -2967,315 +3150,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           } catch {}
         }
 
-        // MAIN-world network hook + React Fiber scanner + prompt submitter for Flow Music (flowmusic.app)
-        if (targetService === 'SUNO' && action === 'SEND_PROMPT') {
-          const sunoTabId = targetTab.id;
-          const sunoPromptArg = String(payload.prompt || '');
-          const autoSubmitArg = payload.autoSubmit !== false;
-          chrome.scripting
-            .executeScript({
-              target: { tabId: sunoTabId },
-              world: 'MAIN',
-              args: [sunoPromptArg, autoSubmitArg],
-              func: (expectedPrompt, shouldSubmit) => {
-                try {
-                  // 1. Install network & React Fiber audio URL collector in MAIN world
-                  if (!window.__HUELLAS_FLOWMUSIC_NET_HOOK__) {
-                    window.__HUELLAS_FLOWMUSIC_NET_HOOK__ = true;
-                    window.__HUELLAS_FLOWMUSIC_URLS__ = new Set();
-
-                    const publishUrls = () => {
-                      try {
-                        document.documentElement.setAttribute(
-                          'data-huellas-flowmusic-urls',
-                          JSON.stringify(Array.from(window.__HUELLAS_FLOWMUSIC_URLS__))
-                        );
-                      } catch {}
-                    };
-
-                    const isGenuineAudioUrl = (u) => {
-                      if (!u || typeof u !== 'string') return false;
-                      const clean = u.trim().toLowerCase();
-                      if (clean.includes('/cdn-cgi/') || (clean.includes('rum') && clean.includes('cloudflare'))) return false;
-                      if (clean.includes('/_next/') || clean.includes('/static/') || clean.includes('/api/auth') || clean.includes('/api/trpc')) return false;
-                      const noQ = clean.split(/[?#]/)[0];
-                      if (noQ.endsWith('.js') || noQ.endsWith('.css') || noQ.endsWith('.json') || noQ.endsWith('.html') || noQ.endsWith('.png') || noQ.endsWith('.jpg') || noQ.endsWith('.svg') || noQ.endsWith('.ico') || noQ.endsWith('.webp')) return false;
-                      if (noQ.endsWith('.mp3') || noQ.endsWith('.m4a') || noQ.endsWith('.wav') || noQ.endsWith('.aac') || noQ.endsWith('.webm') || noQ.endsWith('.ogg') || noQ.endsWith('.flac')) return true;
-                      if (clean.startsWith('blob:') && !clean.includes('/cdn-cgi/')) return true;
-                      if (clean.includes('storage.googleapis.com') && (clean.includes('/clips/') || clean.includes('/tracks/') || clean.includes('producer-app-public'))) return true;
-                      return false;
-                    };
-
-                    const audioUrlRegex =
-                      /https?:\/\/[^\s"'<>\\]+?\.(?:m4a|mp3|wav|aac|webm|ogg|flac)(?:\?[^\s"'<>\\]*)?/gi;
-                    const gcsAudioRegex =
-                      /https?:\/\/storage\.googleapis\.com\/(?:producer-app-public\/[^\s"'<>\\]+|[^\s"'<>\\]+?\.(?:m4a|mp3|wav|aac|webm|ogg|flac)(?:\?[^\s"'<>\\]*)?)/gi;
-                    const serviceAudioRegex =
-                      /https?:\/\/(?:cdn[12]?\.suno\.ai|[a-zA-Z0-9_.-]+\.flowmusic\.app|[a-zA-Z0-9_.-]+\.producer\.ai)\/[^\s"'<>\\]+?\.(?:m4a|mp3|wav|aac|webm|ogg|flac)(?:\?[^\s"'<>\\]*)?/gi;
-                    const blobRegex =
-                      /blob:https?:\/\/[^\s"'<>\\]+/gi;
-
-                    const extractClipUrlsFromText = (txt) => {
-                      if (!txt || typeof txt !== 'string' || txt.includes('/cdn-cgi/')) return;
-                      let m;
-                      let added = false;
-                      while ((m = audioUrlRegex.exec(txt)) !== null) {
-                        if (isGenuineAudioUrl(m[0]) && !window.__HUELLAS_FLOWMUSIC_URLS__.has(m[0])) {
-                          window.__HUELLAS_FLOWMUSIC_URLS__.add(m[0]);
-                          added = true;
-                        }
-                      }
-                      while ((m = gcsAudioRegex.exec(txt)) !== null) {
-                        if (isGenuineAudioUrl(m[0]) && !window.__HUELLAS_FLOWMUSIC_URLS__.has(m[0])) {
-                          window.__HUELLAS_FLOWMUSIC_URLS__.add(m[0]);
-                          added = true;
-                        }
-                      }
-                      while ((m = serviceAudioRegex.exec(txt)) !== null) {
-                        if (isGenuineAudioUrl(m[0]) && !window.__HUELLAS_FLOWMUSIC_URLS__.has(m[0])) {
-                          window.__HUELLAS_FLOWMUSIC_URLS__.add(m[0]);
-                          added = true;
-                        }
-                      }
-                      while ((m = blobRegex.exec(txt)) !== null) {
-                        if (isGenuineAudioUrl(m[0]) && !window.__HUELLAS_FLOWMUSIC_URLS__.has(m[0])) {
-                          window.__HUELLAS_FLOWMUSIC_URLS__.add(m[0]);
-                          added = true;
-                        }
-                      }
-                      if (added) publishUrls();
-                    };
-
-                    // Hook URL.createObjectURL to detect audio blobs
-                    try {
-                      const origCreateObjectURL = URL.createObjectURL;
-                      if (typeof origCreateObjectURL === 'function') {
-                        URL.createObjectURL = function (obj) {
-                          const url = origCreateObjectURL.apply(this, arguments);
-                          try {
-                            if (
-                              url &&
-                              obj &&
-                              (String(obj.type || '').includes('audio') ||
-                                String(obj.type || '').includes('octet-stream'))
-                            ) {
-                              extractClipUrlsFromText(url);
-                            }
-                          } catch {}
-                          return url;
-                        };
-                      }
-                    } catch {}
-
-                    const origFetch = window.fetch;
-                    window.fetch = async function (...args) {
-                      const res = await origFetch.apply(this, args);
-                      try {
-                        const clone = res.clone();
-                        clone
-                          .text()
-                          .then((t) => extractClipUrlsFromText(t))
-                          .catch(() => {});
-                      } catch {}
-                      return res;
-                    };
-
-                    // Intercept HTMLMediaElement.src & .play() in MAIN world to capture URLs and block automatic playback
-                    try {
-                      const mediaProto = window.HTMLMediaElement && window.HTMLMediaElement.prototype;
-                      if (mediaProto) {
-                        const srcDesc = Object.getOwnPropertyDescriptor(mediaProto, 'src');
-                        if (srcDesc && typeof srcDesc.set === 'function') {
-                          Object.defineProperty(mediaProto, 'src', {
-                            configurable: true,
-                            enumerable: true,
-                            get: srcDesc.get,
-                            set(val) {
-                              try {
-                                if (typeof val === 'string') extractClipUrlsFromText(val);
-                              } catch {}
-                              return srcDesc.set.call(this, val);
-                            },
-                          });
-                        }
-
-                        const origPlay = mediaProto.play;
-                        if (typeof origPlay === 'function') {
-                          mediaProto.play = function (...playArgs) {
-                            try {
-                              const currentUrl = this.currentSrc || this.src || '';
-                              if (currentUrl) extractClipUrlsFromText(currentUrl);
-                              const isSynthetic =
-                                document.documentElement.getAttribute('data-huellas-synthetic-click') ===
-                                '1';
-                              const lastManual = Number(
-                                document.documentElement.getAttribute('data-huellas-last-manual-play') ||
-                                  '0'
-                              );
-                              const isManualPlay =
-                                !isSynthetic && Date.now() - lastManual < 1800;
-                              if (!isManualPlay) {
-                                this.muted = true;
-                                this.volume = 0;
-                                try {
-                                  this.pause();
-                                } catch {}
-                                return Promise.resolve();
-                              }
-                              this.muted = false;
-                              if (this.volume === 0) this.volume = 1;
-                            } catch {}
-                            return origPlay.apply(this, playArgs);
-                          };
-                        }
-                      }
-                    } catch {}
-
-                    // Periodic React Fiber & DOM attribute scan in MAIN world
-                    setInterval(() => {
-                      try {
-                        const els = document.querySelectorAll('main *, audio, source');
-                        for (const el of els) {
-                          if (el.src) extractClipUrlsFromText(el.src);
-                          for (const k of Object.keys(el)) {
-                            if (k.startsWith('__reactProps$') || k.startsWith('__reactFiber$')) {
-                              try {
-                                const s = JSON.stringify(el[k], (key, val) => {
-                                  if (key.startsWith('_') || val instanceof Node || val instanceof Window)
-                                    return undefined;
-                                  return val;
-                                });
-                                if (s) extractClipUrlsFromText(s);
-                              } catch {}
-                            }
-                          }
-                        }
-                      } catch {}
-                    }, 2200);
-                  }
-
-                  // 2. Ensure prompt is injected into Flow Music React textarea/input and submitted with polling
-                  if (expectedPrompt) {
-                    let injectTries = 0;
-                    const maxInjectTries = 80; // ~28s
-                    const tryInjectPromptInMain = () => {
-                      injectTries++;
-                      try {
-                        const inputEl =
-                          document.querySelector('textarea[aria-label="Chat message"]') ||
-                          document.querySelector('textarea[placeholder*="Describe your song" i]') ||
-                          document.querySelector('textarea[placeholder*="Describe" i]') ||
-                          document.querySelector('textarea[placeholder*="song" i]') ||
-                          document.querySelector('textarea[placeholder*="music" i]') ||
-                          document.querySelector('textarea[placeholder*="prompt" i]') ||
-                          document.querySelector('input[type="text"][placeholder*="Describe" i]') ||
-                          document.querySelector('input[type="text"][placeholder*="song" i]') ||
-                          document.querySelector('input[type="text"][placeholder*="music" i]') ||
-                          document.querySelector('input[type="text"][placeholder*="prompt" i]') ||
-                          document.querySelector('[contenteditable="true"][aria-label*="prompt" i]') ||
-                          document.querySelector('[contenteditable="true"][role="textbox"]') ||
-                          document.querySelector('textarea');
-
-                        if (!inputEl) {
-                          if (injectTries < maxInjectTries) {
-                            setTimeout(tryInjectPromptInMain, 350);
-                          }
-                          return;
-                        }
-
-                        const currentVal = (inputEl.value || inputEl.innerText || '').trim();
-                        if (currentVal.length < Math.min(12, expectedPrompt.length)) {
-                          inputEl.focus();
-                          if (inputEl instanceof HTMLTextAreaElement || inputEl.tagName === 'TEXTAREA') {
-                            const proto = window.HTMLTextAreaElement.prototype;
-                            const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
-                            const tracker = inputEl._valueTracker;
-                            if (tracker) tracker.setValue('');
-                            if (setter) setter.call(inputEl, expectedPrompt);
-                            else inputEl.value = expectedPrompt;
-                          } else if (inputEl instanceof HTMLInputElement || inputEl.tagName === 'INPUT') {
-                            const proto = window.HTMLInputElement.prototype;
-                            const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
-                            const tracker = inputEl._valueTracker;
-                            if (tracker) tracker.setValue('');
-                            if (setter) setter.call(inputEl, expectedPrompt);
-                            else inputEl.value = expectedPrompt;
-                          } else if (inputEl.isContentEditable) {
-                            try {
-                              document.execCommand('selectAll', false, null);
-                              document.execCommand('insertText', false, expectedPrompt);
-                            } catch {}
-                            if ((inputEl.innerText || '').trim() !== expectedPrompt.trim()) {
-                              inputEl.innerText = expectedPrompt;
-                            }
-                          }
-                          inputEl.dispatchEvent(
-                            new InputEvent('input', {
-                              bubbles: true,
-                              cancelable: true,
-                              inputType: 'insertText',
-                              data: expectedPrompt,
-                            })
-                          );
-                          inputEl.dispatchEvent(new Event('input', { bubbles: true }));
-                          inputEl.dispatchEvent(new Event('change', { bubbles: true }));
-                        }
-
-                        if (shouldSubmit) {
-                          setTimeout(() => {
-                            const rem = (inputEl.value || inputEl.innerText || '').trim();
-                            if (rem.length < 3) return;
-                            const sendBtn =
-                              document.querySelector('button[aria-label="Send message"]:not([disabled])') ||
-                              document.querySelector('button[aria-label="Send message"]') ||
-                              document.querySelector('button[aria-label*="Send" i]:not([disabled])') ||
-                              document.querySelector('button[aria-label*="Generate" i]:not([disabled])') ||
-                              document.querySelector('button[aria-label*="Create" i]:not([disabled])') ||
-                              document.querySelector('button[type="submit"]:not([disabled])');
-                            if (sendBtn) {
-                              sendBtn.click();
-                            } else {
-                              inputEl.dispatchEvent(
-                                new KeyboardEvent('keydown', {
-                                  key: 'Enter',
-                                  code: 'Enter',
-                                  keyCode: 13,
-                                  which: 13,
-                                  bubbles: true,
-                                  cancelable: true,
-                                })
-                              );
-                              inputEl.dispatchEvent(
-                                new KeyboardEvent('keypress', {
-                                  key: 'Enter',
-                                  code: 'Enter',
-                                  keyCode: 13,
-                                  which: 13,
-                                  bubbles: true,
-                                  cancelable: true,
-                                })
-                              );
-                              inputEl.dispatchEvent(
-                                new KeyboardEvent('keyup', {
-                                  key: 'Enter',
-                                  code: 'Enter',
-                                  keyCode: 13,
-                                  which: 13,
-                                  bubbles: true,
-                                  cancelable: true,
-                                })
-                              );
-                            }
-                          }, 300);
-                        }
-                      } catch {}
-                    };
-                    setTimeout(tryInjectPromptInMain, 250);
-                  }
-                } catch {}
-              },
-            })
-            .catch(() => {});
+        // MAIN-world hooks already installed via ensureFlowMusicAntiAutoplayInMainWorld (no duplicate prompt injector/submitter here)
+        if (targetService === 'SUNO') {
+          await ensureFlowMusicAntiAutoplayInMainWorld(targetTab.id);
         }
 
         sendResponse({ ok: true, tabId: targetTab.id, tabTitle: targetTab.title });
@@ -6211,13 +6088,39 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
         }
         const b64 = btoa(binary);
-        let rawMime = (resp.headers.get('content-type') || '').toLowerCase();
+        let rawMime = String(resp.headers.get('content-type') || '')
+          .split(';')[0]
+          .trim()
+          .toLowerCase();
+        if (
+          rawMime.startsWith('text/html') ||
+          rawMime === 'application/json' ||
+          rawMime === 'text/plain' ||
+          rawMime === 'application/javascript' ||
+          rawMime === 'text/javascript'
+        ) {
+          sendResponse({ ok: false, error: `Ignored non-media MIME (${rawMime})` });
+          return;
+        }
+        const isAudioRequest = message.mediaType === 'audio';
+        if (isAudioRequest && bytes.length < 2048) {
+          sendResponse({ ok: false, error: `Audio payload too small (${bytes.length} bytes)` });
+          return;
+        }
         const lowerUrl = String(message.url || '').toLowerCase();
         if (!rawMime || rawMime.includes('octet-stream')) {
           if (lowerUrl.includes('.m4a')) rawMime = 'audio/mp4';
           else if (lowerUrl.includes('.mp3')) rawMime = 'audio/mpeg';
           else if (lowerUrl.includes('.wav')) rawMime = 'audio/wav';
-          else rawMime = 'video/mp4';
+          else if (lowerUrl.includes('.ogg')) rawMime = 'audio/ogg';
+          else if (lowerUrl.includes('.aac')) rawMime = 'audio/aac';
+          else if (lowerUrl.includes('.flac')) rawMime = 'audio/flac';
+          else if (lowerUrl.includes('.webm')) rawMime = isAudioRequest ? 'audio/webm' : 'video/webm';
+          else if (isAudioRequest || /\/(?:audio|stream|clips|tracks)\//i.test(lowerUrl)) {
+            rawMime = 'audio/mpeg';
+          } else {
+            rawMime = 'video/mp4';
+          }
         }
         sendResponse({ ok: true, dataUrl: `data:${rawMime};base64,${b64}` });
       } catch (err) {

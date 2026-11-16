@@ -619,6 +619,18 @@ function sanitizeServerDocAudioUrls(doc: any): any {
         return normPrev !== c.imagePreviewUrl ? { ...c, imagePreviewUrl: normPrev } : c;
       })
     : doc.clips;
+  // Etapa 8: nunca persistir el MP3 de FlowMusic en base64 (3–5 MB por canción) dentro de documentaries.json;
+  // el archivo vive en 02_Audio y se rehidrata desde la carpeta. Se conserva isGenerated.
+  const cleanedSunoTracks = Array.isArray(doc.sunoTracks)
+    ? doc.sunoTracks.map((st: any) =>
+        st &&
+        typeof st.audioUrl === 'string' &&
+        st.audioUrl.startsWith('data:') &&
+        st.audioUrl.length > 60000
+          ? { ...st, audioUrl: '' }
+          : st
+      )
+    : doc.sunoTracks;
   return {
     ...doc,
     productionType: normalizeServerProductionType(doc.productionType, doc.promptConfig),
@@ -626,6 +638,7 @@ function sanitizeServerDocAudioUrls(doc: any): any {
     audioTracks: cleanedTracks,
     ...(cleanedReferences !== undefined ? { references: cleanedReferences } : {}),
     ...(cleanedClips !== undefined ? { clips: cleanedClips } : {}),
+    ...(cleanedSunoTracks !== undefined ? { sunoTracks: cleanedSunoTracks } : {}),
   };
 }
 

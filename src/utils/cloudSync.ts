@@ -1716,6 +1716,20 @@ export function stripHeavyMediaForStorage(
             return nextPreview !== c.imagePreviewUrl ? { ...rest, imagePreviewUrl: nextPreview } : rest;
           })
         : [],
+      // Etapa 8: el MP3 de FlowMusic en base64 (3–5 MB por canción) vive en 02_Audio y en memoria; nunca en el JSON persistido.
+      // Se conserva isGenerated para que la tarjeta siga marcada y la carpeta lo rehidrate al recargar.
+      ...(Array.isArray(doc.sunoTracks) &&
+      doc.sunoTracks.some(
+        (st) => typeof st?.audioUrl === 'string' && st.audioUrl.startsWith('data:') && st.audioUrl.length > 60000
+      )
+        ? {
+            sunoTracks: doc.sunoTracks.map((st) =>
+              typeof st?.audioUrl === 'string' && st.audioUrl.startsWith('data:') && st.audioUrl.length > 60000
+                ? { ...st, audioUrl: '' }
+                : st
+            ),
+          }
+        : {}),
     };
   });
 }
