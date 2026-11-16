@@ -1622,8 +1622,6 @@
         "reframeFocusY": 50,
         "reframeConfidence": 0.93,
         "reframeReason": "Paneo dinámico IA (78% → 24%) desde sujeto derecho hacia escena izquierda (Der → Izq)",
-        "discardedVideoFileName": "12_create_a_cinematic_8_second_29f8b781_4K.mp4",
-        "videoDiscardedAt": 1794641982559,
         "reviewedUpdatedAt": 1794792997403
       },
       {
@@ -3369,9 +3367,7 @@
         "reframeReason": "Enfoque inteligente IA en tercio izquierdo (16%)",
         "videoFrames": [],
         "videoAuditReason": "",
-        "videoAuditIssues": [],
-        "discardedVideoFileName": "68_68_Macro_shot_of_vintage_0fd04ec1_4K.mp4",
-        "videoDiscardedAt": 1794572688032
+        "videoAuditIssues": []
       },
       {
         "id": "clip-69-1794442731885-nk42",

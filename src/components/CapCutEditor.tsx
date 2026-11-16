@@ -1461,8 +1461,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       return Number(initialOverlayStyles.clip1OverlayEndSec);
     }
     const { clip1Sec } = getStage1ClipDurations(activeDoc);
-    const clip1HookDur = !clip1Sec || clip1Sec <= 6 ? 8 : clip1Sec;
-    return 8 + clip1HookDur;
+    const clip1VisualDur = !clip1Sec || clip1Sec <= 0 ? 6 : clip1Sec;
+    return 8 + clip1VisualDur;
   });
   // Default Hook Text animations for ALL documentaries (after 8s Intro at 00:00 - 00:08):
   // Line 1: starts at 8s (Clip 1), Fade In 1s (8s->9s), Fade Out 1s toward 16s (15s->16s)
@@ -1942,8 +1942,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       activeDoc?.promptConfig?.UBICACION_INTRO_MARCA === 'INTRO_POST_SLOGAN'
         ? 'INTRO_POST_SLOGAN'
         : 'INTRO_INICIO_00';
-    const { clip1Sec } = getStage1ClipDurations(activeDoc);
-    const clip1HookDur = !clip1Sec || clip1Sec <= 6 ? 8 : clip1Sec;
+    const { voiceEntrySec } = getStage1ClipDurations(activeDoc);
+    const clip1HookDur = voiceEntrySec;
     return mode === 'INTRO_POST_SLOGAN' ? clip1HookDur : 8 + clip1HookDur;
   });
   const [voiceDurationSec, setVoiceDurationSec] = useState<number>(0);
@@ -2000,8 +2000,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         activeDoc?.promptConfig?.UBICACION_INTRO_MARCA === 'INTRO_POST_SLOGAN'
           ? 'INTRO_POST_SLOGAN'
           : 'INTRO_INICIO_00';
-      const { clip1Sec } = getStage1ClipDurations(activeDoc);
-      const clip1HookDur = !clip1Sec || clip1Sec <= 6 ? 8 : clip1Sec;
+      const { voiceEntrySec } = getStage1ClipDurations(activeDoc);
+      const clip1HookDur = voiceEntrySec;
       const initVoStart = mode === 'INTRO_POST_SLOGAN' ? clip1HookDur : 8 + clip1HookDur;
       return projectAudioCaptionsToTimeline(initialDocOverlays.captions, {
         introPlacement: mode,
@@ -4968,10 +4968,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       !hasStage6ScriptClips || uniqueReviewedBodyNums.size >= allScriptClips.length;
     const effectiveOutroClip = fixedOutroClip ?? null;
 
-    // Ensure Clip 1 (all parts with clipNumber === 1) covers the full 8s Hook before Voiceover starts
+    // Ensure Clip 1 (all parts with clipNumber === 1) covers its exact Stage 1 visual duration (e.g. 6s in VOZ_EN_CLIP_2)
     // Never kidnap Clip 2+ into the silent Hook slot when Clip 1 has not been marked reviewed yet
     const { clip1Sec: c1Base } = getStage1ClipDurations(activeDoc);
-    const targetHookSec = !c1Base || c1Base <= 6 ? 8 : c1Base;
+    const targetHookSec = !c1Base || c1Base <= 0 ? 6 : c1Base;
     const hasClip1 = cleanBody.some((c) => c.clipNumber === 1);
     let firstNarratedIdx = hasClip1 ? cleanBody.findIndex((c) => c.clipNumber > 1) : 0;
     if (hasClip1 && firstNarratedIdx < 0) {
@@ -5126,11 +5126,19 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         const { standardClipSec: stdDur } = getStage1ClipDurations(activeDoc);
         [...preClips, ...postClips].forEach((it) => {
           const hasManualEdit = (it.trimStart && it.trimStart > 0.05) || (it.speed && it.speed !== 1) || it.partLabel;
-          const isPollutedDur = it.duration === 5.65 || (typeof it.duration === 'number' && Math.abs(it.duration - 10.45) < 0.05);
+          const isPollutedDur =
+            it.duration === 5.65 ||
+            (typeof it.duration === 'number' &&
+              (Math.abs(it.duration - 5.66) < 0.05 || Math.abs(it.duration - 10.45) < 0.05));
           if (!hasManualEdit || isPollutedDur) {
-            const preservedSlot = it.originalSlotDuration && it.originalSlotDuration > 0.5 && it.originalSlotDuration !== 5.65 && Math.abs(it.originalSlotDuration - 10.45) > 0.05
-              ? it.originalSlotDuration
-              : stdDur;
+            const preservedSlot =
+              it.originalSlotDuration &&
+              it.originalSlotDuration > 0.5 &&
+              it.originalSlotDuration !== 5.65 &&
+              Math.abs(it.originalSlotDuration - 5.66) >= 0.05 &&
+              Math.abs(it.originalSlotDuration - 10.45) > 0.05
+                ? it.originalSlotDuration
+                : stdDur;
             it.duration = preservedSlot;
             it.originalSlotDuration = preservedSlot;
           }
@@ -5171,11 +5179,19 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         const narratedClips = cleanBody.slice(firstNarratedIdx);
         narratedClips.forEach((it) => {
           const hasManualEdit = (it.trimStart && it.trimStart > 0.05) || (it.speed && it.speed !== 1) || it.partLabel;
-          const isPollutedDur = it.duration === 5.65 || (typeof it.duration === 'number' && Math.abs(it.duration - 10.45) < 0.05);
+          const isPollutedDur =
+            it.duration === 5.65 ||
+            (typeof it.duration === 'number' &&
+              (Math.abs(it.duration - 5.66) < 0.05 || Math.abs(it.duration - 10.45) < 0.05));
           if (!hasManualEdit || isPollutedDur) {
-            const preservedSlot = it.originalSlotDuration && it.originalSlotDuration > 0.5 && it.originalSlotDuration !== 5.65 && Math.abs(it.originalSlotDuration - 10.45) > 0.05
-              ? it.originalSlotDuration
-              : stdDur;
+            const preservedSlot =
+              it.originalSlotDuration &&
+              it.originalSlotDuration > 0.5 &&
+              it.originalSlotDuration !== 5.65 &&
+              Math.abs(it.originalSlotDuration - 5.66) >= 0.05 &&
+              Math.abs(it.originalSlotDuration - 10.45) > 0.05
+                ? it.originalSlotDuration
+                : stdDur;
             it.duration = preservedSlot;
             it.originalSlotDuration = preservedSlot;
           }
@@ -5274,22 +5290,23 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       return nextClips;
     });
 
-    const { clip1Sec } = getStage1ClipDurations(activeDoc);
-    const baseHookSec = !clip1Sec || clip1Sec <= 6 ? 8 : clip1Sec;
+    const { clip1Sec, voiceEntrySec } = getStage1ClipDurations(activeDoc);
+    const clip1VisualDur = !clip1Sec || clip1Sec <= 0 ? 6 : clip1Sec;
+    const baseHookSec = voiceEntrySec;
     const nextVoiceOffset = mode === 'INTRO_INICIO_00' ? baseHookSec + 8 : baseHookSec;
 
     setVoiceStartOffsetSec(nextVoiceOffset);
     if (mode === 'INTRO_INICIO_00') {
       setHookLine1StartSec(8);
       setHookLine2StartSec(10);
-      setClip1OverlayEndSec(baseHookSec + 8);
+      setClip1OverlayEndSec(clip1VisualDur + 8);
       setStatusMessage(
         '✅ Intro Oficial (8s — Intro.mp4) ubicado en 00:00 - 00:08 (Opción A) y subtítulos sincronizados al 100% desde 00:16.'
       );
     } else {
       setHookLine1StartSec(0);
       setHookLine2StartSec(2);
-      setClip1OverlayEndSec(baseHookSec);
+      setClip1OverlayEndSec(clip1VisualDur);
       setStatusMessage(
         '✅ Intro Oficial (8s — Intro.mp4) ubicado exactamente después del Slogan Completo ("Aquí seguimos sus rastros.") sin cortar ningún clip.'
       );
@@ -5334,12 +5351,15 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     const isIntroPlacementSwitch = lastSyncedIntroPlacementRef.current !== docIntroPlacement;
     lastSyncedIntroPlacementRef.current = docIntroPlacement;
 
-    const { clip1Sec: c1BaseDur, standardClipSec: standardDur } = getStage1ClipDurations(activeDoc);
-    const clip1HookDur = !c1BaseDur || c1BaseDur <= 6 ? 8 : c1BaseDur;
-    // Opción A (default INTRO_INICIO_00): Fixed 8s Intro (00:00 - 00:08) -> Clip 1 Hook (00:08 - 00:16) -> Voiceover at 16s
+    const { clip1Sec: c1BaseDur, standardClipSec: standardDur, voiceEntrySec } = getStage1ClipDurations(activeDoc);
+    const clip1VisualDur = !c1BaseDur || c1BaseDur <= 0 ? 6 : c1BaseDur;
+    const clip1HookDur = voiceEntrySec;
+    // Opción A (default INTRO_INICIO_00): Fixed 8s Intro (00:00 - 00:08) -> Clip 1 Hook (00:08 - 00:14) -> Voiceover at 16s
     // Opción B (INTRO_POST_SLOGAN): Clip 1 Hook (00:00 - 00:08) -> Voiceover at 8s, and 8s Intro enters Post-Slogan right after "Aquí seguimos sus rastros."
     const entrySec =
       docIntroPlacement === 'INTRO_POST_SLOGAN' ? clip1HookDur : FIXED_INTRO_SEC + clip1HookDur;
+    const defaultOverlayEnd =
+      docIntroPlacement === 'INTRO_POST_SLOGAN' ? clip1VisualDur : FIXED_INTRO_SEC + clip1VisualDur;
 
     if (savedDocOverlays?.userEditedHook) {
       userEditedHookDocIdRef.current = docId;
@@ -5394,7 +5414,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             typeof savedGlobalStyles.clip1OverlayEndSec === 'number' &&
             savedGlobalStyles.clip1OverlayEndSec > 0
           ? savedGlobalStyles.clip1OverlayEndSec
-          : entrySec;
+          : defaultOverlayEnd;
 
       setHookLine1StartSec(resolvedL1Start);
       setHookLine2StartSec(resolvedL2Start);
@@ -5505,7 +5525,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         Number(c.durationSeconds) > 0
           ? Number(c.durationSeconds)
           : isClip1
-          ? clip1HookDur
+          ? clip1VisualDur
           : standardDur;
       const existingItem = timelineClips.find(
         (tc) =>
@@ -5581,7 +5601,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         videoPrompt: c.videoPrompt || '',
         isStaticBroll: isBrollClip || undefined,
         brollCameraMotion: isBrollClip ? c.brollCameraMotion || 'zoom_in' : undefined,
-        duration: isClip1 ? clip1HookDur : existingItem ? existingItem.duration : srcDur,
+        duration: isClip1 ? clip1VisualDur : existingItem ? existingItem.duration : srcDur,
         sourceDuration: existingItem?.sourceDuration || srcDur,
         speed: existingItem ? existingItem.speed : 1,
         trimStart: existingItem ? existingItem.trimStart : 0,
@@ -5593,7 +5613,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         opticalFlowUrl: keepExistingOpticalFlow ? existingOpticalFlowUrl : undefined,
         opticalFlowBakedKey: keepExistingOpticalFlow ? existingItem?.opticalFlowBakedKey : undefined,
         parentGroupId: existingItem?.parentGroupId,
-        originalSlotDuration: existingItem?.originalSlotDuration || (isClip1 ? clip1HookDur : srcDur),
+        originalSlotDuration: existingItem?.originalSlotDuration || (isClip1 ? clip1VisualDur : srcDur),
         partLabel: existingItem?.partLabel,
         foleyVolume:
           isBrollClip && !existingItem?.customVolumeSet
@@ -5981,6 +6001,32 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           }
 
           const srcDur = tc.sourceDuration || standardDur;
+          let repairedDur = tc.duration;
+          let repairedSrcDur = tc.sourceDuration;
+          let repairedTrimEnd = tc.trimEnd;
+          let repairedSlotDur = tc.originalSlotDuration;
+
+          if (isClip1Restored && !tc.partLabel && (!tc.trimStart || tc.trimStart < 0.05)) {
+            if (repairedDur !== clip1VisualDur || repairedSlotDur !== clip1VisualDur) {
+              repairedDur = clip1VisualDur;
+              repairedSlotDur = clip1VisualDur;
+              repairedTrimEnd = clip1VisualDur;
+              repairedSrcDur = clip1VisualDur;
+              anyRegeneratedOrUpdated = true;
+            }
+          } else if (!isIntroOrOutroRestored && !isClip1Restored && !tc.partLabel && (!tc.trimStart || tc.trimStart < 0.05)) {
+            const isPolluted =
+              typeof tc.duration === 'number' &&
+              (Math.abs(tc.duration - 5.66) < 0.05 || Math.abs(tc.duration - 10.45) < 0.05);
+            if (isPolluted) {
+              repairedDur = standardDur;
+              repairedSlotDur = standardDur;
+              repairedTrimEnd = standardDur;
+              repairedSrcDur = standardDur;
+              anyRegeneratedOrUpdated = true;
+            }
+          }
+
           let repairedReframeMode = tc.reframe9x16Mode;
           let repairedFocusXStart = tc.reframeFocusXStart;
           let repairedFocusXEnd = tc.reframeFocusXEnd;
@@ -6028,6 +6074,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           }
           return {
             ...tc,
+            duration: repairedDur,
+            sourceDuration: isNewerDiskVideo ? srcDur : repairedSrcDur || srcDur,
+            originalSlotDuration: repairedSlotDur || (isClip1Restored ? clip1VisualDur : standardDur),
             transition: normalizeEditorClipTransition(tc.transition),
             isStaticBroll: isRestoredBroll || undefined,
             brollCameraMotion: isRestoredBroll
@@ -6053,7 +6102,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             originalVideoUrlBeforeSeparation: effectiveVideoUrl,
             originalOpticalFlowUrlBeforeSeparation: effectiveOpticalFlowUrl,
             trimStart: isNewerDiskVideo ? 0 : tc.trimStart,
-            trimEnd: isNewerDiskVideo ? srcDur : tc.trimEnd,
+            trimEnd: isNewerDiskVideo ? srcDur : repairedTrimEnd ?? tc.trimEnd,
             posterUrl: freshPosterUrl,
             smoothSlowMo:
               tc.smoothSlowMo !== undefined ? tc.smoothSlowMo : Boolean(tc.speed && tc.speed < 1),
@@ -7035,8 +7084,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       introPlacementMode === 'INTRO_POST_SLOGAN'
         ? 'INTRO_POST_SLOGAN'
         : 'INTRO_INICIO_00';
-    const { clip1Sec: c1DurForCap } = getStage1ClipDurations(activeDoc);
-    const baseHookForCap = !c1DurForCap || c1DurForCap <= 6 ? 8 : c1DurForCap;
+    const { voiceEntrySec: baseHookForCap } = getStage1ClipDurations(activeDoc);
 
     if (isVideo76 && prealignedVideo76SrtRef.current) {
       const parsed76 = reformatCaptionItems(
@@ -7732,8 +7780,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       introPlacementMode === 'INTRO_POST_SLOGAN'
         ? 'INTRO_POST_SLOGAN'
         : 'INTRO_INICIO_00';
-    const { clip1Sec: c1Dur76 } = getStage1ClipDurations(activeDoc);
-    const baseHook76 = !c1Dur76 || c1Dur76 <= 6 ? 8 : c1Dur76;
+    const { voiceEntrySec: baseHook76 } = getStage1ClipDurations(activeDoc);
     const activeWordsLimit =
       aspectRatio === '9:16' ? captionWordsPerLine9x16 : captionWordsPerLine16x9;
 
@@ -8130,8 +8177,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     if (isVideo76Doc && prealignedVideo76SrtRef.current) return;
 
     const effectiveMode = effectiveIntroModeForCaptions;
-    const { clip1Sec: c1Dur } = getStage1ClipDurations(activeDoc);
-    const baseHookSec = !c1Dur || c1Dur <= 6 ? 8 : c1Dur;
+    const { voiceEntrySec: baseHookSec } = getStage1ClipDurations(activeDoc);
     const projOpts = {
       introPlacement: effectiveMode,
       voiceStartOffsetSec,
@@ -8286,9 +8332,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         ? voiceStartOffsetSec + effectiveVoiceDurationSec + postSloganExtraSec + 8
         : 0;
     const { clip1Sec, standardClipSec } = getStage1ClipDurations(activeDoc);
+    const clip1VisualDur = !clip1Sec || clip1Sec <= 0 ? 6 : clip1Sec;
     const allScriptClipsEnd =
       activeDoc?.clips && activeDoc.clips.length > 0
-        ? 8 + clip1Sec + Math.max(0, activeDoc.clips.length - 1) * standardClipSec + 8
+        ? 8 + clip1VisualDur + Math.max(0, activeDoc.clips.length - 1) * standardClipSec + 8
         : 0;
     return Math.max(10, clipsEnd, Math.ceil(voicePlusOutroEnd), allScriptClipsEnd);
   }, [
@@ -11042,8 +11089,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           (c) => c.id === 'fixed-doc-outro' || c.clipNumber === 999
         );
         if (outroIdx > 0) {
-          const { clip1Sec: c1Base } = getStage1ClipDurations(activeDoc);
-          const hookSec = !c1Base || c1Base <= 6 ? 8 : c1Base;
+          const { voiceEntrySec: hookSec } = getStage1ClipDurations(activeDoc);
           const requiredBeforeOutroSec = Number(
             (8 + hookSec + effectiveVoiceDurationSec + 1.2).toFixed(2)
           );
@@ -11582,17 +11628,13 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     const newTrimEnd = Math.max(newTrimStart + 0.35, visibleMediaEnd);
     const newActiveSpan = Number(Math.max(0.3, newTrimEnd - newTrimStart).toFixed(2));
     const { standardClipSec: stdDur } = getStage1ClipDurations(activeDoc);
+    const isSlotPolluted = (d?: number) =>
+      !d || d <= 0.5 || Math.abs(d - 5.66) < 0.05 || Math.abs(d - 10.45) < 0.05;
     const rawTargetDur =
-      targetBoundClip.originalSlotDuration &&
-      targetBoundClip.originalSlotDuration > 0.5 &&
-      targetBoundClip.originalSlotDuration !== 5.65 &&
-      Math.abs(targetBoundClip.originalSlotDuration - 10.45) > 0.05
-        ? targetBoundClip.originalSlotDuration
-        : targetBoundClip.duration &&
-          targetBoundClip.duration > 0.5 &&
-          targetBoundClip.duration !== 5.65 &&
-          Math.abs(targetBoundClip.duration - 10.45) > 0.05
-        ? targetBoundClip.duration
+      !isSlotPolluted(targetBoundClip.originalSlotDuration)
+        ? targetBoundClip.originalSlotDuration!
+        : !isSlotPolluted(targetBoundClip.duration)
+        ? targetBoundClip.duration!
         : stdDur;
     const targetDur = Number(rawTargetDur.toFixed(2));
     // Speed required for the remaining media to cover the full target duration (always < 1.0 = Slow Motion!)
@@ -11663,17 +11705,13 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     const newTrimEnd = Number(Math.min(srcDur, tStart + elapsedOnTimeline * curSpeed).toFixed(2));
     const newActiveSpan = Number(Math.max(0.3, newTrimEnd - newTrimStart).toFixed(2));
     const { standardClipSec: stdDur } = getStage1ClipDurations(activeDoc);
+    const isSlotPolluted = (d?: number) =>
+      !d || d <= 0.5 || Math.abs(d - 5.66) < 0.05 || Math.abs(d - 10.45) < 0.05;
     const rawTargetDur =
-      targetBoundClip.originalSlotDuration &&
-      targetBoundClip.originalSlotDuration > 0.5 &&
-      targetBoundClip.originalSlotDuration !== 5.65 &&
-      Math.abs(targetBoundClip.originalSlotDuration - 10.45) > 0.05
-        ? targetBoundClip.originalSlotDuration
-        : targetBoundClip.duration &&
-          targetBoundClip.duration > 0.5 &&
-          targetBoundClip.duration !== 5.65 &&
-          Math.abs(targetBoundClip.duration - 10.45) > 0.05
-        ? targetBoundClip.duration
+      !isSlotPolluted(targetBoundClip.originalSlotDuration)
+        ? targetBoundClip.originalSlotDuration!
+        : !isSlotPolluted(targetBoundClip.duration)
+        ? targetBoundClip.duration!
         : stdDur;
     const targetDur = Number(rawTargetDur.toFixed(2));
     const newSpeed = Number(Math.max(0.15, Math.min(4.0, newActiveSpan / targetDur)).toFixed(2));
@@ -19021,6 +19059,12 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                         Math.max(0, ((currentTime - clip.start) / Math.max(0.1, clip.duration)) * 100)
                       )
                     : 0;
+                  const isOfficialBookend =
+                    clip.id === 'fixed-doc-intro' ||
+                    clip.id === 'fixed-doc-outro' ||
+                    clip.clipNumber === 0 ||
+                    clip.clipNumber === 999;
+                  const isUnreviewedClip = !isOfficialBookend && !clip.reviewedForEditor;
 
                   return (
                     <div
@@ -19116,6 +19160,12 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                             : isSelected
                             ? 'border-amber-400 bg-amber-500/20 shadow-lg shadow-amber-500/10 z-10'
                             : 'border-slate-800 bg-[#16130f] hover:border-amber-500/50'
+                        } ${
+                          isUnreviewedClip && !isCurrent && !isSelected
+                            ? 'opacity-25 hover:opacity-60'
+                            : isUnreviewedClip
+                            ? 'opacity-60'
+                            : ''
                         }`}
                       >
                         {/* Real-Time Progress Fill inside the active clip as the playhead sweeps across it */}
