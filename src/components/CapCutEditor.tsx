@@ -5129,12 +5129,15 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           const isPollutedDur =
             it.duration === 5.65 ||
             (typeof it.duration === 'number' &&
-              (Math.abs(it.duration - 5.66) < 0.05 || Math.abs(it.duration - 10.45) < 0.05));
+              (Math.abs(it.duration - 5.58) < 0.08 ||
+                Math.abs(it.duration - 5.66) < 0.05 ||
+                Math.abs(it.duration - 10.45) < 0.05));
           if (!hasManualEdit || isPollutedDur) {
             const preservedSlot =
               it.originalSlotDuration &&
               it.originalSlotDuration > 0.5 &&
               it.originalSlotDuration !== 5.65 &&
+              Math.abs(it.originalSlotDuration - 5.58) >= 0.08 &&
               Math.abs(it.originalSlotDuration - 5.66) >= 0.05 &&
               Math.abs(it.originalSlotDuration - 10.45) > 0.05
                 ? it.originalSlotDuration
@@ -5154,10 +5157,35 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       ];
     }
 
-    // Opción A (INTRO_INICIO_00): Fixed 8s Intro at 00:00 - 00:08, Clip 1 at 00:08 - 00:16, Narrated Clips 2..N aligned to targetVoiceDur when schedule is complete
-    if (isFullScheduleReviewed && targetVoiceDur > 10 && cleanBody.length > firstNarratedIdx) {
+    // Opción A (INTRO_INICIO_00): Fixed 8s Intro at 00:00 - 00:08, Clip 1 at 00:08 - 00:16, Narrated Clips 2..N aligned
+    if (!isVideo76Doc) {
+      // En documentales estándar (Video 77 y futuros), cada clip narrado respeta la duración fija
+      // configurada en Etapa 1 (8s o 10s según standardDur), sin estirarse ni encogerse elásticamente contra la voz.
+      const { standardClipSec: stdDur } = getStage1ClipDurations(activeDoc);
+      const narratedClips = cleanBody.slice(firstNarratedIdx);
+      narratedClips.forEach((it) => {
+        const hasManualEdit = (it.trimStart && it.trimStart > 0.05) || (it.speed && it.speed !== 1) || it.partLabel;
+        const isPollutedDur =
+          it.duration === 5.65 ||
+          (typeof it.duration === 'number' &&
+            (Math.abs(it.duration - 5.58) < 0.08 ||
+              Math.abs(it.duration - 5.66) < 0.05 ||
+              Math.abs(it.duration - 10.45) < 0.05));
+        if (!hasManualEdit || isPollutedDur) {
+          const isSlotPolluted =
+            !it.originalSlotDuration ||
+            it.originalSlotDuration <= 0.5 ||
+            it.originalSlotDuration === 5.65 ||
+            Math.abs(it.originalSlotDuration - 5.58) < 0.08 ||
+            Math.abs(it.originalSlotDuration - 5.66) < 0.05 ||
+            Math.abs(it.originalSlotDuration - 10.45) < 0.05;
+          const preservedSlot = isSlotPolluted ? stdDur : it.originalSlotDuration;
+          it.duration = preservedSlot;
+          it.originalSlotDuration = preservedSlot;
+        }
+      });
+    } else if (isFullScheduleReviewed && targetVoiceDur > 10 && cleanBody.length > firstNarratedIdx) {
       if (
-        isVideo76Doc &&
         sloganClipIdx >= firstNarratedIdx &&
         cleanBody[sloganClipIdx]?.clipNumber === 7 &&
         cleanBody.length > sloganClipIdx + 1
@@ -5169,33 +5197,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         scaleClipsToExactSpan(preClips, preTarget, false);
         const remTarget = Math.max(10, targetVoiceDur - preTarget);
         scaleClipsToExactSpan(postClips, remTarget, true);
-      } else if (isVideo76Doc) {
+      } else {
         const narratedClips = cleanBody.slice(firstNarratedIdx);
         scaleClipsToExactSpan(narratedClips, targetVoiceDur, true);
-      } else {
-        // En documentales estándar (Video 77 y futuros), cada clip narrado respeta la duración fija
-        // configurada en Etapa 1 (8s o 10s según standardDur), sin estirarse ni encogerse elásticamente contra la voz.
-        const { standardClipSec: stdDur } = getStage1ClipDurations(activeDoc);
-        const narratedClips = cleanBody.slice(firstNarratedIdx);
-        narratedClips.forEach((it) => {
-          const hasManualEdit = (it.trimStart && it.trimStart > 0.05) || (it.speed && it.speed !== 1) || it.partLabel;
-          const isPollutedDur =
-            it.duration === 5.65 ||
-            (typeof it.duration === 'number' &&
-              (Math.abs(it.duration - 5.66) < 0.05 || Math.abs(it.duration - 10.45) < 0.05));
-          if (!hasManualEdit || isPollutedDur) {
-            const preservedSlot =
-              it.originalSlotDuration &&
-              it.originalSlotDuration > 0.5 &&
-              it.originalSlotDuration !== 5.65 &&
-              Math.abs(it.originalSlotDuration - 5.66) >= 0.05 &&
-              Math.abs(it.originalSlotDuration - 10.45) > 0.05
-                ? it.originalSlotDuration
-                : stdDur;
-            it.duration = preservedSlot;
-            it.originalSlotDuration = preservedSlot;
-          }
-        });
       }
     }
 
@@ -5592,6 +5596,40 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         !isNewerBodyVideo &&
         (nextVideoTs === 0 || existingOpticalFlowTs === 0 || existingOpticalFlowTs >= nextVideoTs - 1000);
 
+      const existingDur = existingItem?.duration;
+      const existingSlot = existingItem?.originalSlotDuration;
+      const hasManualEdit = Boolean(
+        existingItem &&
+        ((existingItem.trimStart && existingItem.trimStart > 0.05) ||
+          (existingItem.speed && existingItem.speed !== 1) ||
+          existingItem.partLabel)
+      );
+      const isPolluted =
+        !hasManualEdit &&
+        (existingDur === 5.65 ||
+          (typeof existingDur === 'number' &&
+            (Math.abs(existingDur - 5.58) < 0.08 ||
+              Math.abs(existingDur - 5.66) < 0.05 ||
+              Math.abs(existingDur - 10.45) < 0.05 ||
+              (!isVideo76Doc &&
+                Math.abs(existingDur - standardDur) > 0.05 &&
+                Math.abs((existingItem.trimEnd ?? standardDur) - standardDur) < 0.15 &&
+                (!existingItem.speed || Math.abs(existingItem.speed - 1) <= 0.02)))));
+
+      const safeDuration =
+        isClip1
+          ? clip1VisualDur
+          : existingItem && !isPolluted
+          ? existingItem.duration
+          : srcDur;
+
+      const safeSlotDuration =
+        isClip1
+          ? clip1VisualDur
+          : existingItem && !isPolluted && existingSlot && existingSlot > 0.5
+          ? existingSlot
+          : srcDur;
+
       return {
         id: c.id || `tl-clip-${c.clipNumber}`,
         clipNumber: c.clipNumber,
@@ -5601,7 +5639,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         videoPrompt: c.videoPrompt || '',
         isStaticBroll: isBrollClip || undefined,
         brollCameraMotion: isBrollClip ? c.brollCameraMotion || 'zoom_in' : undefined,
-        duration: isClip1 ? clip1VisualDur : existingItem ? existingItem.duration : srcDur,
+        duration: safeDuration,
         sourceDuration: existingItem?.sourceDuration || srcDur,
         speed: existingItem ? existingItem.speed : 1,
         trimStart: existingItem ? existingItem.trimStart : 0,
@@ -5613,7 +5651,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         opticalFlowUrl: keepExistingOpticalFlow ? existingOpticalFlowUrl : undefined,
         opticalFlowBakedKey: keepExistingOpticalFlow ? existingItem?.opticalFlowBakedKey : undefined,
         parentGroupId: existingItem?.parentGroupId,
-        originalSlotDuration: existingItem?.originalSlotDuration || (isClip1 ? clip1VisualDur : srcDur),
+        originalSlotDuration: safeSlotDuration,
         partLabel: existingItem?.partLabel,
         foleyVolume:
           isBrollClip && !existingItem?.customVolumeSet
@@ -6017,7 +6055,13 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           } else if (!isIntroOrOutroRestored && !isClip1Restored && !tc.partLabel && (!tc.trimStart || tc.trimStart < 0.05)) {
             const isPolluted =
               typeof tc.duration === 'number' &&
-              (Math.abs(tc.duration - 5.66) < 0.05 || Math.abs(tc.duration - 10.45) < 0.05);
+              (Math.abs(tc.duration - 5.58) < 0.08 ||
+                Math.abs(tc.duration - 5.66) < 0.05 ||
+                Math.abs(tc.duration - 10.45) < 0.05 ||
+                (!isVideo76Doc &&
+                  Math.abs(tc.duration - standardDur) > 0.05 &&
+                  Math.abs((tc.trimEnd ?? standardDur) - standardDur) < 0.15 &&
+                  (!tc.speed || Math.abs(tc.speed - 1) <= 0.02)));
             if (isPolluted) {
               repairedDur = standardDur;
               repairedSlotDur = standardDur;
@@ -11084,7 +11128,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         setClipUndoStack((stack) => [...stack.slice(-24), prev]);
       }
       let next = updater(prev);
-      if (effectiveVoiceDurationSec > 20 && next.length >= 3) {
+      if (isVideo76Doc && effectiveVoiceDurationSec > 20 && next.length >= 3) {
         const outroIdx = next.findIndex(
           (c) => c.id === 'fixed-doc-outro' || c.clipNumber === 999
         );
@@ -11629,7 +11673,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     const newActiveSpan = Number(Math.max(0.3, newTrimEnd - newTrimStart).toFixed(2));
     const { standardClipSec: stdDur } = getStage1ClipDurations(activeDoc);
     const isSlotPolluted = (d?: number) =>
-      !d || d <= 0.5 || Math.abs(d - 5.66) < 0.05 || Math.abs(d - 10.45) < 0.05;
+      !d || d <= 0.5 || Math.abs(d - 5.58) < 0.08 || Math.abs(d - 5.66) < 0.05 || Math.abs(d - 10.45) < 0.05;
     const rawTargetDur =
       !isSlotPolluted(targetBoundClip.originalSlotDuration)
         ? targetBoundClip.originalSlotDuration!
@@ -11706,7 +11750,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     const newActiveSpan = Number(Math.max(0.3, newTrimEnd - newTrimStart).toFixed(2));
     const { standardClipSec: stdDur } = getStage1ClipDurations(activeDoc);
     const isSlotPolluted = (d?: number) =>
-      !d || d <= 0.5 || Math.abs(d - 5.66) < 0.05 || Math.abs(d - 10.45) < 0.05;
+      !d || d <= 0.5 || Math.abs(d - 5.58) < 0.08 || Math.abs(d - 5.66) < 0.05 || Math.abs(d - 10.45) < 0.05;
     const rawTargetDur =
       !isSlotPolluted(targetBoundClip.originalSlotDuration)
         ? targetBoundClip.originalSlotDuration!
@@ -11839,7 +11883,15 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       targetClip.sourceDuration && targetClip.sourceDuration > 0.5
         ? targetClip.sourceDuration
         : 8;
-    const origDur = targetClip.originalSlotDuration || srcDur;
+    const { standardClipSec: stdDur } = getStage1ClipDurations(activeDoc);
+    const isSlotPolluted =
+      !targetClip.originalSlotDuration ||
+      targetClip.originalSlotDuration <= 0.5 ||
+      targetClip.originalSlotDuration === 5.65 ||
+      Math.abs(targetClip.originalSlotDuration - 5.58) < 0.08 ||
+      Math.abs(targetClip.originalSlotDuration - 5.66) < 0.05 ||
+      Math.abs(targetClip.originalSlotDuration - 10.45) < 0.05;
+    const origDur = isSlotPolluted ? stdDur : targetClip.originalSlotDuration;
     const restored: TimelineClipItem = {
       ...targetClip,
       id: `tl-clip-${targetClip.clipNumber}`,
