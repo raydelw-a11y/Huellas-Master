@@ -1165,14 +1165,17 @@ Línea 2: DE HUIR DE LA GUERRA EN ESPAÑA A LEVANTAR UN IMPERIO EN AMÉRICA`;
     nextCorrectedSrt = '';
   }
 
-  const isLegacySingleEngineDoc =
-    !doc.operationalHeader?.includes('donde haya personas') &&
-    !(Array.isArray( nextClips ) && nextClips.some((c) => /\[Model:/i.test(c.videoPrompt || '')));
+  const VALID_FLOW_VIDEO_ENGINES = new Set<
+    'HYBRID_PEOPLE_OMNI_REST_LOWER' | 'VEO_3_1_LITE_LOWER_PRIORITY' | 'OMNI_1_1_FLASH'
+  >(['HYBRID_PEOPLE_OMNI_REST_LOWER', 'VEO_3_1_LITE_LOWER_PRIORITY', 'OMNI_1_1_FLASH']);
 
-  const nextFlowVideoEngine: 'HYBRID_PEOPLE_OMNI_REST_LOWER' | 'VEO_3_1_LITE_LOWER_PRIORITY' | 'OMNI_1_1_FLASH' =
-    isLegacySingleEngineDoc
-      ? 'HYBRID_PEOPLE_OMNI_REST_LOWER'
-      : doc.flowVideoEngine || 'HYBRID_PEOPLE_OMNI_REST_LOWER';
+  const nextFlowVideoEngine:
+    | 'HYBRID_PEOPLE_OMNI_REST_LOWER'
+    | 'VEO_3_1_LITE_LOWER_PRIORITY'
+    | 'OMNI_1_1_FLASH' =
+    doc.flowVideoEngine && VALID_FLOW_VIDEO_ENGINES.has(doc.flowVideoEngine)
+      ? doc.flowVideoEngine
+      : 'HYBRID_PEOPLE_OMNI_REST_LOWER';
 
   const normalizeEngineRefs = (text?: string): string => {
     if (typeof text !== 'string' || !text) return text || '';
@@ -1197,12 +1200,22 @@ Línea 2: DE HUIR DE LA GUERRA EN ESPAÑA A LEVANTAR UN IMPERIO EN AMÉRICA`;
   if (Array.isArray(nextClips) && nextClips.length > 0) {
     let anyClipTagChanged = false;
     const taggedClips = nextClips.map((c) => {
-      if (!c.videoPrompt) return c;
       const resolvedEngine = resolveClipFlowVideoEngine(c, nextFlowVideoEngine, doc.references);
-      const taggedPrompt = applyClipFlowVideoEngineTag(c.videoPrompt, resolvedEngine);
-      if (taggedPrompt !== c.videoPrompt) {
+      const enforcedClipEngine =
+        nextFlowVideoEngine === 'VEO_3_1_LITE_LOWER_PRIORITY' ||
+        nextFlowVideoEngine === 'OMNI_1_1_FLASH'
+          ? nextFlowVideoEngine
+          : c.flowClipEngine;
+      const taggedPrompt = c.videoPrompt
+        ? applyClipFlowVideoEngineTag(c.videoPrompt, resolvedEngine)
+        : c.videoPrompt;
+      if (taggedPrompt !== c.videoPrompt || enforcedClipEngine !== c.flowClipEngine) {
         anyClipTagChanged = true;
-        return { ...c, videoPrompt: taggedPrompt };
+        return {
+          ...c,
+          ...(c.videoPrompt ? { videoPrompt: taggedPrompt } : {}),
+          flowClipEngine: enforcedClipEngine,
+        };
       }
       return c;
     });
@@ -1216,7 +1229,11 @@ Línea 2: DE HUIR DE LA GUERRA EN ESPAÑA A LEVANTAR UN IMPERIO EN AMÉRICA`;
     nextFlowVideoEngine
   );
   nextRawClipsText = nextRawClipsText?.trim()
-    ? ensureOperationalHeaderInRawClips(normalizeEngineRefs(nextRawClipsText), nextOperationalHeader)
+    ? ensureOperationalHeaderInRawClips(
+        normalizeEngineRefs(nextRawClipsText),
+        nextOperationalHeader,
+        nextFlowVideoEngine
+      )
     : nextRawClipsText;
   const nextRawReferencePrompts = doc.rawReferencePrompts || '';
   const nextCompiledMasterPrompt = normalizeEngineRefs(doc.compiledMasterPrompt);
@@ -2248,9 +2265,20 @@ function mergeTwoDocumentaryObjects(
     ? oNorm.clips.map(sanitizeSingleClipSkeleton)
     : [];
 
+  const enforcedWinnerClipEngine:
+    | 'VEO_3_1_LITE_LOWER_PRIORITY'
+    | 'OMNI_1_1_FLASH'
+    | null =
+    baseWinner.flowVideoEngine === 'VEO_3_1_LITE_LOWER_PRIORITY' ||
+    baseWinner.flowVideoEngine === 'OMNI_1_1_FLASH'
+      ? baseWinner.flowVideoEngine
+      : null;
+
   let mergedClips: DocumentaryProject['clips'] = wClipsInit;
   if (wClipsInit.length === 0 && oClipsInit.length > 0 && !rawClipsLegitimatelyTombstoned) {
-    mergedClips = oClipsInit;
+    mergedClips = enforcedWinnerClipEngine
+      ? oClipsInit.map((oc) => ({ ...oc, flowClipEngine: enforcedWinnerClipEngine }))
+      : oClipsInit;
   } else if (wClipsInit.length > 0 && oClipsInit.length > 0) {
     const otherClipByNum = new Map<number, DocumentaryProject['clips'][number]>();
     for (const c of oClipsInit) {
@@ -2362,7 +2390,7 @@ function mergeTwoDocumentaryObjects(
               : undefined,
             isStaticBroll: effectiveStaticBroll,
             brollCameraMotion: o.brollCameraMotion || c.brollCameraMotion,
-            flowClipEngine: o.flowClipEngine || c.flowClipEngine,
+            flowClipEngine: enforcedWinnerClipEngine ?? o.flowClipEngine,
             cameraSelection: useOtherPrompt ? o.cameraSelection || c.cameraSelection : c.cameraSelection,
             visualExplanation: useOtherPrompt
               ? o.visualExplanation || c.visualExplanation
@@ -2381,6 +2409,7 @@ function mergeTwoDocumentaryObjects(
             previousVideoPrompt: c.isStaticBroll
               ? c.previousVideoPrompt || o.previousVideoPrompt || (o.videoPrompt || undefined)
               : undefined,
+            flowClipEngine: enforcedWinnerClipEngine ?? c.flowClipEngine,
           };
 
       if (isActivelyRejected) {
@@ -2593,7 +2622,12 @@ function mergeTwoDocumentaryObjects(
         )
         .sort((a, b) => a.clipNumber - b.clipNumber);
       if (tailFromOther.length > 0) {
-        mergedClips = [...mergedClips, ...tailFromOther];
+        mergedClips = [
+          ...mergedClips,
+          ...(enforcedWinnerClipEngine
+            ? tailFromOther.map((tc) => ({ ...tc, flowClipEngine: enforcedWinnerClipEngine }))
+            : tailFromOther),
+        ];
       }
     }
   }
@@ -2634,7 +2668,8 @@ function mergeTwoDocumentaryObjects(
                     (nextIsBroll && mc.videoPrompt ? mc.videoPrompt : undefined),
                   isStaticBroll: nextIsBroll,
                   brollCameraMotion: pc.brollCameraMotion || mc.brollCameraMotion,
-                  flowClipEngine: pc.flowClipEngine || mc.flowClipEngine,
+                  flowClipEngine:
+                    enforcedWinnerClipEngine ?? (pc.flowClipEngine ?? mc.flowClipEngine),
                   auditStatus: keepMismatch ? ('mismatch' as const) : ('ok' as const),
                   auditReason: keepMismatch
                     ? mc.auditReason || pc.auditReason
@@ -2643,6 +2678,8 @@ function mergeTwoDocumentaryObjects(
                     : 'Sincronizado con el tramo de voz narrativa.',
                 };
               })
+            : enforcedWinnerClipEngine
+            ? parsed.map((p) => ({ ...p, flowClipEngine: enforcedWinnerClipEngine }))
             : parsed;
       }
     } else if (authoredClips > 0 && (rawTier < 2 || rawBlocks < authoredClips)) {
@@ -2690,7 +2727,14 @@ export function mergeDocumentariesLists(
     if (!r || !r.id || deletedSet.has(r.id)) continue;
     const normalized =
       r.rawClipsText && r.rawClipsText.trim()
-        ? { ...r, rawClipsText: ensureOperationalHeaderInRawClips(r.rawClipsText, r.operationalHeader) }
+        ? {
+            ...r,
+            rawClipsText: ensureOperationalHeaderInRawClips(
+              r.rawClipsText,
+              r.operationalHeader,
+              r.flowVideoEngine
+            ),
+          }
         : r;
     byId.set(r.id, normalized);
   }
@@ -2699,7 +2743,14 @@ export function mergeDocumentariesLists(
     if (!l || !l.id || deletedSet.has(l.id)) continue;
     const normalized =
       l.rawClipsText && l.rawClipsText.trim()
-        ? { ...l, rawClipsText: ensureOperationalHeaderInRawClips(l.rawClipsText, l.operationalHeader) }
+        ? {
+            ...l,
+            rawClipsText: ensureOperationalHeaderInRawClips(
+              l.rawClipsText,
+              l.operationalHeader,
+              l.flowVideoEngine
+            ),
+          }
         : l;
     const existing = byId.get(l.id);
     if (!existing) {
@@ -4085,7 +4136,7 @@ export async function generateStageClientSide(
   const out =
     stageNumber === 4 ? normalizeFirstDayOfMonthInVoiceover(sanitizedOut) : sanitizedOut;
   if (stageNumber === 8) {
-    return ensureOperationalHeaderInRawClips(out, doc.operationalHeader);
+    return ensureOperationalHeaderInRawClips(out, doc.operationalHeader, doc.flowVideoEngine);
   }
   return out;
 }

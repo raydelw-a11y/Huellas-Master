@@ -186,7 +186,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '07:04 AM - 11/16/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '07:08 AM - 11/16/2026';
 
 const PROTECTED_DOC_TEXT_FIELDS = [
   'rawClipsText',
@@ -10564,11 +10564,11 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
               activeDoc.rawClipsText
             ))
       ) ||
-      (activeDoc.rawClipsText &&
-        /(?:Usa|Use)\s+omni\s*(?:1\.1\s*)?flash\s+(?:para\s+videos|for\s+all\s+video\s+clips)/i.test(
-          activeDoc.rawClipsText
-        ) &&
-        activeEngine === 'VEO_3_1_LITE_LOWER_PRIORITY');
+      (Boolean(activeDoc.rawClipsText) &&
+        ((activeEngine === 'VEO_3_1_LITE_LOWER_PRIORITY' &&
+          /\bOmni\s*1\.1\s*Flash\b/i.test((activeDoc.rawClipsText || '').slice(0, 2500))) ||
+          (activeEngine === 'OMNI_1_1_FLASH' &&
+            /\bVeo\s*3\.1\b/i.test((activeDoc.rawClipsText || '').slice(0, 2500)))));
 
     const normalizedChanged =
       normalizedBase.clips !== activeDoc.clips ||
@@ -22044,6 +22044,10 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                     const durForClip = c.clipNumber === 1 ? engClip1Sec : engStdSec;
                                     return {
                                       ...c,
+                                      flowClipEngine:
+                                        eng.id === 'HYBRID_PEOPLE_OMNI_REST_LOWER'
+                                          ? undefined
+                                          : eng.id,
                                       videoPrompt: c.videoPrompt
                                         ? applyClipFlowVideoEngineTag(c.videoPrompt, resolved, durForClip)
                                         : '',
@@ -22051,7 +22055,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                   });
                                   const fallbackEngineRaw = activeDoc.rawClipsText
                                     ? applyFlowVideoEngineToDirectiveText(
-                                        ensureOperationalHeaderInRawClips(activeDoc.rawClipsText, nextHeader),
+                                        ensureOperationalHeaderInRawClips(activeDoc.rawClipsText, nextHeader, eng.id),
                                         eng.id
                                       )
                                     : '';
@@ -22309,13 +22313,15 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             ? applyFlowVideoEngineToDirectiveText(
                                 ensureOperationalHeaderInRawClips(
                                   activeDoc.rawClipsText || '',
-                                  currentHeader
+                                  currentHeader,
+                                  activeEngine
                                 ),
                                 activeEngine
                               )
                             : '';
+                          const clipsForCopy = hydrateClipsFromRawIfNeeded(activeDoc, cpClip1, cpStd);
                           const textToCopy = safeRebuildRawClipsText({
-                            clips: activeDoc.clips || [],
+                            clips: clipsForCopy.length > 0 ? clipsForCopy : activeDoc.clips || [],
                             previousRawText: fallbackRawToCopy,
                             operationalHeader: currentHeader,
                             engineMode: activeEngine,

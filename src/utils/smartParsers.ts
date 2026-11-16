@@ -181,9 +181,10 @@ export function parseBrollMotionFromText(
 
 export function ensureOperationalHeaderInRawClips(
   rawText: string,
-  operationalHeader: string = DEFAULT_OPERATIONAL_HEADER
+  operationalHeader: string = DEFAULT_OPERATIONAL_HEADER,
+  engine?: FlowProjectEngineMode
 ): string {
-  const header = sanitizeOperationalHeader(operationalHeader);
+  const header = sanitizeOperationalHeader(operationalHeader, engine);
   const trimmed = (rawText || '').trim();
   if (!trimmed) return header;
 
@@ -196,7 +197,7 @@ export function ensureOperationalHeaderInRawClips(
 
   if (
     /^Act as a (?:professional |master )?historian/i.test(trimmed) &&
-    /pre-generation\s+report|how\s+many\s+clips\s+will\s+be\s+(?:made|generated)\s+with\s+Omni/i.test(trimmed) &&
+    /pre-generation\s+report|how\s+many\s+(?:video\s+)?clips\s+will\s+be\s+(?:made|generated)\s+with\s+(?:Omni|Lower\s+Priority)/i.test(trimmed) &&
     /Static\s+B-Roll|\[B-Roll:\s*STATIC_/i.test(trimmed) &&
     /Inicial_/i.test(trimmed) &&
     /Broll_/i.test(trimmed) &&
@@ -204,7 +205,7 @@ export function ensureOperationalHeaderInRawClips(
     /(?:literal first 6 words|first 6 literal words|first 6 words)/i.test(trimmed) &&
     trimmed.includes('01 to 09')
   ) {
-    return trimmed;
+    return sanitizeOperationalHeader(trimmed, engine);
   }
   // If rawText only contained a legacy Spanish or corrupted/incomplete header without clips yet, return the clean English 9-line header
   if (
@@ -2463,7 +2464,20 @@ export function safeRebuildRawClipsText(
 
   const normalizeFallback = (): string => {
     if (!prevRaw.trim() || prevTier === 0) return '';
-    return ensureOperationalHeaderInRawClips(prevRaw, cleanHeader);
+    const withHeader = ensureOperationalHeaderInRawClips(
+      prevRaw,
+      cleanHeader,
+      effEngineMode
+    );
+    if (effEngineMode !== 'VEO_3_1_LITE_LOWER_PRIORITY') {
+      return withHeader;
+    }
+    // Clean legacy [Model: Omni ...] / [Model: Veo ...] video clip tags while preserving [Model: Nano Banana 2.1]
+    return withHeader
+      .replace(/\s*\[Model:\s*(?!Nano\s+Banana\b)(?:[^\[\]]|\[[^\]]*\])*\]/gi, '')
+      .replace(/[ \t]{2,}/g, ' ')
+      .replace(/[ \t]+\n/g, '\n')
+      .trim();
   };
 
   if (authoredClipCount === 0) {
