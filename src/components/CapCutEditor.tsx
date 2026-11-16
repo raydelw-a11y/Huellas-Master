@@ -5786,30 +5786,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           tc.id === 'fixed-doc-outro' ||
           tc.clipNumber === 0 ||
           tc.clipNumber === 999;
-        if (
-          !isIntroOrOutroTc &&
-          hasStage6ScriptClips &&
-          allStage6Nums.has(tc.clipNumber) &&
-          !reviewedSet.has(tc.clipNumber)
-        ) {
-          reconciledCustomStructureChanged = true;
-          if (!tc.id.endsWith('-slogan-partB')) {
-            const normalizedForPark: TimelineClipItem = tc.id.endsWith('-slogan-partA')
-              ? {
-                  ...tc,
-                  id: tc.id.replace(/-slogan-partA$/, ''),
-                  trimStart: 0,
-                  trimEnd: tc.sourceDuration && tc.sourceDuration > 6 ? tc.sourceDuration : 7.85,
-                  partLabel: undefined,
-                }
-              : tc;
-            if (!newlyParkedByNum[tc.clipNumber]) {
-              newlyParkedByNum[tc.clipNumber] = [];
-            }
-            newlyParkedByNum[tc.clipNumber].push(normalizedForPark);
-          }
-          continue;
-        }
+        // En documentales estándar, los clips no revisados permanecen en survivingCustom como ranuras reservadas (vacías)
+        // para garantizar la sincronía temporal 1:1 con la locución y evitar que los clips revisados se compacten hacia la izquierda.
         survivingCustom.push(tc);
       }
 
