@@ -28,6 +28,7 @@ Este proyecto aplica íntegramente el **Sistema Global de Auto-Triaje de 10 Nive
      - Pipeline de exportación/escalado 4K (`FFmpeg` / endpoints de render en `server.ts`).
 
 2. **Coordinación Segura en `swarm` sobre `Huellas Master` (R1/R2 Solo Lectura → Fase 3 Paralela `1 Archivo = 1 Modelo`)**:
+   - **Guardia Anti-Simulación (Cero Trabajo en Solitario en Modos 2–10)**: Si el triaje resulta en Modo 2 al 10 (o por orden explícita del usuario), el coordinador tiene **TERMINANTEMENTE PROHIBIDO** editar código solo o simular a los compañeros en texto. La primera llamada debe ser `swarm({ action: "add" })` o `post_message({ text: "@<worker1> @<worker2> ... [RONDA 1: ...]" })` despertando a los workers existentes. No se puede tocar ningún archivo de código (`edit_file`) hasta haber completado R1 + R2 cruzada en la pizarra.
    - Durante **Ronda 1 y Ronda 2**, todos los workers lanzados con `swarm({ action: "add", workspace: "inherit", ... })` (`carbon-high`, `argon-high`, `orchestrator`, `hydrogen-high` / `hydrogen-xhigh`) tienen **permiso completo de lectura e inspección profunda del código sin límite de palabras**, pero operan **100% en modo solo análisis/debate (`PROHIBIDO` editar archivos o correr comandos destructivos antes del consenso de R2)**.
    - **Fase 3 Post-R2 en `Huellas Master`**:
      - **1 archivo (o ajuste menor puntual)**: edita directamente el coordinador (`Flash 3.8 High`).
