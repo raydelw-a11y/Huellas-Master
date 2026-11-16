@@ -1462,6 +1462,17 @@ function mergeServerDocObjects(winner: any, other: any) {
         ? oCleanDoc.audioTracks
         : wCleanDoc.audioTracks || [];
   } catch {}
+  if (
+    (other.flowVideoEngine === 'VEO_3_1_LITE_LOWER_PRIORITY' || other.flowVideoEngine === 'OMNI_1_1_FLASH') &&
+    (!baseWinner.flowVideoEngine || baseWinner.flowVideoEngine === 'HYBRID_PEOPLE_OMNI_REST_LOWER')
+  ) {
+    const winnerHasOmniClip =
+      Array.isArray(baseWinner.clips) &&
+      baseWinner.clips.some((c: any) => c?.flowClipEngine === 'OMNI_1_1_FLASH');
+    if (!winnerHasOmniClip) {
+      baseWinner.flowVideoEngine = other.flowVideoEngine;
+    }
+  }
   let mergedClips = mergeServerClipsPreservingAuthored(
     baseWinner.clips,
     other.clips,
@@ -2161,8 +2172,8 @@ app.put('/api/documentaries/:id', (req, res) => {
       ) {
         const effEngineForClips =
           surgicalPatch.flowVideoEngine ||
-          incomingBody.flowVideoEngine ||
-          currentDiskDoc.flowVideoEngine;
+          currentDiskDoc.flowVideoEngine ||
+          incomingBody.flowVideoEngine;
         surgicalPatch.clips = mergeServerClipsPreservingAuthored(
           incomingBody.clips,
           currentDiskDoc.clips,
@@ -2205,8 +2216,8 @@ app.put('/api/documentaries/:id', (req, res) => {
     if ('clips' in surgicalPatch) {
       const effEngineForClips =
         surgicalPatch.flowVideoEngine ||
-        incomingBody.flowVideoEngine ||
-        currentDiskDoc.flowVideoEngine;
+        currentDiskDoc.flowVideoEngine ||
+        incomingBody.flowVideoEngine;
       surgicalPatch.clips = mergeServerClipsPreservingAuthored(
         surgicalPatch.clips,
         currentDiskDoc.clips,
@@ -2246,6 +2257,16 @@ app.put('/api/documentaries/:id', (req, res) => {
 
   list[idx] = updated;
   writeDocumentaries(list);
+  if (updated?.rawClipsText && getServerRawClipsQualityTier(updated.rawClipsText) === 2) {
+    const rootFolder = resolveLocalDocumentaryFolder(
+      updated.downloadFolderPath || '',
+      updated.downloadFolderName || '',
+      updated.title || ''
+    );
+    if (rootFolder) {
+      syncFullPromptsClipsFlowTxt(rootFolder, updated.rawClipsText);
+    }
+  }
   const vAfter = getServerVersionInfo();
   res.setHeader('X-Server-Code-Version', String(vAfter.codeMtimeMs));
   res.setHeader('X-Server-Docs-Version', String(vAfter.docsRevision));
@@ -14860,22 +14881,42 @@ function syncPromptsClipsFlowTxtForBrollClip(
   clipNumber: number,
   updatedImagePrompt: string
 ): void {
-  const promptsFile = path.join(resolvedRoot, '04_Prompts_Flow', 'Prompts_Clips_Flow.txt');
-  if (!fs.existsSync(promptsFile)) return;
-  try {
-    const rawTxt = fs.readFileSync(promptsFile, 'utf8');
-    let nextTxt = rawTxt.replace(
-      new RegExp(`(^|\\n)Image\\s+0*${clipNumber}\\b[^\\n]*`, 'i'),
-      `$1${updatedImagePrompt}`
-    );
-    nextTxt = nextTxt.replace(
-      new RegExp(`\\n(?:Generate\\s+a\\s+video|Video)\\s+0*${clipNumber}\\b[^\\n]*`, 'gi'),
-      ''
-    );
-    if (nextTxt !== rawTxt) {
-      writeFileAtomicUtf8(promptsFile, nextTxt);
+  const candidateDirs = ['01_Guion_y_SEO', '04_Prompts_Flow'];
+  for (const dir of candidateDirs) {
+    const promptsFile = path.join(resolvedRoot, dir, 'Prompts_Clips_Flow.txt');
+    if (!fs.existsSync(promptsFile)) continue;
+    try {
+      const rawTxt = fs.readFileSync(promptsFile, 'utf8');
+      let nextTxt = rawTxt.replace(
+        new RegExp(`(^|\\n)Image\\s+0*${clipNumber}\\b[^\\n]*`, 'i'),
+        `$1${updatedImagePrompt}`
+      );
+      nextTxt = nextTxt.replace(
+        new RegExp(`\\n(?:Generate\\s+a\\s+video|Video)\\s+0*${clipNumber}\\b[^\\n]*`, 'gi'),
+        ''
+      );
+      if (nextTxt !== rawTxt) {
+        writeFileAtomicUtf8(promptsFile, nextTxt);
+      }
+    } catch {}
+  }
+}
+
+function syncFullPromptsClipsFlowTxt(
+  resolvedRoot: string,
+  rawClipsText: string
+): void {
+  if (!resolvedRoot || !rawClipsText || !fs.existsSync(resolvedRoot)) return;
+  const candidateDirs = ['01_Guion_y_SEO', '04_Prompts_Flow'];
+  for (const dir of candidateDirs) {
+    const targetDir = path.join(resolvedRoot, dir);
+    const promptsFile = path.join(targetDir, 'Prompts_Clips_Flow.txt');
+    if (fs.existsSync(targetDir) || fs.existsSync(promptsFile)) {
+      try {
+        writeFileAtomicUtf8(promptsFile, rawClipsText);
+      } catch {}
     }
-  } catch {}
+  }
 }
 
 async function extractFrameZeroLosslessPngToTmp(

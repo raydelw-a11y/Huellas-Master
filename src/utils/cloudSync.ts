@@ -2265,6 +2265,16 @@ function mergeTwoDocumentaryObjects(
     ? oNorm.clips.map(sanitizeSingleClipSkeleton)
     : [];
 
+  if (
+    (oNorm.flowVideoEngine === 'VEO_3_1_LITE_LOWER_PRIORITY' || oNorm.flowVideoEngine === 'OMNI_1_1_FLASH') &&
+    (!baseWinner.flowVideoEngine || baseWinner.flowVideoEngine === 'HYBRID_PEOPLE_OMNI_REST_LOWER')
+  ) {
+    const winnerHasOmni = wClipsInit.some((c) => c.flowClipEngine === 'OMNI_1_1_FLASH');
+    if (!winnerHasOmni) {
+      baseWinner.flowVideoEngine = oNorm.flowVideoEngine;
+    }
+  }
+
   const enforcedWinnerClipEngine:
     | 'VEO_3_1_LITE_LOWER_PRIORITY'
     | 'OMNI_1_1_FLASH'

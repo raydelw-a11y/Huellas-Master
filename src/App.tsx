@@ -186,7 +186,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '07:08 AM - 11/16/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '07:21 AM - 11/16/2026';
 
 const PROTECTED_DOC_TEXT_FIELDS = [
   'rawClipsText',
@@ -23775,11 +23775,14 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                             }
                                           : c
                                       );
-                                      const nextMode =
-                                        activeDoc.flowVideoEngine === 'OMNI_1_1_FLASH' ||
-                                        activeDoc.flowVideoEngine === 'VEO_3_1_LITE_LOWER_PRIORITY'
+                                      const hasOmniClip = nextClips.some((c) => c.flowClipEngine === 'OMNI_1_1_FLASH');
+                                      const hasLowerClip = nextClips.some((c) => c.flowClipEngine === 'VEO_3_1_LITE_LOWER_PRIORITY');
+                                      const nextMode: DocumentaryProject['flowVideoEngine'] =
+                                        hasOmniClip && hasLowerClip
                                           ? 'HYBRID_PEOPLE_OMNI_REST_LOWER'
-                                          : activeEngineMode;
+                                          : hasOmniClip
+                                          ? 'OMNI_1_1_FLASH'
+                                          : 'VEO_3_1_LITE_LOWER_PRIORITY';
                                       const nextHeader = applyFlowVideoEngineToDirectiveText(
                                         activeDoc.operationalHeader || DEFAULT_OPERATIONAL_HEADER,
                                         nextMode
