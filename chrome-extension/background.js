@@ -8249,7 +8249,7 @@ async function runExternalChatGptAskOrder(task) {
         }).catch(() => {});
         return;
       }
-      if (snap.userQueries === 0 && snap.count === 0 && !snap.generating && (i === 5 || i === 10)) {
+      if (snap.userQueries === 0 && snap.count === 0 && !snap.generating && i === 6 && snap.hasComposer) {
         await forceSubmitPromptInChatGptTab(tabId, task.prompt);
         continue;
       }
@@ -9332,7 +9332,7 @@ async function runExternalClaudeAskOrder(task) {
         }
         return;
       }
-      if (snap.userQueries === 0 && snap.count === 0 && !snap.generating && (i === 5 || i === 10)) {
+      if (snap.userQueries === 0 && snap.count === 0 && !snap.generating && i === 6 && snap.hasComposer) {
         const composerRemainingRes = await chrome.scripting
           .executeScript({
             target: { tabId },
@@ -10246,7 +10246,7 @@ async function runExternalGrokAskOrder(task) {
         }
         return;
       }
-      if (snap.userQueries === 0 && snap.count === 0 && !snap.generating && (i === 5 || i === 10)) {
+      if (snap.userQueries === 0 && snap.count === 0 && !snap.generating && i === 6 && snap.hasComposer) {
         await forceSubmitPromptInGrokTab(tabId, task.prompt);
         continue;
       }
@@ -10466,7 +10466,7 @@ async function inspectCopilotTabLatestResponse(tabId) {
         }
 
         const rawUserNodes = deepQueryAll(
-          '[data-content="user-message"], [data-testid="user-message"], [data-testid*="user-message" i], [data-author="user"], [data-message-author-role="user"], [class*="fai-UserMessage" i], [class*="UserMessage" i], cib-message-group[source="user"]'
+          '[data-content="user-message"], [data-testid="user-message"], [data-testid*="user-message" i], [data-testid*="user-query" i], [data-author="user"], [data-message-author-role="user"], [class*="fai-UserMessage" i], [class*="UserMessage" i], [class*="user-message" i], [aria-label*="You said" i], [aria-label*="Dijiste" i], cib-message-group[source="user"]'
         );
         const uniqUsers = rawUserNodes.filter((el, idx, arr) => el && arr.indexOf(el) === idx);
         const userQueries = uniqUsers.filter(
@@ -10721,61 +10721,83 @@ async function forceSubmitPromptInCopilotTab(tabId, promptText) {
           }
           if (!inputEl) return { ok: false, reason: 'no_input' };
 
-          inputEl.focus();
-          if (inputEl.tagName === 'TEXTAREA' || inputEl.tagName === 'INPUT') {
-            const proto =
-              inputEl.tagName === 'TEXTAREA'
-                ? window.HTMLTextAreaElement.prototype
-                : window.HTMLInputElement.prototype;
-            const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
-            const tracker = inputEl._valueTracker;
-            if (tracker && typeof tracker.setValue === 'function') {
-              try {
-                tracker.setValue('');
-              } catch {}
-            }
-            if (setter) setter.call(inputEl, rawText);
-            else inputEl.value = rawText;
-            inputEl.dispatchEvent(
-              new InputEvent('input', { bubbles: true, inputType: 'insertText', data: rawText })
-            );
-            inputEl.dispatchEvent(new Event('change', { bubbles: true }));
-          } else {
-            try {
-              const sel = window.getSelection();
-              const range = document.createRange();
-              range.selectNodeContents(inputEl);
-              sel.removeAllRanges();
-              sel.addRange(range);
-              document.execCommand('delete', false);
-            } catch {}
-            let pastedOk = false;
-            try {
-              const dt = new DataTransfer();
-              dt.setData('text/plain', rawText);
+          const cleanText = String(rawText || '').trim();
+          const normalizedTarget = cleanText.replace(/\s+/g, ' ');
+          const expectedPrefix = normalizedTarget.slice(0, Math.min(28, normalizedTarget.length));
+
+          const curText = String(inputEl.value ?? inputEl.innerText ?? inputEl.textContent ?? '')
+            .replace(/\s+/g, ' ')
+            .trim();
+          const alreadyHasText = Boolean(
+            curText && (curText === normalizedTarget || (expectedPrefix && curText.startsWith(expectedPrefix)))
+          );
+
+          if (!alreadyHasText) {
+            inputEl.focus();
+            if (inputEl.tagName === 'TEXTAREA' || inputEl.tagName === 'INPUT') {
+              const proto =
+                inputEl.tagName === 'TEXTAREA'
+                  ? window.HTMLTextAreaElement.prototype
+                  : window.HTMLInputElement.prototype;
+              const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+              const tracker = inputEl._valueTracker;
+              if (tracker && typeof tracker.setValue === 'function') {
+                try {
+                  tracker.setValue('');
+                } catch {}
+              }
+              if (setter) setter.call(inputEl, cleanText);
+              else inputEl.value = cleanText;
               inputEl.dispatchEvent(
-                new ClipboardEvent('paste', {
-                  bubbles: true,
-                  cancelable: true,
-                  clipboardData: dt,
-                })
+                new InputEvent('input', { bubbles: true, inputType: 'insertText', data: cleanText })
               );
-              pastedOk = ((inputEl.innerText || inputEl.textContent || '').trim().length >= Math.min(8, rawText.length));
-            } catch {}
-            if (!pastedOk) {
+              inputEl.dispatchEvent(new Event('change', { bubbles: true }));
+            } else {
               try {
                 const sel = window.getSelection();
                 const range = document.createRange();
                 range.selectNodeContents(inputEl);
                 sel.removeAllRanges();
                 sel.addRange(range);
-                document.execCommand('insertText', false, rawText);
-              } catch {
-                inputEl.textContent = rawText;
+                document.execCommand('delete', false);
+              } catch {}
+              if (((inputEl.innerText || inputEl.textContent || '').trim()).length > 0) {
+                try {
+                  inputEl.innerHTML = '<p><br></p>';
+                } catch {
+                  inputEl.textContent = '';
+                }
               }
-              inputEl.dispatchEvent(
-                new InputEvent('input', { bubbles: true, inputType: 'insertText', data: rawText })
-              );
+              try {
+                const sel = window.getSelection();
+                const range = document.createRange();
+                range.selectNodeContents(inputEl);
+                sel.removeAllRanges();
+                sel.addRange(range);
+                const ok = document.execCommand('insertText', false, cleanText);
+                const afterNorm = (inputEl.innerText || inputEl.textContent || '').replace(/\s+/g, ' ').trim();
+                if (ok && afterNorm && (!expectedPrefix || afterNorm.startsWith(expectedPrefix))) {
+                  inputEl.dispatchEvent(
+                    new InputEvent('input', { bubbles: true, inputType: 'insertText', data: cleanText })
+                  );
+                  inputEl.dispatchEvent(new Event('change', { bubbles: true }));
+                } else {
+                  throw new Error('fallback_dom');
+                }
+              } catch {
+                try {
+                  inputEl.innerHTML = '';
+                  const p = document.createElement('p');
+                  p.textContent = cleanText;
+                  inputEl.appendChild(p);
+                } catch {
+                  inputEl.textContent = cleanText;
+                }
+                inputEl.dispatchEvent(
+                  new InputEvent('input', { bubbles: true, inputType: 'insertText', data: cleanText })
+                );
+                inputEl.dispatchEvent(new Event('change', { bubbles: true }));
+              }
             }
           }
 
@@ -11401,7 +11423,7 @@ async function runExternalCopilotAskOrder(task) {
         }).catch(() => {});
         return;
       }
-      if (snap.userQueries === 0 && snap.count === 0 && !snap.generating && (i === 5 || i === 10)) {
+      if (snap.userQueries === 0 && snap.count === 0 && !snap.generating && i === 6 && snap.hasComposer) {
         await forceSubmitPromptInCopilotTab(tabId, task.prompt);
         continue;
       }

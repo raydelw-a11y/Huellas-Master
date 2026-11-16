@@ -292,9 +292,21 @@
   }
 
   function getUserTurnCount() {
-    const els = deepQueryAll(
-      '[data-content="user-message"], [data-testid="user-message"], [data-testid*="user-message" i], [data-author="user"], [data-message-author-role="user"], [class*="fai-UserMessage" i], [class*="UserMessage" i], cib-message-group[source="user"]'
-    );
+    const selectors = [
+      '[data-content="user-message"]',
+      '[data-testid="user-message"]',
+      '[data-testid*="user-message" i]',
+      '[data-testid*="user-query" i]',
+      '[data-author="user"]',
+      '[data-message-author-role="user"]',
+      '[class*="fai-UserMessage" i]',
+      '[class*="UserMessage" i]',
+      '[class*="user-message" i]',
+      '[aria-label*="You said" i]',
+      '[aria-label*="Dijiste" i]',
+      'cib-message-group[source="user"]',
+    ];
+    const els = deepQueryAll(selectors.join(', '));
     const unique = els.filter((el, idx, arr) => el && arr.indexOf(el) === idx);
     const outermost = unique.filter((el, _i, arr) => !arr.some((other) => other !== el && other.contains(el)));
     return outermost.length;
@@ -373,6 +385,18 @@
   function setComposerTextDomFallback(el, text) {
     if (!el) return;
     el.focus();
+    const cleanText = String(text || '').trim();
+    const normalizedTarget = cleanText.replace(/\s+/g, ' ');
+    const expectedPrefix = normalizedTarget.slice(0, Math.min(28, normalizedTarget.length));
+
+    // Si el elemento ya contiene el prompt, nunca volver a insertarlo para evitar concatenación repetida
+    const curText = String(el.value ?? el.innerText ?? el.textContent ?? '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (curText && (curText === normalizedTarget || (expectedPrefix && curText.startsWith(expectedPrefix)))) {
+      return;
+    }
+
     if (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') {
       const proto =
         el.tagName === 'TEXTAREA'
@@ -385,12 +409,14 @@
           tracker.setValue('');
         } catch {}
       }
-      if (setter) setter.call(el, text);
-      else el.value = text;
-      el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: text }));
+      if (setter) setter.call(el, cleanText);
+      else el.value = cleanText;
+      el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: cleanText }));
       el.dispatchEvent(new Event('change', { bubbles: true }));
       return;
     }
+
+    // Editor contenteditable / rich-text: limpiar completamente antes de insertar
     try {
       const sel = window.getSelection();
       const range = document.createRange();
@@ -399,31 +425,40 @@
       sel.addRange(range);
       document.execCommand('delete', false);
     } catch {}
-    try {
-      const dt = new DataTransfer();
-      dt.setData('text/plain', String(text || ''));
-      el.dispatchEvent(
-        new ClipboardEvent('paste', {
-          bubbles: true,
-          cancelable: true,
-          clipboardData: dt,
-        })
-      );
-      if (((el.innerText || el.textContent || '').trim()).length >= Math.min(8, String(text || '').length)) {
-        return;
+
+    if (((el.innerText || el.textContent || '').trim()).length > 0) {
+      try {
+        el.innerHTML = '<p><br></p>';
+      } catch {
+        el.textContent = '';
       }
-    } catch {}
+    }
+
     try {
       const sel = window.getSelection();
       const range = document.createRange();
       range.selectNodeContents(el);
       sel.removeAllRanges();
       sel.addRange(range);
-      document.execCommand('insertText', false, text);
-      el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: text }));
+      const ok = document.execCommand('insertText', false, cleanText);
+      const afterNorm = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+      if (ok && afterNorm && (!expectedPrefix || afterNorm.startsWith(expectedPrefix))) {
+        el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: cleanText }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+        return;
+      }
+    } catch {}
+
+    try {
+      el.innerHTML = '';
+      const p = document.createElement('p');
+      p.textContent = cleanText;
+      el.appendChild(p);
+      el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: cleanText }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
     } catch {
-      el.textContent = text;
-      el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: text }));
+      el.textContent = cleanText;
+      el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: cleanText }));
     }
   }
 
@@ -482,13 +517,14 @@
           const initialUserCount = getUserTurnCount();
           const initialUrl = window.location.href;
 
-          await chrome.runtime
+          const mainInjectRes = await chrome.runtime
             .sendMessage({
               type: 'COPILOT_MAIN_WORLD_INJECT_AND_SUBMIT',
               prompt: rawPrompt,
               autoSubmit: true,
             })
             .catch(() => null);
+          const mainHandled = Boolean(mainInjectRes && mainInjectRes.ok);
           const normalizedTarget = String(rawPrompt || '').replace(/\s+/g, ' ').trim();
           const expectedPrefix = normalizedTarget.slice(0, Math.min(28, normalizedTarget.length));
 
@@ -508,6 +544,10 @@
             const curText = String(curInput.value ?? curInput.innerText ?? curInput.textContent ?? '')
               .replace(/\s+/g, ' ')
               .trim();
+            // Si la inyección en MAIN world ya envió y limpió el compositor, dar ~2.2s a Copilot antes de reintentar
+            if (mainHandled && curText.length === 0 && attempt < 4) {
+              continue;
+            }
             if (!curText || (expectedPrefix && !curText.startsWith(expectedPrefix))) {
               setComposerTextDomFallback(curInput, rawPrompt);
               await sleep(300);
