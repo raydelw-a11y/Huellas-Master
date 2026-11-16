@@ -43,7 +43,7 @@
     "_v5_16x9_captionBottom10": true,
     "_v6_16x9_captionOriginalDefault": true
   },
-  "updatedAt": "2026-11-16T12:22:08.019Z",
+  "updatedAt": "2026-11-16T12:31:55.910Z",
   "overlayStyles": {
     "logoScalePct": 5,
     "logoOpacity": 95,
@@ -1643,9 +1643,13 @@
       "trimEnd": 8,
       "speed": 1,
       "smoothSlowMo": false,
-      "foleyVolume": 20,
-      "customVolumeSet": false,
-      "audioMuted": false
+      "foleyVolume": 0,
+      "customVolumeSet": true,
+      "audioMuted": true,
+      "reframe9x16Mode": "auto_focus",
+      "reframeFocusXStart": 84,
+      "reframeFocusXEnd": 84,
+      "reframeFocusY": 50
     },
     {
       "id": "clip-94-1794345057859-94",
@@ -1671,9 +1675,13 @@
       "trimEnd": 8,
       "speed": 1,
       "smoothSlowMo": false,
-      "foleyVolume": 20,
-      "customVolumeSet": false,
-      "audioMuted": false
+      "foleyVolume": 0,
+      "customVolumeSet": true,
+      "audioMuted": true,
+      "reframe9x16Mode": "auto_pan",
+      "reframeFocusXStart": 78,
+      "reframeFocusXEnd": 24,
+      "reframeFocusY": 50
     },
     {
       "id": "clip-96-1794345057859-96",
@@ -1701,7 +1709,11 @@
       "smoothSlowMo": false,
       "foleyVolume": 0,
       "customVolumeSet": true,
-      "audioMuted": true
+      "audioMuted": true,
+      "reframe9x16Mode": "auto_pan",
+      "reframeFocusXStart": 68,
+      "reframeFocusXEnd": 84,
+      "reframeFocusY": 50
     },
     {
       "id": "clip-98-1794345057860-98",

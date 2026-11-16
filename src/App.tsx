@@ -186,7 +186,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '07:21 AM - 11/16/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '7:31 AM - 11/16/2026';
 
 const PROTECTED_DOC_TEXT_FIELDS = [
   'rawClipsText',
@@ -1994,6 +1994,21 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('huellas_master_clip_status_filter', clipStatusFilter);
   }, [clipStatusFilter]);
+
+  // Stage 6 Visual Timeline - Jump to specific clip number
+  const [stage6ClipJumpInput, setStage6ClipJumpInput] = useState<string>('');
+  const [highlightedStage6ClipNum, setHighlightedStage6ClipNum] = useState<number | null>(null);
+  const stage6HighlightTimerRef = useRef<number | null>(null);
+  const skipNextStage6JumpBlurRef = useRef<boolean>(false);
+  const stage6TimelineStripRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (stage6HighlightTimerRef.current) {
+        window.clearTimeout(stage6HighlightTimerRef.current);
+      }
+    };
+  }, []);
   const [srtStatsMsg, setSrtStatsMsg] = useState<string>('');
   const [srtMaxChars, setSrtMaxChars] = useState<number>(32);
   const [srtLineMode, setSrtLineMode] = useState<'subdivide' | 'wrap' | 'original'>('subdivide');
@@ -22755,33 +22770,132 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                       matchesClipStatusFilter(c, clipStatusFilter)
                     );
 
+                    const handleJumpToClipNumber = (rawVal: string) => {
+                      const cleanStr = String(rawVal || '').trim();
+                      if (!cleanStr) return;
+                      const num = parseInt(cleanStr, 10);
+                      setStage6ClipJumpInput('');
+                      if (!Number.isFinite(num) || num <= 0) return;
+
+                      const target =
+                        allClipsList.find((c) => Number(c.clipNumber) === num) ??
+                        (num >= 1 && num <= allClipsList.length ? allClipsList[num - 1] : undefined);
+
+                      if (!target) {
+                        if (typeof setFlowStatusLog === 'function') {
+                          setFlowStatusLog(`Clip #${num} no encontrado en este documental.`);
+                        }
+                        return;
+                      }
+
+                      const targetNum = Number(target.clipNumber);
+
+                      // Asegurar que el clip sea visible si hay filtros activos
+                      setClipBatchFilter(0);
+                      if (clipStatusFilter !== 'ALL' && !matchesClipStatusFilter(target, clipStatusFilter)) {
+                        setClipStatusFilter('ALL');
+                      }
+
+                      // Resaltado visual temporal de 2 segundos
+                      if (stage6HighlightTimerRef.current) {
+                        window.clearTimeout(stage6HighlightTimerRef.current);
+                      }
+                      setHighlightedStage6ClipNum(targetNum);
+                      stage6HighlightTimerRef.current = window.setTimeout(() => {
+                        setHighlightedStage6ClipNum(null);
+                      }, 2000);
+
+                      // Desplazamiento coordinado a la tira horizontal y a la tarjeta principal
+                      window.setTimeout(() => {
+                        // 1. Centrar en la tira visual horizontal
+                        const stripEl = stage6TimelineStripRef.current;
+                        const chipEl = document.getElementById(`tl-visual-clip-${targetNum}`);
+                        if (stripEl && chipEl) {
+                          const stripRect = stripEl.getBoundingClientRect();
+                          const chipRect = chipEl.getBoundingClientRect();
+                          const offsetLeft =
+                            chipEl.offsetLeft - stripEl.offsetLeft - (stripRect.width / 2 - chipRect.width / 2);
+                          stripEl.scrollTo({ left: Math.max(0, offsetLeft), behavior: 'smooth' });
+                        }
+
+                        // 2. Montar slot sin auto-reproducción
+                        mountAndPlayStage8Clip(targetNum, false);
+
+                        // 3. Desplazar vista vertical suavemente hacia la tarjeta principal
+                        const cardEl = document.getElementById(`prod-clip-card-${targetNum}`);
+                        if (cardEl) {
+                          cardEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        }
+                      }, 60);
+                    };
+
                     return (
                       <div className="bg-[#14120f] border border-slate-800 rounded-2xl p-4 space-y-3">
-                        <div className="flex items-center justify-between flex-wrap gap-2">
+                        <div className="flex items-center justify-between flex-wrap gap-2.5">
                           <div>
                             <h4 className="text-xs font-black uppercase tracking-wider text-amber-300 flex items-center gap-2">
                               <Clock className="w-3.5 h-3.5" /> Línea de Tiempo Visual de Todos los Clips (
                               {filteredTimelineClips.length} de {allClipsList.length} Clips mostrados)
                             </h4>
                             <p className="text-[11px] text-slate-400">
-                              Filtra por estado de producción (incluyendo <strong>Recreado</strong> y{' '}
-                              <strong>Revisado</strong>) o haz clic en cualquier bloque para saltar directamente a ese
-                              clip.
+                              Filtra por estado de producción o teclea el número de clip para saltar directamente a él.
                             </p>
                           </div>
-                          <div className="flex items-center gap-3 text-[11px] text-slate-400 flex-wrap">
-                            <span className="flex items-center gap-1">
-                              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" /> Revisado / OK
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <span className="w-2.5 h-2.5 rounded-full bg-purple-400 inline-block" /> Recreado
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <span className="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block" /> Revisar / Pausa
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <span className="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block" /> Rechazado / Cambio
-                            </span>
+
+                          <div className="flex items-center gap-3 flex-wrap">
+                            {/* Caja de texto para saltar a un clip específico por número al pulsar Enter o hacer click fuera */}
+                            <div className="flex items-center gap-1.5 bg-slate-950/90 border border-amber-500/50 focus-within:border-amber-400 focus-within:ring-2 focus-within:ring-amber-400/30 rounded-xl px-2.5 py-1 shadow-sm transition">
+                              <Search className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                              <label htmlFor="stage6-clip-jump-input" className="text-[11px] font-bold text-amber-300 select-none whitespace-nowrap">
+                                Ir a Clip #:
+                              </label>
+                              <input
+                                id="stage6-clip-jump-input"
+                                type="text"
+                                inputMode="numeric"
+                                pattern="[0-9]*"
+                                maxLength={4}
+                                placeholder="Ej: 14"
+                                value={stage6ClipJumpInput}
+                                onChange={(e) => setStage6ClipJumpInput(e.target.value.replace(/\D+/g, ''))}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    skipNextStage6JumpBlurRef.current = true;
+                                    handleJumpToClipNumber(stage6ClipJumpInput);
+                                    e.currentTarget.blur();
+                                  } else if (e.key === 'Escape') {
+                                    skipNextStage6JumpBlurRef.current = true;
+                                    setStage6ClipJumpInput('');
+                                    e.currentTarget.blur();
+                                  }
+                                }}
+                                onBlur={() => {
+                                  if (skipNextStage6JumpBlurRef.current) {
+                                    skipNextStage6JumpBlurRef.current = false;
+                                    return;
+                                  }
+                                  handleJumpToClipNumber(stage6ClipJumpInput);
+                                }}
+                                className="w-16 bg-transparent text-slate-100 text-xs font-mono font-bold focus:outline-none placeholder:text-slate-500 text-center"
+                              />
+                            </div>
+
+                            <div className="flex items-center gap-3 text-[11px] text-slate-400 flex-wrap">
+                              <span className="flex items-center gap-1">
+                                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" /> Revisado / OK
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <span className="w-2.5 h-2.5 rounded-full bg-purple-400 inline-block" /> Recreado
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <span className="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block" /> Revisar / Pausa
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <span className="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block" /> Rechazado / Cambio
+                              </span>
+                            </div>
                           </div>
                         </div>
 
@@ -22826,11 +22940,12 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             </button>
                           </div>
                         ) : (
-                          <div className="flex items-stretch gap-2 overflow-x-auto pb-2 pt-1">
+                          <div ref={stage6TimelineStripRef} className="flex items-stretch gap-2 overflow-x-auto pb-2 pt-1 scroll-smooth">
                             {filteredTimelineClips.map((clip) => {
                               const padded = String(clip.clipNumber).padStart(2, '0');
                               const isRecreated = isClipRecreated(clip);
                               const isVidReady = isClipVideoReady(clip);
+                              const isHighlighted = highlightedStage6ClipNum === Number(clip.clipNumber);
                               const statusColor =
                                 clip.auditStatus === 'mismatch' || clip.videoAuditStatus === 'rejected'
                                   ? 'border-rose-500/70 bg-rose-950/30 hover:bg-rose-950/50'
@@ -22859,7 +22974,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
 
                               return (
                                 <div
+                                  id={`tl-visual-clip-${clip.clipNumber}`}
                                   key={`tl-${clip.id}`}
+                                  data-clip-number={clip.clipNumber}
                                   onClick={() => {
                                     setClipBatchFilter(0);
                                     mountAndPlayStage8Clip(clip.clipNumber, false);
@@ -22871,7 +22988,11 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                       if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
                                     }, 50);
                                   }}
-                                  className={`min-w-[235px] max-w-[270px] shrink-0 text-left rounded-xl border p-3.5 transition cursor-pointer flex flex-col justify-between gap-2 ${statusColor}`}
+                                  className={`min-w-[235px] max-w-[270px] shrink-0 text-left rounded-xl border p-3.5 transition cursor-pointer flex flex-col justify-between gap-2 ${
+                                    isHighlighted
+                                      ? 'ring-2 ring-amber-400 border-amber-400 shadow-[0_0_24px_rgba(251,191,36,0.55)] scale-[1.02]'
+                                      : ''
+                                  } ${statusColor}`}
                                 >
                                   <div className="flex items-center justify-between gap-1.5">
                                     <span className="text-xs font-black text-amber-300 flex items-center gap-1.5">
@@ -23459,8 +23580,13 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                         clip.videoAuditStatus === 'rejected' ||
                         hasSuggestion;
 
+                      const isHighlightedInStage6 =
+                        highlightedStage6ClipNum === Number(clip.clipNumber);
+
                       const borderClass =
-                        clip.auditStatus === 'mismatch'
+                        isHighlightedInStage6
+                          ? 'border-amber-400 ring-2 ring-amber-400 shadow-[0_0_28px_rgba(251,191,36,0.5)] bg-amber-950/20'
+                          : clip.auditStatus === 'mismatch'
                           ? 'border-rose-500/60 bg-rose-950/10'
                           : clip.reviewedForEditor
                           ? 'border-emerald-500/60 bg-emerald-950/10'
@@ -23476,7 +23602,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                         <div
                           id={`prod-clip-card-${clip.clipNumber}`}
                           key={clip.id}
-                          className={`bg-[#14120f] border rounded-2xl p-2 sm:p-2.5 space-y-1.5 transition scroll-mt-14 ${borderClass}`}
+                          className={`bg-[#14120f] border rounded-2xl p-2 sm:p-2.5 space-y-1.5 transition-all duration-300 scroll-mt-14 ${borderClass}`}
                         >
                           {/* UNIFIED ZERO-SCROLL COCKPIT: STICKY HEADER + MARCAR REVISADO + REHACER OPTIONS + VIEWPORT-FIT FULL .MP4 VIEWER */}
                           <div
