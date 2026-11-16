@@ -4,6 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import fsp from 'fs/promises';
 import os from 'os';
+import crypto from 'crypto';
 import { exec, execFile, execFileSync, execSync, spawn, ChildProcess } from 'child_process';
 import multer from 'multer';
 import dotenv from 'dotenv';
@@ -156,9 +157,17 @@ try {
 
 // Serve static local & Git-tracked portable audio files (with automatic .wav -> .mp3 fallback and Render docs/tts-files support)
 const DOCS_TTS_DIR = path.join(process.cwd(), 'docs', 'tts-files');
+const ttsStaticOptions = {
+  etag: true,
+  lastModified: true,
+  setHeaders: (staticRes: express.Response) => {
+    staticRes.setHeader('Cache-Control', 'no-cache, must-revalidate');
+  },
+};
 app.use(
   '/tts-files',
   (req, res, next) => {
+    res.setHeader('Cache-Control', 'no-cache, must-revalidate');
     if (req.path.toLowerCase().endsWith('.wav')) {
       for (const baseDir of [TTS_DIR, DOCS_TTS_DIR]) {
         const wavPath = path.join(baseDir, req.path);
@@ -171,8 +180,8 @@ app.use(
     }
     next();
   },
-  express.static(TTS_DIR),
-  express.static(DOCS_TTS_DIR),
+  express.static(TTS_DIR, ttsStaticOptions),
+  express.static(DOCS_TTS_DIR, ttsStaticOptions),
   (_req, res) => {
     res.status(404).json({ error: 'TTS audio file not found' });
   }
@@ -1186,7 +1195,13 @@ function mergeServerClipsPreservingAuthored(
           oc &&
           typeof oc.clipNumber === 'number' &&
           oc.clipNumber > maxWClipNum &&
-          !existingNums.has(oc.clipNumber)
+          !existingNums.has(oc.clipNumber) &&
+          !(
+            !oc.videoReady &&
+            !oc.reviewedForEditor &&
+            (Boolean(oc.videoDiscardedAt) ||
+              /^(?:sus\s+)?rastros\.?$/i.test(String(oc.narrationSegment || '').trim()))
+          )
       )
       .sort((a: any, b: any) => a.clipNumber - b.clipNumber);
     if (tailFromOther.length > 0) {
@@ -2578,8 +2593,260 @@ function cleanServerVoiceoverNarrationOnly(rawText: string): string {
   return outLines.join('\n\n');
 }
 
+function normalizeTtsSentenceCompareKey(raw: string): string {
+  return String(raw || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function getNormalizedTtsSentenceList(raw: string): Array<{ text: string; key: string; wordCount: number }> {
+  const cleaned = String(raw || '').trim();
+  if (!cleaned) return [];
+  return cleaned
+    .split(/(?<=[.!?…])\s+/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((text) => {
+      const key = normalizeTtsSentenceCompareKey(text);
+      const wordCount = key ? key.split(' ').filter(Boolean).length : 0;
+      return { text, key, wordCount };
+    });
+}
+
+// Deduplicates ONLY immediately adjacent consecutive sentences or trailing multi-sentence repeats (1..3 sentences).
+// Never deduplicates globally so legitimate opening hooks and closing slogans remain intact.
+function deduplicateAdjacentTtsText(rawText: string): string {
+  if (!rawText || !rawText.trim()) return '';
+  const paragraphs = String(rawText)
+    .split(/\n{2,}/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+  const keptAllSentences: Array<{ text: string; key: string; wordCount: number; paraIdx: number }> = [];
+
+  for (let paraIdx = 0; paraIdx < paragraphs.length; paraIdx++) {
+    const sents = getNormalizedTtsSentenceList(paragraphs[paraIdx]);
+    for (const sent of sents) {
+      const prev = keptAllSentences[keptAllSentences.length - 1];
+      if (prev && sent.wordCount >= 2 && prev.key === sent.key) {
+        continue;
+      }
+      keptAllSentences.push({ ...sent, paraIdx });
+    }
+  }
+
+  for (let tailCount = 3; tailCount >= 1; tailCount--) {
+    if (keptAllSentences.length < tailCount * 2) continue;
+    const headSlice = keptAllSentences.slice(keptAllSentences.length - tailCount * 2, keptAllSentences.length - tailCount);
+    const tailSlice = keptAllSentences.slice(keptAllSentences.length - tailCount);
+    const totalTailWords = tailSlice.reduce((acc, item) => acc + item.wordCount, 0);
+    if (totalTailWords < 2) continue;
+    const isExactRepeat = headSlice.every((item, idx) => item.key && item.key === tailSlice[idx]?.key);
+    if (isExactRepeat) {
+      keptAllSentences.splice(keptAllSentences.length - tailCount, tailCount);
+      break;
+    }
+  }
+
+  const rebuiltByPara = new Map<number, string[]>();
+  for (const item of keptAllSentences) {
+    const arr = rebuiltByPara.get(item.paraIdx) || [];
+    arr.push(item.text);
+    rebuiltByPara.set(item.paraIdx, arr);
+  }
+  return Array.from(rebuiltByPara.values())
+    .map((arr) => arr.join(' ').trim())
+    .filter(Boolean)
+    .join('\n\n');
+}
+
+function stripLeadingAdjacentDuplicateText(prevText: string, nextText: string): string {
+  const prevSents = getNormalizedTtsSentenceList(prevText);
+  const nextSents = getNormalizedTtsSentenceList(nextText);
+  if (prevSents.length === 0 || nextSents.length === 0) return nextText;
+
+  let dropCount = 0;
+  for (let k = Math.min(3, prevSents.length, nextSents.length); k >= 1; k--) {
+    const prevTail = prevSents.slice(prevSents.length - k);
+    const nextHead = nextSents.slice(0, k);
+    const headWords = nextHead.reduce((acc, s) => acc + s.wordCount, 0);
+    if (headWords >= 2 && prevTail.every((item, idx) => item.key && item.key === nextHead[idx]?.key)) {
+      dropCount = k;
+      break;
+    }
+  }
+
+  if (dropCount === 0) {
+    // Also catch consecutive duplicate sentence at the boundary one-by-one
+    let idx = 0;
+    const lastPrevKey = prevSents[prevSents.length - 1]?.key;
+    while (idx < nextSents.length && nextSents[idx].wordCount >= 2 && nextSents[idx].key === lastPrevKey) {
+      idx++;
+    }
+    dropCount = idx;
+  }
+
+  if (dropCount <= 0) return nextText;
+  return nextSents
+    .slice(dropCount)
+    .map((s) => s.text)
+    .join(' ')
+    .trim();
+}
+
+function trimShortTerminalEchoInPcm(
+  pcmBytes: Uint8Array,
+  sampleRate: number
+): { pcmBytes: Uint8Array; wasTrimmed: boolean; originalDurationSec: number; trimmedDurationSec: number } {
+  const safeSr = Number.isFinite(sampleRate) && sampleRate >= 8000 ? sampleRate : 24000;
+  const pcmBuf = Buffer.isBuffer(pcmBytes)
+    ? pcmBytes
+    : Buffer.from(pcmBytes.buffer, pcmBytes.byteOffset, pcmBytes.byteLength);
+  const totalSamples = Math.floor(pcmBuf.byteLength / 2);
+  const origSec = totalSamples / safeSr;
+  if (origSec < 6.0) {
+    return { pcmBytes, wasTrimmed: false, originalDurationSec: origSec, trimmedDurationSec: origSec };
+  }
+
+  const frameSamples = Math.max(160, Math.round(safeSr * 0.02));
+  const frameCount = Math.floor(totalSamples / frameSamples);
+  if (frameCount < 300) {
+    return { pcmBytes, wasTrimmed: false, originalDurationSec: origSec, trimmedDurationSec: origSec };
+  }
+
+  const rms = new Float32Array(frameCount);
+  const sortedRms: number[] = [];
+  for (let f = 0; f < frameCount; f++) {
+    let sumSq = 0;
+    const baseSample = f * frameSamples;
+    for (let s = 0; s < frameSamples; s++) {
+      const val = pcmBuf.readInt16LE((baseSample + s) * 2);
+      sumSq += val * val;
+    }
+    const r = Math.sqrt(sumSq / frameSamples);
+    rms[f] = r;
+    sortedRms.push(r);
+  }
+  sortedRms.sort((a, b) => a - b);
+  const p20 = sortedRms[Math.floor(sortedRms.length * 0.2)] || 0;
+  const silenceThresh = Math.max(180, p20 * 2.4);
+
+  let lastActiveFrame = frameCount - 1;
+  while (lastActiveFrame > 10 && rms[lastActiveFrame] <= silenceThresh) {
+    lastActiveFrame--;
+  }
+  if (lastActiveFrame < 250) {
+    return { pcmBytes, wasTrimmed: false, originalDurationSec: origSec, trimmedDurationSec: origSec };
+  }
+
+  // Locate candidate valleys separating a terminal 1.1s..4.3s speech island (55..215 frames)
+  const minTailFrames = 55;
+  const maxTailFrames = 215;
+  const minValleyFrames = 6; // >= 120ms silence valley
+  const valleys: Array<{ valleyStart: number; valleyEnd: number }> = [];
+
+  let cursor = lastActiveFrame;
+  while (cursor >= Math.max(0, lastActiveFrame - maxTailFrames - 20)) {
+    if (rms[cursor] <= silenceThresh) {
+      const valleyEnd = cursor + 1;
+      while (cursor >= 0 && rms[cursor] <= silenceThresh) cursor--;
+      const valleyStart = cursor + 1;
+      const tailLen = lastActiveFrame - valleyEnd + 1;
+      if (valleyEnd - valleyStart >= minValleyFrames && tailLen >= minTailFrames && tailLen <= maxTailFrames) {
+        valleys.push({ valleyStart, valleyEnd });
+        if (valleys.length >= 2) break;
+      }
+    } else {
+      cursor--;
+    }
+  }
+
+  const logEnv = new Float32Array(frameCount);
+  for (let f = 0; f < frameCount; f++) {
+    logEnv[f] = Math.log1p(rms[f]);
+  }
+
+  const computeResampledPearson = (aStart: number, aLen: number, bStart: number, bLen: number): number => {
+    if (aStart < 0 || aLen < 30 || bLen < 30) return 0;
+    const bVals = new Float32Array(bLen);
+    const aVals = new Float32Array(bLen);
+    let meanA = 0;
+    let meanB = 0;
+    for (let i = 0; i < bLen; i++) {
+      const posA = aStart + (i * (aLen - 1)) / Math.max(1, bLen - 1);
+      const lo = Math.floor(posA);
+      const hi = Math.min(aStart + aLen - 1, lo + 1);
+      const frac = posA - lo;
+      const valA = logEnv[lo] * (1 - frac) + logEnv[hi] * frac;
+      const valB = logEnv[bStart + i];
+      aVals[i] = valA;
+      bVals[i] = valB;
+      meanA += valA;
+      meanB += valB;
+    }
+    meanA /= bLen;
+    meanB /= bLen;
+    let num = 0;
+    let denA = 0;
+    let denB = 0;
+    for (let i = 0; i < bLen; i++) {
+      const da = aVals[i] - meanA;
+      const db = bVals[i] - meanB;
+      num += da * db;
+      denA += da * da;
+      denB += db * db;
+    }
+    const denom = Math.sqrt(denA * denB);
+    return denom > 1e-6 ? num / denom : 0;
+  };
+
+  for (const v of valleys) {
+    const bStart = v.valleyEnd;
+    const bLen = lastActiveFrame - bStart + 1;
+    let bActive = 0;
+    for (let f = bStart; f <= lastActiveFrame; f++) {
+      if (rms[f] > silenceThresh) bActive++;
+    }
+    if (bActive / Math.max(1, bLen) < 0.55) continue;
+
+    // Trim trailing silence from candidate A ending right before valleyStart
+    let aEnd = v.valleyStart - 1;
+    while (aEnd > 30 && rms[aEnd] <= silenceThresh) aEnd--;
+    if (aEnd < 80) continue;
+
+    let bestCorr = 0;
+    for (let ratio = 0.84; ratio <= 1.18; ratio += 0.04) {
+      const aLen = Math.round(bLen * ratio);
+      const aStart = aEnd - aLen + 1;
+      if (aStart < 0) continue;
+      const corr = computeResampledPearson(aStart, aLen, bStart, bLen);
+      if (corr > bestCorr) bestCorr = corr;
+    }
+
+    if (bestCorr >= 0.8) {
+      const cutFrame = Math.min(frameCount, v.valleyStart + 2);
+      const cutByteOffset = cutFrame * frameSamples * 2;
+      if (cutByteOffset > 0 && cutByteOffset < pcmBuf.byteLength) {
+        const trimmedBuf = pcmBuf.subarray(0, cutByteOffset);
+        const trimmedSec = trimmedBuf.byteLength / (safeSr * 2);
+        return {
+          pcmBytes: Buffer.from(trimmedBuf),
+          wasTrimmed: true,
+          originalDurationSec: origSec,
+          trimmedDurationSec: trimmedSec,
+        };
+      }
+    }
+  }
+
+  return { pcmBytes, wasTrimmed: false, originalDurationSec: origSec, trimmedDurationSec: origSec };
+}
+
 function parseTextWithPauses(rawText: string): TextOrPauseSegment[] {
-  const sanitized = cleanServerVoiceoverNarrationOnly(rawText);
+  const sanitized = deduplicateAdjacentTtsText(cleanServerVoiceoverNarrationOnly(rawText));
   if (!sanitized) return [];
   const pauseRegex = new RegExp(UNIVERSAL_PAUSE_REGEX.source, 'gi');
   const rawSegments: TextOrPauseSegment[] = [];
@@ -2587,7 +2854,7 @@ function parseTextWithPauses(rawText: string): TextOrPauseSegment[] {
   let match: RegExpExecArray | null;
 
   while ((match = pauseRegex.exec(sanitized)) !== null) {
-    const textBefore = sanitized.slice(lastIndex, match.index);
+    const textBefore = deduplicateAdjacentTtsText(sanitized.slice(lastIndex, match.index));
     if (textBefore.trim()) {
       rawSegments.push({ type: 'text', text: textBefore.trim() });
     }
@@ -2610,24 +2877,39 @@ function parseTextWithPauses(rawText: string): TextOrPauseSegment[] {
     lastIndex = match.index + match[0].length;
   }
 
-  const remainingText = sanitized.slice(lastIndex);
+  const remainingText = deduplicateAdjacentTtsText(sanitized.slice(lastIndex));
   if (remainingText.trim()) {
     rawSegments.push({ type: 'text', text: remainingText.trim() });
   }
 
   const finalSegments: TextOrPauseSegment[] = [];
+  let lastSpokenText = '';
   for (const seg of rawSegments) {
     if (seg.type === 'text' && seg.text) {
-      const subChunks = splitServerOversizedTtsBlock(seg.text, 2800);
+      const crossDeduped = lastSpokenText
+        ? stripLeadingAdjacentDuplicateText(lastSpokenText, seg.text)
+        : seg.text;
+      const cleanedSegText = deduplicateAdjacentTtsText(crossDeduped);
+      if (!cleanedSegText) {
+        if (finalSegments.length > 0 && finalSegments[finalSegments.length - 1].type === 'pause') {
+          finalSegments.pop();
+        }
+        continue;
+      }
+      const subChunks = splitServerOversizedTtsBlock(cleanedSegText, 2800);
       subChunks.forEach((sub, idx) => {
         if (idx > 0) {
           finalSegments.push({ type: 'pause', duration: 0.35 });
         }
         finalSegments.push({ type: 'text', text: sub });
+        lastSpokenText = sub;
       });
     } else {
       finalSegments.push(seg);
     }
+  }
+  while (finalSegments.length > 0 && finalSegments[finalSegments.length - 1].type === 'pause') {
+    finalSegments.pop();
   }
   return finalSegments;
 }
@@ -2786,10 +3068,11 @@ ${cleanText}`;
         const tempExtracted = extractCleanPcmFromGeminiAudio(tempBuffer, 24000);
         const srCheck = tempExtracted.sampleRate || 24000;
         const wCount = cleanText.split(/\s+/).filter(Boolean).length;
-        const dedupCheck = trimDuplicatedTakeInPcm(tempExtracted.pcmBytes, srCheck, wCount);
+        const primaryDedup = trimDuplicatedTakeInPcm(tempExtracted.pcmBytes, srCheck, wCount);
+        const dedupCheck = trimShortTerminalEchoInPcm(primaryDedup.pcmBytes, srCheck);
         const tempSec = dedupCheck.pcmBytes.byteLength / Math.max(16000, srCheck * 2);
 
-        if (!dedupCheck.wasTrimmed && wCount >= 8 && tempSec > 6 && wCount / tempSec < 1.35 && hardAttempt < 2) {
+        if (!primaryDedup.wasTrimmed && !dedupCheck.wasTrimmed && wCount >= 8 && tempSec > 6 && wCount / tempSec < 1.35 && hardAttempt < 2) {
           hardAttempt++;
           console.warn(
             `[Gemini TTS] Posible duplicación sin valle limpio en ${targetModel} (${tempSec.toFixed(1)}s para ${wCount} pal.). Reintentando...`
@@ -2857,10 +3140,15 @@ ${cleanText}`;
   const extracted = extractCleanPcmFromGeminiAudio(rawAudioBuffer, 24000);
   const finalSr = extracted.sampleRate || 24000;
   const finalWordCount = cleanText.split(/\s+/).filter(Boolean).length;
-  const deduped = trimDuplicatedTakeInPcm(extracted.pcmBytes, finalSr, finalWordCount);
-  if (deduped.wasTrimmed) {
+  const primaryDedup = trimDuplicatedTakeInPcm(extracted.pcmBytes, finalSr, finalWordCount);
+  const deduped = trimShortTerminalEchoInPcm(primaryDedup.pcmBytes, finalSr);
+  if (primaryDedup.wasTrimmed) {
     console.warn(
-      `[Gemini TTS] Toma duplicada recortada automáticamente: ${deduped.originalDurationSec.toFixed(2)}s -> ${deduped.trimmedDurationSec.toFixed(2)}s`
+      `[Gemini TTS] Toma duplicada recortada automáticamente: ${primaryDedup.originalDurationSec.toFixed(2)}s -> ${primaryDedup.trimmedDurationSec.toFixed(2)}s`
+    );
+  } else if (deduped.wasTrimmed) {
+    console.warn(
+      `[Gemini TTS] Eco corto terminal recortado automáticamente: ${deduped.originalDurationSec.toFixed(2)}s -> ${deduped.trimmedDurationSec.toFixed(2)}s`
     );
   }
   const cleanPcm = Buffer.from(
@@ -2906,9 +3194,10 @@ app.post('/api/tts', async (req, res) => {
     }
 
     const durationTarget = docContext || (Number(targetDurationSeconds) > 0 ? Number(targetDurationSeconds) : null);
-    const cleanedScriptForTts = durationTarget
+    const cleanedRawScript = durationTarget
       ? autoFitVoiceoverScriptToDuration(text, durationTarget)
       : cleanServerVoiceoverNarrationOnly(text);
+    const cleanedScriptForTts = deduplicateAdjacentTtsText(cleanedRawScript);
     if (!cleanedScriptForTts) {
       res.status(400).json({ error: 'El guion no contiene texto narrable válido.' });
       return;
@@ -2928,8 +3217,9 @@ app.post('/api/tts', async (req, res) => {
     }> = [];
 
     if (!hasPauses && segments.length <= 1) {
+      const singleSegmentText = (segments[0]?.type === 'text' && segments[0].text) ? segments[0].text : cleanedScriptForTts;
       const result = await synthesizeSpeechCore({
-        text: cleanedScriptForTts,
+        text: singleSegmentText,
         voice,
         style,
         speed,
@@ -2943,7 +3233,7 @@ app.post('/api/tts', async (req, res) => {
       const singleDur = getAudioDurationInSeconds(buffer);
       segmentTimings.push({
         type: 'text',
-        text: cleanedScriptForTts,
+        text: singleSegmentText,
         startSec: 0,
         endSec: singleDur,
         durationSec: singleDur,
@@ -6407,14 +6697,18 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         }
       }
 
-      // Use c.videoUrl only if sourceMp4 was not already found and it is NOT an audio-separation cache file
+      // Use c.videoUrl only if sourceMp4 was not already found and it is NOT a preview proxy or audio-separation cache file
       if (!sourceMp4 && c.videoUrl && typeof c.videoUrl === 'string') {
         try {
           const parsedVid = new URL(c.videoUrl, 'http://localhost:4200');
+          parsedVid.searchParams.delete('previewQuality');
+          parsedVid.searchParams.delete('quality');
           const vidFile = parsedVid.searchParams.get('filePath');
           if (
             vidFile &&
             fs.existsSync(vidFile) &&
+            !vidFile.includes('huellas-preview-cache') &&
+            !vidFile.includes('.preview_cache') &&
             !vidFile.includes('.foley_only_cache') &&
             !vidFile.includes('.vocals_cache') &&
             !vidFile.includes('.music_cache') &&
@@ -8762,20 +9056,353 @@ app.post('/api/assets/official-outro', (req, res) => {
   void officialAssetsManager.handleUploadCustom('outro', req, res);
 });
 
+type PreviewProxyQuality = 'low' | 'medium';
+
+const PREVIEW_PROXY_CACHE_DIR = path.join(os.tmpdir(), 'huellas-preview-cache');
+const MAX_PREVIEW_PROXY_WORKERS = 2;
+const MAX_PREVIEW_PROXY_QUEUE = 16;
+const MAX_PREVIEW_PROXY_CACHE_BYTES = 3 * 1024 * 1024 * 1024; // 3 GB cap outside iCloud
+const inFlightPreviewProxies = new Map<string, Promise<void>>();
+const queuedPreviewProxyKeys = new Set<string>();
+const queuedPreviewProxyTasks: Array<{ key: string; run: () => Promise<void> }> = [];
+let activePreviewProxyWorkers = 0;
+let lastPreviewProxyPruneAtMs = 0;
+
+function parseRequestedPreviewQuality(req: express.Request): PreviewProxyQuality | null {
+  const raw = String(req.query.previewQuality || req.query.quality || '')
+    .trim()
+    .toLowerCase();
+  if (raw === 'low' || raw === 'baja' || raw === '540p') return 'low';
+  if (raw === 'medium' || raw === 'media' || raw === '720p') return 'medium';
+  return null;
+}
+
+function getPreviewProxyCacheMeta(
+  sourcePath: string,
+  sourceSize: number,
+  sourceMtimeMs: number,
+  quality: PreviewProxyQuality
+): { cacheKey: string; proxyPath: string; tmpPath: string } {
+  const cacheKey = crypto
+    .createHash('sha1')
+    .update(`${sourcePath}|${sourceSize}|${Math.floor(sourceMtimeMs)}|${quality}`)
+    .digest('hex');
+  const proxyPath = path.join(PREVIEW_PROXY_CACHE_DIR, `${cacheKey}_${quality}.mp4`);
+  const tmpPath = path.join(PREVIEW_PROXY_CACHE_DIR, `.${cacheKey}_${quality}_${process.pid}.tmp.mp4`);
+  return { cacheKey, proxyPath, tmpPath };
+}
+
+function getReadyPreviewProxySync(
+  sourcePath: string,
+  sourceSize: number,
+  sourceMtimeMs: number,
+  quality: PreviewProxyQuality
+): { proxyPath: string; size: number; mtimeMs: number } | null {
+  try {
+    const { proxyPath } = getPreviewProxyCacheMeta(sourcePath, sourceSize, sourceMtimeMs, quality);
+    if (!fs.existsSync(proxyPath)) return null;
+    const st = fs.statSync(proxyPath);
+    if (!st.isFile() || st.size <= 4096) return null;
+    return { proxyPath, size: st.size, mtimeMs: st.mtimeMs };
+  } catch {
+    return null;
+  }
+}
+
+async function prunePreviewProxyCacheIfNeeded(): Promise<void> {
+  const now = Date.now();
+  if (now - lastPreviewProxyPruneAtMs < 5 * 60_000) return;
+  lastPreviewProxyPruneAtMs = now;
+  try {
+    if (!fs.existsSync(PREVIEW_PROXY_CACHE_DIR)) return;
+    const entries = await fsp.readdir(PREVIEW_PROXY_CACHE_DIR);
+    const items: Array<{ fullPath: string; size: number; mtimeMs: number }> = [];
+    let totalBytes = 0;
+    for (const name of entries) {
+      const fullPath = path.join(PREVIEW_PROXY_CACHE_DIR, name);
+      try {
+        const st = await fsp.stat(fullPath);
+        if (!st.isFile()) continue;
+        if (name.startsWith('.') && now - st.mtimeMs > 15 * 60_000) {
+          await fsp.unlink(fullPath).catch(() => {});
+          continue;
+        }
+        if (name.endsWith('.mp4') && !name.startsWith('.')) {
+          totalBytes += st.size;
+          items.push({ fullPath, size: st.size, mtimeMs: st.mtimeMs });
+        }
+      } catch {}
+    }
+    if (totalBytes <= MAX_PREVIEW_PROXY_CACHE_BYTES) return;
+    items.sort((a, b) => a.mtimeMs - b.mtimeMs);
+    for (const item of items) {
+      if (totalBytes <= MAX_PREVIEW_PROXY_CACHE_BYTES * 0.75) break;
+      await fsp.unlink(item.fullPath).catch(() => {});
+      totalBytes -= item.size;
+    }
+  } catch {}
+}
+
+function runFfmpegPreviewTranscode(args: string[]): Promise<boolean> {
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (ok: boolean) => {
+      if (settled) return;
+      settled = true;
+      resolve(ok);
+    };
+    const proc = spawn(getFfmpegPath(), args, {
+      stdio: ['ignore', 'ignore', 'pipe'],
+    });
+    const timer = setTimeout(() => {
+      try {
+        proc.kill('SIGKILL');
+      } catch {}
+      finish(false);
+    }, 45_000);
+    proc.on('close', (code) => {
+      clearTimeout(timer);
+      finish(code === 0);
+    });
+    proc.on('error', () => {
+      clearTimeout(timer);
+      finish(false);
+    });
+  });
+}
+
+function pumpPreviewProxyQueue(): void {
+  while (activePreviewProxyWorkers < MAX_PREVIEW_PROXY_WORKERS && queuedPreviewProxyTasks.length > 0) {
+    const nextTask = queuedPreviewProxyTasks.pop();
+    if (!nextTask) break;
+    queuedPreviewProxyKeys.delete(nextTask.key);
+    activePreviewProxyWorkers++;
+    void nextTask.run().finally(() => {
+      activePreviewProxyWorkers = Math.max(0, activePreviewProxyWorkers - 1);
+      pumpPreviewProxyQueue();
+    });
+  }
+}
+
+function enqueuePreviewProxyBuild(
+  sourcePath: string,
+  sourceSize: number,
+  sourceMtimeMs: number,
+  quality: PreviewProxyQuality
+): void {
+  if (!ffmpegAvailable) return;
+  const { cacheKey, proxyPath, tmpPath } = getPreviewProxyCacheMeta(
+    sourcePath,
+    sourceSize,
+    sourceMtimeMs,
+    quality
+  );
+  if (fs.existsSync(proxyPath) || inFlightPreviewProxies.has(cacheKey) || queuedPreviewProxyKeys.has(cacheKey)) {
+    return;
+  }
+
+  const targetH = quality === 'low' ? 540 : 720;
+  const videoBitrate = quality === 'low' ? '1200k' : '2400k';
+  const maxBitrate = quality === 'low' ? '1800k' : '3500k';
+  const crfVal = quality === 'low' ? '28' : '24';
+  const scaleFilter = `scale='if(gte(iw,ih),-2,min(${targetH},iw))':'if(gte(iw,ih),min(${targetH},ih),-2)'`;
+
+  const runJob = () => {
+    const jobPromise = (async () => {
+      try {
+        await fsp.mkdir(PREVIEW_PROXY_CACHE_DIR, { recursive: true });
+        if (fs.existsSync(proxyPath)) return;
+
+        const baseInputArgs = ['-nostdin', '-y', '-i', sourcePath, '-vf', scaleFilter];
+        const audioAndMuxArgs = ['-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '96k', '-ac', '2', '-movflags', '+faststart', tmpPath];
+
+        let ok = await runFfmpegPreviewTranscode([
+          ...baseInputArgs,
+          '-c:v',
+          'h264_videotoolbox',
+          '-b:v',
+          videoBitrate,
+          '-maxrate',
+          maxBitrate,
+          '-bufsize',
+          '4M',
+          ...audioAndMuxArgs,
+        ]);
+
+        if (!ok) {
+          await fsp.unlink(tmpPath).catch(() => {});
+          ok = await runFfmpegPreviewTranscode([
+            ...baseInputArgs,
+            '-c:v',
+            'libx264',
+            '-preset',
+            'ultrafast',
+            '-crf',
+            crfVal,
+            ...audioAndMuxArgs,
+          ]);
+        }
+
+        if (ok) {
+          const stTmp = await fsp.stat(tmpPath).catch(() => null);
+          if (stTmp && stTmp.isFile() && stTmp.size > 4096) {
+            await fsp.rename(tmpPath, proxyPath);
+            void prunePreviewProxyCacheIfNeeded();
+            return;
+          }
+        }
+        await fsp.unlink(tmpPath).catch(() => {});
+      } catch {
+        await fsp.unlink(tmpPath).catch(() => {});
+      } finally {
+        inFlightPreviewProxies.delete(cacheKey);
+      }
+    })();
+    inFlightPreviewProxies.set(cacheKey, jobPromise);
+    return jobPromise;
+  };
+
+  if (queuedPreviewProxyTasks.length >= MAX_PREVIEW_PROXY_QUEUE) {
+    const evicted = queuedPreviewProxyTasks.shift();
+    if (evicted) queuedPreviewProxyKeys.delete(evicted.key);
+  }
+  queuedPreviewProxyKeys.add(cacheKey);
+  queuedPreviewProxyTasks.push({ key: cacheKey, run: runJob });
+  pumpPreviewProxyQueue();
+}
+
+function serveLocalFileWithRange(
+  req: express.Request,
+  res: express.Response,
+  resolvedFilePath: string,
+  fileSize: number,
+  cacheControlHeader: string
+): void {
+  const rangeHeader = req.headers.range;
+  if (typeof rangeHeader === 'string') {
+    const m = rangeHeader.match(/bytes=(\d*)-(\d*)/);
+    if (m) {
+      const hasStart = m[1] !== '';
+      const hasEnd = m[2] !== '';
+      if (!hasStart && !hasEnd) {
+        res.setHeader('Content-Range', `bytes */${fileSize}`);
+        res.status(416).end();
+        return;
+      }
+      if (!hasStart && hasEnd) {
+        const suffixLen = parseInt(m[2], 10);
+        if (fileSize === 0 || !Number.isFinite(suffixLen) || suffixLen <= 0) {
+          res.setHeader('Content-Range', `bytes */${fileSize}`);
+          res.status(416).end();
+          return;
+        }
+        const computedStart = Math.max(0, fileSize - suffixLen);
+        req.headers.range = `bytes=${computedStart}-${fileSize - 1}`;
+      } else {
+        const start = parseInt(m[1], 10);
+        const end = hasEnd ? parseInt(m[2], 10) : fileSize - 1;
+        if (
+          fileSize === 0 ||
+          !Number.isFinite(start) ||
+          start < 0 ||
+          start >= fileSize ||
+          (hasEnd && (!Number.isFinite(end) || end < start))
+        ) {
+          res.setHeader('Content-Range', `bytes */${fileSize}`);
+          res.status(416).end();
+          return;
+        } else if (hasEnd && end >= fileSize) {
+          req.headers.range = `bytes=${start}-${fileSize - 1}`;
+        }
+      }
+    }
+  }
+  res.setHeader('Accept-Ranges', 'bytes');
+  res.setHeader('Cache-Control', cacheControlHeader);
+  res.sendFile(resolvedFilePath, { dotfiles: 'allow' }, (err: any) => {
+    if (err && !res.headersSent) {
+      if (err.statusCode === 416) {
+        res.setHeader('Content-Range', `bytes */${fileSize}`);
+        res.status(416).end();
+      } else {
+        res.status(err.statusCode || 500).end();
+      }
+    }
+  });
+}
+
+async function tryServePreviewProxyOrWarm(
+  req: express.Request,
+  res: express.Response,
+  sourcePath: string,
+  sourceSize: number,
+  sourceMtimeMs: number,
+  mimeType: string
+): Promise<boolean> {
+  if (req.query.frameProbe) return false;
+  if (!mimeType || !mimeType.startsWith('video/')) return false;
+  if (sourcePath.includes('huellas-preview-cache') || /_WebPreview\.mp4$/i.test(sourcePath)) {
+    return false;
+  }
+  const quality = parseRequestedPreviewQuality(req);
+  if (!quality) return false;
+
+  const ready = getReadyPreviewProxySync(sourcePath, sourceSize, sourceMtimeMs, quality);
+  if (ready) {
+    res.setHeader('X-Preview-Proxy', `hit-${quality}`);
+    serveLocalFileWithRange(req, res, ready.proxyPath, ready.size, 'private, max-age=3600');
+    return true;
+  }
+
+  enqueuePreviewProxyBuild(sourcePath, sourceSize, sourceMtimeMs, quality);
+  res.setHeader('X-Preview-Proxy', `warming-${quality}`);
+  return false;
+}
+
+async function handleOfficialAssetStreamWithPreviewQuality(
+  kind: 'intro' | 'outro',
+  req: express.Request,
+  res: express.Response
+): Promise<void> {
+  const quality = parseRequestedPreviewQuality(req);
+  if (quality) {
+    try {
+      const status = await officialAssetsManager.getStatusPayload();
+      const entry = status[kind];
+      if (entry && entry.tier === 'icloud_hydrated') {
+        const webCandidate = path.join(ASSETS_DIR, `official_huellas_${kind}_web.mp4`);
+        const st = await fsp.stat(webCandidate).catch(() => null);
+        if (st && st.isFile() && st.size > 4096) {
+          const served = await tryServePreviewProxyOrWarm(
+            req,
+            res,
+            webCandidate,
+            st.size,
+            st.mtimeMs,
+            'video/mp4'
+          );
+          if (served) return;
+        }
+      }
+    } catch {}
+  }
+  await officialAssetsManager.handleStream(kind, req, res);
+}
+
 app.get('/api/assets/official-intro-stream', (req, res) => {
-  void officialAssetsManager.handleStream('intro', req, res);
+  void handleOfficialAssetStreamWithPreviewQuality('intro', req, res);
 });
 
 app.head('/api/assets/official-intro-stream', (req, res) => {
-  void officialAssetsManager.handleStream('intro', req, res);
+  void handleOfficialAssetStreamWithPreviewQuality('intro', req, res);
 });
 
 app.get('/api/assets/official-outro-stream', (req, res) => {
-  void officialAssetsManager.handleStream('outro', req, res);
+  void handleOfficialAssetStreamWithPreviewQuality('outro', req, res);
 });
 
 app.head('/api/assets/official-outro-stream', (req, res) => {
-  void officialAssetsManager.handleStream('outro', req, res);
+  void handleOfficialAssetStreamWithPreviewQuality('outro', req, res);
 });
 
 app.get('/api/assets/official-intro-poster', (req, res) => {
@@ -11111,7 +11738,7 @@ app.get('/api/flow/serve-folder-file', async (req, res) => {
     res.setHeader('Accept-Ranges', 'bytes');
     res.setHeader(
       'Access-Control-Expose-Headers',
-      'Content-Range, Accept-Ranges, Content-Length, ETag, Last-Modified, X-Official-Asset-Tier'
+      'Content-Range, Accept-Ranges, Content-Length, ETag, Last-Modified, X-Official-Asset-Tier, X-Preview-Proxy'
     );
     let filePath = String(req.query.filePath || '').trim();
     if (!filePath) {
@@ -11126,7 +11753,7 @@ app.get('/api/flow/serve-folder-file', async (req, res) => {
       if (matchedOfficialAsset.mediaType === 'poster') {
         await officialAssetsManager.handlePoster(matchedOfficialAsset.kind, req, res);
       } else {
-        await officialAssetsManager.handleStream(matchedOfficialAsset.kind, req, res);
+        await handleOfficialAssetStreamWithPreviewQuality(matchedOfficialAsset.kind, req, res);
       }
       return;
     }
@@ -11188,6 +11815,15 @@ app.get('/api/flow/serve-folder-file', async (req, res) => {
         45_000
       );
       if (fdRes.status === 'ok') {
+        const servedProxy = await tryServePreviewProxyOrWarm(
+          req,
+          res,
+          directResolved,
+          fdRes.entry.size,
+          fdRes.entry.mtimeMs,
+          directMime
+        );
+        if (servedProxy) return;
         await streamFromCachedFd(
           req,
           res,
@@ -11267,9 +11903,13 @@ app.get('/api/flow/serve-folder-file', async (req, res) => {
         const frameProbeSuffix = req.query.frameProbe
           ? `&frameProbe=${encodeURIComponent(String(req.query.frameProbe))}`
           : '';
+        const previewQualityParam = parseRequestedPreviewQuality(req);
+        const previewQualitySuffix = previewQualityParam
+          ? `&previewQuality=${encodeURIComponent(previewQualityParam)}`
+          : '';
         res.redirect(
           302,
-          `/api/flow/serve-folder-file?filePath=${encodeURIComponent(matched4kFull)}&v=${Math.floor(matched4kStat.mtimeMs)}${frameProbeSuffix}`
+          `/api/flow/serve-folder-file?filePath=${encodeURIComponent(matched4kFull)}&v=${Math.floor(matched4kStat.mtimeMs)}${frameProbeSuffix}${previewQualitySuffix}`
         );
         return;
       } else if (/^\.(?:wav|mp3|m4a)$/i.test(ext)) {
@@ -11303,6 +11943,15 @@ app.get('/api/flow/serve-folder-file', async (req, res) => {
     if (resolvedFilePath.includes('com~apple~CloudDocs') && resolvedMime) {
       const fdRes = await acquireIcloudReadFdBounded(resolvedFilePath, undefined, 45_000);
       if (fdRes.status === 'ok') {
+        const servedProxy = await tryServePreviewProxyOrWarm(
+          req,
+          res,
+          resolvedFilePath,
+          fdRes.entry.size,
+          fdRes.entry.mtimeMs,
+          resolvedMime
+        );
+        if (servedProxy) return;
         await streamFromCachedFd(
           req,
           res,
@@ -11342,56 +11991,18 @@ app.get('/api/flow/serve-folder-file', async (req, res) => {
       }
     }
     const fileSize = stFinal!.size;
-    const rangeHeader = req.headers.range;
-    if (typeof rangeHeader === 'string') {
-      const m = rangeHeader.match(/bytes=(\d*)-(\d*)/);
-      if (m) {
-        const hasStart = m[1] !== '';
-        const hasEnd = m[2] !== '';
-        if (!hasStart && !hasEnd) {
-          res.setHeader('Content-Range', `bytes */${fileSize}`);
-          res.status(416).end();
-          return;
-        }
-        if (!hasStart && hasEnd) {
-          const suffixLen = parseInt(m[2], 10);
-          if (fileSize === 0 || !Number.isFinite(suffixLen) || suffixLen <= 0) {
-            res.setHeader('Content-Range', `bytes */${fileSize}`);
-            res.status(416).end();
-            return;
-          }
-          const computedStart = Math.max(0, fileSize - suffixLen);
-          req.headers.range = `bytes=${computedStart}-${fileSize - 1}`;
-        } else {
-          const start = parseInt(m[1], 10);
-          const end = hasEnd ? parseInt(m[2], 10) : fileSize - 1;
-          if (
-            fileSize === 0 ||
-            !Number.isFinite(start) ||
-            start < 0 ||
-            start >= fileSize ||
-            (hasEnd && (!Number.isFinite(end) || end < start))
-          ) {
-            res.setHeader('Content-Range', `bytes */${fileSize}`);
-            res.status(416).end();
-            return;
-          } else if (hasEnd && end >= fileSize) {
-            req.headers.range = `bytes=${start}-${fileSize - 1}`;
-          }
-        }
-      }
+    if (resolvedMime) {
+      const servedProxy = await tryServePreviewProxyOrWarm(
+        req,
+        res,
+        resolvedFilePath,
+        fileSize,
+        stFinal!.mtimeMs,
+        resolvedMime
+      );
+      if (servedProxy) return;
     }
-    res.setHeader('Cache-Control', cacheControlHeader);
-    res.sendFile(resolvedFilePath, { dotfiles: 'allow' }, (err: any) => {
-      if (err && !res.headersSent) {
-        if (err.statusCode === 416) {
-          res.setHeader('Content-Range', `bytes */${fileSize}`);
-          res.status(416).end();
-        } else {
-          res.status(err.statusCode || 500).end();
-        }
-      }
-    });
+    serveLocalFileWithRange(req, res, resolvedFilePath, fileSize, cacheControlHeader);
   } catch (err: any) {
     if (!res.headersSent) {
       res.status(500).send(err.message || 'Error sirviendo archivo');

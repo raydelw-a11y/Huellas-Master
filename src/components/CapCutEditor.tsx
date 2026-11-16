@@ -1142,6 +1142,15 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     } catch {}
     return initRatio === '9:16' ? '2K_1440P' : '8K_4320P';
   });
+  const [previewQuality, setPreviewQuality] = useState<'low' | 'medium' | 'high'>(() => {
+    try {
+      const saved = localStorage.getItem('huellas_editor_preview_quality');
+      if (saved === 'low' || saved === 'medium' || saved === 'high') {
+        return saved;
+      }
+    } catch {}
+    return 'medium';
+  });
   const [showExportModal, setShowExportModal] = useState<boolean>(false);
   const [exportFps, setExportFps] = useState<24 | 30 | 60>(() => {
     if (aspectRatio === '9:16') {
@@ -4945,8 +4954,25 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   ): TimelineClipItem[] => {
     const allScriptClips = activeDoc?.clips || [];
     const hasStage6ScriptClips = allScriptClips.length > 0;
+    const validScriptClipNums = new Set(
+      allScriptClips
+        .filter(
+          (sc, idx) =>
+            sc &&
+            typeof sc.clipNumber === 'number' &&
+            sc.clipNumber > 0 &&
+            !(
+              idx === allScriptClips.length - 1 &&
+              !sc.videoReady &&
+              !sc.reviewedForEditor &&
+              (Boolean(sc.videoDiscardedAt) ||
+                /^(?:sus\s+)?rastros\.?$/i.test(String(sc.narrationSegment || '').trim()))
+            )
+        )
+        .map((sc) => sc.clipNumber)
+    );
 
-    // 1. Strip existing intro, outro, and any previously split partB slogan clip; restore partA to full clip
+    // 1. Strip existing intro, outro, phantom clips outside validScriptClipNums, and any previously split partB slogan clip; restore partA to full clip
     const cleanBody: TimelineClipItem[] = [];
     for (const c of rawClipsInput) {
       if (
@@ -4956,6 +4982,13 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         c.id === 'fixed-doc-outro' ||
         c.clipNumber === 999 ||
         c.id.endsWith('-slogan-partB')
+      ) {
+        continue;
+      }
+      if (
+        hasStage6ScriptClips &&
+        c.clipNumber > 0 &&
+        !validScriptClipNums.has(c.clipNumber)
       ) {
         continue;
       }
@@ -4985,13 +5018,18 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         .filter((c) => c.clipNumber > 0 && c.clipNumber < 999)
         .map((c) => c.clipNumber)
     );
+    const expectedBodySlotCount = hasStage6ScriptClips ? validScriptClipNums.size : 0;
     const isFullScheduleReviewed =
-      !hasStage6ScriptClips || uniqueReviewedBodyNums.size >= allScriptClips.length;
+      !hasStage6ScriptClips || uniqueReviewedBodyNums.size >= expectedBodySlotCount;
     const effectiveOutroClip = fixedOutroClip ?? null;
 
     // Ensure Clip 1 (all parts with clipNumber === 1) covers its exact Stage 1 visual duration (e.g. 6s in VOZ_EN_CLIP_2)
     // Never kidnap Clip 2+ into the silent Hook slot when Clip 1 has not been marked reviewed yet
-    const { clip1Sec: c1Base } = getStage1ClipDurations(activeDoc);
+    const {
+      clip1Sec: c1Base,
+      standardClipSec: stdDur,
+      voiceEntrySec,
+    } = getStage1ClipDurations(activeDoc);
     const targetHookSec = !c1Base || c1Base <= 0 ? 6 : c1Base;
     const hasClip1 = cleanBody.some((c) => c.clipNumber === 1);
     let firstNarratedIdx = hasClip1 ? cleanBody.findIndex((c) => c.clipNumber > 1) : 0;
@@ -5005,6 +5043,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         scaleClipsToExactSpan(clip1Slice, targetHookSec, false);
       }
     }
+    const actualClip1SpanSec = clip1Slice.reduce(
+      (acc, c) => acc + (Number(c.duration) || targetHookSec),
+      0
+    );
 
     // 2. Locate the exact clip in the opening section (Clips 2..15) where the Slogan Completo ("Aquí seguimos sus rastros.") ends
     let sloganClipIdx = -1;
@@ -5053,10 +5095,12 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       }
     }
 
-    // 3. Align durations of pre-slogan and post-slogan narrated clips (+1.20s closing breath cushion so the final slogan "Cada historia deja una huella. Aquí seguimos sus rastros." always finishes completely before the Outro)
-    // Only execute scaleClipsToExactSpan when 100% of script clips are reviewed (isFullScheduleReviewed), keeping partial reviews at natural clip durations.
+    // 3. Align durations of pre-slogan and post-slogan narrated clips so the closing clip (e.g. Clip 142) and final slogan finish together right before the Outro.
+    // Only execute scaleClipsToExactSpan when 100% of script slots are present (isFullScheduleReviewed), keeping partial schedules at natural clip durations.
     const targetVoiceDur =
-      effectiveVoiceDurationSec > 20 ? Number((effectiveVoiceDurationSec + 1.2).toFixed(2)) : 0;
+      effectiveVoiceDurationSec > 20
+        ? Number((effectiveVoiceDurationSec + (isVideo76Doc ? 1.2 : 0)).toFixed(2))
+        : 0;
     if (mode === 'INTRO_POST_SLOGAN') {
       if (sloganClipIdx < firstNarratedIdx) {
         // Partial review where the Slogan clip is not reviewed yet: place Intro after any opening clips (<= 7), or at start if only clips > 7 exist
@@ -5142,9 +5186,6 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         const remVoiceDur = Math.max(10, targetVoiceDur - sloganSplitAudioSec);
         scaleClipsToExactSpan(postClips, remVoiceDur, true);
       } else if (!isVideo76Doc) {
-        // En documentales estándar (Video 77 y futuros), la sincronización con el Slogan se logra de forma natural
-        // mediante la pausa de respiración de la locución; los clips preservan su duración nativa de Etapa 1 (8s o 10s).
-        const { standardClipSec: stdDur } = getStage1ClipDurations(activeDoc);
         [...preClips, ...postClips].forEach((it) => {
           const hasManualEdit = (it.trimStart && it.trimStart > 0.05) || (it.speed && it.speed !== 1) || it.partLabel;
           const isPollutedDur =
@@ -5154,19 +5195,27 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 Math.abs(it.duration - 5.66) < 0.05 ||
                 Math.abs(it.duration - 10.45) < 0.05));
           if (!hasManualEdit || isPollutedDur) {
-            const preservedSlot =
-              it.originalSlotDuration &&
-              it.originalSlotDuration > 0.5 &&
-              it.originalSlotDuration !== 5.65 &&
-              Math.abs(it.originalSlotDuration - 5.58) >= 0.08 &&
-              Math.abs(it.originalSlotDuration - 5.66) >= 0.05 &&
-              Math.abs(it.originalSlotDuration - 10.45) > 0.05
-                ? it.originalSlotDuration
-                : stdDur;
-            it.duration = preservedSlot;
-            it.originalSlotDuration = preservedSlot;
+            it.duration = stdDur;
+            it.originalSlotDuration = stdDur;
           }
         });
+        if (
+          isFullScheduleReviewed &&
+          effectiveVoiceDurationSec > sloganSplitAudioSec + 10 &&
+          postClips.length > 0
+        ) {
+          const preNaturalSpan = preClips.reduce(
+            (acc, it) => acc + (Number(it.duration) || stdDur),
+            0
+          );
+          const postTargetSpan = Number(
+            Math.max(
+              postClips.length * 2,
+              voiceEntrySec + effectiveVoiceDurationSec - actualClip1SpanSec - preNaturalSpan
+            ).toFixed(2)
+          );
+          scaleClipsToExactSpan(postClips, postTargetSpan, false);
+        }
       }
 
       return [
@@ -5178,11 +5227,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       ];
     }
 
-    // Opción A (INTRO_INICIO_00): Fixed 8s Intro at 00:00 - 00:08, Clip 1 at 00:08 - 00:16, Narrated Clips 2..N aligned
+    // Opción A (INTRO_INICIO_00): Fixed 8s Intro at 00:00 - 00:08, Clip 1 at 00:08 - 00:14, Narrated Clips 2..N aligned so final clip ends right with the voiceover slogan before Outro
     if (!isVideo76Doc) {
-      // En documentales estándar (Video 77 y futuros), cada clip narrado respeta la duración fija
-      // configurada en Etapa 1 (8s o 10s según standardDur), sin estirarse ni encogerse elásticamente contra la voz.
-      const { standardClipSec: stdDur } = getStage1ClipDurations(activeDoc);
       const narratedClips = cleanBody.slice(firstNarratedIdx);
       narratedClips.forEach((it) => {
         const hasManualEdit = (it.trimStart && it.trimStart > 0.05) || (it.speed && it.speed !== 1) || it.partLabel;
@@ -5193,18 +5239,21 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               Math.abs(it.duration - 5.66) < 0.05 ||
               Math.abs(it.duration - 10.45) < 0.05));
         if (!hasManualEdit || isPollutedDur) {
-          const isSlotPolluted =
-            !it.originalSlotDuration ||
-            it.originalSlotDuration <= 0.5 ||
-            it.originalSlotDuration === 5.65 ||
-            Math.abs(it.originalSlotDuration - 5.58) < 0.08 ||
-            Math.abs(it.originalSlotDuration - 5.66) < 0.05 ||
-            Math.abs(it.originalSlotDuration - 10.45) < 0.05;
-          const preservedSlot = isSlotPolluted ? stdDur : it.originalSlotDuration;
-          it.duration = preservedSlot;
-          it.originalSlotDuration = preservedSlot;
+          it.duration = stdDur;
+          it.originalSlotDuration = stdDur;
         }
       });
+      if (isFullScheduleReviewed && effectiveVoiceDurationSec > 20 && narratedClips.length > 0) {
+        const introDurSec = Number(fixedIntroClip.duration) || 8;
+        const voiceTimelineEndSec = introDurSec + voiceEntrySec + effectiveVoiceDurationSec;
+        const exactNarratedSpanSec = Number(
+          Math.max(
+            narratedClips.length * 2,
+            voiceTimelineEndSec - (introDurSec + actualClip1SpanSec)
+          ).toFixed(2)
+        );
+        scaleClipsToExactSpan(narratedClips, exactNarratedSpanSec, false);
+      }
     } else if (isFullScheduleReviewed && targetVoiceDur > 10 && cleanBody.length > firstNarratedIdx) {
       if (
         sloganClipIdx >= firstNarratedIdx &&
@@ -5469,7 +5518,20 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     // 1. Build Clips Track (Track 3) — El timeline conserva la cuadrícula completa de TODOS los clips del guion (1..N).
     // Los clips no revisados conservan su ranura de tiempo (8s/10s) y se quedan vacíos, sin colapsar hacia la izquierda
     // ni rellenar el espacio de otros clips, preservando la sincronía 1:1 absoluta con la voz narrativa.
-    const allDocClips = activeDoc.clips || [];
+    const rawAllDocClips = activeDoc.clips || [];
+    const allDocClips = rawAllDocClips.filter(
+      (sc, idx) =>
+        sc &&
+        typeof sc.clipNumber === 'number' &&
+        sc.clipNumber > 0 &&
+        !(
+          idx === rawAllDocClips.length - 1 &&
+          !sc.videoReady &&
+          !sc.reviewedForEditor &&
+          (Boolean(sc.videoDiscardedAt) ||
+            /^(?:sus\s+)?rastros\.?$/i.test(String(sc.narrationSegment || '').trim()))
+        )
+    );
     const hasStage6ScriptClips = allDocClips.length > 0;
     const reviewedClips = allDocClips
       .filter((c) => Boolean(c.reviewedForEditor))
@@ -5628,6 +5690,12 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           (existingItem.speed && existingItem.speed !== 1) ||
           existingItem.partLabel)
       );
+      const isAlignedSlotDur =
+        typeof existingDur === 'number' &&
+        typeof existingSlot === 'number' &&
+        Math.abs(existingDur - existingSlot) <= 0.03 &&
+        existingDur >= standardDur * 0.85 &&
+        existingDur <= standardDur * 1.3;
       const isPolluted =
         !hasManualEdit &&
         (existingDur === 5.65 ||
@@ -5636,6 +5704,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               Math.abs(existingDur - 5.66) < 0.05 ||
               Math.abs(existingDur - 10.45) < 0.05 ||
               (!isVideo76Doc &&
+                !isAlignedSlotDur &&
                 Math.abs(existingDur - standardDur) > 0.05 &&
                 Math.abs((existingItem.trimEnd ?? standardDur) - standardDur) < 0.15 &&
                 (!existingItem.speed || Math.abs(existingItem.speed - 1) <= 0.02)))));
@@ -5862,12 +5931,31 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       const survivingCustom: TimelineClipItem[] = [];
       const newlyParkedByNum: Record<number, TimelineClipItem[]> = {};
 
+      if (hasStage6ScriptClips) {
+        for (const numKey of Object.keys(nextParkedMap)) {
+          const parsedNum = Number(numKey);
+          if (Number.isFinite(parsedNum) && parsedNum > 0 && !allStage6Nums.has(parsedNum)) {
+            delete nextParkedMap[numKey];
+            parkedMapChanged = true;
+          }
+        }
+      }
+
       for (const tc of rawCustomList) {
         const isIntroOrOutroTc =
           tc.id === 'fixed-doc-intro' ||
           tc.id === 'fixed-doc-outro' ||
           tc.clipNumber === 0 ||
           tc.clipNumber === 999;
+        if (
+          hasStage6ScriptClips &&
+          !isIntroOrOutroTc &&
+          tc.clipNumber > 0 &&
+          !allStage6Nums.has(tc.clipNumber)
+        ) {
+          reconciledCustomStructureChanged = true;
+          continue;
+        }
         // En documentales estándar, los clips no revisados permanecen en survivingCustom como ranuras reservadas (vacías)
         // para garantizar la sincronía temporal 1:1 con la locución y evitar que los clips revisados se compacten hacia la izquierda.
         survivingCustom.push(tc);
@@ -6082,12 +6170,19 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               anyRegeneratedOrUpdated = true;
             }
           } else if (!isIntroOrOutroRestored && !isClip1Restored && !tc.partLabel && (!tc.trimStart || tc.trimStart < 0.05)) {
+            const isAlignedTcSlotDur =
+              typeof tc.duration === 'number' &&
+              typeof tc.originalSlotDuration === 'number' &&
+              Math.abs(tc.duration - tc.originalSlotDuration) <= 0.03 &&
+              tc.duration >= standardDur * 0.85 &&
+              tc.duration <= standardDur * 1.3;
             const isPolluted =
               typeof tc.duration === 'number' &&
               (Math.abs(tc.duration - 5.58) < 0.08 ||
                 Math.abs(tc.duration - 5.66) < 0.05 ||
                 Math.abs(tc.duration - 10.45) < 0.05 ||
                 (!isVideo76Doc &&
+                  !isAlignedTcSlotDur &&
                   Math.abs(tc.duration - standardDur) > 0.05 &&
                   Math.abs((tc.trimEnd ?? standardDur) - standardDur) < 0.15 &&
                   (!tc.speed || Math.abs(tc.speed - 1) <= 0.02)));
@@ -6503,8 +6598,16 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     const allScriptEstimatedEndSec = hasStage6ScriptClips
       ? FIXED_INTRO_SEC + clip1HookDur + Math.max(0, allDocClips.length - 1) * standardDur
       : 0;
+    const uniqueBuiltBodyNums = new Set(
+      builtClipsWithoutOutro
+        .filter((c) => c.id !== 'fixed-doc-intro' && c.clipNumber > 0 && c.clipNumber < 999)
+        .map((c) => c.clipNumber)
+    );
+    const hasFullBuiltBodyGrid =
+      !hasStage6ScriptClips || uniqueBuiltBodyNums.size >= allDocClips.length;
     const bodySpanEndSec =
-      isSyncFullScheduleReviewed && clip82EndBeforeOutroSec > FIXED_INTRO_SEC + 30
+      (isSyncFullScheduleReviewed || hasFullBuiltBodyGrid) &&
+      clip82EndBeforeOutroSec > FIXED_INTRO_SEC + 30
         ? clip82EndBeforeOutroSec
         : Math.max(
             FIXED_INTRO_SEC + bodyClips.reduce((acc, item) => acc + item.duration, 0),
@@ -8410,9 +8513,21 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       activeDoc?.clips && activeDoc.clips.length > 0
         ? 8 + clip1VisualDur + Math.max(0, activeDoc.clips.length - 1) * standardClipSec + 8
         : 0;
+    const lastBoundClip =
+      clipsWithTimelineBounds.length > 0
+        ? clipsWithTimelineBounds[clipsWithTimelineBounds.length - 1]
+        : null;
+    const hasOutroAtTimelineEnd = Boolean(
+      lastBoundClip &&
+        (lastBoundClip.id === 'fixed-doc-outro' || lastBoundClip.clipNumber === 999)
+    );
+    if (hasOutroAtTimelineEnd && isEditorFullScheduleReviewed && clipsEnd > 30) {
+      return Number(Math.max(10, clipsEnd, voicePlusOutroEnd).toFixed(2));
+    }
     return Math.max(10, clipsEnd, Math.ceil(voicePlusOutroEnd), allScriptClipsEnd);
   }, [
     clipsWithTimelineBounds,
+    isEditorFullScheduleReviewed,
     effectiveVoiceDurationSec,
     voiceStartOffsetSec,
     postSloganIntroBounds,
@@ -8453,6 +8568,32 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       }
     : null;
 
+  const decoratePlaybackPreviewUrl = (
+    rewrittenUrl: string,
+    quality: 'low' | 'medium' | 'high'
+  ): string => {
+    if (
+      !rewrittenUrl ||
+      quality === 'high' ||
+      rewrittenUrl.startsWith('blob:') ||
+      rewrittenUrl.startsWith('data:')
+    ) {
+      return rewrittenUrl;
+    }
+    const isPreviewableStream =
+      rewrittenUrl.includes('/api/flow/serve-folder-file') ||
+      rewrittenUrl.includes('/api/assets/official-intro-stream') ||
+      rewrittenUrl.includes('/api/assets/official-outro-stream');
+    if (!isPreviewableStream) return rewrittenUrl;
+    const cleaned = rewrittenUrl
+      .replace(/([?&])previewQuality=[^&#]*(&?)/gi, (_m, p1, p2) =>
+        p1 === '?' && p2 === '&' ? '?' : p2 ? p1 : ''
+      )
+      .replace(/[?&]$/, '');
+    const sep = cleaned.includes('?') ? '&' : '?';
+    return `${cleaned}${sep}previewQuality=${quality}`;
+  };
+
   const getClipEffectiveVideoUrl = (
     clip?: {
       videoUrl?: string;
@@ -8468,9 +8609,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       clip.smoothSlowMo !== false &&
       Number(clip.speed ?? 1) < 0.99
     ) {
-      return rewriteMediaBridgeUrl(clip.opticalFlowUrl);
+      return decoratePlaybackPreviewUrl(rewriteMediaBridgeUrl(clip.opticalFlowUrl), previewQuality);
     }
-    return rewriteMediaBridgeUrl(clip.videoUrl);
+    return decoratePlaybackPreviewUrl(rewriteMediaBridgeUrl(clip.videoUrl), previewQuality);
   };
 
   // Synchronous Dual-Deck (A/B Ping-Pong) assignment: when activeClipAtPlayhead advances to nextClipAtPlayhead,
@@ -10139,12 +10280,18 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       if (!isIntroOrOutro && currentTime >= voiceStartOffsetSec && currentTime < voiceEndSec - 0.05) {
         voPrepositionedSplitRef.current = false;
         const voTime = getVoiceAudioTimeForTimelineSec(currentTime);
+        const mediaDur =
+          Number.isFinite(vo.duration) && vo.duration > 1 ? vo.duration : effectiveVoiceDurationSec;
+        const withinPlayableVoiceMedia =
+          !(mediaDur > 1) || voTime < Math.max(0.1, mediaDur - 0.08);
         const isManualVoSeek = appliedVoiceSeekVersionRef.current !== lastSeekVersionRef.current;
         if (
           isManualVoSeek ||
-          !isPlaying ||
-          (vo.paused && Math.abs(vo.currentTime - voTime) > 0.12) ||
-          Math.abs(vo.currentTime - voTime) > 0.38
+          (!isPlaying && withinPlayableVoiceMedia) ||
+          (!vo.ended &&
+            withinPlayableVoiceMedia &&
+            ((vo.paused && Math.abs(vo.currentTime - voTime) > 0.12) ||
+              Math.abs(vo.currentTime - voTime) > 0.38))
         ) {
           appliedVoiceSeekVersionRef.current = lastSeekVersionRef.current;
           if (isPlaying) {
@@ -10156,7 +10303,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         }
         vo.muted = false;
         applyVoiceoverAudioGain(vo, voiceVolume, voiceGainDb);
-        if (isPlaying && vo.paused && !vo.ended) {
+        if (isPlaying && vo.paused && !vo.ended && withinPlayableVoiceMedia) {
           voPlayStartedAtMsRef.current = performance.now();
           vo.play().catch(() => {});
         }
@@ -15154,9 +15301,24 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 <div
                   className="relative w-full h-full overflow-hidden bg-black"
                   style={{
+                    contain:
+                      previewQuality === 'low'
+                        ? 'strict'
+                        : previewQuality === 'medium'
+                        ? 'layout paint'
+                        : undefined,
+                    willChange: previewQuality === 'low' ? 'transform' : undefined,
                     opacity: liveClipAnim.opacity,
                     transform: `translate3d(${liveClipAnim.translateX}px, ${liveClipAnim.translateY}px, 0) scale(${liveClipAnim.scale})`,
-                    filter: liveClipAnim.blurPx > 0.1 ? `blur(${liveClipAnim.blurPx.toFixed(1)}px)` : undefined,
+                    filter:
+                      previewQuality === 'low'
+                        ? undefined
+                        : liveClipAnim.blurPx > 0.1
+                        ? `blur(${Math.min(
+                            previewQuality === 'medium' ? 6 : 24,
+                            liveClipAnim.blurPx
+                          ).toFixed(1)}px)`
+                        : undefined,
                   }}
                 >
                   {([0, 1] as const).map((slotIdx) => {
@@ -15226,7 +15388,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                               ? 'scale(2.085)'
                               : 'scale(0.88) translateY(-2.5%)'
                             : undefined,
-                          filter: isSlotOutro ? 'contrast(1.12) brightness(0.92)' : undefined,
+                          filter:
+                            isSlotOutro && previewQuality !== 'low'
+                              ? 'contrast(1.12) brightness(0.92)'
+                              : undefined,
                         }}
                         playsInline
                         muted={
@@ -15235,7 +15400,15 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                           Boolean(activeClipAtPlayhead?.audioMuted) ||
                           (activeClipAtPlayhead?.foleyVolume ?? 0) <= 0
                         }
-                        preload={isEditorActive ? 'auto' : 'none'}
+                        preload={
+                          !isEditorActive
+                            ? 'none'
+                            : previewQuality === 'low' &&
+                              !isDeckActive &&
+                              (!activeClipAtPlayhead || activeClipAtPlayhead.end - currentTime > 1.6)
+                            ? 'metadata'
+                            : 'auto'
+                        }
                         onLoadedMetadata={(e) => {
                           const vid = e.currentTarget;
                           try {
@@ -15986,7 +16159,49 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 />
               </div>
 
-              {/* Right: Aspect Ratio Badge + Fullscreen Button */}
+              {/* Right: Preview Quality Selector + Aspect Ratio Badge + Fullscreen Button */}
+              <div
+                onClick={(e) => e.stopPropagation()}
+                className="flex items-center gap-1 bg-slate-900 border border-slate-700/80 rounded px-1.5 py-0.5 text-[10px] font-mono shrink-0"
+                title="Calidad de reproducción en el editor (solo afecta la vista previa para evitar lentitud; la exportación final siempre usa la máxima calidad 4K/8K original)"
+              >
+                <span className="text-amber-400">⚡</span>
+                <select
+                  aria-label="Calidad de reproducción del visor"
+                  value={previewQuality}
+                  onChange={(e) => {
+                    const next =
+                      e.target.value === 'low' ||
+                      e.target.value === 'medium' ||
+                      e.target.value === 'high'
+                        ? e.target.value
+                        : 'medium';
+                    setPreviewQuality(next);
+                    try {
+                      localStorage.setItem('huellas_editor_preview_quality', next);
+                    } catch {}
+                    const labelMap = {
+                      low: 'Baja (540p rápida)',
+                      medium: 'Media (720p balanceada)',
+                      high: 'Alta (Nativa 4K)',
+                    } as const;
+                    setStatusMessage(
+                      `⚡ Calidad de vista previa: ${labelMap[next]} (la exportación final conserva 100% su resolución maestra ${RESOLUTION_PRESETS[exportResolution].badge}).`
+                    );
+                  }}
+                  className="bg-transparent text-amber-300 font-bold outline-none cursor-pointer text-[10px]"
+                >
+                  <option value="low" className="bg-slate-900 text-slate-200">
+                    Baja (540p)
+                  </option>
+                  <option value="medium" className="bg-slate-900 text-slate-200">
+                    Media (720p)
+                  </option>
+                  <option value="high" className="bg-slate-900 text-slate-200">
+                    Alta (Nativa)
+                  </option>
+                </select>
+              </div>
               <span className="hidden sm:inline-block px-1.5 py-0.5 rounded bg-slate-900 border border-slate-700 text-[10px] font-mono text-slate-300 shrink-0">
                 {aspectRatio}
               </span>

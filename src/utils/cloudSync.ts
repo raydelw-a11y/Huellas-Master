@@ -2663,13 +2663,22 @@ function mergeTwoDocumentaryObjects(
         mergedClips.map((mc) => (mc && typeof mc.clipNumber === 'number' ? mc.clipNumber : -1))
       );
       const tailFromOther = oClipsInit
-        .filter(
-          (oc) =>
-            oc &&
-            typeof oc.clipNumber === 'number' &&
-            oc.clipNumber > maxWClipNum &&
-            !existingNums.has(oc.clipNumber)
-        )
+        .filter((oc) => {
+          if (
+            !oc ||
+            typeof oc.clipNumber !== 'number' ||
+            oc.clipNumber <= maxWClipNum ||
+            existingNums.has(oc.clipNumber)
+          ) {
+            return false;
+          }
+          const isOrphanedTrailingClip =
+            !oc.videoReady &&
+            !oc.reviewedForEditor &&
+            (Boolean(oc.videoDiscardedAt) ||
+              /^(?:sus\s+)?rastros\.?$/i.test(String(oc.narrationSegment || '').trim()));
+          return !isOrphanedTrailingClip;
+        })
         .sort((a, b) => a.clipNumber - b.clipNumber);
       if (tailFromOther.length > 0) {
         mergedClips = [
