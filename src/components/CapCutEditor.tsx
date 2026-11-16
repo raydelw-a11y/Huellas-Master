@@ -11398,18 +11398,23 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
     const durA = Number(Math.max(0.3, splitTimelineSec - targetBoundClip.start).toFixed(2));
     const durB = Number(Math.max(0.3, targetBoundClip.end - splitTimelineSec).toFixed(2));
-    const ratioA = durA / Math.max(0.6, durA + durB);
 
+    const curSpeed = Math.max(0.15, Math.min(4.0, targetBoundClip.speed || 1));
     const srcDur =
       targetBoundClip.sourceDuration && targetBoundClip.sourceDuration > 0.5
         ? targetBoundClip.sourceDuration
         : 8;
     const tStart = Math.max(0, targetBoundClip.trimStart || 0);
-    const tEnd =
-      typeof targetBoundClip.trimEnd === 'number' && targetBoundClip.trimEnd > tStart + 0.1
+    const visibleMediaEnd =
+      typeof targetBoundClip.trimEnd === 'number' &&
+      targetBoundClip.trimEnd > tStart + 0.1 &&
+      targetBoundClip.trimEnd < srcDur - 0.05
         ? targetBoundClip.trimEnd
-        : srcDur;
-    const splitSourceSec = Number((tStart + (tEnd - tStart) * ratioA).toFixed(2));
+        : Math.min(srcDur, Number((tStart + targetBoundClip.duration * curSpeed).toFixed(2)));
+
+    // Split point in source video corresponds to durA * curSpeed from tStart
+    const splitSourceSec = Number((tStart + durA * curSpeed).toFixed(2));
+    const splitSourceEnd = Math.max(splitSourceSec + 0.3, visibleMediaEnd);
 
     const groupId =
       targetBoundClip.parentGroupId ||
@@ -11436,7 +11441,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       id: `${targetBoundClip.id}-partB-${stamp}`,
       duration: durB,
       trimStart: splitSourceSec,
-      trimEnd: tEnd,
+      trimEnd: splitSourceEnd,
       parentGroupId: groupId,
       originalSlotDuration: origSlotDur,
       partLabel: 'Parte B',
@@ -11484,23 +11489,35 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       return;
     }
 
-    const ratioCut =
-      (currentTime - targetBoundClip.start) / Math.max(0.5, targetBoundClip.duration);
+    const elapsedOnTimeline = currentTime - targetBoundClip.start;
+    const curSpeed = Math.max(0.15, Math.min(4.0, targetBoundClip.speed || 1));
     const srcDur =
       targetBoundClip.sourceDuration && targetBoundClip.sourceDuration > 0.5
         ? targetBoundClip.sourceDuration
         : 8;
     const tStart = Math.max(0, targetBoundClip.trimStart || 0);
-    const tEnd =
-      typeof targetBoundClip.trimEnd === 'number' && targetBoundClip.trimEnd > tStart + 0.1
+
+    // If trimEnd was explicitly set and strictly less than source video duration, use it;
+    // otherwise the media that was displayed in this slot ended at tStart + targetBoundClip.duration * curSpeed
+    const visibleMediaEnd =
+      typeof targetBoundClip.trimEnd === 'number' &&
+      targetBoundClip.trimEnd > tStart + 0.1 &&
+      targetBoundClip.trimEnd < srcDur - 0.05
         ? targetBoundClip.trimEnd
-        : srcDur;
-    const newTrimStart = Number((tStart + (tEnd - tStart) * ratioCut).toFixed(2));
-    const newActiveSpan = Number(Math.max(0.4, tEnd - newTrimStart).toFixed(2));
+        : Math.min(srcDur, Number((tStart + targetBoundClip.duration * curSpeed).toFixed(2)));
+
+    // New start point in source media corresponding to the playhead position
+    const newTrimStart = Number((tStart + elapsedOnTimeline * curSpeed).toFixed(2));
+    const newTrimEnd = Math.max(newTrimStart + 0.35, visibleMediaEnd);
+    const newActiveSpan = Number(Math.max(0.3, newTrimEnd - newTrimStart).toFixed(2));
     const targetDur = Number(
-      (targetBoundClip.originalSlotDuration || targetBoundClip.duration).toFixed(2)
+      (targetBoundClip.originalSlotDuration && targetBoundClip.originalSlotDuration > 0.5
+        ? targetBoundClip.originalSlotDuration
+        : targetBoundClip.duration
+      ).toFixed(2)
     );
-    const newSpeed = Number(Math.max(0.2, Math.min(4.0, newActiveSpan / targetDur)).toFixed(2));
+    // Speed required for the remaining media to cover the full target duration (always < 1.0 = Slow Motion!)
+    const newSpeed = Number(Math.max(0.15, Math.min(4.0, newActiveSpan / targetDur)).toFixed(2));
 
     let updatedClipForFlow: TimelineClipItem | null = null;
     commitTimelineClipsUpdate((prev) =>
@@ -11509,7 +11526,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         const updated: TimelineClipItem = {
           ...c,
           trimStart: newTrimStart,
-          trimEnd: tEnd,
+          trimEnd: newTrimEnd,
           duration: targetDur,
           speed: newSpeed,
           smoothSlowMo: true,
@@ -11554,23 +11571,25 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       return;
     }
 
-    const ratioKeep =
-      (currentTime - targetBoundClip.start) / Math.max(0.5, targetBoundClip.duration);
+    const elapsedOnTimeline = currentTime - targetBoundClip.start;
+    const curSpeed = Math.max(0.15, Math.min(4.0, targetBoundClip.speed || 1));
     const srcDur =
       targetBoundClip.sourceDuration && targetBoundClip.sourceDuration > 0.5
         ? targetBoundClip.sourceDuration
         : 8;
     const tStart = Math.max(0, targetBoundClip.trimStart || 0);
-    const tEnd =
-      typeof targetBoundClip.trimEnd === 'number' && targetBoundClip.trimEnd > tStart + 0.1
-        ? targetBoundClip.trimEnd
-        : srcDur;
-    const newTrimEnd = Number((tStart + (tEnd - tStart) * ratioKeep).toFixed(2));
-    const newActiveSpan = Number(Math.max(0.4, newTrimEnd - tStart).toFixed(2));
+
+    // Keep the first part of the media from tStart up to the playhead
+    const newTrimStart = tStart;
+    const newTrimEnd = Number(Math.min(srcDur, tStart + elapsedOnTimeline * curSpeed).toFixed(2));
+    const newActiveSpan = Number(Math.max(0.3, newTrimEnd - newTrimStart).toFixed(2));
     const targetDur = Number(
-      (targetBoundClip.originalSlotDuration || targetBoundClip.duration).toFixed(2)
+      (targetBoundClip.originalSlotDuration && targetBoundClip.originalSlotDuration > 0.5
+        ? targetBoundClip.originalSlotDuration
+        : targetBoundClip.duration
+      ).toFixed(2)
     );
-    const newSpeed = Number(Math.max(0.2, Math.min(4.0, newActiveSpan / targetDur)).toFixed(2));
+    const newSpeed = Number(Math.max(0.15, Math.min(4.0, newActiveSpan / targetDur)).toFixed(2));
 
     let updatedClipForFlow: TimelineClipItem | null = null;
     commitTimelineClipsUpdate((prev) =>
@@ -11578,7 +11597,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         if (c.id !== targetBoundClip.id) return c;
         const updated: TimelineClipItem = {
           ...c,
-          trimStart: tStart,
+          trimStart: newTrimStart,
           trimEnd: newTrimEnd,
           duration: targetDur,
           speed: newSpeed,
@@ -11595,7 +11614,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       scheduleAutoOpticalFlow(updatedClipForFlow);
     }
     setStatusMessage(
-      `🌊 Final cortado (${newTrimEnd.toFixed(1)}s → ${tEnd.toFixed(
+      `🌊 Final cortado (${newTrimEnd.toFixed(1)}s → ${((targetBoundClip.trimEnd || srcDur)).toFixed(
         1
       )}s): el resto del Clip ${String(targetBoundClip.clipNumber).padStart(
         2,
