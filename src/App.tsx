@@ -195,7 +195,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '02:45 PM - 11/16/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '03:00 PM - 11/16/2026';
 
 const PROTECTED_DOC_TEXT_FIELDS = [
   'rawClipsText',
@@ -12605,7 +12605,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       trackNumber,
       trackTitle: title || `FlowMusic_${padded}`,
       autoSubmit: true,
-      focusTab: true,
+      focusTab: false,
     });
   };
 
@@ -15846,6 +15846,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       try {
         sendCommandToWebBridge('SUNO', {
           action: 'SCAN_SUNO_TRACKS',
+          focusTab: false,
         });
       } catch {}
     };

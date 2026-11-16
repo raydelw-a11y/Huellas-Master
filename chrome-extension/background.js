@@ -2410,14 +2410,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         preferredServiceTab || serviceTabs.find((t) => t.id === payload.tabId) || serviceTabs[0] || null;
 
       const shouldFocusTargetTab =
-        targetService === 'GEMINI' || targetService === 'FLOW'
+        action === 'SCAN_SUNO_TRACKS' || action === 'STOP_FLOW_WATCHER'
           ? false
-          : targetService === 'SUNO'
-          ? payload.focusTab !== false
+          : targetService === 'GEMINI' || targetService === 'FLOW'
+          ? false
           : payload.focusTab === true;
 
       if (!targetTab) {
-        if (action === 'RENAME_GEMINI_CHAT') {
+        if (action === 'RENAME_GEMINI_CHAT' || action === 'SCAN_SUNO_TRACKS') {
           sendResponse({ ok: false, noTab: true });
           return;
         }
@@ -2431,12 +2431,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
               : targetService === 'SUNO'
               ? 'Flow Music (flowmusic.app)'
               : 'Gemini Web'
-          }${targetService === 'SUNO' ? '...' : ' en segundo plano...'}`,
+          } en segundo plano...`,
         });
         const created = await chrome.tabs.create({
           windowId: senderWindowId,
           url: defaultUrl,
-          active: shouldFocusTargetTab,
+          active: false,
         });
         await sleep(4500);
         targetTab = {
