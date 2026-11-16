@@ -4877,10 +4877,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   // Helper: scale a list of timeline clips to an exact target span (in seconds) using cumulative boundary rounding so zero rounding drift ever crushes or bloats the final clip (Clip 82)
   const scaleClipsToExactSpan = (items: TimelineClipItem[], targetSpanSec: number, protectClosingClip = false) => {
     if (items.length === 0 || targetSpanSec <= 0) return;
+    const { standardClipSec: stdDur } = getStage1ClipDurations(activeDoc);
     const avgTarget = targetSpanSec / items.length;
     const weights = items.map((it, idx) => {
-      const d = Number(it.duration) || 10;
-      const srcDur = Number(it.sourceDuration) || 10;
+      const d = Number(it.duration) || stdDur;
+      const srcDur = Number(it.sourceDuration) || stdDur;
       const tStart = Number(it.trimStart) || 0;
       const tEnd = typeof it.trimEnd === 'number' && it.trimEnd > tStart + 0.1 ? it.trimEnd : srcDur;
       const hasCustomShortTrim = tStart > 0.05 || tEnd < srcDur - 0.15;
@@ -4891,7 +4892,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           (!hasCustomShortTrim && d < Math.min(9.5, avgTarget * 0.88)) ||
           (idx === items.length - 1 && d < Math.min(9.5, avgTarget * 0.88)))
       ) {
-        return Math.max(10, avgTarget);
+        return Math.max(stdDur, avgTarget);
       }
       return Math.max(2, d);
     });
@@ -5113,10 +5114,25 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       // Standard single-shot Slogan clip in Opción B: align Clips 2..sloganClipIdx to sloganSplitAudioSec when schedule is complete, then insert fixedIntroClip
       const preClips = cleanBody.slice(firstNarratedIdx, sloganClipIdx + 1);
       const postClips = cleanBody.slice(sloganClipIdx + 1);
-      if (isFullScheduleReviewed && targetVoiceDur > sloganSplitAudioSec + 10 && preClips.length > 0) {
+      if (isVideo76Doc && isFullScheduleReviewed && targetVoiceDur > sloganSplitAudioSec + 10 && preClips.length > 0) {
         scaleClipsToExactSpan(preClips, sloganSplitAudioSec, false);
         const remVoiceDur = Math.max(10, targetVoiceDur - sloganSplitAudioSec);
         scaleClipsToExactSpan(postClips, remVoiceDur, true);
+      } else if (!isVideo76Doc) {
+        // En documentales estándar (Video 77 y futuros), la sincronización con el Slogan se logra de forma natural
+        // mediante la pausa de respiración de la locución; los clips preservan su duración nativa de Etapa 1 (8s o 10s).
+        const { standardClipSec: stdDur } = getStage1ClipDurations(activeDoc);
+        [...preClips, ...postClips].forEach((it) => {
+          const hasManualEdit = (it.trimStart && it.trimStart > 0.05) || (it.speed && it.speed !== 1) || it.partLabel;
+          const isPollutedDur = it.duration === 5.65 || (typeof it.duration === 'number' && Math.abs(it.duration - 10.45) < 0.05);
+          if (!hasManualEdit || isPollutedDur) {
+            const preservedSlot = it.originalSlotDuration && it.originalSlotDuration > 0.5 && it.originalSlotDuration !== 5.65 && Math.abs(it.originalSlotDuration - 10.45) > 0.05
+              ? it.originalSlotDuration
+              : stdDur;
+            it.duration = preservedSlot;
+            it.originalSlotDuration = preservedSlot;
+          }
+        });
       }
 
       return [
@@ -5143,9 +5159,25 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         scaleClipsToExactSpan(preClips, preTarget, false);
         const remTarget = Math.max(10, targetVoiceDur - preTarget);
         scaleClipsToExactSpan(postClips, remTarget, true);
-      } else {
+      } else if (isVideo76Doc) {
         const narratedClips = cleanBody.slice(firstNarratedIdx);
         scaleClipsToExactSpan(narratedClips, targetVoiceDur, true);
+      } else {
+        // En documentales estándar (Video 77 y futuros), cada clip narrado respeta la duración fija
+        // configurada en Etapa 1 (8s o 10s según standardDur), sin estirarse ni encogerse elásticamente contra la voz.
+        const { standardClipSec: stdDur } = getStage1ClipDurations(activeDoc);
+        const narratedClips = cleanBody.slice(firstNarratedIdx);
+        narratedClips.forEach((it) => {
+          const hasManualEdit = (it.trimStart && it.trimStart > 0.05) || (it.speed && it.speed !== 1) || it.partLabel;
+          const isPollutedDur = it.duration === 5.65 || (typeof it.duration === 'number' && Math.abs(it.duration - 10.45) < 0.05);
+          if (!hasManualEdit || isPollutedDur) {
+            const preservedSlot = it.originalSlotDuration && it.originalSlotDuration > 0.5 && it.originalSlotDuration !== 5.65 && Math.abs(it.originalSlotDuration - 10.45) > 0.05
+              ? it.originalSlotDuration
+              : stdDur;
+            it.duration = preservedSlot;
+            it.originalSlotDuration = preservedSlot;
+          }
+        });
       }
     }
 
@@ -11510,12 +11542,20 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     const newTrimStart = Number((tStart + elapsedOnTimeline * curSpeed).toFixed(2));
     const newTrimEnd = Math.max(newTrimStart + 0.35, visibleMediaEnd);
     const newActiveSpan = Number(Math.max(0.3, newTrimEnd - newTrimStart).toFixed(2));
-    const targetDur = Number(
-      (targetBoundClip.originalSlotDuration && targetBoundClip.originalSlotDuration > 0.5
+    const { standardClipSec: stdDur } = getStage1ClipDurations(activeDoc);
+    const rawTargetDur =
+      targetBoundClip.originalSlotDuration &&
+      targetBoundClip.originalSlotDuration > 0.5 &&
+      targetBoundClip.originalSlotDuration !== 5.65 &&
+      Math.abs(targetBoundClip.originalSlotDuration - 10.45) > 0.05
         ? targetBoundClip.originalSlotDuration
-        : targetBoundClip.duration
-      ).toFixed(2)
-    );
+        : targetBoundClip.duration &&
+          targetBoundClip.duration > 0.5 &&
+          targetBoundClip.duration !== 5.65 &&
+          Math.abs(targetBoundClip.duration - 10.45) > 0.05
+        ? targetBoundClip.duration
+        : stdDur;
+    const targetDur = Number(rawTargetDur.toFixed(2));
     // Speed required for the remaining media to cover the full target duration (always < 1.0 = Slow Motion!)
     const newSpeed = Number(Math.max(0.15, Math.min(4.0, newActiveSpan / targetDur)).toFixed(2));
 
@@ -11583,12 +11623,20 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     const newTrimStart = tStart;
     const newTrimEnd = Number(Math.min(srcDur, tStart + elapsedOnTimeline * curSpeed).toFixed(2));
     const newActiveSpan = Number(Math.max(0.3, newTrimEnd - newTrimStart).toFixed(2));
-    const targetDur = Number(
-      (targetBoundClip.originalSlotDuration && targetBoundClip.originalSlotDuration > 0.5
+    const { standardClipSec: stdDur } = getStage1ClipDurations(activeDoc);
+    const rawTargetDur =
+      targetBoundClip.originalSlotDuration &&
+      targetBoundClip.originalSlotDuration > 0.5 &&
+      targetBoundClip.originalSlotDuration !== 5.65 &&
+      Math.abs(targetBoundClip.originalSlotDuration - 10.45) > 0.05
         ? targetBoundClip.originalSlotDuration
-        : targetBoundClip.duration
-      ).toFixed(2)
-    );
+        : targetBoundClip.duration &&
+          targetBoundClip.duration > 0.5 &&
+          targetBoundClip.duration !== 5.65 &&
+          Math.abs(targetBoundClip.duration - 10.45) > 0.05
+        ? targetBoundClip.duration
+        : stdDur;
+    const targetDur = Number(rawTargetDur.toFixed(2));
     const newSpeed = Number(Math.max(0.15, Math.min(4.0, newActiveSpan / targetDur)).toFixed(2));
 
     let updatedClipForFlow: TimelineClipItem | null = null;
