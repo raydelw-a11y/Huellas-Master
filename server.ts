@@ -9485,6 +9485,8 @@ app.post('/api/flow/preview-proxy-status', async (req, res) => {
         }
       }
 
+      filePath = filePath.split('?')[0].split('#')[0];
+
       if (!filePath || filePath.includes('huellas-preview-cache') || !/\.(?:mp4|webm|mov)$/i.test(filePath)) {
         continue;
       }
