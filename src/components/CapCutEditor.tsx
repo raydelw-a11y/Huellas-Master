@@ -2300,12 +2300,13 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         ...patch,
         updatedAt: Date.now(),
       };
-      if (Array.isArray(nextPayload.customTimelineClips)) {
+      if ('customTimelineClips' in patch && Array.isArray(nextPayload.customTimelineClips)) {
         nextPayload.customTimelineClips = stripHeavyDataUrlsFromClips(
           nextPayload.customTimelineClips
         );
       }
       if (
+        'parkedTimelineClipsByNumber' in patch &&
         nextPayload.parkedTimelineClipsByNumber &&
         typeof nextPayload.parkedTimelineClipsByNumber === 'object'
       ) {
@@ -3521,6 +3522,16 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     }
     return { left: 0, top: Math.max(0, Math.round(savedTop)) };
   })());
+  const standbyArmedRef = useRef<{
+    key: string;
+    armed: boolean;
+    prerolled: boolean;
+  }>({ key: '', armed: false, prerolled: false });
+  const lastPrimaryDriftSeekMsRef = useRef<number>(0);
+  const cinemaAmbienceActiveRef = useRef<boolean>(false);
+  const lastAutoScrollMsRef = useRef<number>(0);
+  const lastPersistedPlayheadMsRef = useRef<number>(0);
+  const timelineScrollPersistTimerRef = useRef<any>(null);
 
   // 1) Restore saved per-documentary playhead, format, quality, zoom, scroll & selection when activeDoc?.id loads or switches
   // Each documentary stores and restores its own independent Video Editor state.
@@ -3747,6 +3758,20 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       return;
     }
     const roundedTime = Number(currentTime.toFixed(2));
+    // While playing, avoid synchronous localStorage & deep JSON serialization on every tick
+    // Only persist the lightweight playhead position throttled (>= 1500ms)
+    if (isPlaying) {
+      const now = performance.now();
+      if (now - lastPersistedPlayheadMsRef.current >= 1500) {
+        lastPersistedPlayheadMsRef.current = now;
+        try {
+          if (activeDoc?.id) {
+            localStorage.setItem(`huellas_editor_playhead_${activeDoc.id}`, String(roundedTime));
+          }
+        } catch {}
+      }
+      return;
+    }
     try {
       if (activeDoc?.id) {
         localStorage.setItem(`huellas_editor_playhead_${activeDoc.id}`, String(roundedTime));
@@ -3835,6 +3860,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     } catch {}
   }, [
     activeDoc?.id,
+    isPlaying,
     aspectRatio,
     exportResolution,
     exportFps,
@@ -8430,6 +8456,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const nearestCaptionAtPlayhead = useMemo(() => {
     if (activeCaptionAtPlayhead) return activeCaptionAtPlayhead;
     if (captions.length === 0) return null;
+    if (isPlaying && (isRightPanelCollapsed || activeInspectorTab !== 'captions')) {
+      return null;
+    }
     return captions.reduce((best, cap) => {
       const distBest =
         currentTime < best.start
@@ -8628,11 +8657,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const setCinemaAmbienceActive = (shouldPlay: boolean, volumePct: number = 25) => {
     try {
       if (!shouldPlay) {
+        if (!cinemaAmbienceActiveRef.current) return;
+        cinemaAmbienceActiveRef.current = false;
         if (ambientGainRef.current && webAudioCtxRef.current) {
           ambientGainRef.current.gain.setTargetAtTime(0, webAudioCtxRef.current.currentTime, 0.15);
         }
         return;
       }
+      cinemaAmbienceActiveRef.current = true;
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
       if (!AudioCtx) return;
       if (!webAudioCtxRef.current) {
@@ -8705,8 +8737,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         if (ctx.state === 'suspended') {
           ctx.resume().catch(() => {});
         }
-        vo.volume = 1;
-        gainNode.gain.value = Math.max(0, baseLinear * dbMultiplier);
+        if (vo.volume !== 1) vo.volume = 1;
+        const nextGain = Math.max(0, baseLinear * dbMultiplier);
+        if (Math.abs(gainNode.gain.value - nextGain) > 0.001) {
+          gainNode.gain.value = nextGain;
+        }
         return;
       }
     } catch {}
@@ -8793,19 +8828,6 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         ? Math.max(0, safeVidStreamEnd - 0.02)
         : Math.max(0, slotDur - 0.04);
       const clampedOffset = Math.max(0, Math.min(maxSafeOffset, rawOffset));
-      if (
-        hasKnownVidDur &&
-        !vid.paused &&
-        vid.readyState >= 2 &&
-        remainingSlotSec > 0.25 &&
-        vid.currentTime + remainingSlotSec * optRate > safeVidStreamEnd + 0.04 &&
-        safeVidStreamEnd - vid.currentTime > 0.08
-      ) {
-        optRate = Math.max(
-          0.15,
-          Math.min(4.0, Number(((safeVidStreamEnd - vid.currentTime) / remainingSlotSec).toFixed(4)))
-        );
-      }
       const reachedClipMediaEnd = Boolean(elapsedInSlot >= slotDur);
       return {
         effectiveRate: optRate,
@@ -8840,23 +8862,6 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     const rawOffset = elapsedInSlot * effectiveRate + trimStart;
     const maxSafeOffset = Math.max(trimStart, trimEnd - 0.02);
     const clampedOffset = Math.max(trimStart, Math.min(maxSafeOffset, rawOffset));
-
-    if (
-      isTrimmedOrSpeedAdjusted &&
-      hasKnownVidDur &&
-      !vid.paused &&
-      vid.readyState >= 2 &&
-      remainingSlotSec > 0.25 &&
-      vid.currentTime >= trimStart &&
-      vid.currentTime + remainingSlotSec * effectiveRate > trimEnd + 0.04 &&
-      trimEnd - vid.currentTime > 0.08
-    ) {
-      effectiveRate = Math.max(
-        0.15,
-        Math.min(4.0, Number(((trimEnd - vid.currentTime) / remainingSlotSec).toFixed(4)))
-      );
-    }
-
     const reachedClipMediaEnd = Boolean(elapsedInSlot >= slotDur);
 
     return {
@@ -9198,7 +9203,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     playTimelineStartSecRef.current = currentTimeRef.current;
     playWallStartMsRef.current = performance.now();
 
-    const stepMs = 20;
+    const stepMs = 33;
     playIntervalRef.current = setInterval(() => {
       const nowMs = performance.now();
       const elapsedSec = (nowMs - playWallStartMsRef.current) / 1000;
@@ -9234,7 +9239,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               : vo.currentTime + vStart;
           const drift = audioTimelineSec - next;
           if (Math.abs(drift) > 0.045 && Math.abs(drift) <= 0.35) {
-            next = next + drift * 0.35;
+            // Strictly monotonic advance: prevent negative audio buffer drift from jumping backwards across clip cut boundaries
+            next = Math.max(currentTimeRef.current, next + drift * 0.25);
             playTimelineStartSecRef.current = next;
             playWallStartMsRef.current = nowMs;
           }
@@ -9271,12 +9277,18 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     const rightThreshold = viewLeft + viewWidth * 0.84;
     const leftThreshold = viewLeft + trackHeaderOffsetPx * 0.5;
     if (playheadX > rightThreshold || playheadX < leftThreshold) {
-      container.scrollTo({
-        left: Math.max(0, playheadX - viewWidth * 0.28),
-        behavior: 'smooth',
-      });
+      const nowMs = performance.now();
+      if (nowMs - lastAutoScrollMsRef.current >= 180) {
+        lastAutoScrollMsRef.current = nowMs;
+        // Instant page-flip placement creating a ~60% deadband to eliminate continuous compositor thrashing
+        const targetLeft = Math.max(0, Math.round(playheadX - viewWidth * 0.24));
+        if (Math.abs(container.scrollLeft - targetLeft) > 6) {
+          container.scrollLeft = targetLeft;
+          savedTimelineScrollRef.current.left = targetLeft;
+        }
+      }
     }
-  }, [currentTime, isPlaying, isFitEntireProject]);
+  }, [currentTime, isPlaying, isFitEntireProject, timelineZoom]);
 
   // Helper to change timeline zoom while recording the playhead's exact screen offset so it never jumps out of view
   const handleChangeTimelineZoom = (
@@ -9532,10 +9544,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       const isClipSwitch = activeClipAtPlayhead.id !== activePlayingClipIdRef.current;
       const isManualSeek = appliedVideoSeekVersionRef.current !== lastSeekVersionRef.current;
 
+      const targetRateDiff = isClipSwitch || isManualSeek ? 0.015 : 0.05;
       if (
         isClipSwitch ||
         isManualSeek ||
-        Math.abs((vid.playbackRate || 1) - effectiveRate) > 0.015
+        Math.abs((vid.playbackRate || 1) - effectiveRate) > targetRateDiff
       ) {
         try {
           vid.defaultPlaybackRate = effectiveRate;
@@ -9549,9 +9562,16 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         targetVol <= 0 ||
         Boolean(activeClipAtPlayhead.audioMuted) ||
         (activeClipAtPlayhead.foleyVolume ?? 0) <= 0;
-      vid.volume = shouldMute ? 0 : targetVol;
-      vid.muted = shouldMute;
-      vid.style.opacity = '1';
+      const expectedVol = shouldMute ? 0 : targetVol;
+      if (Math.abs(vid.volume - expectedVol) > 0.005) {
+        vid.volume = expectedVol;
+      }
+      if (vid.muted !== shouldMute) {
+        vid.muted = shouldMute;
+      }
+      if (vid.style.opacity !== '1') {
+        vid.style.opacity = '1';
+      }
 
       const natFoley = naturalClipFoleyAudioRef.current;
       if (natFoley) {
@@ -9588,9 +9608,20 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           vid.play().catch(() => {});
         }
       } else {
-        // Continuous playback inside the same clip: let hardware audio clock run untouched at effectiveRate (never micro-nudge playbackRate or it triggers WSOLA vocoder distortion on Intro/Outro)
+        // Continuous playback inside the same clip: let hardware audio clock run untouched at effectiveRate
         const driftSec = vid.currentTime - clampedOffset;
-        if (vid.readyState >= 2 && Math.abs(driftSec) > 0.45) {
+        const nowMs = performance.now();
+        const timeToClipEnd = activeClipAtPlayhead.end - currentTime;
+        if (
+          vid.readyState >= 2 &&
+          !vid.seeking &&
+          !vid.ended &&
+          !clipEndedHoldRef.current &&
+          timeToClipEnd > 0.25 &&
+          Math.abs(driftSec) > 0.50 &&
+          nowMs - lastPrimaryDriftSeekMsRef.current >= 750
+        ) {
+          lastPrimaryDriftSeekMsRef.current = nowMs;
           try {
             vid.currentTime = clampedOffset;
           } catch {}
@@ -9602,40 +9633,54 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         }
       }
 
-      // 85ms Pre-Roll Warm Start on the Standby Deck right before the cut so the next clip is already in motion at t=0 of the cut
+      // Standby Deck Armed State Machine: Arm once per transition boundary, eliminating 50 Hz seek thrashing
       if (standbyVid && standbyVid !== vid && nextClipAtPlayhead?.videoUrl) {
         const timeToCut = activeClipAtPlayhead.end - currentTime;
         const nextTrimStart = Math.max(0, Number(nextClipAtPlayhead.trimStart || 0));
-        if (isPlaying && timeToCut > 0 && timeToCut <= 0.085) {
-          if (standbyVid.paused && standbyVid.readyState >= 2) {
+        const nextEffectiveUrl = String(nextClipAtPlayhead.videoUrl || '');
+        const armKey = `${nextClipAtPlayhead.id}|${nextEffectiveUrl}|${nextTrimStart.toFixed(3)}|${lastSeekVersionRef.current}`;
+
+        // 110ms Pre-Roll Window: warm start right before cut so Deck B is already moving at t=0
+        if (isPlaying && timeToCut > 0 && timeToCut <= 0.11) {
+          if (!standbyArmedRef.current.prerolled && standbyVid.paused && standbyVid.readyState >= 2 && !standbyVid.seeking) {
             try {
+              standbyArmedRef.current.prerolled = true;
               const nextSync = computeClipVideoSyncParams(
                 standbyVid,
                 nextClipAtPlayhead,
                 nextClipAtPlayhead.start
               );
-              standbyVid.defaultPlaybackRate = nextSync.effectiveRate;
-              standbyVid.playbackRate = nextSync.effectiveRate;
-              standbyVid.volume = 0;
-              standbyVid.muted = true;
+              if (Math.abs((standbyVid.playbackRate || 1) - nextSync.effectiveRate) > 0.02) {
+                standbyVid.defaultPlaybackRate = nextSync.effectiveRate;
+                standbyVid.playbackRate = nextSync.effectiveRate;
+              }
+              if (standbyVid.volume !== 0) standbyVid.volume = 0;
+              if (!standbyVid.muted) standbyVid.muted = true;
               if (Math.abs(standbyVid.currentTime - nextTrimStart) > 0.12) {
                 standbyVid.currentTime = nextTrimStart;
               }
               standbyVid.play().catch(() => {});
             } catch {}
           }
-        } else if (timeToCut > 0.12 || !isPlaying) {
+        } else if (timeToCut > 0.14 || !isPlaying) {
           try {
-            standbyVid.volume = 0;
-            standbyVid.muted = true;
+            if (standbyVid.volume !== 0) standbyVid.volume = 0;
+            if (!standbyVid.muted) standbyVid.muted = true;
             if (!standbyVid.paused) {
               standbyVid.pause();
+              // Reset prerolled flag if paused outside cut window
+              standbyArmedRef.current.prerolled = false;
             }
+            // Arm exactly ONCE per unique clip transition / seek version
             if (
+              standbyArmedRef.current.key !== armKey &&
               standbyVid.readyState >= 1 &&
-              Math.abs(standbyVid.currentTime - nextTrimStart) > 0.08
+              !standbyVid.seeking
             ) {
-              standbyVid.currentTime = nextTrimStart;
+              standbyArmedRef.current = { key: armKey, armed: true, prerolled: false };
+              if (Math.abs(standbyVid.currentTime - nextTrimStart) > 0.08) {
+                standbyVid.currentTime = nextTrimStart;
+              }
             }
           } catch {}
         }
@@ -14773,6 +14818,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                               vid.volume = 0;
                               vid.muted = true;
                               const tStart = Math.max(0, Number(nextClipAtPlayhead.trimStart || 0));
+                              const nextEffectiveUrl = String(nextClipAtPlayhead.videoUrl || '');
+                              const armKey = `${nextClipAtPlayhead.id}|${nextEffectiveUrl}|${tStart.toFixed(3)}|${lastSeekVersionRef.current}`;
+                              standbyArmedRef.current = { key: armKey, armed: true, prerolled: false };
                               if (Math.abs(vid.currentTime - tStart) > 0.05) {
                                 vid.currentTime = tStart;
                               }
@@ -18414,29 +18462,38 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             }
             savedTimelineScrollRef.current = { left: nextLeft, top: nextTop };
             hasExplicitTimelineScrollRef.current = true;
-            try {
-              const rawSession = localStorage.getItem(EDITOR_SESSION_STORAGE_KEY);
-              const parsedSession = rawSession ? JSON.parse(rawSession) : {};
-              localStorage.setItem(
-                EDITOR_SESSION_STORAGE_KEY,
-                JSON.stringify({
-                  ...parsedSession,
-                  timelineScrollLeft: nextLeft,
-                  timelineScrollTop: nextTop,
-                  hasExplicitTimelineScroll: true,
-                })
-              );
-              if (activeDoc?.id) {
-                persistDocOverlaysPatch(
-                  {
+            // While playing, skip synchronous localStorage & doc patch writes during scroll events completely
+            if (isPlaying) {
+              return;
+            }
+            if (timelineScrollPersistTimerRef.current) {
+              clearTimeout(timelineScrollPersistTimerRef.current);
+            }
+            timelineScrollPersistTimerRef.current = setTimeout(() => {
+              try {
+                const rawSession = localStorage.getItem(EDITOR_SESSION_STORAGE_KEY);
+                const parsedSession = rawSession ? JSON.parse(rawSession) : {};
+                localStorage.setItem(
+                  EDITOR_SESSION_STORAGE_KEY,
+                  JSON.stringify({
+                    ...parsedSession,
                     timelineScrollLeft: nextLeft,
                     timelineScrollTop: nextTop,
                     hasExplicitTimelineScroll: true,
-                  },
-                  activeDoc.id
+                  })
                 );
-              }
-            } catch {}
+                if (activeDoc?.id) {
+                  persistDocOverlaysPatch(
+                    {
+                      timelineScrollLeft: nextLeft,
+                      timelineScrollTop: nextTop,
+                      hasExplicitTimelineScroll: true,
+                    },
+                    activeDoc.id
+                  );
+                }
+              } catch {}
+            }, 300);
           }}
           className={`flex-1 min-h-0 bg-[#0e0c09] px-2 pb-1.5 overflow-y-auto ${
             isFitEntireProject ? 'overflow-x-hidden' : 'overflow-x-auto'
