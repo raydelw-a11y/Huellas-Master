@@ -23327,8 +23327,74 @@ app.post('/api/copilot-web/ask-external-result', (req, res) => {
   res.json({ ok: true });
 });
 
-app.post('/api/copilot-web/ask-external', (_req, res) => {
-  res.status(410).json({ ok: false, error: 'Copilot Web fue removido del sistema de modos.' });
+app.post('/api/copilot-web/ask-external', async (req, res) => {
+  const prompt = String(req.body?.prompt || '').trim();
+  if (!prompt) {
+    res.status(400).json({ ok: false, error: 'Falta el campo prompt.' });
+    return;
+  }
+  const timeoutMs = Math.min(Math.max(Number(req.body?.timeoutMs) || 300000, 15000), 360000);
+  const id = `ext_copilot_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+  const resultPromise = new Promise<{
+    ok: boolean;
+    verifiedModel?: string;
+    response?: string;
+    chatUrl?: string;
+    error?: string;
+  }>((resolve) => {
+    const timer = setTimeout(() => {
+      const expired = pendingExternalCopilotAsks.get(id);
+      pendingExternalCopilotAsks.delete(id);
+      if (expired && !expired.reusedExisting) {
+        closeTemporaryCopilotWindowFailsafe({
+          windowId: expired.windowId,
+          tabId: expired.tabId,
+          chatUrl: expired.chatUrl,
+        });
+      }
+      resolve({
+        ok: false,
+        error: `Timeout esperando respuesta de Copilot Web tras ${Math.round(timeoutMs / 1000)}s.`,
+      });
+    }, timeoutMs);
+    pendingExternalCopilotAsks.set(id, {
+      id,
+      prompt,
+      createdAt: Date.now(),
+      claimed: false,
+      resolve,
+      timer,
+    });
+
+    res.on('close', () => {
+      if (res.writableEnded) return;
+      const aborted = pendingExternalCopilotAsks.get(id);
+      if (aborted) {
+        clearTimeout(aborted.timer);
+        pendingExternalCopilotAsks.delete(id);
+        if (!aborted.reusedExisting) {
+          closeTemporaryCopilotWindowFailsafe({
+            windowId: aborted.windowId,
+            tabId: aborted.tabId,
+            chatUrl: aborted.chatUrl,
+          });
+        }
+      }
+    });
+
+    wakeExtensionInHuellasAppBrowser();
+
+    setTimeout(() => {
+      const current = pendingExternalCopilotAsks.get(id);
+      if (current && !current.claimed && Date.now() - lastHuellasAppWindowPollAt > 5000) {
+        wakeExtensionInHuellasAppBrowser();
+      }
+    }, 2200);
+  });
+
+  const outcome = await resultPromise;
+  res.status(outcome.ok ? 200 : 504).json(outcome);
 });
 
 app.post('/api/extension/reload', (_req, res) => {

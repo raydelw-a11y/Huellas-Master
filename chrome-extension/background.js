@@ -8318,6 +8318,29 @@ async function ensureResidentGeminiAndChatGptTabs(presence) {
         await chrome.tabs.update(grokTabs[0].id, { autoDiscardable: false }).catch(() => {});
       }
     }
+
+    // 5. Always keep at least 1 Copilot tab open and alive (autoDiscardable: false)
+    const copilotTabs = await chrome.tabs
+      .query({ url: COPILOT_TAB_URL_PATTERNS })
+      .catch(() => []);
+    if (copilotTabs.length === 0) {
+      const createdCopilot = await chrome.tabs
+        .create({
+          url: 'https://copilot.microsoft.com/',
+          active: false,
+          ...winOpt,
+        })
+        .catch(() => null);
+      if (createdCopilot && createdCopilot.id) {
+        reusedExternalTabIds.add(createdCopilot.id);
+        await chrome.tabs.update(createdCopilot.id, { autoDiscardable: false }).catch(() => {});
+      }
+    } else if (copilotTabs[0] && copilotTabs[0].id) {
+      reusedExternalTabIds.add(copilotTabs[0].id);
+      if (copilotTabs[0].autoDiscardable !== false) {
+        await chrome.tabs.update(copilotTabs[0].id, { autoDiscardable: false }).catch(() => {});
+      }
+    }
   } catch {
   } finally {
     isEnsuringResidentTabs = false;
