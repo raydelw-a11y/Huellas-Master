@@ -9114,12 +9114,25 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     ) {
       return null;
     }
-    return (
-      musicTracks.find(
-        (m) => m.audioUrl && currentTime >= m.start && currentTime < m.start + m.duration
-      ) || null
+    const directMatch = musicTracks.find(
+      (m) => m.audioUrl && currentTime >= m.start && currentTime < m.start + m.duration
     );
-  }, [musicTracks, currentTime, activeClipAtPlayhead?.id, activeClipAtPlayhead?.clipNumber]);
+    if (directMatch) return directMatch;
+
+    // Fallback: If playhead is in a music slot without audio file (e.g. tracks 6-7),
+    // extend/loop the last available playable track (Track 5) until Outro so the finale is never silent
+    const playable = musicTracks.filter((m) => Boolean(m.audioUrl));
+    if (playable.length > 0 && currentTime >= playable[0].start) {
+      const lastPlayable = playable[playable.length - 1];
+      if (currentTime >= lastPlayable.start + lastPlayable.duration && currentTime < totalDurationSec - 8) {
+        return {
+          ...lastPlayable,
+          duration: Math.max(10, totalDurationSec - lastPlayable.start - 8),
+        };
+      }
+    }
+    return null;
+  }, [musicTracks, currentTime, activeClipAtPlayhead?.id, activeClipAtPlayhead?.clipNumber, totalDurationSec]);
 
   const activeSeparatedVocalAtPlayhead = useMemo(() => {
     return (
@@ -9994,14 +10007,18 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               ? vo.currentTime + vStart + psBounds.duration
               : vo.currentTime + vStart;
           const drift = audioTimelineSec - next;
-          if (Math.abs(drift) > 0.040 && Math.abs(drift) <= 0.35) {
-            next = Math.max(currentTimeRef.current, next + drift * 0.25);
+          // STRICTLY MONOTONIC: If audio is ahead, gently pull timeline forward.
+          // NEVER pull master clock backward on negative drift, which caused backwards jumping and stutter!
+          if (drift > 0.040 && drift <= 0.35) {
+            next = next + drift * 0.20;
             playTimelineStartSecRef.current = next;
             playWallStartMsRef.current = nowMs;
           }
         }
       }
 
+      // Hard Monotonicity Guard: during continuous playback, timeline time NEVER decreases
+      next = Math.max(currentTimeRef.current, next);
       currentTimeRef.current = next;
 
       // 1. Butter-smooth 60fps GPU Playhead Movement
@@ -10058,20 +10075,21 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               vid.defaultPlaybackRate = effectiveRate;
               vid.playbackRate = effectiveRate;
             }
-          } else if (Math.abs(drift) <= 0.35 && nowMs - lastRateNudgeMsRef.current >= 120) {
+          } else if (Math.abs(drift) <= 0.40 && nowMs - lastRateNudgeMsRef.current >= 150) {
             lastRateNudgeMsRef.current = nowMs;
-            const rateFactor = Math.max(0.95, Math.min(1.05, 1 + drift * 0.35));
-            const targetRate = Math.max(0.15, Math.min(4.0, effectiveRate * rateFactor));
-            if (Math.abs((vid.playbackRate || 1) - targetRate) > 0.008) {
+            // Gentle proportional rate adjustment (0.97x to 1.03x) that hardware decoders handle smoothly
+            const rateFactor = Math.max(0.97, Math.min(1.03, 1 + drift * 0.25));
+            const targetRate = Math.max(0.2, Math.min(3.0, effectiveRate * rateFactor));
+            if (Math.abs((vid.playbackRate || 1) - targetRate) > 0.01) {
               vid.defaultPlaybackRate = targetRate;
               vid.playbackRate = targetRate;
             }
           } else if (
-            Math.abs(drift) > 0.45 &&
-            curClip.end - next > 0.30 &&
-            nowMs - lastPrimaryDriftSeekMsRef.current >= 1000
+            Math.abs(drift) > 0.85 &&
+            curClip.end - next > 0.40 &&
+            nowMs - lastPrimaryDriftSeekMsRef.current >= 1500
           ) {
-            // Emergency seek only on catastrophic drift
+            // Hard seek ONLY on catastrophic drift (> 850ms)
             lastPrimaryDriftSeekMsRef.current = nowMs;
             try {
               vid.currentTime = clampedOffset;
@@ -10490,7 +10508,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           } catch {}
         }
         const seekThreshold = isClipSwitch && !isManualSeek && isPlaying ? 0.35 : 0.08;
-        if (vid.readyState >= 1 && Math.abs(vid.currentTime - clampedOffset) > seekThreshold) {
+        if (
+          (!isPlaying || isManualSeek || isClipSwitch) &&
+          vid.readyState >= 1 &&
+          Math.abs(vid.currentTime - clampedOffset) > seekThreshold
+        ) {
           try {
             vid.currentTime = clampedOffset;
           } catch {}
@@ -10499,8 +10521,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           vid.play().catch(() => {});
         }
       } else {
-        // Continuous playback inside the same clip: let hardware audio clock run untouched at effectiveRate
-        const driftSec = vid.currentTime - clampedOffset;
+        // Continuous playback inside the same clip: let hardware video clock run untouched at effectiveRate
+        // NEVER hard seek on minor drift (< 850ms) while playing: hard seeks cause 4K video decoders to stall and jump backward!
+        const driftSec = Math.abs(vid.currentTime - clampedOffset);
         const nowMs = performance.now();
         const timeToClipEnd = activeClipAtPlayhead.end - currentTime;
         if (
@@ -10508,9 +10531,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           !vid.seeking &&
           !vid.ended &&
           !clipEndedHoldRef.current &&
-          timeToClipEnd > 0.25 &&
-          Math.abs(driftSec) > 0.60 &&
-          nowMs - lastPrimaryDriftSeekMsRef.current >= 1000
+          timeToClipEnd > 0.40 &&
+          driftSec > 0.85 &&
+          nowMs - lastPrimaryDriftSeekMsRef.current >= 1500
         ) {
           lastPrimaryDriftSeekMsRef.current = nowMs;
           try {
@@ -10670,7 +10693,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           mus.playbackRate = 1;
         }
         (mus as any).preservesPitch = true;
-        const musTime = Math.max(0, currentTime - activeMusicAtPlayhead.start);
+        const rawMusDur =
+          Number.isFinite(mus.duration) && mus.duration > 1
+            ? mus.duration
+            : Number.isFinite(activeMusicAtPlayhead.duration) && activeMusicAtPlayhead.duration > 1
+            ? activeMusicAtPlayhead.duration
+            : 240;
+        const rawMusTime = Math.max(0, currentTime - activeMusicAtPlayhead.start);
+        const musTime = rawMusDur > 0 && rawMusTime >= rawMusDur ? rawMusTime % rawMusDur : rawMusTime;
         const isManualMusSeek = appliedMusicSeekVersionRef.current !== lastSeekVersionRef.current;
         if (
           isTrackSwitch ||
@@ -10688,7 +10718,12 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           1,
           Math.max(0, effectiveMusicVolumeAtPlayhead / 100)
         );
-        if (isPlaying && mus.paused && !mus.ended) {
+        if (isPlaying && (mus.paused || mus.ended)) {
+          if (mus.ended) {
+            try {
+              mus.currentTime = musTime;
+            } catch {}
+          }
           mus.play().catch(() => {});
         } else if (!isPlaying && !mus.paused) {
           mus.pause();
@@ -20520,14 +20555,22 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                             }
                             className={`relative px-2 py-0.5 h-full rounded border text-[10px] flex items-center gap-1.5 truncate shrink-0 cursor-pointer select-none transition ${
                               isSongSelected
-                                ? 'bg-purple-900/90 border-purple-300 text-white ring-2 ring-purple-400/70 shadow-lg shadow-purple-500/25 z-10'
-                                : 'bg-purple-950/65 hover:bg-purple-900/75 border-purple-500/45 text-purple-200'
+                                ? Boolean(mt.audioUrl)
+                                  ? 'bg-purple-900/90 border-purple-300 text-white ring-2 ring-purple-400/70 shadow-lg shadow-purple-500/25 z-10'
+                                  : 'bg-amber-950/90 border-amber-300 text-white ring-2 ring-amber-400/70 shadow-lg shadow-amber-500/25 z-10'
+                                : Boolean(mt.audioUrl)
+                                ? 'bg-purple-950/65 hover:bg-purple-900/75 border-purple-500/45 text-purple-200'
+                                : 'bg-amber-950/50 hover:bg-amber-900/65 border-amber-500/50 border-dashed text-amber-200'
                             }`}
-                            title={`Clic para editar volumen y fades • Doble clic para ir al inicio • ${mt.title} (${formatTimeMMSS(
-                              mt.start
-                            )} - ${formatTimeMMSS(
-                              mt.start + mt.duration
-                            )}) • Vol: ${songVol}% • Fade-In: ${songFadeIn}s • Fade-Out: ${songFadeOut}s`}
+                            title={
+                              Boolean(mt.audioUrl)
+                                ? `Clic para editar volumen y fades • Doble clic para ir al inicio • ${mt.title} (${formatTimeMMSS(
+                                    mt.start
+                                  )} - ${formatTimeMMSS(
+                                    mt.start + mt.duration
+                                  )}) • Vol: ${songVol}% • Fade-In: ${songFadeIn}s • Fade-Out: ${songFadeOut}s`
+                                : `⚠️ Pista ${mt.trackNumber} sin archivo local en 02_Audio/ (${mt.title}). Generar en flowmusic.app o suno.com con el prompt de Etapa 8. El reproductor extenderá la Pista 5 automáticamente.`
+                            }
                           >
                             {/* Visual Fade-In Ramp Indicator */}
                             {songFadeIn > 0 && (
@@ -20549,9 +20592,15 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                                 className="pointer-events-none absolute inset-y-0 right-0 bg-purple-400/25 border-r-2 border-purple-300/60"
                               />
                             )}
-                            <Music className="w-3 h-3 text-purple-300 shrink-0 relative z-10" />
+                            <Music className={`w-3 h-3 ${Boolean(mt.audioUrl) ? 'text-purple-300' : 'text-amber-400'} shrink-0 relative z-10`} />
                             <span className="truncate relative z-10 font-semibold">
-                              #{mt.trackNumber} {mt.title} ({formatTimeMMSS(mt.start)} -{' '}
+                              #{mt.trackNumber} {mt.title}{' '}
+                              {!mt.audioUrl && (
+                                <span className="text-amber-400 font-bold ml-1">
+                                  ⚠️(Sin audio local — Loop P5)
+                                </span>
+                              )}{' '}
+                              ({formatTimeMMSS(mt.start)} -{' '}
                               {formatTimeMMSS(mt.start + mt.duration)}) • 🔊 {songVol}% • 🎚️ In{' '}
                               {songFadeIn}s / Out {songFadeOut}s
                               {mt.isLast90Sec ? ' • Cierre 1:30' : ''}
