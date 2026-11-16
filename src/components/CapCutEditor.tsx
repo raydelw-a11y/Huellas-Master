@@ -386,6 +386,13 @@ export const EDITOR_SHADOW_OPTIONS: { value: OverlayShadowStyle; label: string }
   { value: 'none', label: 'Sin Sombra' },
 ];
 
+export const EDITOR_BG_STYLE_OPTIONS: { value: OverlayBgStyle; label: string }[] = [
+  { value: 'none', label: 'Sin Fondo (Transparente)' },
+  { value: 'word_shadow', label: 'Sombra Ceñida a las Palabras' },
+  { value: 'semi', label: 'Caja Semitransparente' },
+  { value: 'solid', label: 'Caja Sólida' },
+];
+
 export function getTextShadowCss(style: OverlayShadowStyle): string {
   switch (style) {
     case 'none':
@@ -1520,14 +1527,16 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
   // Animations for Captions & Video Clips / Images
   const [captionAnimIn, setCaptionAnimIn] = useState<ElementAnimationType>(
-    () => initialOverlayStyles.captionAnimIn || 'fade'
+    () => activeDoc?.promptConfig?.CAPTION_ANIM_IN || initialOverlayStyles.captionAnimIn || 'fade'
   );
   const [captionAnimOut, setCaptionAnimOut] = useState<ElementAnimationType>(
-    () => initialOverlayStyles.captionAnimOut || 'fade'
+    () => activeDoc?.promptConfig?.CAPTION_ANIM_OUT || initialOverlayStyles.captionAnimOut || 'fade'
   );
-  const [captionAnimDur, setCaptionAnimDur] = useState<number>(
-    () => Number(initialOverlayStyles.captionAnimDur) || 0.25
-  );
+  const [captionAnimDur, setCaptionAnimDur] = useState<number>(() => {
+    const fromDoc = Number(activeDoc?.promptConfig?.CAPTION_ANIM_DUR);
+    if (Number.isFinite(fromDoc) && fromDoc >= 0.05 && fromDoc <= 3.0) return fromDoc;
+    return Number(initialOverlayStyles.captionAnimDur) || 0.25;
+  });
 
   const [clipAnimIn, setClipAnimIn] = useState<ElementAnimationType>(
     () => initialSessionState?.clipAnimIn || 'none'
@@ -2025,7 +2034,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     return [];
   });
   const [captionFontFamily, setCaptionFontFamily] = useState<string>(
-    () => initialOverlayStyles.captionFontFamily || EDITOR_FONT_OPTIONS[0].value
+    () =>
+      activeDoc?.promptConfig?.CAPTION_FONT_FAMILY ||
+      initialOverlayStyles.captionFontFamily ||
+      EDITOR_FONT_OPTIONS[0].value
   );
   const [captionMaxChars, setCaptionMaxChars] = useState<number>(() => {
     const fromDoc = Number(activeDoc?.promptConfig?.CAPTION_MAX_CHARS);
@@ -2121,6 +2133,13 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           : 25)
   );
   const [captionBottomPct, setCaptionBottomPct] = useState<number>(() => {
+    const fromDoc =
+      aspectRatio === '9:16'
+        ? Number(activeDoc?.promptConfig?.CAPTION_BOTTOM_PCT_9X16)
+        : Number(activeDoc?.promptConfig?.CAPTION_BOTTOM_PCT_16X9);
+    if (Number.isFinite(fromDoc) && fromDoc >= 2 && fromDoc <= 85) {
+      return fromDoc;
+    }
     if (aspectRatio === '16:9' && !initialOverlayStyles.captionBottom16x9V10) {
       return 10;
     }
@@ -2132,34 +2151,59 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       ? 15
       : 10;
   });
-  const [captionColor, setCaptionColor] = useState<'white' | 'amber' | 'custom'>(
-    () => initialOverlayStyles.captionColor || 'white'
-  );
+  const [captionColor, setCaptionColor] = useState<'white' | 'amber' | 'custom'>(() => {
+    const fromDoc = activeDoc?.promptConfig?.CAPTION_COLOR;
+    if (fromDoc === 'white' || fromDoc === 'amber' || fromDoc === 'custom') return fromDoc;
+    return initialOverlayStyles.captionColor || 'white';
+  });
   const [captionCustomColor, setCaptionCustomColor] = useState<string>(
-    () => initialOverlayStyles.captionCustomColor || '#ffffff'
+    () => activeDoc?.promptConfig?.CAPTION_CUSTOM_COLOR || initialOverlayStyles.captionCustomColor || '#ffffff'
   );
-  const [captionShadowStyle, setCaptionShadowStyle] = useState<OverlayShadowStyle>(
-    () => initialOverlayStyles.captionShadowStyle || 'cinema'
-  );
-  const [captionBgStyle, setCaptionBgStyle] = useState<OverlayBgStyle>(
-    () => initialOverlayStyles.captionBgStyle || 'word_shadow'
-  );
+  const [captionShadowStyle, setCaptionShadowStyle] = useState<OverlayShadowStyle>(() => {
+    const fromDoc = activeDoc?.promptConfig?.CAPTION_SHADOW_STYLE;
+    if (
+      fromDoc === 'none' ||
+      fromDoc === 'soft' ||
+      fromDoc === 'cinema' ||
+      fromDoc === 'outline' ||
+      fromDoc === 'gold_glow'
+    ) {
+      return fromDoc;
+    }
+    return initialOverlayStyles.captionShadowStyle || 'cinema';
+  });
+  const [captionBgStyle, setCaptionBgStyle] = useState<OverlayBgStyle>(() => {
+    const fromDoc = activeDoc?.promptConfig?.CAPTION_BG_STYLE;
+    if (
+      fromDoc === 'none' ||
+      fromDoc === 'word_shadow' ||
+      fromDoc === 'semi' ||
+      fromDoc === 'solid' ||
+      fromDoc === 'pill'
+    ) {
+      return fromDoc;
+    }
+    return initialOverlayStyles.captionBgStyle || 'word_shadow';
+  });
   const [captionBgColor, setCaptionBgColor] = useState<string>(
-    () => initialOverlayStyles.captionBgColor || '#000000'
+    () => activeDoc?.promptConfig?.CAPTION_BG_COLOR || initialOverlayStyles.captionBgColor || '#000000'
   );
-  const [captionBgOpacity, setCaptionBgOpacity] = useState<number>(() =>
-    initialOverlayStyles.captionBgOpacityV30 &&
-    typeof initialOverlayStyles.captionBgOpacity === 'number'
+  const [captionBgOpacity, setCaptionBgOpacity] = useState<number>(() => {
+    const fromDoc = Number(activeDoc?.promptConfig?.CAPTION_BG_OPACITY);
+    if (Number.isFinite(fromDoc) && fromDoc >= 5 && fromDoc <= 100) return fromDoc;
+    return initialOverlayStyles.captionBgOpacityV30 &&
+      typeof initialOverlayStyles.captionBgOpacity === 'number'
       ? initialOverlayStyles.captionBgOpacity
-      : 30
-  );
-  const [captionTextCase, setCaptionTextCase] = useState<'original' | 'uppercase' | 'lowercase'>(
-    () =>
-      initialOverlayStyles.captionTextCase === 'uppercase' ||
+      : 30;
+  });
+  const [captionTextCase, setCaptionTextCase] = useState<'original' | 'uppercase' | 'lowercase'>(() => {
+    const fromDoc = activeDoc?.promptConfig?.CAPTION_TEXT_CASE;
+    if (fromDoc === 'original' || fromDoc === 'uppercase' || fromDoc === 'lowercase') return fromDoc;
+    return initialOverlayStyles.captionTextCase === 'uppercase' ||
       initialOverlayStyles.captionTextCase === 'lowercase'
-        ? initialOverlayStyles.captionTextCase
-        : 'original'
-  );
+      ? initialOverlayStyles.captionTextCase
+      : 'original';
+  });
 
   const formatCaptionTextCase = (text: string): string => {
     const raw = String(text || '');
@@ -2930,6 +2974,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       captionLineMode,
       captionMaxChars,
     };
+    if (activeDoc) {
+      updateActiveDoc({
+        promptConfig: {
+          ...(activeDoc.promptConfig || {}),
+          [aspectRatio === '9:16' ? 'CAPTION_BOTTOM_PCT_9X16' : 'CAPTION_BOTTOM_PCT_16X9']: captionBottomPct,
+        },
+      });
+    }
     const targetProfile = formatProfilesRef.current[nextRatio];
     setAspectRatio(nextRatio);
     setExportFps(nextRatio === '9:16' ? 60 : 30);
@@ -2948,7 +3000,15 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       setHookLeftPct(targetProfile.hookLeftPct);
       setHookTopPct(targetProfile.hookTopPct);
       setHookBoxWidthPct(targetProfile.hookBoxWidthPct);
-      setCaptionBottomPct(targetProfile.captionBottomPct);
+      const docBottom =
+        nextRatio === '9:16'
+          ? Number(activeDoc?.promptConfig?.CAPTION_BOTTOM_PCT_9X16)
+          : Number(activeDoc?.promptConfig?.CAPTION_BOTTOM_PCT_16X9);
+      if (Number.isFinite(docBottom) && docBottom >= 2 && docBottom <= 85) {
+        setCaptionBottomPct(docBottom);
+      } else if (typeof targetProfile.captionBottomPct === 'number') {
+        setCaptionBottomPct(targetProfile.captionBottomPct);
+      }
       if (targetProfile.captionLineMode) {
         setCaptionLineMode(targetProfile.captionLineMode);
       }
@@ -3026,6 +3086,86 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     ) {
       setCaptionWordsPerLine9x16(cfg.CAPTION_WORDS_PER_LINE_9X16);
     }
+    if (cfg.CAPTION_FONT_FAMILY && cfg.CAPTION_FONT_FAMILY !== captionFontFamily) {
+      setCaptionFontFamily(cfg.CAPTION_FONT_FAMILY);
+    }
+    const ratioBottom =
+      aspectRatio === '9:16'
+        ? Number(cfg.CAPTION_BOTTOM_PCT_9X16)
+        : Number(cfg.CAPTION_BOTTOM_PCT_16X9);
+    if (
+      Number.isFinite(ratioBottom) &&
+      ratioBottom >= 2 &&
+      ratioBottom <= 85 &&
+      ratioBottom !== captionBottomPct
+    ) {
+      setCaptionBottomPct(ratioBottom);
+      if (formatProfilesRef.current[aspectRatio]) {
+        formatProfilesRef.current[aspectRatio].captionBottomPct = ratioBottom;
+      }
+    }
+    if (
+      (cfg.CAPTION_COLOR === 'white' ||
+        cfg.CAPTION_COLOR === 'amber' ||
+        cfg.CAPTION_COLOR === 'custom') &&
+      cfg.CAPTION_COLOR !== captionColor
+    ) {
+      setCaptionColor(cfg.CAPTION_COLOR);
+    }
+    if (cfg.CAPTION_CUSTOM_COLOR && cfg.CAPTION_CUSTOM_COLOR !== captionCustomColor) {
+      setCaptionCustomColor(cfg.CAPTION_CUSTOM_COLOR);
+    }
+    if (
+      (cfg.CAPTION_TEXT_CASE === 'original' ||
+        cfg.CAPTION_TEXT_CASE === 'uppercase' ||
+        cfg.CAPTION_TEXT_CASE === 'lowercase') &&
+      cfg.CAPTION_TEXT_CASE !== captionTextCase
+    ) {
+      setCaptionTextCase(cfg.CAPTION_TEXT_CASE);
+    }
+    if (
+      (cfg.CAPTION_SHADOW_STYLE === 'none' ||
+        cfg.CAPTION_SHADOW_STYLE === 'soft' ||
+        cfg.CAPTION_SHADOW_STYLE === 'cinema' ||
+        cfg.CAPTION_SHADOW_STYLE === 'outline' ||
+        cfg.CAPTION_SHADOW_STYLE === 'gold_glow') &&
+      cfg.CAPTION_SHADOW_STYLE !== captionShadowStyle
+    ) {
+      setCaptionShadowStyle(cfg.CAPTION_SHADOW_STYLE);
+    }
+    if (
+      (cfg.CAPTION_BG_STYLE === 'none' ||
+        cfg.CAPTION_BG_STYLE === 'word_shadow' ||
+        cfg.CAPTION_BG_STYLE === 'semi' ||
+        cfg.CAPTION_BG_STYLE === 'solid' ||
+        cfg.CAPTION_BG_STYLE === 'pill') &&
+      cfg.CAPTION_BG_STYLE !== captionBgStyle
+    ) {
+      setCaptionBgStyle(cfg.CAPTION_BG_STYLE);
+    }
+    if (cfg.CAPTION_BG_COLOR && cfg.CAPTION_BG_COLOR !== captionBgColor) {
+      setCaptionBgColor(cfg.CAPTION_BG_COLOR);
+    }
+    if (
+      typeof cfg.CAPTION_BG_OPACITY === 'number' &&
+      Number.isFinite(cfg.CAPTION_BG_OPACITY) &&
+      cfg.CAPTION_BG_OPACITY !== captionBgOpacity
+    ) {
+      setCaptionBgOpacity(cfg.CAPTION_BG_OPACITY);
+    }
+    if (cfg.CAPTION_ANIM_IN && cfg.CAPTION_ANIM_IN !== captionAnimIn) {
+      setCaptionAnimIn(cfg.CAPTION_ANIM_IN);
+    }
+    if (cfg.CAPTION_ANIM_OUT && cfg.CAPTION_ANIM_OUT !== captionAnimOut) {
+      setCaptionAnimOut(cfg.CAPTION_ANIM_OUT);
+    }
+    if (
+      typeof cfg.CAPTION_ANIM_DUR === 'number' &&
+      Number.isFinite(cfg.CAPTION_ANIM_DUR) &&
+      cfg.CAPTION_ANIM_DUR !== captionAnimDur
+    ) {
+      setCaptionAnimDur(cfg.CAPTION_ANIM_DUR);
+    }
   }, [
     activeDoc?.id,
     activeDoc?.promptConfig?.CAPTION_MAX_CHARS,
@@ -3034,6 +3174,20 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     activeDoc?.promptConfig?.CAPTION_FONT_SIZE_9X16,
     activeDoc?.promptConfig?.CAPTION_WORDS_PER_LINE_16X9,
     activeDoc?.promptConfig?.CAPTION_WORDS_PER_LINE_9X16,
+    activeDoc?.promptConfig?.CAPTION_FONT_FAMILY,
+    activeDoc?.promptConfig?.CAPTION_BOTTOM_PCT_16X9,
+    activeDoc?.promptConfig?.CAPTION_BOTTOM_PCT_9X16,
+    activeDoc?.promptConfig?.CAPTION_COLOR,
+    activeDoc?.promptConfig?.CAPTION_CUSTOM_COLOR,
+    activeDoc?.promptConfig?.CAPTION_TEXT_CASE,
+    activeDoc?.promptConfig?.CAPTION_SHADOW_STYLE,
+    activeDoc?.promptConfig?.CAPTION_BG_STYLE,
+    activeDoc?.promptConfig?.CAPTION_BG_COLOR,
+    activeDoc?.promptConfig?.CAPTION_BG_OPACITY,
+    activeDoc?.promptConfig?.CAPTION_ANIM_IN,
+    activeDoc?.promptConfig?.CAPTION_ANIM_OUT,
+    activeDoc?.promptConfig?.CAPTION_ANIM_DUR,
+    aspectRatio,
   ]);
 
   // Reformat timeline captions dynamically whenever aspectRatio, maxChars, wordsPerLine (16:9 / 9:16), or lineMode changes
@@ -3240,6 +3394,159 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     }
   };
 
+  const handleSetCaptionFontFamily = (val: string) => {
+    setCaptionFontFamily(val);
+    if (activeDoc) {
+      updateActiveDoc({
+        promptConfig: {
+          ...(activeDoc.promptConfig || {}),
+          CAPTION_FONT_FAMILY: val,
+        },
+      });
+    }
+  };
+
+  const handleSetCaptionTextCase = (val: 'original' | 'uppercase' | 'lowercase') => {
+    setCaptionTextCase(val);
+    if (activeDoc) {
+      updateActiveDoc({
+        promptConfig: {
+          ...(activeDoc.promptConfig || {}),
+          CAPTION_TEXT_CASE: val,
+        },
+      });
+    }
+  };
+
+  const handleSetCaptionBottomPct = (val: number, targetRatio?: EditorAspectRatio) => {
+    const r = targetRatio || aspectRatio;
+    const clamped = Math.max(4, Math.min(80, Number(val.toFixed(1))));
+    if (r === aspectRatio) {
+      setCaptionBottomPct(clamped);
+    }
+    if (formatProfilesRef.current[r]) {
+      formatProfilesRef.current[r].captionBottomPct = clamped;
+    }
+    if (activeDoc) {
+      updateActiveDoc({
+        promptConfig: {
+          ...(activeDoc.promptConfig || {}),
+          [r === '9:16' ? 'CAPTION_BOTTOM_PCT_9X16' : 'CAPTION_BOTTOM_PCT_16X9']: clamped,
+        },
+      });
+    }
+  };
+
+  const handleSetCaptionColor = (val: 'white' | 'amber' | 'custom') => {
+    setCaptionColor(val);
+    if (activeDoc) {
+      updateActiveDoc({
+        promptConfig: {
+          ...(activeDoc.promptConfig || {}),
+          CAPTION_COLOR: val,
+        },
+      });
+    }
+  };
+
+  const handleSetCaptionCustomColor = (val: string) => {
+    setCaptionCustomColor(val);
+    if (activeDoc) {
+      updateActiveDoc({
+        promptConfig: {
+          ...(activeDoc.promptConfig || {}),
+          CAPTION_CUSTOM_COLOR: val,
+        },
+      });
+    }
+  };
+
+  const handleSetCaptionShadowStyle = (val: OverlayShadowStyle) => {
+    setCaptionShadowStyle(val);
+    if (activeDoc) {
+      updateActiveDoc({
+        promptConfig: {
+          ...(activeDoc.promptConfig || {}),
+          CAPTION_SHADOW_STYLE: val,
+        },
+      });
+    }
+  };
+
+  const handleSetCaptionBgStyle = (val: OverlayBgStyle) => {
+    setCaptionBgStyle(val);
+    if (activeDoc) {
+      updateActiveDoc({
+        promptConfig: {
+          ...(activeDoc.promptConfig || {}),
+          CAPTION_BG_STYLE: val,
+        },
+      });
+    }
+  };
+
+  const handleSetCaptionBgColor = (val: string) => {
+    setCaptionBgColor(val);
+    if (activeDoc) {
+      updateActiveDoc({
+        promptConfig: {
+          ...(activeDoc.promptConfig || {}),
+          CAPTION_BG_COLOR: val,
+        },
+      });
+    }
+  };
+
+  const handleSetCaptionBgOpacity = (val: number) => {
+    const clamped = Math.max(5, Math.min(100, Math.round(val)));
+    setCaptionBgOpacity(clamped);
+    if (activeDoc) {
+      updateActiveDoc({
+        promptConfig: {
+          ...(activeDoc.promptConfig || {}),
+          CAPTION_BG_OPACITY: clamped,
+        },
+      });
+    }
+  };
+
+  const handleSetCaptionAnimIn = (val: ElementAnimationType) => {
+    setCaptionAnimIn(val);
+    if (activeDoc) {
+      updateActiveDoc({
+        promptConfig: {
+          ...(activeDoc.promptConfig || {}),
+          CAPTION_ANIM_IN: val,
+        },
+      });
+    }
+  };
+
+  const handleSetCaptionAnimOut = (val: ElementAnimationType) => {
+    setCaptionAnimOut(val);
+    if (activeDoc) {
+      updateActiveDoc({
+        promptConfig: {
+          ...(activeDoc.promptConfig || {}),
+          CAPTION_ANIM_OUT: val,
+        },
+      });
+    }
+  };
+
+  const handleSetCaptionAnimDur = (val: number) => {
+    const clamped = Math.max(0.05, Math.min(3.0, Number(val.toFixed(2))));
+    setCaptionAnimDur(clamped);
+    if (activeDoc) {
+      updateActiveDoc({
+        promptConfig: {
+          ...(activeDoc.promptConfig || {}),
+          CAPTION_ANIM_DUR: clamped,
+        },
+      });
+    }
+  };
+
   const handleUpdateClip1Line1 = (newVal: string) => {
     const docId = activeDoc?.id || 'default';
     userEditedHookDocIdRef.current = docId;
@@ -3306,17 +3613,30 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
     const startY = e.clientY;
     const initBottom = captionBottomPct;
+    let finalBottom = initBottom;
 
     const onMove = (moveEvt: MouseEvent) => {
       const dyPx = moveEvt.clientY - startY;
       if (Math.abs(dyPx) < 2) return;
       const nextBottom = Math.max(4, Math.min(80, initBottom - (dyPx / rect.height) * 100));
-      setCaptionBottomPct(Number(nextBottom.toFixed(1)));
+      finalBottom = Number(nextBottom.toFixed(1));
+      setCaptionBottomPct(finalBottom);
     };
 
     const onUp = () => {
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
+      if (formatProfilesRef.current[aspectRatio]) {
+        formatProfilesRef.current[aspectRatio].captionBottomPct = finalBottom;
+      }
+      if (activeDoc) {
+        updateActiveDoc({
+          promptConfig: {
+            ...(activeDoc.promptConfig || {}),
+            [aspectRatio === '9:16' ? 'CAPTION_BOTTOM_PCT_9X16' : 'CAPTION_BOTTOM_PCT_16X9']: finalBottom,
+          },
+        });
+      }
     };
 
     window.addEventListener('mousemove', onMove);
@@ -18520,7 +18840,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   <label className="block text-[10px] text-slate-400 mb-0.5">Fuente de Subtítulos:</label>
                   <select
                     value={captionFontFamily}
-                    onChange={(e) => setCaptionFontFamily(e.target.value)}
+                    onChange={(e) => handleSetCaptionFontFamily(e.target.value)}
                     className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-sky-200"
                   >
                     {EDITOR_FONT_OPTIONS.map((f) => (
@@ -18535,7 +18855,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   <div className="grid grid-cols-3 gap-1.5">
                     <button
                       type="button"
-                      onClick={() => setCaptionTextCase('original')}
+                      onClick={() => handleSetCaptionTextCase('original')}
                       className={`px-2 py-1 rounded-lg border text-[11px] font-bold transition cursor-pointer ${
                         captionTextCase === 'original'
                           ? 'bg-sky-500 text-slate-950 border-sky-400 shadow'
@@ -18546,7 +18866,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     </button>
                     <button
                       type="button"
-                      onClick={() => setCaptionTextCase('uppercase')}
+                      onClick={() => handleSetCaptionTextCase('uppercase')}
                       className={`px-2 py-1 rounded-lg border text-[11px] font-bold transition cursor-pointer ${
                         captionTextCase === 'uppercase'
                           ? 'bg-sky-500 text-slate-950 border-sky-400 shadow'
@@ -18557,7 +18877,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     </button>
                     <button
                       type="button"
-                      onClick={() => setCaptionTextCase('lowercase')}
+                      onClick={() => handleSetCaptionTextCase('lowercase')}
                       className={`px-2 py-1 rounded-lg border text-[11px] font-bold transition cursor-pointer ${
                         captionTextCase === 'lowercase'
                           ? 'bg-sky-500 text-slate-950 border-sky-400 shadow'
@@ -18873,7 +19193,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     min={4}
                     max={80}
                     value={captionBottomPct}
-                    onChange={(e) => setCaptionBottomPct(Number(e.target.value))}
+                    onChange={(e) => handleSetCaptionBottomPct(Number(e.target.value))}
                     className="w-full accent-amber-500"
                   />
                 </div>
@@ -18882,7 +19202,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   <div className="flex items-center gap-1.5 mt-0.5">
                     <select
                       value={captionColor}
-                      onChange={(e) => setCaptionColor(e.target.value as 'white' | 'amber' | 'custom')}
+                      onChange={(e) => handleSetCaptionColor(e.target.value as 'white' | 'amber' | 'custom')}
                       className="flex-1 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white"
                     >
                       <option value="white">Blanco Clásico</option>
@@ -18893,7 +19213,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                       <input
                         type="color"
                         value={captionCustomColor}
-                        onChange={(e) => setCaptionCustomColor(e.target.value)}
+                        onChange={(e) => handleSetCaptionCustomColor(e.target.value)}
                         className="w-6 h-6 rounded cursor-pointer border-0 bg-transparent"
                       />
                     )}
@@ -18903,7 +19223,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   <label className="block text-[10px] text-slate-400">Sombra / Contorno</label>
                   <select
                     value={captionShadowStyle}
-                    onChange={(e) => setCaptionShadowStyle(e.target.value as OverlayShadowStyle)}
+                    onChange={(e) => handleSetCaptionShadowStyle(e.target.value as OverlayShadowStyle)}
                     className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-slate-200 mt-0.5"
                   >
                     {EDITOR_SHADOW_OPTIONS.map((s) => (
@@ -18917,7 +19237,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   <label className="block text-[10px] text-slate-400">Fondo de Subtítulos</label>
                   <select
                     value={captionBgStyle}
-                    onChange={(e) => setCaptionBgStyle(e.target.value as OverlayBgStyle)}
+                    onChange={(e) => handleSetCaptionBgStyle(e.target.value as OverlayBgStyle)}
                     className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-slate-200 mt-0.5"
                   >
                     <option value="none">Sin Fondo (Transparente)</option>
@@ -18935,7 +19255,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                       <input
                         type="color"
                         value={captionBgColor}
-                        onChange={(e) => setCaptionBgColor(e.target.value)}
+                        onChange={(e) => handleSetCaptionBgColor(e.target.value)}
                         className="w-5 h-5 rounded cursor-pointer border-0 bg-transparent"
                       />
                       <input
@@ -18943,7 +19263,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                         min={10}
                         max={100}
                         value={captionBgOpacity}
-                        onChange={(e) => setCaptionBgOpacity(Number(e.target.value))}
+                        onChange={(e) => handleSetCaptionBgOpacity(Number(e.target.value))}
                         className="flex-1 accent-sky-400"
                       />
                     </div>
@@ -18954,7 +19274,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     <label className="block text-[10px] text-slate-400">✨ Animación Entrada:</label>
                     <select
                       value={captionAnimIn}
-                      onChange={(e) => setCaptionAnimIn(e.target.value as ElementAnimationType)}
+                      onChange={(e) => handleSetCaptionAnimIn(e.target.value as ElementAnimationType)}
                       className="w-full bg-slate-900 border border-slate-700 rounded px-1.5 py-1 text-[11px] text-sky-200 mt-0.5"
                     >
                       {ELEMENT_ANIMATION_OPTIONS.map((a) => (
@@ -18968,7 +19288,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     <label className="block text-[10px] text-slate-400">✨ Animación Salida:</label>
                     <select
                       value={captionAnimOut}
-                      onChange={(e) => setCaptionAnimOut(e.target.value as ElementAnimationType)}
+                      onChange={(e) => handleSetCaptionAnimOut(e.target.value as ElementAnimationType)}
                       className="w-full bg-slate-900 border border-slate-700 rounded px-1.5 py-1 text-[11px] text-sky-200 mt-0.5"
                     >
                       {ELEMENT_ANIMATION_OPTIONS.map((a) => (
@@ -18986,7 +19306,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                       min={0.05}
                       max={1.5}
                       value={captionAnimDur}
-                      onChange={(e) => setCaptionAnimDur(Math.max(0.05, Number(e.target.value)))}
+                      onChange={(e) => handleSetCaptionAnimDur(Number(e.target.value))}
                       className="w-full bg-slate-900 border border-slate-700 rounded px-1.5 py-1 text-[11px] text-white mt-0.5"
                     />
                   </div>

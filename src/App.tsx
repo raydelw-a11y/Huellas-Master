@@ -43,6 +43,14 @@ import {
   EditorAspectRatio,
   RESOLUTION_PRESETS,
   PERMANENT_LOGO_STORAGE_KEY,
+  EDITOR_FONT_OPTIONS,
+  EDITOR_SHADOW_OPTIONS,
+  EDITOR_BG_STYLE_OPTIONS,
+  ELEMENT_ANIMATION_OPTIONS,
+  OverlayShadowStyle,
+  OverlayBgStyle,
+  ElementAnimationType,
+  getTextShadowCss,
 } from './components/CapCutEditor';
 import { ViralClipsStudio } from './components/ViralClipsStudio';
 import { FlowPcModal } from './components/FlowPcModal';
@@ -186,7 +194,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '09:53 AM - 11/16/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '01:10 PM - 11/16/2026';
 
 const PROTECTED_DOC_TEXT_FIELDS = [
   'rawClipsText',
@@ -25237,7 +25245,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                     </div>
                   </div>
 
-                  {/* Controles de Largo de Línea de Captions + Tamaño de Font y Palabras por Línea (16:9 y 9:16 por separado) */}
+                  {/* Controles de Largo de Línea de Captions + Tipografía, Sombra, Fondo, Animación y Formato Dual 16:9 / 9:16 (Sincronizado al 100% con el Editor de Video) */}
                   {(() => {
                     const effMaxChars =
                       typeof activeDoc.promptConfig?.CAPTION_MAX_CHARS === 'number'
@@ -25268,6 +25276,171 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                         ? activeDoc.promptConfig.CAPTION_WORDS_PER_LINE_9X16
                         : 4;
 
+                    const effFontFamily: string =
+                      activeDoc.promptConfig?.CAPTION_FONT_FAMILY ||
+                      (() => {
+                        try {
+                          const raw = localStorage.getItem('huellas_editor_overlay_styles_v1');
+                          if (raw) return JSON.parse(raw)?.captionFontFamily;
+                        } catch {}
+                        return EDITOR_FONT_OPTIONS[0].value;
+                      })() ||
+                      EDITOR_FONT_OPTIONS[0].value;
+
+                    const effBottomPct16x9: number =
+                      typeof activeDoc.promptConfig?.CAPTION_BOTTOM_PCT_16X9 === 'number'
+                        ? activeDoc.promptConfig.CAPTION_BOTTOM_PCT_16X9
+                        : (() => {
+                            try {
+                              const raw = localStorage.getItem('huellas_editor_format_profiles_v1');
+                              if (raw) {
+                                const p = JSON.parse(raw)?.['16:9']?.captionBottomPct;
+                                if (typeof p === 'number') return p;
+                              }
+                            } catch {}
+                            return 10;
+                          })();
+
+                    const effBottomPct9x16: number =
+                      typeof activeDoc.promptConfig?.CAPTION_BOTTOM_PCT_9X16 === 'number'
+                        ? activeDoc.promptConfig.CAPTION_BOTTOM_PCT_9X16
+                        : (() => {
+                            try {
+                              const raw = localStorage.getItem('huellas_editor_format_profiles_v1');
+                              if (raw) {
+                                const p = JSON.parse(raw)?.['9:16']?.captionBottomPct;
+                                if (typeof p === 'number') return p;
+                              }
+                            } catch {}
+                            return 15;
+                          })();
+
+                    const effColor: 'white' | 'amber' | 'custom' =
+                      activeDoc.promptConfig?.CAPTION_COLOR === 'white' ||
+                      activeDoc.promptConfig?.CAPTION_COLOR === 'amber' ||
+                      activeDoc.promptConfig?.CAPTION_COLOR === 'custom'
+                        ? activeDoc.promptConfig.CAPTION_COLOR
+                        : (() => {
+                            try {
+                              const raw = localStorage.getItem('huellas_editor_overlay_styles_v1');
+                              if (raw) {
+                                const c = JSON.parse(raw)?.captionColor;
+                                if (c === 'white' || c === 'amber' || c === 'custom') return c;
+                              }
+                            } catch {}
+                            return 'white';
+                          })();
+
+                    const effCustomColor: string =
+                      activeDoc.promptConfig?.CAPTION_CUSTOM_COLOR ||
+                      (() => {
+                        try {
+                          const raw = localStorage.getItem('huellas_editor_overlay_styles_v1');
+                          if (raw) return JSON.parse(raw)?.captionCustomColor;
+                        } catch {}
+                        return '#ffffff';
+                      })() ||
+                      '#ffffff';
+
+                    const effTextCase: 'original' | 'uppercase' | 'lowercase' =
+                      activeDoc.promptConfig?.CAPTION_TEXT_CASE === 'original' ||
+                      activeDoc.promptConfig?.CAPTION_TEXT_CASE === 'uppercase' ||
+                      activeDoc.promptConfig?.CAPTION_TEXT_CASE === 'lowercase'
+                        ? activeDoc.promptConfig.CAPTION_TEXT_CASE
+                        : (() => {
+                            try {
+                              const raw = localStorage.getItem('huellas_editor_overlay_styles_v1');
+                              if (raw) {
+                                const tc = JSON.parse(raw)?.captionTextCase;
+                                if (tc === 'original' || tc === 'uppercase' || tc === 'lowercase') return tc;
+                              }
+                            } catch {}
+                            return 'original';
+                          })();
+
+                    const effShadowStyle: OverlayShadowStyle =
+                      activeDoc.promptConfig?.CAPTION_SHADOW_STYLE ||
+                      (() => {
+                        try {
+                          const raw = localStorage.getItem('huellas_editor_overlay_styles_v1');
+                          if (raw) return JSON.parse(raw)?.captionShadowStyle;
+                        } catch {}
+                        return 'cinema';
+                      })() ||
+                      'cinema';
+
+                    const effBgStyle: OverlayBgStyle =
+                      activeDoc.promptConfig?.CAPTION_BG_STYLE ||
+                      (() => {
+                        try {
+                          const raw = localStorage.getItem('huellas_editor_overlay_styles_v1');
+                          if (raw) return JSON.parse(raw)?.captionBgStyle;
+                        } catch {}
+                        return 'word_shadow';
+                      })() ||
+                      'word_shadow';
+
+                    const effBgColor: string =
+                      activeDoc.promptConfig?.CAPTION_BG_COLOR ||
+                      (() => {
+                        try {
+                          const raw = localStorage.getItem('huellas_editor_overlay_styles_v1');
+                          if (raw) return JSON.parse(raw)?.captionBgColor;
+                        } catch {}
+                        return '#000000';
+                      })() ||
+                      '#000000';
+
+                    const effBgOpacity: number =
+                      typeof activeDoc.promptConfig?.CAPTION_BG_OPACITY === 'number'
+                        ? activeDoc.promptConfig.CAPTION_BG_OPACITY
+                        : (() => {
+                            try {
+                              const raw = localStorage.getItem('huellas_editor_overlay_styles_v1');
+                              if (raw) {
+                                const o = JSON.parse(raw)?.captionBgOpacity;
+                                if (typeof o === 'number') return o;
+                              }
+                            } catch {}
+                            return 30;
+                          })();
+
+                    const effAnimIn: ElementAnimationType =
+                      activeDoc.promptConfig?.CAPTION_ANIM_IN ||
+                      (() => {
+                        try {
+                          const raw = localStorage.getItem('huellas_editor_overlay_styles_v1');
+                          if (raw) return JSON.parse(raw)?.captionAnimIn;
+                        } catch {}
+                        return 'none';
+                      })() ||
+                      'none';
+
+                    const effAnimOut: ElementAnimationType =
+                      activeDoc.promptConfig?.CAPTION_ANIM_OUT ||
+                      (() => {
+                        try {
+                          const raw = localStorage.getItem('huellas_editor_overlay_styles_v1');
+                          if (raw) return JSON.parse(raw)?.captionAnimOut;
+                        } catch {}
+                        return 'none';
+                      })() ||
+                      'none';
+
+                    const effAnimDur: number =
+                      typeof activeDoc.promptConfig?.CAPTION_ANIM_DUR === 'number'
+                        ? activeDoc.promptConfig.CAPTION_ANIM_DUR
+                        : (() => {
+                            try {
+                              const raw = localStorage.getItem('huellas_editor_overlay_styles_v1');
+                              if (raw) {
+                                const d = Number(JSON.parse(raw)?.captionAnimDur);
+                                if (Number.isFinite(d) && d > 0) return d;
+                              }
+                            } catch {}
+                            return 0.25;
+                          })();
+
                     const applyStage7CaptionSettings = (patch: {
                       maxChars?: number;
                       lineMode?: 'subdivide' | 'wrap' | 'original';
@@ -25275,6 +25448,19 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                       fontSize9x16?: number;
                       words16x9?: number;
                       words9x16?: number;
+                      fontFamily?: string;
+                      bottomPct16x9?: number;
+                      bottomPct9x16?: number;
+                      color?: 'white' | 'amber' | 'custom';
+                      customColor?: string;
+                      textCase?: 'original' | 'uppercase' | 'lowercase';
+                      shadowStyle?: OverlayShadowStyle;
+                      bgStyle?: OverlayBgStyle;
+                      bgColor?: string;
+                      bgOpacity?: number;
+                      animIn?: ElementAnimationType;
+                      animOut?: ElementAnimationType;
+                      animDur?: number;
                     }) => {
                       const nextMax = patch.maxChars ?? effMaxChars;
                       const nextMode = patch.lineMode ?? effLineMode;
@@ -25282,6 +25468,19 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                       const nextF9 = patch.fontSize9x16 ?? effFontSize9x16;
                       const nextW16 = patch.words16x9 ?? effWords16x9;
                       const nextW9 = patch.words9x16 ?? effWords9x16;
+                      const nextFont = patch.fontFamily ?? effFontFamily;
+                      const nextBottom16 = patch.bottomPct16x9 ?? effBottomPct16x9;
+                      const nextBottom9 = patch.bottomPct9x16 ?? effBottomPct9x16;
+                      const nextColor = patch.color ?? effColor;
+                      const nextCustomColor = patch.customColor ?? effCustomColor;
+                      const nextTextCase = patch.textCase ?? effTextCase;
+                      const nextShadow = patch.shadowStyle ?? effShadowStyle;
+                      const nextBgStyle = patch.bgStyle ?? effBgStyle;
+                      const nextBgColor = patch.bgColor ?? effBgColor;
+                      const nextBgOpacity = patch.bgOpacity ?? effBgOpacity;
+                      const nextAnimIn = patch.animIn ?? effAnimIn;
+                      const nextAnimOut = patch.animOut ?? effAnimOut;
+                      const nextAnimDur = patch.animDur ?? effAnimDur;
 
                       setSrtMaxChars(nextMax);
                       setSrtLineMode(nextMode);
@@ -25294,7 +25493,107 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                         CAPTION_FONT_SIZE_9X16: nextF9,
                         CAPTION_WORDS_PER_LINE_16X9: nextW16,
                         CAPTION_WORDS_PER_LINE_9X16: nextW9,
+                        CAPTION_FONT_FAMILY: nextFont,
+                        CAPTION_BOTTOM_PCT_16X9: nextBottom16,
+                        CAPTION_BOTTOM_PCT_9X16: nextBottom9,
+                        CAPTION_COLOR: nextColor,
+                        CAPTION_CUSTOM_COLOR: nextCustomColor,
+                        CAPTION_TEXT_CASE: nextTextCase,
+                        CAPTION_SHADOW_STYLE: nextShadow,
+                        CAPTION_BG_STYLE: nextBgStyle,
+                        CAPTION_BG_COLOR: nextBgColor,
+                        CAPTION_BG_OPACITY: nextBgOpacity,
+                        CAPTION_ANIM_IN: nextAnimIn,
+                        CAPTION_ANIM_OUT: nextAnimOut,
+                        CAPTION_ANIM_DUR: nextAnimDur,
                       };
+
+                      // Sync in real time directly to localStorage so Editor picks it up instantly
+                      try {
+                        const rawStyles = localStorage.getItem('huellas_editor_overlay_styles_v1');
+                        const parsedStyles = rawStyles ? JSON.parse(rawStyles) : {};
+                        localStorage.setItem(
+                          'huellas_editor_overlay_styles_v1',
+                          JSON.stringify({
+                            ...parsedStyles,
+                            captionFontFamily: nextFont,
+                            captionFontSize16x9: nextF16,
+                            captionFontSize9x16: nextF9,
+                            captionWordsPerLine16x9: nextW16,
+                            captionWordsPerLine9x16: nextW9,
+                            captionMaxChars: nextMax,
+                            captionLineMode: nextMode,
+                            captionBottomPct:
+                              activeDoc.productionType === 'REEL_9X16' ? nextBottom9 : nextBottom16,
+                            captionBottom16x9V10: true,
+                            captionColor: nextColor,
+                            captionCustomColor: nextCustomColor,
+                            captionShadowStyle: nextShadow,
+                            captionBgStyle: nextBgStyle,
+                            captionBgColor: nextBgColor,
+                            captionBgOpacity: nextBgOpacity,
+                            captionTextCase: nextTextCase,
+                            captionAnimIn: nextAnimIn,
+                            captionAnimOut: nextAnimOut,
+                            captionAnimDur: nextAnimDur,
+                          })
+                        );
+                      } catch {}
+
+                      try {
+                        const rawProfiles = localStorage.getItem('huellas_editor_format_profiles_v1');
+                        const parsedProfiles = rawProfiles ? JSON.parse(rawProfiles) : {};
+                        const p16 = parsedProfiles['16:9'] || {};
+                        const p9 = parsedProfiles['9:16'] || {};
+                        localStorage.setItem(
+                          'huellas_editor_format_profiles_v1',
+                          JSON.stringify({
+                            ...parsedProfiles,
+                            '16:9': {
+                              ...p16,
+                              captionFontSize: nextF16,
+                              captionWordsPerLine: nextW16,
+                              captionBottomPct: nextBottom16,
+                              captionMaxChars: nextMax,
+                              captionLineMode: nextMode,
+                            },
+                            '9:16': {
+                              ...p9,
+                              captionFontSize: nextF9,
+                              captionWordsPerLine: nextW9,
+                              captionBottomPct: nextBottom9,
+                              captionMaxChars: nextMax,
+                              captionLineMode: nextMode,
+                            },
+                          })
+                        );
+                      } catch {}
+
+                      try {
+                        fetch('/api/editor/sync-client-state', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            docId: activeDoc?.id,
+                            formatProfiles: {
+                              '16:9': {
+                                captionFontSize: nextF16,
+                                captionWordsPerLine: nextW16,
+                                captionBottomPct: nextBottom16,
+                                captionMaxChars: nextMax,
+                                captionLineMode: nextMode,
+                              },
+                              '9:16': {
+                                captionFontSize: nextF9,
+                                captionWordsPerLine: nextW9,
+                                captionBottomPct: nextBottom9,
+                                captionMaxChars: nextMax,
+                                captionLineMode: nextMode,
+                              },
+                            },
+                          }),
+                        }).catch(() => {});
+                      } catch {}
 
                       const activeTargetWords =
                         activeDoc.productionType === 'REEL_9X16' ? nextW9 : nextW16;
@@ -25312,7 +25611,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             }
                           );
                           nextCorrectedSrt = res.fixedSrt;
-                          const baseMsg = `✅ ¡SRT y Captions del Editor actualizados! ${res.blocksCount} bloques (${nextMode === 'original' ? 'original' : `máx. ${nextMax} caract.`}) • 16:9 (${nextW16 || 'Auto'} pal./línea, ${nextF16}px) • 9:16 (${nextW9 || 'Auto'} pal./línea, ${nextF9}px).`;
+                          const fontName = nextFont.split(',')[0].replace(/['"]/g, '');
+                          const baseMsg = `✅ ¡SRT y Editor sincronizados! ${res.blocksCount} bloques (${nextMode === 'original' ? 'original' : `máx. ${nextMax} caract.`}) • Fuente: ${fontName} • 16:9 (${nextW16 || 'Auto'} pal., ${nextF16}px, alt. ${nextBottom16}%) • 9:16 (${nextW9 || 'Auto'} pal., ${nextF9}px, alt. ${nextBottom9}%).`;
                           setSrtStatsMsg(res.warningMsg ? `${baseMsg} ${res.warningMsg}` : baseMsg);
                         } catch {}
                       } else if (activeDoc.correctedSrt?.trim()) {
@@ -25324,12 +25624,14 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                         if (refRes.blocksCount > 0) {
                           nextCorrectedSrt = refRes.srt;
                         }
+                        const fontName = nextFont.split(',')[0].replace(/['"]/g, '');
                         setSrtStatsMsg(
-                          `✅ Configuración aplicada al Editor de Video y Exportación MP4 (${refRes.blocksCount} bloques): Máx. ${nextMode === 'original' ? 'Original' : `${nextMax} caract.`} • 16:9 (${nextW16 || 'Auto'} pal./línea, ${nextF16}px) • 9:16 (${nextW9 || 'Auto'} pal./línea, ${nextF9}px).`
+                          `✅ Configuración sincronizada con el Editor de Video (${refRes.blocksCount} bloques): Fuente: ${fontName} • Máx. ${nextMode === 'original' ? 'Original' : `${nextMax} caract.`} • 16:9 (${nextW16 || 'Auto'} pal., ${nextF16}px, alt. ${nextBottom16}%) • 9:16 (${nextW9 || 'Auto'} pal., ${nextF9}px, alt. ${nextBottom9}%).`
                         );
                       } else {
+                        const fontName = nextFont.split(',')[0].replace(/['"]/g, '');
                         setSrtStatsMsg(
-                          `✅ Configuración aplicada en tiempo real al Editor de Video y Exportación MP4: Máx. ${nextMode === 'original' ? 'Original' : `${nextMax} caract.`} • 16:9 (${nextW16 || 'Auto'} pal./línea, ${nextF16}px) • 9:16 (${nextW9 || 'Auto'} pal./línea, ${nextF9}px).`
+                          `✅ Configuración sincronizada en tiempo real con el Editor de Video: Fuente: ${fontName} • Máx. ${nextMode === 'original' ? 'Original' : `${nextMax} caract.`} • 16:9 (${nextW16 || 'Auto'} pal., ${nextF16}px, alt. ${nextBottom16}%) • 9:16 (${nextW9 || 'Auto'} pal., ${nextF9}px, alt. ${nextBottom9}%).`
                         );
                       }
 
@@ -25341,93 +25643,413 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                       });
                     };
 
+                    const sampleText =
+                      effTextCase === 'uppercase'
+                        ? 'HUELLAS DE LA HUMANIDAD'
+                        : effTextCase === 'lowercase'
+                        ? 'huellas de la humanidad'
+                        : 'Huellas de la Humanidad';
+
+                    const sampleBgColorRgba = (() => {
+                      if (effBgStyle === 'none') return 'transparent';
+                      const cleanHex = effBgColor.replace('#', '');
+                      const r = parseInt(cleanHex.substring(0, 2) || '00', 16) || 0;
+                      const g = parseInt(cleanHex.substring(2, 4) || '00', 16) || 0;
+                      const b = parseInt(cleanHex.substring(4, 6) || '00', 16) || 0;
+                      const a = effBgStyle === 'solid' ? 0.95 : (effBgOpacity / 100);
+                      return `rgba(${r}, ${g}, ${b}, ${a.toFixed(2)})`;
+                    })();
+
                     return (
-                      <div className="space-y-3">
-                        <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-3.5 flex flex-wrap items-center justify-between gap-4">
-                          <div className="space-y-1.5">
-                            <span className="block text-[11px] font-bold text-amber-300 uppercase tracking-wider">
-                              📏 Largo Máximo de Línea en Pantalla (Caracteres por Caption):
+                      <div className="space-y-4">
+                        {/* 0. Banner de Sincronización + Vista Previa en Vivo */}
+                        <div className="bg-slate-950/90 border border-slate-800 rounded-2xl p-4 space-y-3">
+                          <div className="flex items-center justify-between flex-wrap gap-2">
+                            <div className="flex items-center gap-2">
+                              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                              <span className="text-xs font-black text-amber-300 uppercase tracking-wider">
+                                🔗 Sincronización Total: Etapa 7 ⇄ Editor de Video
+                              </span>
+                            </div>
+                            <span className="text-[10px] text-slate-400 font-mono">
+                              Cualquier cambio aquí se aplica de inmediato al canvas y al render MP4
                             </span>
-                            <div className="flex flex-wrap gap-1.5">
-                              {[
-                                { val: 22, label: '⚡ Muy Corto (22 caract. / 3-4 pal.)', w16: 4, w9: 3 },
-                                { val: 32, label: '🎯 Corto Ideal (32 caract. / 4-6 pal.)', w16: 6, w9: 4 },
-                                { val: 42, label: '📐 Medio (42 caract. / 6-7 pal.)', w16: 7, w9: 5 },
-                                { val: 0, label: '📄 Original CapCut (Sin acortar)', w16: 0, w9: 0 },
-                              ].map((opt) => {
-                                const isSelected =
-                                  (opt.val === 0 && effLineMode === 'original') ||
-                                  (opt.val > 0 && effLineMode !== 'original' && effMaxChars === opt.val);
-                                return (
+                          </div>
+
+                          {/* Live Subtitle Preview */}
+                          <div className="bg-[#0b0c10] border border-slate-800/80 rounded-xl p-4 flex flex-col items-center justify-center min-h-[72px] relative overflow-hidden">
+                            <span className="absolute top-1.5 left-2.5 text-[9px] uppercase tracking-wider font-bold text-slate-500">
+                              Vista Previa en Vivo del Subtítulo
+                            </span>
+                            <div className="text-center pt-2">
+                              <span
+                                style={{
+                                  fontFamily: effFontFamily,
+                                  fontSize: '18px',
+                                  color:
+                                    effColor === 'amber'
+                                      ? '#fde047'
+                                      : effColor === 'custom'
+                                      ? effCustomColor
+                                      : '#ffffff',
+                                  textShadow: getTextShadowCss(effShadowStyle),
+                                  backgroundColor: sampleBgColorRgba,
+                                }}
+                                className={
+                                  effBgStyle === 'word_shadow'
+                                    ? 'inline px-2.5 py-0.5 rounded-md font-extrabold'
+                                    : effBgStyle !== 'none'
+                                    ? 'inline-block px-3.5 py-1 rounded-lg font-extrabold'
+                                    : 'font-extrabold'
+                                }
+                              >
+                                {sampleText}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* 1. Estilo Tipográfico y Visual (Fuente, Capitalización, Color, Sombra, Fondo, Animación) */}
+                        <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-3.5 space-y-3">
+                          <span className="block text-[11px] font-bold text-sky-300 uppercase tracking-wider">
+                            🎨 Estilo Tipográfico y Visual de Subtítulos (Sincronizado):
+                          </span>
+
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            {/* Fuente (Tipografía) */}
+                            <div>
+                              <label className="block text-[10px] text-slate-400 mb-1 font-semibold">
+                                🔠 Tipografía / Fuente:
+                              </label>
+                              <select
+                                value={effFontFamily}
+                                onChange={(e) => applyStage7CaptionSettings({ fontFamily: e.target.value })}
+                                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-sky-200 font-medium"
+                              >
+                                {EDITOR_FONT_OPTIONS.map((f) => (
+                                  <option key={f.value} value={f.value}>
+                                    {f.label}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+
+                            {/* Capitalización */}
+                            <div>
+                              <label className="block text-[10px] text-slate-400 mb-1 font-semibold">
+                                🔤 Capitalización del Texto:
+                              </label>
+                              <div className="grid grid-cols-3 gap-1">
+                                {[
+                                  { id: 'original' as const, lbl: 'Aa Original' },
+                                  { id: 'uppercase' as const, lbl: 'AA MAYÚS.' },
+                                  { id: 'lowercase' as const, lbl: 'aa minús.' },
+                                ].map((tc) => (
                                   <button
-                                    key={opt.val}
+                                    key={tc.id}
                                     type="button"
-                                    onClick={() => {
-                                      const nextMode =
-                                        opt.val === 0
-                                          ? 'original'
-                                          : effLineMode === 'original'
-                                          ? 'subdivide'
-                                          : effLineMode;
-                                      const nextMax = opt.val === 0 ? effMaxChars : opt.val;
-                                      applyStage7CaptionSettings({
-                                        maxChars: nextMax,
-                                        lineMode: nextMode,
-                                        words16x9: opt.w16,
-                                        words9x16: opt.w9,
-                                      });
-                                    }}
-                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer border ${
-                                      isSelected
-                                        ? 'bg-amber-500 text-slate-950 border-amber-400 shadow'
+                                    onClick={() => applyStage7CaptionSettings({ textCase: tc.id })}
+                                    className={`px-1.5 py-1.5 rounded-lg text-[10px] font-bold border transition cursor-pointer text-center ${
+                                      effTextCase === tc.id
+                                        ? 'bg-sky-500 text-slate-950 border-sky-400 shadow'
                                         : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border-slate-700'
                                     }`}
                                   >
-                                    {opt.label}
+                                    {tc.lbl}
                                   </button>
-                                );
-                              })}
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* Color de Texto */}
+                            <div>
+                              <label className="block text-[10px] text-slate-400 mb-1 font-semibold">
+                                🎨 Color de Texto:
+                              </label>
+                              <div className="flex items-center gap-1.5">
+                                <select
+                                  value={effColor}
+                                  onChange={(e) =>
+                                    applyStage7CaptionSettings({
+                                      color: e.target.value as 'white' | 'amber' | 'custom',
+                                    })
+                                  }
+                                  className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 font-medium"
+                                >
+                                  <option value="white">Blanco Clásico</option>
+                                  <option value="amber">Ámbar Documental</option>
+                                  <option value="custom">Personalizado</option>
+                                </select>
+                                {effColor === 'custom' && (
+                                  <input
+                                    type="color"
+                                    value={effCustomColor}
+                                    onChange={(e) =>
+                                      applyStage7CaptionSettings({ customColor: e.target.value })
+                                    }
+                                    className="w-7 h-7 rounded cursor-pointer border-0 bg-transparent shrink-0"
+                                  />
+                                )}
+                              </div>
                             </div>
                           </div>
 
-                          {effLineMode !== 'original' && (
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1 border-t border-slate-800/80">
+                            {/* Sombra / Contorno */}
+                            <div>
+                              <label className="block text-[10px] text-slate-400 mb-1 font-semibold">
+                                🌗 Sombra / Contorno:
+                              </label>
+                              <select
+                                value={effShadowStyle}
+                                onChange={(e) =>
+                                  applyStage7CaptionSettings({
+                                    shadowStyle: e.target.value as OverlayShadowStyle,
+                                  })
+                                }
+                                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 font-medium"
+                              >
+                                {EDITOR_SHADOW_OPTIONS.map((s) => (
+                                  <option key={s.value} value={s.value}>
+                                    {s.label}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+
+                            {/* Fondo de Subtítulos */}
+                            <div>
+                              <label className="block text-[10px] text-slate-400 mb-1 font-semibold">
+                                🔲 Fondo de Subtítulos:
+                              </label>
+                              <select
+                                value={effBgStyle}
+                                onChange={(e) =>
+                                  applyStage7CaptionSettings({
+                                    bgStyle: e.target.value as OverlayBgStyle,
+                                  })
+                                }
+                                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 font-medium"
+                              >
+                                {EDITOR_BG_STYLE_OPTIONS.map((b) => (
+                                  <option key={b.value} value={b.value}>
+                                    {b.label}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+
+                            {/* Opacidad y Color de Fondo */}
+                            {effBgStyle !== 'none' ? (
+                              <div>
+                                <div className="flex items-center justify-between text-[10px] text-slate-400 mb-1 font-semibold">
+                                  <span>Opacidad de Fondo:</span>
+                                  <span className="text-sky-300 font-bold">{effBgOpacity}%</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="color"
+                                    value={effBgColor}
+                                    onChange={(e) => applyStage7CaptionSettings({ bgColor: e.target.value })}
+                                    className="w-6 h-6 rounded cursor-pointer border-0 bg-transparent shrink-0"
+                                  />
+                                  <input
+                                    type="range"
+                                    min={10}
+                                    max={100}
+                                    value={effBgOpacity}
+                                    onChange={(e) =>
+                                      applyStage7CaptionSettings({ bgOpacity: Number(e.target.value) })
+                                    }
+                                    className="flex-1 accent-sky-400"
+                                  />
+                                </div>
+                              </div>
+                            ) : (
+                              <div>
+                                <label className="block text-[10px] text-slate-500 mb-1">
+                                  Opacidad de Fondo:
+                                </label>
+                                <span className="text-xs text-slate-500 italic block py-1.5">
+                                  Transparente (Sin fondo)
+                                </span>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Animaciones */}
+                          <div className="pt-1 border-t border-slate-800/80 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <div>
+                              <label className="block text-[10px] text-slate-400 mb-1 font-semibold">
+                                ✨ Animación de Entrada:
+                              </label>
+                              <select
+                                value={effAnimIn}
+                                onChange={(e) =>
+                                  applyStage7CaptionSettings({
+                                    animIn: e.target.value as ElementAnimationType,
+                                  })
+                                }
+                                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-sky-200"
+                              >
+                                {ELEMENT_ANIMATION_OPTIONS.map((a) => (
+                                  <option key={a.value} value={a.value}>
+                                    {a.label}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-[10px] text-slate-400 mb-1 font-semibold">
+                                ✨ Animación de Salida:
+                              </label>
+                              <select
+                                value={effAnimOut}
+                                onChange={(e) =>
+                                  applyStage7CaptionSettings({
+                                    animOut: e.target.value as ElementAnimationType,
+                                  })
+                                }
+                                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-sky-200"
+                              >
+                                {ELEMENT_ANIMATION_OPTIONS.map((a) => (
+                                  <option key={a.value} value={a.value}>
+                                    {a.label}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <div>
+                              <div className="flex items-center justify-between text-[10px] text-slate-400 mb-1 font-semibold">
+                                <span>Duración Animación:</span>
+                                <span className="text-sky-300 font-bold">{effAnimDur}s</span>
+                              </div>
+                              <input
+                                type="range"
+                                min={0.05}
+                                max={1.5}
+                                step={0.05}
+                                value={effAnimDur}
+                                onChange={(e) =>
+                                  applyStage7CaptionSettings({ animDur: Number(e.target.value) })
+                                }
+                                className="w-full accent-sky-400"
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* 2. Largo Máximo de Línea en Pantalla + Modo de Acortar */}
+                        <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-3.5 space-y-3">
+                          <div className="flex flex-wrap items-center justify-between gap-4">
                             <div className="space-y-1.5">
-                              <span className="block text-[11px] font-bold text-emerald-300 uppercase tracking-wider">
-                                ✂️ Cómo Acortar Bloques Largos:
+                              <span className="block text-[11px] font-bold text-amber-300 uppercase tracking-wider">
+                                📏 Largo Máximo de Línea en Pantalla (Caracteres por Caption):
                               </span>
                               <div className="flex flex-wrap gap-1.5">
                                 {[
-                                  {
-                                    id: 'subdivide' as const,
-                                    label: '1 Línea Corta Dinámica (Subdividir tiempos)',
-                                    desc: 'Divide frases largas en captions cortos consecutivos con tiempos proporcionales al milisegundo',
-                                  },
-                                  {
-                                    id: 'wrap' as const,
-                                    label: '2 Renglones por Bloque (Salto de línea)',
-                                    desc: 'Mantiene el mismo bloque de tiempo y parte la frase en 2 renglones cortos',
-                                  },
-                                ].map((m) => (
-                                  <button
-                                    key={m.id}
-                                    type="button"
-                                    title={m.desc}
-                                    onClick={() => applyStage7CaptionSettings({ lineMode: m.id })}
-                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer border ${
-                                      effLineMode === m.id
-                                        ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow'
-                                        : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border-slate-700'
-                                    }`}
-                                  >
-                                    {m.label}
-                                  </button>
-                                ))}
+                                  { val: 22, label: '⚡ Muy Corto (22 caract. / 3-4 pal.)', w16: 4, w9: 3 },
+                                  { val: 32, label: '🎯 Corto Ideal (32 caract. / 4-6 pal.)', w16: 6, w9: 4 },
+                                  { val: 42, label: '📐 Medio (42 caract. / 6-7 pal.)', w16: 7, w9: 5 },
+                                  { val: 0, label: '📄 Original CapCut (Sin acortar)', w16: 0, w9: 0 },
+                                ].map((opt) => {
+                                  const isSelected =
+                                    (opt.val === 0 && effLineMode === 'original') ||
+                                    (opt.val > 0 && effLineMode !== 'original' && effMaxChars === opt.val);
+                                  return (
+                                    <button
+                                      key={opt.val}
+                                      type="button"
+                                      onClick={() => {
+                                        const nextMode =
+                                          opt.val === 0
+                                            ? 'original'
+                                            : effLineMode === 'original'
+                                            ? 'subdivide'
+                                            : effLineMode;
+                                        const nextMax = opt.val === 0 ? effMaxChars : opt.val;
+                                        applyStage7CaptionSettings({
+                                          maxChars: nextMax,
+                                          lineMode: nextMode,
+                                          words16x9: opt.w16,
+                                          words9x16: opt.w9,
+                                        });
+                                      }}
+                                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer border ${
+                                        isSelected
+                                          ? 'bg-amber-500 text-slate-950 border-amber-400 shadow'
+                                          : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border-slate-700'
+                                      }`}
+                                    >
+                                      {opt.label}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+
+                            {effLineMode !== 'original' && (
+                              <div className="space-y-1.5">
+                                <span className="block text-[11px] font-bold text-emerald-300 uppercase tracking-wider">
+                                  ✂️ Cómo Acortar Bloques Largos:
+                                </span>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {[
+                                    {
+                                      id: 'subdivide' as const,
+                                      label: '1 Línea Corta Dinámica (Subdividir tiempos)',
+                                      desc: 'Divide frases largas en captions cortos consecutivos con tiempos proporcionales al milisegundo',
+                                    },
+                                    {
+                                      id: 'wrap' as const,
+                                      label: '2 Renglones por Bloque (Salto de línea)',
+                                      desc: 'Mantiene el mismo bloque de tiempo y parte la frase en 2 renglones cortos',
+                                    },
+                                  ].map((m) => (
+                                    <button
+                                      key={m.id}
+                                      type="button"
+                                      title={m.desc}
+                                      onClick={() => applyStage7CaptionSettings({ lineMode: m.id })}
+                                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer border ${
+                                        effLineMode === m.id
+                                          ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow'
+                                          : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border-slate-700'
+                                      }`}
+                                    >
+                                      {m.label}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+
+                          {effLineMode !== 'original' && (
+                            <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between gap-4">
+                              <span className="text-[11px] text-slate-400 font-semibold">
+                                Ajuste fino de caracteres por línea:
+                              </span>
+                              <div className="flex items-center gap-3 flex-1 max-w-md">
+                                <input
+                                  type="range"
+                                  min={16}
+                                  max={56}
+                                  value={effMaxChars || 32}
+                                  onChange={(e) =>
+                                    applyStage7CaptionSettings({ maxChars: Number(e.target.value) })
+                                  }
+                                  className="flex-1 accent-amber-500"
+                                />
+                                <span className="text-xs font-bold text-amber-300 font-mono w-16 text-right">
+                                  {effMaxChars} caract.
+                                </span>
                               </div>
                             </div>
                           )}
                         </div>
 
-                        {/* Tamaño de Font y Cantidad de Palabras por Línea por separado para 16:9 y 9:16 */}
+                        {/* 3. Tamaño de Font, Palabras por Línea y Altura (Bottom %) por separado para 16:9 y 9:16 */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           {/* Configuración 16:9 Horizontal */}
                           <div className="bg-slate-950/85 border border-sky-500/35 rounded-xl p-3.5 space-y-3">
@@ -25436,10 +26058,11 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                 🖥️ Captions para 16:9 (Horizontal YouTube)
                               </span>
                               <span className="px-2 py-0.5 rounded bg-sky-500/15 border border-sky-500/30 text-[10px] font-bold text-sky-200">
-                                {effFontSize16x9}px • {effWords16x9 > 0 ? `${effWords16x9} palabras/línea` : 'Auto por caract.'}
+                                {effFontSize16x9}px • {effWords16x9 > 0 ? `${effWords16x9} pal.` : 'Auto'} • Alt. {effBottomPct16x9}%
                               </span>
                             </div>
 
+                            {/* Tamaño de Font en 16:9 */}
                             <div className="space-y-1">
                               <div className="flex items-center justify-between text-xs">
                                 <span className="text-slate-300 font-semibold">
@@ -25479,6 +26102,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                               </div>
                             </div>
 
+                            {/* Palabras por Línea en 16:9 */}
                             <div className="space-y-1.5">
                               <span className="block text-xs text-slate-300 font-semibold">
                                 📝 Cantidad de Palabras por Línea en 16:9:
@@ -25516,6 +26140,46 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                 ))}
                               </div>
                             </div>
+
+                            {/* Altura / Posición Vertical (Bottom %) en 16:9 */}
+                            <div className="space-y-1 pt-1 border-t border-slate-800/80">
+                              <div className="flex items-center justify-between text-xs">
+                                <span className="text-slate-300 font-semibold">
+                                  📐 Altura desde Abajo (Bottom %) en 16:9:
+                                </span>
+                                <span className="font-bold text-sky-300">{effBottomPct16x9}%</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="range"
+                                  min={4}
+                                  max={80}
+                                  value={effBottomPct16x9}
+                                  onChange={(e) =>
+                                    applyStage7CaptionSettings({
+                                      bottomPct16x9: Number(e.target.value),
+                                    })
+                                  }
+                                  className="flex-1 accent-sky-400"
+                                />
+                                <div className="flex gap-1">
+                                  {[8, 10, 15, 20].map((b) => (
+                                    <button
+                                      key={b}
+                                      type="button"
+                                      onClick={() => applyStage7CaptionSettings({ bottomPct16x9: b })}
+                                      className={`px-2 py-1 rounded text-[11px] font-bold border cursor-pointer ${
+                                        effBottomPct16x9 === b
+                                          ? 'bg-sky-500 text-slate-950 border-sky-400'
+                                          : 'bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-800'
+                                      }`}
+                                    >
+                                      {b}%
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
                           </div>
 
                           {/* Configuración 9:16 Vertical */}
@@ -25525,10 +26189,11 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                 📱 Captions para 9:16 (Vertical Reels / Shorts / TikTok)
                               </span>
                               <span className="px-2 py-0.5 rounded bg-amber-500/15 border border-amber-500/30 text-[10px] font-bold text-amber-200">
-                                {effFontSize9x16}px • {effWords9x16 > 0 ? `${effWords9x16} palabras/línea` : 'Auto por caract.'}
+                                {effFontSize9x16}px • {effWords9x16 > 0 ? `${effWords9x16} pal.` : 'Auto'} • Alt. {effBottomPct9x16}%
                               </span>
                             </div>
 
+                            {/* Tamaño de Font en 9:16 */}
                             <div className="space-y-1">
                               <div className="flex items-center justify-between text-xs">
                                 <span className="text-slate-300 font-semibold">
@@ -25568,6 +26233,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                               </div>
                             </div>
 
+                            {/* Palabras por Línea en 9:16 */}
                             <div className="space-y-1.5">
                               <span className="block text-xs text-slate-300 font-semibold">
                                 📝 Cantidad de Palabras por Línea en 9:16:
@@ -25602,6 +26268,46 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                     {opt.lbl}
                                   </button>
                                 ))}
+                              </div>
+                            </div>
+
+                            {/* Altura / Posición Vertical (Bottom %) en 9:16 */}
+                            <div className="space-y-1 pt-1 border-t border-slate-800/80">
+                              <div className="flex items-center justify-between text-xs">
+                                <span className="text-slate-300 font-semibold">
+                                  📐 Altura desde Abajo (Bottom %) en 9:16:
+                                </span>
+                                <span className="font-bold text-amber-300">{effBottomPct9x16}%</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="range"
+                                  min={4}
+                                  max={80}
+                                  value={effBottomPct9x16}
+                                  onChange={(e) =>
+                                    applyStage7CaptionSettings({
+                                      bottomPct9x16: Number(e.target.value),
+                                    })
+                                  }
+                                  className="flex-1 accent-amber-500"
+                                />
+                                <div className="flex gap-1">
+                                  {[12, 15, 20, 25].map((b) => (
+                                    <button
+                                      key={b}
+                                      type="button"
+                                      onClick={() => applyStage7CaptionSettings({ bottomPct9x16: b })}
+                                      className={`px-2 py-1 rounded text-[11px] font-bold border cursor-pointer ${
+                                        effBottomPct9x16 === b
+                                          ? 'bg-amber-500 text-slate-950 border-amber-400'
+                                          : 'bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-800'
+                                      }`}
+                                    >
+                                      {b}%
+                                    </button>
+                                  ))}
+                                </div>
                               </div>
                             </div>
                           </div>
