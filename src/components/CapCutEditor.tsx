@@ -1049,6 +1049,7 @@ interface CapCutEditorProps {
   onOfficialLogoChange?: (dataUrl: string) => void;
   onOpenStage6Review?: () => void;
   isEditorActive?: boolean;
+  focusClipRequest?: { clipNumber: number; nonce: number } | null;
 }
 
 export const PERMANENT_LOGO_STORAGE_KEY = 'huellas_permanent_official_logo_v1';
@@ -1071,6 +1072,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   onOfficialLogoChange,
   onOpenStage6Review,
   isEditorActive = true,
+  focusClipRequest = null,
 }) => {
   const EDITOR_SESSION_STORAGE_KEY = 'huellas_editor_session_state_v1';
   const initialSessionState = useMemo(() => {
@@ -8810,6 +8812,52 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       setSelectedClipIds([clipAtTarget.id]);
     }
   };
+
+  // Focus, select, seek and scroll to a specific Stage 6 clip when jumping directly via a clip's "Editor" button
+  const lastHandledFocusNonceRef = useRef<number>(0);
+  useEffect(() => {
+    if (
+      !focusClipRequest ||
+      !focusClipRequest.nonce ||
+      focusClipRequest.nonce === lastHandledFocusNonceRef.current
+    ) {
+      return;
+    }
+    lastHandledFocusNonceRef.current = focusClipRequest.nonce;
+    const target = clipsWithTimelineBounds.find(
+      (c) => c.clipNumber === focusClipRequest.clipNumber
+    );
+    if (!target) return;
+
+    setIsPlaying(false);
+    setSelectedClipId(target.id);
+    setSelectedClipIds([target.id]);
+    seekToTime(target.start);
+
+    const applyFocusScroll = () => {
+      if (isFitEntireProject) return;
+      const container = timelineScrollContainerRef.current;
+      const viewWidth = container && container.clientWidth > 240 ? container.clientWidth : 960;
+      const trackHeaderOffsetPx = 152;
+      const playheadX = trackHeaderOffsetPx + target.start * timelineZoom;
+      const targetLeft = Math.max(0, Math.round(playheadX - viewWidth * 0.3));
+      savedTimelineScrollRef.current.left = targetLeft;
+      if (container) {
+        container.scrollLeft = targetLeft;
+      }
+      if (timelineRulerScrollRef.current) {
+        timelineRulerScrollRef.current.scrollLeft = targetLeft;
+      }
+    };
+
+    applyFocusScroll();
+    const rafId = window.requestAnimationFrame(applyFocusScroll);
+    const timerId = window.setTimeout(applyFocusScroll, 75);
+    return () => {
+      window.cancelAnimationFrame(rafId);
+      window.clearTimeout(timerId);
+    };
+  }, [focusClipRequest?.nonce]);
 
   // Compute safe playback rate and clamped offset for a clip's <video> so shorter MP4 clips (e.g. 7.83s Flow clips) and trimmed/slow-mo clips fit their slot smoothly without ever freezing at the end
   const computeClipVideoSyncParams = (

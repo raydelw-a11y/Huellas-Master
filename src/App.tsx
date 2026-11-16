@@ -183,7 +183,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '8:38 PM - 11/15/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '8:40 PM - 11/15/2026';
 
 const PROTECTED_DOC_TEXT_FIELDS = [
   'rawClipsText',
@@ -1707,6 +1707,10 @@ export default function App() {
       return saved;
     return 'dashboard';
   });
+  const [editorFocusClipReq, setEditorFocusClipReq] = useState<{
+    clipNumber: number;
+    nonce: number;
+  } | null>(null);
   const [documentaries, setDocumentaries] = useState<DocumentaryProject[]>([]);
   const [activeDocId, setActiveDocId] = useState<string | null>(() => {
     return localStorage.getItem('huellas_master_active_doc') || null;
@@ -8499,6 +8503,16 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         `❌ Error al sobreescribir el descarte del Clip ${padded}: ${err?.message || 'Error'}`
       );
     }
+  };
+
+  // Stage 6 Button ("Editor"): Direct access to the Multi-Track Video Editor with optional clip focus
+  const handleOpenClipInEditor = (clipNumber?: number) => {
+    saveCurrentSectionScrollPosition();
+    if (typeof clipNumber === 'number' && clipNumber > 0) {
+      setEditorFocusClipReq({ clipNumber, nonce: Date.now() });
+    }
+    handleAutoLoadAllFolderMedia(true, true);
+    setMainView('capcut_editor');
   };
 
   // Stage 6 Button ("Aceptar Imagen como B-Roll"): Converts any clip's best available initial image into a 4K 60fps optical B-Roll MP4 without regenerating in Flow
@@ -17112,6 +17126,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           officialLogoUrl={officialLogoUrl}
           onOfficialLogoChange={(url) => setOfficialLogoUrl(url)}
           isEditorActive={mainView === 'capcut_editor'}
+          focusClipRequest={editorFocusClipReq}
           onOpenStage6Review={() => {
             setMainView('studio');
             setActiveStage(8);
@@ -22301,7 +22316,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                       {/* Open Multi-Track Video Editor */}
                       <button
                         type="button"
-                        onClick={() => setMainView('capcut_editor')}
+                        onClick={() => handleOpenClipInEditor()}
                         className="px-3.5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black text-xs flex items-center gap-1.5 cursor-pointer shadow-md shadow-amber-500/20"
                       >
                         🎬 Abrir en Editor de Video
@@ -22936,6 +22951,18 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                     >
                                       {clip.reviewedForEditor ? '☑️ Revisado ✓' : '☑️ Revisar'}
                                     </button>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleOpenClipInEditor(clip.clipNumber);
+                                      }}
+                                      className="px-2 py-0.5 rounded text-[10px] font-bold border cursor-pointer transition bg-amber-500/15 hover:bg-amber-500 text-amber-300 hover:text-slate-950 border-amber-500/40 flex items-center gap-1 shrink-0"
+                                      title={`Abrir el Clip ${padded} directamente en el Editor de Video`}
+                                    >
+                                      <Film className="w-2.5 h-2.5 shrink-0" />
+                                      <span>Editor</span>
+                                    </button>
                                   </div>
                                 </div>
                               );
@@ -23489,15 +23516,15 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                       : '📥 Cargar Clip'}
                                   </button>
 
-                                  {clip.reviewedForEditor && (
-                                    <button
-                                      type="button"
-                                      onClick={() => setMainView('capcut_editor')}
-                                      className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-amber-500/40 text-amber-300 font-black text-[11px] cursor-pointer shrink-0"
-                                    >
-                                      🎬 Editor
-                                    </button>
-                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenClipInEditor(clip.clipNumber)}
+                                    className="py-1 px-3 rounded-lg border border-amber-400/60 bg-amber-500/15 hover:bg-amber-500 text-amber-300 hover:text-slate-950 text-xs font-black cursor-pointer transition flex items-center gap-1.5 shadow shadow-amber-500/15 shrink-0"
+                                    title={`Abrir el Clip ${paddedNum} directamente en el Editor de Video`}
+                                  >
+                                    <Film className="w-3.5 h-3.5 shrink-0" />
+                                    <span>Editor</span>
+                                  </button>
 
                                   <span className="text-[10px] font-bold text-slate-400 shrink-0">🎙️</span>
                                   <input
