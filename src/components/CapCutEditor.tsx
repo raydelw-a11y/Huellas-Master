@@ -1037,6 +1037,7 @@ interface CapCutEditorProps {
   onSelectDoc?: (docId: string) => void;
   updateActiveDoc: (patch: Partial<DocumentaryProject>) => void;
   capturedClipVideosMap: Record<number, string>; // clipNumber -> blob/data URL of MP4
+  capturedClipFramesMap?: Record<number, string>; // clipNumber -> initial image / frame preview URL
   capturedSunoAudioMap?: Record<number, string>; // trackNumber -> data URL of MP3
   folderVoiceoverUrl?: string;
   onReloadFolderMedia?: () => Promise<number>;
@@ -1060,6 +1061,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   onSelectDoc,
   updateActiveDoc,
   capturedClipVideosMap,
+  capturedClipFramesMap = {},
   capturedSunoAudioMap = {},
   folderVoiceoverUrl = '',
   onReloadFolderMedia,
@@ -4037,7 +4039,12 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               const fNum = Number(f?.clipNumber || 0);
               if (fNum <= 0 || !f?.url || nextFrames[fNum]) continue;
               const docClip = docClipByNum.get(fNum);
-              if (isEditorClipRejectedOrQuarantined(docClip) && !nextVids[fNum]) {
+              const isFromDiscardedDir = /_Descartados_Auditoria/i.test(String(f.url || ''));
+              if (
+                isFromDiscardedDir &&
+                isEditorClipRejectedOrQuarantined(docClip) &&
+                !nextVids[fNum]
+              ) {
                 continue;
               }
               const resolvedFrameUrl = prefix(String(f.url));
@@ -4193,7 +4200,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     for (const c of timelineClips) {
       if (!c || c.clipNumber <= 0 || c.clipNumber === 999 || seen.has(c.clipNumber)) continue;
       const resolvedUrl = rewriteMediaBridgeUrl(c.videoUrl);
-      if (!resolvedUrl || c.posterUrl || firstFrameByClip[c.clipNumber]) continue;
+      if (!resolvedUrl || firstFrameByClip[c.clipNumber]) continue;
       if (extractedVideoUrlByClipRef.current[c.clipNumber] === resolvedUrl) continue;
       seen.add(c.clipNumber);
       entries.push(`${c.clipNumber}\t${resolvedUrl}`);
@@ -5554,17 +5561,20 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         );
       const videoUrl = isClipReviewed ? (activeCombinedUrl || (canReuseExistingUrl ? existingRewrittenUrl : '')) : '';
 
-      // Strictly use each clip's own first frame (never repeat the documentary thumbnail or shared @Reference across clips)
-      const posterUrl = isClipReviewed
-        ? rewriteMediaBridgeUrl(
-            firstFrameByClip[c.clipNumber] ||
-              (c.videoFrames && c.videoFrames[0]) ||
-              c.imagePreviewUrl ||
-              ''
-          )
-        : c.imagePreviewUrl
-          ? rewriteMediaBridgeUrl(c.imagePreviewUrl)
-          : undefined;
+      // Strictly use each clip's own first frame or initial image fallback (never repeat documentary thumbnail or shared @Reference across clips)
+      const rawPosterCandidate =
+        firstFrameByClip[c.clipNumber] ||
+        capturedClipFramesMap?.[c.clipNumber] ||
+        (c.videoFrames && c.videoFrames[0]) ||
+        c.imagePreviewUrl ||
+        '';
+      const safePosterCandidate =
+        videoUrl && /_Descartados_Auditoria/i.test(String(rawPosterCandidate))
+          ? ''
+          : rawPosterCandidate;
+      const posterUrl = safePosterCandidate
+        ? rewriteMediaBridgeUrl(safePosterCandidate) || undefined
+        : undefined;
 
       const computedFileName = c.videoSavedFileName || buildClipSixWordFileName(c, activeDoc);
       const isBrollClip = Boolean(
@@ -5945,12 +5955,17 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             );
           const freshVideoUrl =
             activeCombinedUrl || (canReuseSavedTcUrl ? rewrittenTcVideoUrl : '');
-          const freshPosterUrl = rewriteMediaBridgeUrl(
+          const rawFreshPoster =
             firstFrameByClip[tc.clipNumber] ||
-              tc.posterUrl ||
-              (docClipMatch?.videoFrames && docClipMatch.videoFrames[0]) ||
-              docClipMatch?.imagePreviewUrl ||
-              ''
+            capturedClipFramesMap?.[tc.clipNumber] ||
+            tc.posterUrl ||
+            (docClipMatch?.videoFrames && docClipMatch.videoFrames[0]) ||
+            docClipMatch?.imagePreviewUrl ||
+            '';
+          const freshPosterUrl = rewriteMediaBridgeUrl(
+            freshVideoUrl && /_Descartados_Auditoria/i.test(String(rawFreshPoster))
+              ? ''
+              : rawFreshPoster
           );
           const prevBaseVideoUrl = rewrittenOrigVideoUrl || rewrittenTcVideoUrl || '';
           const freshTs = getUrlTimestampMs(freshVideoUrl);
@@ -8531,11 +8546,22 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     return Boolean(refreshed);
   };
 
+  const docClipByNumberMap = useMemo(() => {
+    const map = new Map<number, DocumentaryClip>();
+    for (const c of activeDoc?.clips || []) {
+      if (c && typeof c.clipNumber === 'number') {
+        map.set(c.clipNumber, c);
+      }
+    }
+    return map;
+  }, [activeDoc?.clips]);
+
   const resolvePosterThumbSrc = (
     clip?: {
       id?: string;
       clipNumber?: number;
       posterUrl?: string;
+      videoUrl?: string;
     } | null
   ): string => {
     if (!clip) return '';
@@ -8544,9 +8570,21 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       clip.id === 'fixed-doc-outro' ||
       clip.clipNumber === 0 ||
       clip.clipNumber === 999;
+    const num = typeof clip.clipNumber === 'number' ? clip.clipNumber : -1;
+    const docClip = num > 0 && num !== 999 ? docClipByNumberMap.get(num) : undefined;
+    const hasActiveVideo = Boolean(clip.videoUrl);
+    const allowCandidate = (u?: string): string => {
+      if (!u) return '';
+      if (hasActiveVideo && /_Descartados_Auditoria/i.test(u)) return '';
+      return u;
+    };
     const raw =
-      (typeof clip.clipNumber === 'number' ? firstFrameByClip[clip.clipNumber] : '') ||
-      clip.posterUrl ||
+      (num >= 0 ? allowCandidate(firstFrameByClip[num]) : '') ||
+      (hasActiveVideo ? allowCandidate(clip.posterUrl) : '') ||
+      (num > 0 ? allowCandidate(capturedClipFramesMap?.[num]) : '') ||
+      allowCandidate(clip.posterUrl) ||
+      allowCandidate(docClip?.videoFrames?.[0]) ||
+      allowCandidate(docClip?.imagePreviewUrl) ||
       (isIntroOrOutro ? officialLogoUrl : '') ||
       '';
     if (!raw) return '';
@@ -19117,6 +19155,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     clip.clipNumber === 0 ||
                     clip.clipNumber === 999;
                   const isUnreviewedClip = !isOfficialBookend && !clip.reviewedForEditor;
+                  const timelineThumbSrc = resolvePosterThumbSrc(clip);
+                  const hasTimelineThumb = Boolean(timelineThumbSrc);
 
                   return (
                     <div
@@ -19214,9 +19254,13 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                             : 'border-slate-800 bg-[#16130f] hover:border-amber-500/50'
                         } ${
                           isUnreviewedClip && !isCurrent && !isSelected
-                            ? 'opacity-25 hover:opacity-60'
+                            ? hasTimelineThumb
+                              ? 'opacity-75 hover:opacity-95'
+                              : 'opacity-25 hover:opacity-60'
                             : isUnreviewedClip
-                            ? 'opacity-60'
+                            ? hasTimelineThumb
+                              ? 'opacity-90'
+                              : 'opacity-60'
                             : ''
                         }`}
                       >
@@ -19231,7 +19275,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                         {useCompactCard ? (
                           <>
                             {(() => {
-                              const compactThumbSrc = resolvePosterThumbSrc(clip);
+                              const compactThumbSrc = timelineThumbSrc;
                               const isCompactIntroOrOutro =
                                 clip.id === 'fixed-doc-intro' ||
                                 clip.id === 'fixed-doc-outro' ||
@@ -19345,7 +19389,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                             </div>
 
                             {(() => {
-                              const expandedThumbSrc = resolvePosterThumbSrc(clip);
+                              const expandedThumbSrc = timelineThumbSrc;
                               const isExpandedIntroOrOutro =
                                 clip.id === 'fixed-doc-intro' ||
                                 clip.id === 'fixed-doc-outro' ||
@@ -19416,7 +19460,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                                   )}
                                 </div>
                                 <span className="absolute bottom-1 right-1 px-1.5 py-0.5 rounded bg-black/75 text-[9px] font-mono text-amber-300">
-                                  {isCurrent ? '▶ En Curso' : 'Fotograma 1'}
+                                  {isCurrent ? '▶ En Curso' : !clip.videoUrl ? '🖼️ Img Inicial' : 'Fotograma 1'}
                                 </span>
                               </div>
                             ) : (
