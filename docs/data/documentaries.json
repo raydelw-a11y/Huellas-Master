@@ -3195,20 +3195,20 @@
         "timeRange": "08:40 - 08:48",
         "cameraSelection": "",
         "visualExplanation": "",
-        "imagePrompt": "Image 65: Create an image in 16-9 horizontal aspect ratio an austere wide shot inside a 1940s wood-paneled London academic lecture hall draped in formal 1940s period solemnity showing elderly British administrative officials in dark pinstriped suits seated along tiered oak benches setting aside a thin manila folder tied with red tape, portrayed by anonymous mature adult historical reenactment actors in authentic period costume, cinematic documentary realism, safe framing composition, 8k resolution, sharp focus, no modern objects, no CGI look, clean uncluttered composition with rigid architectural perspective, stationary period props, clear anatomical separation between subjects, portrayed by anonymous mature adult historical reenactment actors in authentic period costume (no real public figures or prominent people), no text, no spoken voice, no human speech, no music. fix the name to Inicial_65_create_an_image_in_16_9",
-        "videoPrompt": "Clip 65: Generate a video in 16-9 horizontal aspect ratio across 8 seconds showing a slow sweeping pan across the paneled wood lecture hall as a gray-haired official ties red cloth tape around the Oxford research dossier and sets it flat onto a stack of deferred 1940s period committee papers across the full 8 seconds, holding a natural composed frame through the final second, all background furniture, architectural fixtures, and tabletop props remain 100% gravity-locked and stationary while any held object moves smoothly under natural hand control, fixed subject count from 0s to 8s, single continuous shot, strictly no shot changes, with subtle ambient foley of quiet period room tone and natural atmospheric acoustics. fix the name to Clip_65_generate_a_video_in_16_9. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous action across the full 8 seconds, holding a natural composed posture through the final frame. Fixed subject count from 0s to 8s, exact same character(s) remain in frame with locked anatomy, no new people appearing out of nowhere mid-shot, no characters vanishing or morphing, background figures stationary in soft f/1.8 bokeh. Solid, non-deforming walls and rigid 3D architectural geometry from 0s to 8s that never warp, breathe, or mutate during camera movement. All furniture, tables, and props remain 100% physically solid and non-deforming from 0s to 8s, with zero self-moving, floating, morphing, mutating, vanishing, or shape-shifting objects. Cinematic historical drama reenactment featuring anonymous fictionalized theatre actors in period costume (no real public figures or prominent people, steady continuous lighting with zero sudden flashes). cinematic documentary realism, safe framing composition, 8k resolution, sharp focus, no modern objects, no CGI look, no text, no spoken voice, no human speech, no music. fix the name to Clip_65_generate_a_video_in_16_9",
+        "imagePrompt": "Image 65 [B-Roll: STATIC_ZOOM_OUT]: Create an image in 16-9 horizontal aspect ratio an austere wide shot inside a 1940s wood-paneled London academic lecture hall draped in formal 1940s period solemnity showing elderly British administrative officials in dark pinstriped suits seated along tiered oak benches setting aside a thin manila folder tied with red tape, portrayed by anonymous mature adult historical reenactment actors in authentic period costume, cinematic documentary realism, safe framing composition, 8k resolution, sharp focus, no modern objects, no CGI look, clean uncluttered composition with rigid architectural perspective, stationary period props, clear anatomical separation between subjects, portrayed by anonymous mature adult historical reenactment actors in authentic period costume (no real public figures or prominent people), no text, no spoken voice, no human speech, no music. fix the name to Inicial_65_create_an_image_in_16_9",
+        "videoPrompt": "",
         "narrationSegment": "quedó grabada años después como un escándalo de miopía institucional discutido hasta en la Cámara de los Comunes en Londres.",
         "imageReady": true,
         "videoReady": true,
         "auditStatus": "ok",
-        "auditReason": "Sincronizado con el tramo de voz narrativa.",
+        "auditReason": "🖼️ Escena B-Roll Solo Imagen lista (pendiente de revisión) — movimiento 4K 60fps local en Editor.",
         "pauseNotes": "",
-        "reviewedForEditor": true,
+        "reviewedForEditor": false,
         "recreated": true,
-        "videoSavedFileName": "65_65_Wide_shot_of_historic_19e830f2_4K.mp4",
-        "reviewedUpdatedAt": 1794796199295,
-        "videoDiscardOverriddenAt": 1794784366554,
-        "videoSavedAt": 1794784366554,
+        "videoSavedFileName": "65_Create_an_image_in_16_Broll_4K.mp4",
+        "reviewedUpdatedAt": 1794952434158,
+        "videoDiscardOverriddenAt": 1794952434158,
+        "videoSavedAt": 1794952434158,
         "videoAuditStatus": "approved",
         "videoFrames": [],
         "videoAuditReason": "",
@@ -3218,7 +3218,11 @@
         "reframeFocusXEnd": 77,
         "reframeFocusY": 50,
         "reframeConfidence": 0.96,
-        "reframeReason": "Paneo dinámico IA (22% → 77%) entre dos sujetos (Izq → Der)"
+        "reframeReason": "Paneo dinámico IA (22% → 77%) entre dos sujetos (Izq → Der)",
+        "previousVideoPrompt": "Clip 65: Generate a video in 16-9 horizontal aspect ratio across 8 seconds showing a slow sweeping pan across the paneled wood lecture hall as a gray-haired official ties red cloth tape around the Oxford research dossier and sets it flat onto a stack of deferred 1940s period committee papers across the full 8 seconds, holding a natural composed frame through the final second, all background furniture, architectural fixtures, and tabletop props remain 100% gravity-locked and stationary while any held object moves smoothly under natural hand control, fixed subject count from 0s to 8s, single continuous shot, strictly no shot changes, with subtle ambient foley of quiet period room tone and natural atmospheric acoustics. fix the name to Clip_65_generate_a_video_in_16_9. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous action across the full 8 seconds, holding a natural composed posture through the final frame. Fixed subject count from 0s to 8s, exact same character(s) remain in frame with locked anatomy, no new people appearing out of nowhere mid-shot, no characters vanishing or morphing, background figures stationary in soft f/1.8 bokeh. Solid, non-deforming walls and rigid 3D architectural geometry from 0s to 8s that never warp, breathe, or mutate during camera movement. All furniture, tables, and props remain 100% physically solid and non-deforming from 0s to 8s, with zero self-moving, floating, morphing, mutating, vanishing, or shape-shifting objects. Cinematic historical drama reenactment featuring anonymous fictionalized theatre actors in period costume (no real public figures or prominent people, steady continuous lighting with zero sudden flashes). cinematic documentary realism, safe framing composition, 8k resolution, sharp focus, no modern objects, no CGI look, no text, no spoken voice, no human speech, no music. fix the name to Clip_65_generate_a_video_in_16_9",
+        "isStaticBroll": true,
+        "brollCameraMotion": "zoom_out",
+        "promptUpdatedAt": 1794952434158
       },
       {
         "id": "clip-66-1794442731853-yf0x",
@@ -3599,8 +3603,7 @@
         "reframeFocusXEnd": 50,
         "reframeFocusY": 50,
         "reframeConfidence": 0.55,
-        "reframeReason": "Encuadre central simétrico IA (50%)",
-        "videoDiscardedAt": 1794641982559
+        "reframeReason": "Encuadre central simétrico IA (50%)"
       },
       {
         "id": "clip-78-1794442731985-09h8",
@@ -3630,8 +3633,7 @@
         "reframeFocusXEnd": 41,
         "reframeFocusY": 50,
         "reframeConfidence": 0.55,
-        "reframeReason": "Enfoque inteligente IA en tercio izquierdo (41%)",
-        "videoDiscardedAt": 1794641982559
+        "reframeReason": "Enfoque inteligente IA en tercio izquierdo (41%)"
       },
       {
         "id": "clip-79-1794442731996-nr8s",
@@ -3661,8 +3663,7 @@
         "reframeFocusXEnd": 50,
         "reframeFocusY": 50,
         "reframeConfidence": 0.55,
-        "reframeReason": "Encuadre central simétrico IA (50%)",
-        "videoDiscardedAt": 1794641982559
+        "reframeReason": "Encuadre central simétrico IA (50%)"
       },
       {
         "id": "clip-80-1794442732007-j5h7",
@@ -3692,8 +3693,7 @@
         "reframeFocusXEnd": 76,
         "reframeFocusY": 50,
         "reframeConfidence": 0.84,
-        "reframeReason": "Paneo dinámico IA (24% → 76%) desde escena izquierda hacia sujeto derecho (Izq → Der)",
-        "videoDiscardedAt": 1794641982559
+        "reframeReason": "Paneo dinámico IA (24% → 76%) desde escena izquierda hacia sujeto derecho (Izq → Der)"
       },
       {
         "id": "clip-81-1794442732018-m1iu",
@@ -3723,8 +3723,7 @@
         "reframeFocusXEnd": 21,
         "reframeFocusY": 50,
         "reframeConfidence": 0.55,
-        "reframeReason": "Paneo dinámico IA (39% → 21%) siguiendo acción/sujeto",
-        "videoDiscardedAt": 1794641982559
+        "reframeReason": "Paneo dinámico IA (39% → 21%) siguiendo acción/sujeto"
       },
       {
         "id": "clip-82-1794442732030-lb3b",
@@ -3754,8 +3753,7 @@
         "reframeFocusXEnd": 28,
         "reframeFocusY": 50,
         "reframeConfidence": 0.82,
-        "reframeReason": "Paneo dinámico IA (78% → 28%) desde sujeto derecho hacia escena izquierda (Der → Izq)",
-        "videoDiscardedAt": 1794641982559
+        "reframeReason": "Paneo dinámico IA (78% → 28%) desde sujeto derecho hacia escena izquierda (Der → Izq)"
       },
       {
         "id": "clip-83-1794442732041-uaqf",
@@ -3785,8 +3783,7 @@
         "reframeFocusXEnd": 67,
         "reframeFocusY": 50,
         "reframeConfidence": 0.62,
-        "reframeReason": "Paneo dinámico IA (84% → 67%) siguiendo acción/sujeto",
-        "videoDiscardedAt": 1794641982559
+        "reframeReason": "Paneo dinámico IA (84% → 67%) siguiendo acción/sujeto"
       },
       {
         "id": "clip-84-1794442732052-2jsf",
@@ -3816,8 +3813,7 @@
         "reframeFocusXEnd": 50,
         "reframeFocusY": 50,
         "reframeConfidence": 0.55,
-        "reframeReason": "Encuadre central simétrico IA (50%)",
-        "videoDiscardedAt": 1794641982559
+        "reframeReason": "Encuadre central simétrico IA (50%)"
       },
       {
         "id": "clip-85-1794442732062-pu57",
@@ -3847,8 +3843,7 @@
         "reframeFocusXEnd": 50,
         "reframeFocusY": 50,
         "reframeConfidence": 0.62,
-        "reframeReason": "Encuadre central simétrico IA (50%)",
-        "videoDiscardedAt": 1794641982559
+        "reframeReason": "Encuadre central simétrico IA (50%)"
       },
       {
         "id": "clip-86-1794442732073-4bhu",
@@ -3909,8 +3904,7 @@
         "reframeConfidence": 0.55,
         "reframeReason": "Enfoque inteligente IA en tercio derecho (62%)",
         "videoAuditReason": "",
-        "videoAuditIssues": [],
-        "videoDiscardedAt": 1794641982559
+        "videoAuditIssues": []
       },
       {
         "id": "clip-88-1794442732096-cubd",
@@ -4331,8 +4325,7 @@
         "videoAuditStatus": "approved",
         "reviewedUpdatedAt": 1794831554100,
         "videoAuditReason": "",
-        "videoAuditIssues": [],
-        "videoDiscardedAt": 1794641982559
+        "videoAuditIssues": []
       },
       {
         "id": "clip-101-1794442732241-qds1",
@@ -5380,8 +5373,7 @@
         "reframeConfidence": 0.55,
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditReason": "",
-        "videoAuditIssues": [],
-        "videoDiscardedAt": 1794641982559
+        "videoAuditIssues": []
       },
       {
         "id": "clip-134-1794442732620-cfsy",
@@ -5697,8 +5689,7 @@
         "reframeConfidence": 0.57,
         "reframeReason": "Paneo dinámico IA (73% → 53%) siguiendo acción/sujeto",
         "videoAuditReason": "",
-        "videoAuditIssues": [],
-        "videoDiscardedAt": 1794641982559
+        "videoAuditIssues": []
       }
     ],
     "capcutRawSrt": "",
