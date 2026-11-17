@@ -7817,6 +7817,9 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       volume?: number;
       fadeInSec: number;
       fadeOutSec: number;
+      clip1BoostVolume?: number;
+      clip1BoostRampStartSec?: number;
+      clip1BoostRampEndSec?: number;
     }> = [];
     if (Array.isArray(musicTracks) && musicTracks.length > 0) {
       for (let i = 0; i < musicTracks.length; i++) {
@@ -7858,6 +7861,14 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
               mt.fadeOutSec !== undefined && mt.fadeOutSec !== null
                 ? Math.max(0, Number(mt.fadeOutSec))
                 : 5,
+            ...(Number(mt.clip1BoostVolume) > 0 &&
+            Number.isFinite(Number(mt.clip1BoostRampEndSec))
+              ? {
+                  clip1BoostVolume: Math.min(1, Number(mt.clip1BoostVolume)),
+                  clip1BoostRampStartSec: Number(mt.clip1BoostRampStartSec),
+                  clip1BoostRampEndSec: Number(mt.clip1BoostRampEndSec),
+                }
+              : {}),
           });
         }
       }
@@ -8034,8 +8045,22 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         }
         const fadeChain = fadeFilters.length > 0 ? `,${fadeFilters.join(',')}` : '';
         const lbl = `mus${mIdx}`;
+        // Canción 1: 50% durante el Clip 1 y rampa suave (smoothstep) al volumen normal
+        let volumeFilter = `volume=${trackVol.toFixed(4)}`;
+        const boostVol =
+          typeof mItem.clip1BoostVolume === 'number'
+            ? Math.min(1.0, mItem.clip1BoostVolume * MUSIC_EXPORT_CALIBRATION)
+            : 0;
+        if (boostVol > trackVol && typeof mItem.clip1BoostRampEndSec === 'number') {
+          const a = Math.max(0, Number(mItem.clip1BoostRampStartSec) - mItem.startSec);
+          const b = Math.max(a + 0.1, mItem.clip1BoostRampEndSec - mItem.startSec);
+          const P = boostVol.toFixed(4);
+          const B = trackVol.toFixed(4);
+          const x = `((t-${a.toFixed(3)})/${(b - a).toFixed(3)})`;
+          volumeFilter = `volume='if(lt(t,${a.toFixed(3)}),${P},if(lt(t,${b.toFixed(3)}),${P}+(${B}-${P})*${x}*${x}*(3-2*${x}),${B}))':eval=frame`;
+        }
         filterParts.push(
-          `[${nextInputIdx}:a]aresample=44100,aformat=sample_fmts=fltp:channel_layouts=stereo,atrim=0:${dur},asetpts=N/SR/TB${fadeChain},volume=${trackVol.toFixed(4)},adelay=${startMs}|${startMs}[${lbl}]`
+          `[${nextInputIdx}:a]aresample=44100,aformat=sample_fmts=fltp:channel_layouts=stereo,atrim=0:${dur},asetpts=N/SR/TB${fadeChain},${volumeFilter},adelay=${startMs}|${startMs}[${lbl}]`
         );
         mixLabels.push(`[${lbl}]`);
         nextInputIdx++;

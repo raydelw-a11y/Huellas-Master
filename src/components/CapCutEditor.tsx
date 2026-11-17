@@ -291,6 +291,11 @@ export interface TimelineCaptionItem {
   alignSource?: 'vosk-v2' | 'webaudio-v2' | 'video76-srt' | 'manual';
 }
 
+// Canción 1 a 50% durante el Clip 1, con rampa suave hacia su volumen normal
+export const CLIP1_SONG_BOOST_PCT = 50;
+export const CLIP1_BOOST_RAMP_BEFORE_SEC = 1;
+export const CLIP1_BOOST_RAMP_AFTER_SEC = 2;
+
 export interface TimelineMusicItem {
   id: string;
   trackNumber: number;
@@ -9436,7 +9441,21 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         : masterMusicVolume;
     if (rawBasePct <= 0) return 0;
 
-    const targetBasePct = rawBasePct;
+    // Canción 1 durante el Clip 1 (sin voz): sube hasta 50% y baja suavemente al volumen normal
+    // en una rampa de 3s (desde 1s antes del final del Clip 1 hasta 2s dentro del Clip 2, antes de la voz).
+    let targetBasePct = rawBasePct;
+    const clip1Bounds = clipsWithTimelineBounds.find((c) => c.clipNumber === 1);
+    if (activeMusicAtPlayhead.trackNumber === 1 && clip1Bounds && rawBasePct < CLIP1_SONG_BOOST_PCT) {
+      const rampStart = clip1Bounds.end - CLIP1_BOOST_RAMP_BEFORE_SEC;
+      const rampEnd = clip1Bounds.end + CLIP1_BOOST_RAMP_AFTER_SEC;
+      if (currentTime < rampStart) {
+        targetBasePct = CLIP1_SONG_BOOST_PCT;
+      } else if (currentTime < rampEnd) {
+        const p = (currentTime - rampStart) / (rampEnd - rampStart);
+        const smooth = p * p * (3 - 2 * p);
+        targetBasePct = CLIP1_SONG_BOOST_PCT + (rawBasePct - CLIP1_SONG_BOOST_PCT) * smooth;
+      }
+    }
 
     const fadeInSec = Math.max(0, activeMusicAtPlayhead.fadeInSec ?? 5);
     const fadeOutSec = Math.max(0, activeMusicAtPlayhead.fadeOutSec ?? 5);
@@ -9454,6 +9473,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     activeMusicAtPlayhead,
     activeClipAtPlayhead?.id,
     activeClipAtPlayhead?.clipNumber,
+    clipsWithTimelineBounds,
     masterMusicVolume,
     voiceVolume,
     autoDuckingEnabled,
@@ -13661,6 +13681,13 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 volume: (typeof mt.volume === 'number' ? mt.volume : masterMusicVolume) / 100,
                 fadeInSec: mt.fadeInSec ?? 5,
                 fadeOutSec: mt.fadeOutSec ?? 5,
+                ...(mt.trackNumber === 1 && (clipsWithTimelineBounds.find((c) => c.clipNumber === 1)?.end ?? 0) > 0
+                  ? {
+                      clip1BoostVolume: CLIP1_SONG_BOOST_PCT / 100,
+                      clip1BoostRampStartSec: (clipsWithTimelineBounds.find((c) => c.clipNumber === 1)?.end ?? 0) - CLIP1_BOOST_RAMP_BEFORE_SEC,
+                      clip1BoostRampEndSec: (clipsWithTimelineBounds.find((c) => c.clipNumber === 1)?.end ?? 0) + CLIP1_BOOST_RAMP_AFTER_SEC,
+                    }
+                  : {}),
                 audioDataUrl: mt.audioUrl && mt.audioUrl.startsWith('data:') ? mt.audioUrl : '',
               })),
               srtContent: srtText,
