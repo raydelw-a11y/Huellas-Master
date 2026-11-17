@@ -20579,6 +20579,45 @@ app.post('/api/viral-clips/ingest-youtube', async (req, res) => {
 });
 
 // 3. Resolve Documentary Source Video + Transcript for Viral Clips
+// Convierte el SRT de la exportación (tiempos reales del video final) en oraciones completas con
+// palabras repartidas dentro de cada bloque SRT (bloques cortos => sincronía precisa).
+function buildSentenceSegmentsFromSrt(srtText: string): TranscriptSegmentItem[] {
+  const toSec = (t: string) => {
+    const m = t.trim().match(/(\d+):(\d{2}):(\d{2})[,.](\d{1,3})/);
+    return m ? +m[1] * 3600 + +m[2] * 60 + +m[3] + +m[4].padEnd(3, '0') / 1000 : NaN;
+  };
+  const blocks = String(srtText || '').replace(/\r/g, '').trim().split(/\n\s*\n+/);
+  const out: TranscriptSegmentItem[] = [];
+  let cur: TranscriptSegmentItem | null = null;
+  for (const b of blocks) {
+    const lines = b.split('\n');
+    const tIdx = lines.findIndex((l) => l.includes('-->'));
+    if (tIdx < 0) continue;
+    const [a, z] = lines[tIdx].split('-->');
+    const start = toSec(a);
+    const end = toSec(z);
+    const text = lines.slice(tIdx + 1).join(' ').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+    if (!text || !Number.isFinite(start) || !Number.isFinite(end) || end <= start) continue;
+    const words = buildWordsFromSegment(text, start, end);
+    if (cur && start - cur.end > 1.5) {
+      out.push(cur);
+      cur = null;
+    }
+    if (!cur) cur = { start, end, text, words: [...words] };
+    else {
+      cur.end = end;
+      cur.text = `${cur.text} ${text}`;
+      cur.words.push(...words);
+    }
+    if (/[.?!…]["'»”)]*$/.test(text)) {
+      out.push(cur);
+      cur = null;
+    }
+  }
+  if (cur) out.push(cur);
+  return out;
+}
+
 app.post('/api/viral-clips/resolve-doc-source', async (req, res) => {
   try {
     const { docId, downloadFolderPath, downloadFolderName } = req.body || {};
@@ -20638,9 +20677,30 @@ app.post('/api/viral-clips/resolve-doc-source', async (req, res) => {
       }
     }
 
-    // Build transcript segments from doc.timelineSentences or doc.clips
+    // Build transcript segments. Prioridad: el SRT que escribió la exportación del video final
+    // (tiempos exactos del video maestro, ya incluyen Intro y pausas), agrupado en oraciones completas.
     const transcriptSegments: TranscriptSegmentItem[] = [];
-    if (Array.isArray(doc.timelineSentences) && doc.timelineSentences.length > 0) {
+    let transcriptSource = 'estimated';
+    if (masterVideoPath && rootFolder) {
+      const srtCandidates = [
+        path.join(rootFolder, 'Subtitulos.srt'),
+        path.join(rootFolder, '01_Guion_y_SEO', 'Subtitulos.srt'),
+      ].filter((f) => fs.existsSync(f));
+      if (srtCandidates.length > 0) {
+        try {
+          const srtSegs = buildSentenceSegmentsFromSrt(fs.readFileSync(srtCandidates[0], 'utf8'));
+          if (srtSegs.length > 0) {
+            transcriptSegments.push(...srtSegs);
+            transcriptSource = 'srt_video_final';
+          }
+        } catch (e) {
+          console.warn('[ViralClips] No se pudo leer Subtitulos.srt:', e);
+        }
+      }
+    }
+    if (transcriptSegments.length > 0) {
+      // ya resuelto desde el SRT del video final
+    } else if (Array.isArray(doc.timelineSentences) && doc.timelineSentences.length > 0) {
       for (const s of doc.timelineSentences) {
         const start = Math.max(0, Number(s.start) || 0);
         const end = Math.max(start + 0.5, Number(s.end) || start + 5);
@@ -20698,6 +20758,7 @@ app.post('/api/viral-clips/resolve-doc-source', async (req, res) => {
 
     res.json({
       ok: true,
+      transcriptSource,
       docId: doc.id,
       title: doc.title,
       rootFolder,
@@ -20876,17 +20937,19 @@ app.post('/api/viral-clips/analyze', async (req, res) => {
       if (picked.length >= desiredCount) break;
       const overlaps = picked.some(
         (p) =>
-          Math.max(0, Math.min(p.endSec, cand.endSec) - Math.max(p.startSec, cand.startSec)) >
-          Math.min(p.endSec - p.startSec, cand.endSec - cand.startSec) * 0.35
+          Math.min(p.endSec, cand.endSec) - Math.max(p.startSec, cand.startSec) > 0.5
       );
       if (!overlaps) {
         picked.push(cand);
       }
     }
-    // If transcript is short and we need more clips, fill with remaining best candidates
+    // Si faltan clips, completar solo con ventanas que no repitan contenido de las ya elegidas
     for (const cand of candidates) {
       if (picked.length >= desiredCount) break;
-      if (!picked.includes(cand)) picked.push(cand);
+      const anyOverlap = picked.some(
+        (p) => Math.min(p.endSec, cand.endSec) - Math.max(p.startSec, cand.startSec) > 0.5
+      );
+      if (!picked.includes(cand) && !anyOverlap) picked.push(cand);
     }
 
     const rawClips = picked.map((p, k) => {
@@ -21302,17 +21365,22 @@ async function renderViralClipMp4Internal(params: {
   const fileName = `${safeSlug}${variantSuffix}_${stamp}.mp4`;
   const outputFilePath = path.join(VIRAL_EXPORTS_DIR, fileName);
 
+  // El video final del documental (06_Video_Final) ya trae subtítulos 16:9 grabados abajo:
+  // se descarta la franja inferior antes del recorte vertical para que no salgan subtítulos dobles.
+  const hasBurnedDocCaptions = /[\\/]06_Video_Final[\\/]/i.test(String(sourceVideoPath || ''));
+  const preCropVf = hasBurnedDocCaptions ? 'crop=iw:trunc(ih*0.78/2)*2:0:0,' : '';
+
   // Build 9:16 Reframe filter
   const fX = Math.max(0, Math.min(1, (Number(focusX) || 50) / 100));
   let reframeVf = '';
   if (reframeMode === 'fit_blur') {
-    reframeVf = `split=2[bg][fg];[bg]scale=${outW}:${outH}:force_original_aspect_ratio=increase,crop=${outW}:${outH},boxblur=24:4,eq=brightness=-0.18[bgblur];[fg]scale=${outW}:${outH}:force_original_aspect_ratio=decrease[fgscaled];[bgblur][fgscaled]overlay=(W-w)/2:(H-h)/2,ass='${escapedAssPath}'`;
+    reframeVf = `${preCropVf}split=2[bg][fg];[bg]scale=${outW}:${outH}:force_original_aspect_ratio=increase,crop=${outW}:${outH},boxblur=24:4,eq=brightness=-0.18[bgblur];[fg]scale=${outW}:${outH}:force_original_aspect_ratio=decrease[fgscaled];[bgblur][fgscaled]overlay=(W-w)/2:(H-h)/2,ass='${escapedAssPath}'`;
   } else if (reframeMode === 'auto_pan') {
-    reframeVf = `scale=${outW}:${outH}:force_original_aspect_ratio=increase,crop=${outW}:${outH}:'(iw-ow)*(0.25+0.5*min(1,t/${mainSpanDur.toFixed(
+    reframeVf = `${preCropVf}scale=${outW}:${outH}:force_original_aspect_ratio=increase,crop=${outW}:${outH}:'(iw-ow)*(0.25+0.5*min(1,t/${mainSpanDur.toFixed(
       2
     )}))':(ih-oh)/2,ass='${escapedAssPath}'`;
   } else {
-    reframeVf = `scale=${outW}:${outH}:force_original_aspect_ratio=increase,crop=${outW}:${outH}:(iw-ow)*${fX.toFixed(
+    reframeVf = `${preCropVf}scale=${outW}:${outH}:force_original_aspect_ratio=increase,crop=${outW}:${outH}:(iw-ow)*${fX.toFixed(
       3
     )}:(ih-oh)/2,ass='${escapedAssPath}'`;
   }
@@ -21375,7 +21443,7 @@ async function renderViralClipMp4Internal(params: {
               3
             )}:end=${effectiveEndSec.toFixed(
               3
-            )},asetpts=PTS-STARTPTS[a1];[v0][a0][v1][a1]concat=n=2:v=1:a=1[vc][aout];[vc]split=2[bg][fg];[bg]scale=${outW}:${outH}:force_original_aspect_ratio=increase,crop=${outW}:${outH},boxblur=24:4,eq=brightness=-0.18[bgblur];[fg]scale=${outW}:${outH}:force_original_aspect_ratio=decrease[fgscaled];[bgblur][fgscaled]overlay=(W-w)/2:(H-h)/2,ass='${escapedAssPath}'[vout]`
+            )},asetpts=PTS-STARTPTS[a1];[v0][a0][v1][a1]concat=n=2:v=1:a=1[vc][aout];[vc]${preCropVf}split=2[bg][fg];[bg]scale=${outW}:${outH}:force_original_aspect_ratio=increase,crop=${outW}:${outH},boxblur=24:4,eq=brightness=-0.18[bgblur];[fg]scale=${outW}:${outH}:force_original_aspect_ratio=decrease[fgscaled];[bgblur][fgscaled]overlay=(W-w)/2:(H-h)/2,ass='${escapedAssPath}'[vout]`
           : `[0:v]trim=start=${hookTeaserStartSec.toFixed(3)}:end=${hookTeaserEndSec.toFixed(
               3
             )},setpts=PTS-STARTPTS[v0];[0:a]atrim=start=${hookTeaserStartSec.toFixed(
@@ -21390,7 +21458,7 @@ async function renderViralClipMp4Internal(params: {
               3
             )}:end=${effectiveEndSec.toFixed(
               3
-            )},asetpts=PTS-STARTPTS[a1];[v0][a0][v1][a1]concat=n=2:v=1:a=1[vc][aout];[vc]scale=${outW}:${outH}:force_original_aspect_ratio=increase,crop=${outW}:${outH}:(iw-ow)*${fX.toFixed(
+            )},asetpts=PTS-STARTPTS[a1];[v0][a0][v1][a1]concat=n=2:v=1:a=1[vc][aout];[vc]${preCropVf}scale=${outW}:${outH}:force_original_aspect_ratio=increase,crop=${outW}:${outH}:(iw-ow)*${fX.toFixed(
               3
             )}:(ih-oh)/2,ass='${escapedAssPath}'[vout]`;
 
