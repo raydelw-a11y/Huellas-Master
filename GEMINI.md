@@ -16,9 +16,9 @@ El usuario trabaja simultáneamente en **varias conversaciones en paralelo sobre
 
 ---
 
-# Reglas Específicas de `Huellas Master` para el Sistema Global de 10 Niveles (`MODO 1 / SOLO` a `MODO 10 / MÁXIMO`)
+# Reglas Específicas de `Huellas Master` para el Sistema de Modos Opt-In (`modo auto` o `modo 1..10`)
 
-Este proyecto aplica íntegramente el **Sistema Global de Auto-Triaje de 10 Niveles (`user_global`)** con estas reglas concretas del repositorio `Huellas Master`:
+Este proyecto aplica íntegramente el **Sistema Global de Modos Opt-In (`user_global`)**: **por defecto (si el usuario NO escribe `modo auto` ni `modo 1..10`), se trabaja directamente con el modelo seleccionado abajo en la interfaz**, sin abrir `swarm` ni consultas web. Cuando el usuario activa explícitamente **`modo auto`** (o un nivel manual `modo 2..10`), aplican estas reglas concretas del repositorio `Huellas Master`:
 
 1. **Archivos Críticos Compartidos de `Huellas Master` (`+2 pts` Automáticos y Obligatorios en Riesgo de Regresión)**:
    - Si la tarea lee para modificar o toca **cualquiera** de estos archivos o flujos, **es obligatorio sumar `+2 pts` sin redondear jamás a la baja**:

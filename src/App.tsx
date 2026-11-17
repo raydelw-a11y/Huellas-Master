@@ -196,7 +196,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '06:42 AM - 11/17/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '6:45 AM - 11/17/2026';
 
 // Etapa 8: nombre de archivo canónico de cada canción → "Canción_01_El_Muelle_de_la_Despedida"
 // (quita prefijos "Pista 1:" / "Canción 1:", comillas y rangos de tiempo "00:08 - 02:38" del título)
@@ -17606,7 +17606,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           <div className="w-full max-w-full min-w-0 bg-[#12100d] border-b border-amber-500/20 px-2 sm:px-4 py-2 gap-2 flex flex-col shrink-0 overflow-x-hidden">
             {/* Row 1: Documentary Title, Type, Status, Save Indicator & Export */}
             <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-2.5 bg-slate-900/90 border border-slate-800 rounded-xl px-2.5 sm:px-3.5 py-2 w-full max-w-full min-w-0 overflow-hidden">
-              <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-2 flex-1 min-w-0 w-full sm:w-auto">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-2 w-full xl:w-auto xl:flex-1 min-w-0 xl:min-w-[460px] overflow-hidden">
                 {documentaries.length > 1 ? (
                   <select
                     value={activeDoc.id}
@@ -17625,7 +17625,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                     Expediente Activo
                   </span>
                 )}
-                <div className="flex items-center gap-1.5 w-full sm:w-auto sm:flex-1 min-w-0">
+                <div className="flex items-center gap-1.5 w-full sm:w-auto sm:flex-1 min-w-0 overflow-hidden">
                   <input
                     type="text"
                     value={isTypingVideoNameRef.current ? videoNameDraft : videoNameDraft || activeDoc.title}
@@ -17633,7 +17633,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') e.preventDefault();
                     }}
-                    className="flex-1 min-w-0 w-full sm:min-w-[180px] sm:max-w-md bg-slate-950 border border-slate-700 focus:border-amber-500 rounded-lg px-2.5 py-1.5 sm:py-1 text-xs sm:text-sm font-bold text-amber-200 outline-none"
+                    className="flex-1 min-w-[90px] w-full sm:max-w-md bg-slate-950 border border-slate-700 focus:border-amber-500 rounded-lg px-2.5 py-1.5 sm:py-1 text-xs sm:text-sm font-bold text-amber-200 outline-none"
                     placeholder="Título del Documental..."
                   />
                   <button
@@ -17645,19 +17645,19 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                       }
                     }}
                     disabled={isRenamingVideoRealtime || !videoNameDraft.trim()}
-                    className="shrink-0 px-2.5 sm:px-2 py-1.5 sm:py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/50 text-amber-200 font-black text-[11px] flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                    className="shrink-0 px-2.5 sm:px-2 py-1.5 sm:py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/50 text-amber-200 font-black text-[11px] flex items-center gap-1 cursor-pointer disabled:opacity-50 relative z-10"
                     title="Actualizar el nombre en la carpeta de la Mac y en los chats de Gemini"
                   >
                     <RefreshCw className={`w-3 h-3 ${isRenamingVideoRealtime ? 'animate-spin' : ''}`} />
                     {isRenamingVideoRealtime ? '...' : 'Actualizar'}
                   </button>
-                  <span className="hidden sm:inline-block text-[10px] text-emerald-400 font-mono whitespace-nowrap">
+                  <span className="hidden md:inline-block shrink-0 text-[10px] text-emerald-400 font-mono whitespace-nowrap">
                     {savingStatus === 'saving' ? 'Guardando...' : '✓ Guardado'}
                   </span>
                 </div>
               </div>
 
-              <div className="flex items-center gap-1.5 sm:gap-2 w-full sm:w-auto min-w-0 overflow-x-auto flex-nowrap sm:flex-wrap whitespace-nowrap pb-1 sm:pb-0 [-webkit-overflow-scrolling:touch]">
+              <div className="flex items-center gap-1.5 sm:gap-2 w-full xl:w-auto xl:shrink-0 min-w-0 overflow-x-auto flex-nowrap sm:flex-wrap whitespace-nowrap pb-1 sm:pb-0 [-webkit-overflow-scrolling:touch]">
                 {/* ITEM 4: 1-Click Full Pre-Production (Stages 1 to 9) */}
                 <button
                   type="button"

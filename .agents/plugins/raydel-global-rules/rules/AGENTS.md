@@ -10,10 +10,11 @@
 2. **Pantalla de Contraseña (`Acceso Privado`) con Soporte para Tecla `Enter`**:
    - En todas las pantallas de contraseña, el formulario debe estar envuelto en `<form onSubmit={...}>` con `<button type="submit">` y manejador `onKeyDown` para `Enter`, garantizando que presionar la tecla `Enter` siempre funcione para acceder (y no únicamente hacer clic en el botón).
 
-3. **Sistema Global de Auto-Triaje de Complejidad de 10 Niveles (`MODO 1 / SOLO` a `MODO 10 / MÁXIMO`) y Narración en Vivo Estilo Claude**:
-   - **PASO 0 EN CADA TAREA — DECISIÓN AUTOMÁTICA DEL COORDINADOR (O RESPETO AL OVERRIDE MANUAL)**:
-     - **Prioridad 1 (Orden Explícita del Usuario — Override Manual)**: Si el usuario pide explícitamente un nivel como instrucción de ejecución (`modo 1` a `modo 10` / `solo`, `duo`, `trio`, `maximo`, etc., con o sin `/boost` o `/teamwork`), obedece siempre ese nivel exacto sin cuestionarlo.
-     - **Prioridad 2 (Auto-Triaje Objetivo de 0 a 10 puntos con `puntuación = min(10, suma)` cuando el usuario NO indica modo)**: Antes de editar código en cualquier tarea técnica, calcula el puntaje sumando:
+3. **Sistema Global de Modos Opt-In (`modo auto` o `modo 1..10`) vs Ejecución Directa por Defecto y Narración en Vivo Estilo Claude**:
+   - **PASO 0 EN CADA TAREA — COMPORTAMIENTO POR DEFECTO VS ACTIVACIÓN EXPLÍCITA DE MODOS**:
+     - **Por Defecto (cuando el usuario NO escribe `modo auto` ni pide un modo explícito)**: Trabaja directamente y sin rodeos usando **únicamente el modelo que está seleccionado abajo en la interfaz** (cero auto-triaje automático, cero workers en `swarm`, cero consultas web de Fase 0 y sin encabezado `[AUTO-TRIAJE → ...]`).
+     - **Opción A — Orden Explícita de Nivel (`modo 1` a `modo 10` / `solo`, `duo`, `trio`, `maximo`, etc.)**: Si el usuario pide un nivel concreto, ejecuta directamente ese nivel exacto sin cuestionarlo.
+     - **Opción B — Auto-Triaje Bajo Demanda (`modo auto`)**: **Únicamente** cuando el usuario escribe explícitamente **`modo auto`**, el coordinador analiza la tarea con el **Auto-Triaje Objetivo de 0 a 10 puntos** (`puntuación = min(10, suma)`) antes de editar código, sumando:
        - **A. Archivos/Capas**: 1 archivo local (`0 pts`) · 2–3 archivos (`+2 pts`) · 4+ archivos o cruce `Frontend + Backend + Extensión Chrome` (`+3 pts`).
        - **B. Naturaleza Técnica**: botones, textos, prompts, estilos o ajuste puntual claro (`0 pts`) · nueva lógica de estado, parsers, descargas o endpoints (`+2 pts`) · bug sin causa obvia, condiciones de carrera, FFmpeg, WebAudio o DOM externo (`+3 pts`).
        - **C. Riesgo de Regresión (`REGLA ANTI-REDONDEO A LA BAJA`)**: zona aislada (`0 pts`) · si **cualquiera** de los archivos previstos o tocados incluye flujos críticos compartidos (ej. Timeline del editor `CapCutTimelineEditor` / `CapCutEditor`, `cloudSync`, `smartParsers`, `background.js`, `flow-content.js`, `gemini-content.js`, `chatgpt-content.js`, `claude-content.js`, `grok-content.js` o pipeline 4K), **es automático y obligatorio sumar `+2 pts` sin excepción** (**PROHIBIDO** poner `+0` o redondear a la baja; ante duda entre dos puntajes, aplica siempre el más alto).

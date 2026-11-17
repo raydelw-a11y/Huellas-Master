@@ -1,6 +1,7 @@
 # Directorio Oficial de Motores y Roles de `Huellas Master` (Escalera de 10 Niveles)
 
 > Fuente canónica de protocolos y triaje: `.agents/plugins/raydel-global-rules/rules/AGENTS.md` (sincronizado con `~/.gemini/config/plugins/raydel-global-rules/rules/AGENTS.md`) y `./GEMINI.md`. Este archivo define los IDs verificados de Antigravity/`localhost:4200` y el rol técnico de cada motor.
+> **Regla de Activación**: Por defecto (sin indicar modo), se usa directamente **solo el modelo seleccionado abajo** sin abrir modos ni `swarm`. La escalera de modos solo se activa cuando el usuario escribe **`modo auto`** (para que el coordinador evalúe qué nivel 1–10 usar) o un modo explícito (**`modo 1`** a **`modo 10`**).
 
 ## 1. Catálogo de 10 Motores Distintos (+ Upgrade `XHigh` en Nivel 10 / MÁXIMO y Fase 0 Web Automática en Niveles 6–10)
 
