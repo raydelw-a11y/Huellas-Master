@@ -254,6 +254,66 @@ export async function probeMediaBridgeOrigin(
   }
 }
 
+// ---- Acceso Privado: verificación sin contraseña en texto plano ----
+const STUDIO_ACCESS_KEY_STORAGE = 'huellas_master_access_key_v2';
+// SHA-256 de la clave PBKDF2 (10.000 iteraciones, sal del puente de medios) derivada de la contraseña
+const STUDIO_ACCESS_KEY_CHECK = '6cd54beba294ea53d8a3baa5c764f98876c25ae7d87dfa9a78c41a47f7b88864';
+
+function bufToB64(buf: ArrayBuffer): string {
+  const u8 = new Uint8Array(buf);
+  let bin = '';
+  for (let i = 0; i < u8.length; i++) bin += String.fromCharCode(u8[i]);
+  return btoa(bin);
+}
+
+async function sha256Hex(buf: ArrayBuffer): Promise<string> {
+  const h = await window.crypto.subtle.digest('SHA-256', buf);
+  return Array.from(new Uint8Array(h)).map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+export function getStoredStudioAccessKeyB64(): string {
+  try {
+    return localStorage.getItem(STUDIO_ACCESS_KEY_STORAGE) || '';
+  } catch {
+    return '';
+  }
+}
+
+/** Comprueba la contraseña; si es correcta guarda la clave derivada y devuelve true. */
+export async function verifyAndStoreStudioAccessPassword(password: string): Promise<boolean> {
+  try {
+    if (!password || !window.crypto?.subtle) return false;
+    const enc = new TextEncoder();
+    const baseKey = await window.crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveBits']);
+    const bits = await window.crypto.subtle.deriveBits(
+      { name: 'PBKDF2', salt: enc.encode('huellas-studio-media-bridge-v1'), iterations: 10000, hash: 'SHA-256' },
+      baseKey,
+      256
+    );
+    if ((await sha256Hex(bits)) !== STUDIO_ACCESS_KEY_CHECK) return false;
+    try {
+      localStorage.setItem(STUDIO_ACCESS_KEY_STORAGE, bufToB64(bits));
+    } catch {}
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** true si este navegador ya guardó una clave válida en un acceso anterior. */
+export async function hasValidStoredStudioAccessKey(): Promise<boolean> {
+  try {
+    const b64 = getStoredStudioAccessKeyB64();
+    if (!b64 || !window.crypto?.subtle) return false;
+    const bin = atob(b64);
+    const u8 = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+    return (await sha256Hex(u8.buffer)) === STUDIO_ACCESS_KEY_CHECK;
+  } catch {
+    return false;
+  }
+}
+
 export async function decryptStudioMediaBridgeBox(
   box: { ivB64?: string; ctB64?: string } | null | undefined
 ): Promise<StudioBridgeDecrypted | null> {
@@ -267,23 +327,14 @@ export async function decryptStudioMediaBridgeBox(
       for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
       return u8;
     };
-    const enc = new TextEncoder();
-    const baseKey = await window.crypto.subtle.importKey(
+    // La clave se deriva de la contraseña al entrar (Acceso Privado) y se guarda solo en este navegador;
+    // la contraseña ya no viaja dentro del código de la página.
+    const rawKeyB64 = getStoredStudioAccessKeyB64();
+    if (!rawKeyB64) return null;
+    const aesKey = await window.crypto.subtle.importKey(
       'raw',
-      enc.encode('admin123'),
-      'PBKDF2',
-      false,
-      ['deriveKey']
-    );
-    const aesKey = await window.crypto.subtle.deriveKey(
-      {
-        name: 'PBKDF2',
-        salt: enc.encode('huellas-studio-media-bridge-v1'),
-        iterations: 10000,
-        hash: 'SHA-256',
-      },
-      baseKey,
-      { name: 'AES-GCM', length: 256 },
+      b64ToBuf(rawKeyB64),
+      { name: 'AES-GCM' },
       false,
       ['decrypt']
     );
