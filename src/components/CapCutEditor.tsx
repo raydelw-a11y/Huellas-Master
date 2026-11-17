@@ -12,7 +12,6 @@ import {
   Download,
   FolderOpen,
   Upload,
-  RefreshCw,
   ArrowLeft,
   ArrowRight,
   Sliders,
@@ -14613,28 +14612,6 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               </span>
             )}
           </div>
-
-          <button
-            type="button"
-            onClick={async () => {
-              if (onReloadFolderMedia) {
-                const count = await onReloadFolderMedia();
-                syncTracksFromDocumentary();
-                setStatusMessage(
-                  count > 0
-                    ? `✅ ${count} clip(s) .MP4 y audio cargados automáticamente desde tu carpeta 05_Clips_Video / 02_Audio.`
-                    : '🔄 Pistas sincronizadas con el documental activo.'
-                );
-              } else {
-                syncTracksFromDocumentary();
-              }
-            }}
-            className="px-2 py-0.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[11px] text-amber-300 font-semibold flex items-center gap-1 cursor-pointer"
-            title="Sincronizar clips, voz narrativa, texto del Clip 1, captions, música de Suno y videos .MP4 desde tu carpeta"
-          >
-            <RefreshCw className="w-3 h-3" />
-            Sincronizar
-          </button>
 
           {(activeDoc?.clips?.length || 0) > 0 && (() => {
             const totalScriptCount = activeDoc!.clips.length;
