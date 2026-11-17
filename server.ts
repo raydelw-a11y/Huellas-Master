@@ -7794,7 +7794,7 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
             (f) =>
               /\.(mp3|m4a|wav)$/i.test(f) &&
               /(?:voz[_\-\s]*narrativa|narracion|voiceover|voz_master)/i.test(f) &&
-              !/(?:suno|flowmusic|flow_music|musica|pista|track)/i.test(f)
+              !/(?:canci[oó_]n|suno|flowmusic|flow_music|musica|pista|track)/i.test(f.normalize('NFC'))
           );
         if (voMatch) {
           voPath = path.join(ad, voMatch);
@@ -7824,7 +7824,7 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         for (const ad of audioDirs) {
           if (!fs.existsSync(ad) || !fs.statSync(ad).isDirectory()) continue;
           const matchFile = fs.readdirSync(ad).find((f) => {
-            const m = f.match(/(?:suno|flowmusic|flow_music|musica|pista|track)[_\-\s]*0*(\d+)/i);
+            const m = f.normalize('NFC').match(/(?:canci[oó_]n|suno|flowmusic|flow_music|musica|pista|track)[_\-\s]*0*(\d+)/i);
             return m && parseInt(m[1], 10) === tNum && /\.(mp3|m4a|wav)$/i.test(f);
           });
           if (matchFile) {
@@ -11424,7 +11424,8 @@ app.get('/api/flow/list-folder-media', async (req, res) => {
             continue;
           }
           const sunoMatch = entry.normalize('NFC').match(
-            /(?:canci[oó]n|flowmusic|flow_music|suno|musica|pista|track)[_\-\s]*0*(\d+)/i
+            // Song files saved by Etapa 8 may land on disk as "Canci_n_##" (accents sanitized to "_")
+            /(?:canci[oó_]n|flowmusic|flow_music|suno|musica|pista|track)[_\-\s]*0*(\d+)/i
           );
           if (sunoMatch) {
             sunoFiles.push({

@@ -196,7 +196,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '05:22 AM - 11/17/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '06:42 AM - 11/17/2026';
 
 // Etapa 8: nombre de archivo canónico de cada canción → "Canción_01_El_Muelle_de_la_Despedida"
 // (quita prefijos "Pista 1:" / "Canción 1:", comillas y rangos de tiempo "00:08 - 02:38" del título)
@@ -9994,7 +9994,12 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
 
           if (Array.isArray(data.sunoFiles) && data.sunoFiles.length > 0) {
             const srvTracks: SunoTrack[] = (activeDocRef.current || currentDoc)?.sunoTracks || [];
-            const srvNorm = (n: string) => String(n || '').normalize('NFC').toLowerCase();
+            // Same sanitizing as the server ("Canción_01" is stored on disk as "Canci_n_01")
+            const srvNorm = (n: string) =>
+              String(n || '')
+                .normalize('NFC')
+                .toLowerCase()
+                .replace(/[^a-z0-9._@-]/g, '_');
             setCapturedSunoAudioMap((prev) => {
               let changed = false;
               const next = { ...prev };
