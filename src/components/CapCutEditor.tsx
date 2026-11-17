@@ -5749,14 +5749,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       speed: 1,
       foleyVolume: 100,
       audioFadeInSec: 1.5,
-      audioFadeOutSec: 2.5,
+      audioFadeOutSec: 5,
       transition: 'crossfade',
       videoUrl: effectiveIntroUrl,
       posterUrl: introPosterUrl || officialLogoUrl || undefined,
       narrationSegment:
         mode === 'INTRO_INICIO_00'
-          ? '🎬 INTRO OFICIAL (00:00 - 00:08 • Audio Fade In 1.5s + Fade Out 2.5s) — Huellas de la Humanidad (8K)'
-          : '🎬 INTRO OFICIAL POST-SLOGAN (8s tras "Aquí seguimos sus rastros." • Audio Fade In 1.5s + Fade Out 2.5s) — Huellas de la Humanidad (8K)',
+          ? '🎬 INTRO OFICIAL (00:00 - 00:08 • Audio Fade In 1.5s + Fade Out 5s) — Huellas de la Humanidad (8K)'
+          : '🎬 INTRO OFICIAL POST-SLOGAN (8s tras "Aquí seguimos sus rastros." • Audio Fade In 1.5s + Fade Out 5s) — Huellas de la Humanidad (8K)',
       trimStart: 0,
       trimEnd: 8,
       smoothSlowMo: false,
@@ -6279,8 +6279,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       fileName: '00_Intro_Huellas_de_la_Humanidad_8K.mp4',
       narrationSegment:
         docIntroPlacement === 'INTRO_POST_SLOGAN'
-          ? '🎬 INTRO OFICIAL POST-SLOGAN (8s tras "Aquí seguimos sus rastros." • Audio Fade In 1.5s + Fade Out 2.5s) — Huellas de la Humanidad (8K)'
-          : '🎬 INTRO OFICIAL (00:00 - 00:08 • Audio Fade In 1.5s + Fade Out 2.5s) — Huellas de la Humanidad (8K)',
+          ? '🎬 INTRO OFICIAL POST-SLOGAN (8s tras "Aquí seguimos sus rastros." • Audio Fade In 1.5s + Fade Out 5s) — Huellas de la Humanidad (8K)'
+          : '🎬 INTRO OFICIAL (00:00 - 00:08 • Audio Fade In 1.5s + Fade Out 5s) — Huellas de la Humanidad (8K)',
       duration: FIXED_INTRO_SEC,
       sourceDuration: FIXED_INTRO_SEC,
       speed: 1,
@@ -6301,7 +6301,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       audioFadeOutSec:
         typeof savedOrExistingIntro?.audioFadeOutSec === 'number'
           ? savedOrExistingIntro.audioFadeOutSec
-          : 2.5,
+          : 5,
       transition: 'crossfade',
       videoUrl: resolvedIntroVideoUrl,
       posterUrl: resolvedIntroPosterUrl,
@@ -7132,6 +7132,17 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           const maxAllowedEnd = lastSongTargetStartSec - (nonLastCount - idx) * silenceGapSec;
           if (startSec + durSec > maxAllowedEnd) {
             durSec = Math.max(30, Number((maxAllowedEnd - startSec).toFixed(2)));
+          }
+        }
+
+        // La primera canción SIEMPRE arranca con el Clip 1 (no con el Clip 2 que suele proponer Gemini),
+        // conservando el mismo punto final.
+        if (idx === 0) {
+          const clip1StartSec = docIntroPlacement === 'INTRO_POST_SLOGAN' ? 0 : FIXED_INTRO_SEC;
+          const firstSongEndSec = startSec + durSec;
+          if (startSec > clip1StartSec && firstSongEndSec - clip1StartSec >= 5) {
+            startSec = clip1StartSec;
+            durSec = Number((firstSongEndSec - clip1StartSec).toFixed(2));
           }
         }
 
@@ -9364,7 +9375,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         : activeClipAtPlayhead.clipNumber === 1 || activeClipAtPlayhead.index === 1
         ? 1.2
         : 0;
-    const defaultFadeOut = isIntro || isOutro ? 0.15 : 0;
+    const defaultFadeOut = isIntro ? 5 : isOutro ? 0.15 : 0;
 
     const fadeInSec =
       isIntro || isOutro
@@ -9373,7 +9384,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         ? Math.max(0, activeClipAtPlayhead.audioFadeInSec)
         : defaultFadeIn;
     const fadeOutSec =
-      isIntro || isOutro
+      isIntro
+        ? Math.max(5, Number(activeClipAtPlayhead.audioFadeOutSec) || 0)
+        : isOutro
         ? defaultFadeOut
         : typeof activeClipAtPlayhead.audioFadeOutSec === 'number'
         ? Math.max(0, activeClipAtPlayhead.audioFadeOutSec)

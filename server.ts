@@ -7052,7 +7052,9 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
           ? Math.max(0, c.audioFadeInSec)
           : defaultAudioFadeIn;
       const audioFadeOutSec =
-        isIntroClip || isOutroClip
+        isIntroClip
+          ? Math.max(5, Number(c.audioFadeOutSec) || 0)
+          : isOutroClip
           ? defaultAudioFadeOut
           : typeof c.audioFadeOutSec === 'number'
           ? Math.max(0, c.audioFadeOutSec)
