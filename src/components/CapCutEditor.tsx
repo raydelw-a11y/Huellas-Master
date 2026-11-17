@@ -13103,11 +13103,12 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           // A) Generate Logo PNG with opacity baked in
           let logoPngDataUrl = '';
           if (burnInLogo && logoImg) {
-            const lw = Math.max(64, Math.min(800, logoImg.naturalWidth || logoImg.width || 300));
-            const lh = Math.max(
-              32,
-              Math.round(((logoImg.naturalHeight || logoImg.height || 300) / lw) * lw)
-            );
+            // Keep the logo's real aspect ratio when capping the prebake width at 800 px (previously the height
+            // was not scaled down, which stretched wide logos vertically in the exported video)
+            const natW = logoImg.naturalWidth || logoImg.width || 300;
+            const natH = logoImg.naturalHeight || logoImg.height || 300;
+            const lw = Math.max(64, Math.min(800, natW));
+            const lh = Math.max(1, Math.round((natH / natW) * lw));
             const lCanvas = document.createElement('canvas');
             lCanvas.width = lw;
             lCanvas.height = lh;
@@ -13538,6 +13539,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
+              docId: activeDoc.id,
               folderPath: effectiveFolderPath,
               folderName: effectiveFolderName,
               docTitle: activeDoc.title,
@@ -13652,12 +13654,20 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               srtContent: srtText,
               srtCoordinateSpace: 'timeline',
               overlays: {
+                // Exact viewer parity: server/exportOverlayAss.ts reproduces this viewer's geometry & timing
+                parityV2: true,
+                clipAnim: { animIn: clipAnimIn, animOut: clipAnimOut, dur: clipAnimDur },
                 burnInLogo,
                 logo: {
                   pngDataUrl: logoPngDataUrl,
                   xPct: logoPosX,
                   yPct: logoPosY,
                   wPct: logoScalePct,
+                  opacity: logoOpacity,
+                  animIn: logoAnimIn,
+                  animInDur: logoAnimInDur,
+                  animOut: logoAnimOut,
+                  animOutDur: logoAnimOutDur,
                 },
                 burnInHook,
                 hookSegments: [],
@@ -13671,6 +13681,22 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   shadowStyle: hookShadowStyle,
                   line1Color: hookLine1Color,
                   line2Color: hookLine2Color,
+                  fontFamily: hookFontFamily,
+                  line1FontSize: hookLine1FontSize,
+                  line2FontSize: hookLine2FontSize,
+                  leftPct: hookLeftPct,
+                  topPct: hookTopPct,
+                  boxWidthPct: hookBoxWidthPct,
+                  bgColor: hookBgColor,
+                  bgOpacity: hookBgOpacity,
+                  line1AnimIn: hookLine1AnimIn,
+                  line1AnimInDur: hookLine1AnimInDur,
+                  line1AnimOut: hookLine1AnimOut,
+                  line1AnimOutDur: hookLine1AnimOutDur,
+                  line2AnimIn: hookLine2AnimIn,
+                  line2AnimInDur: hookLine2AnimInDur,
+                  line2AnimOut: hookLine2AnimOut,
+                  line2AnimOutDur: hookLine2AnimOutDur,
                 },
                 burnInCaptions,
                 captionSegments: [],
@@ -13694,6 +13720,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   bgColor: captionBgColor,
                   bgOpacity: captionBgOpacity,
                   bottomPct: captionBottomPct,
+                  animIn: captionAnimIn,
+                  animOut: captionAnimOut,
+                  animDur: captionAnimDur,
                 },
               },
             }),

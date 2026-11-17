@@ -43,6 +43,7 @@ import {
   cleanMasterWavEmbeddedC2paInPlace,
   trimDuplicatedTakeInPcm,
 } from './src/utils/geminiTtsAudioClean';
+import { buildSegmentAss, type ExportHookConfig } from './server/exportOverlayAss';
 
 // Ensure sufficient libuv I/O worker threads for local + iCloud operations
 process.env.UV_THREADPOOL_SIZE = process.env.UV_THREADPOOL_SIZE || '32';
@@ -6459,7 +6460,9 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         : aspectRatio === '9:16' || outH > outW
         ? 12
         : 5;
-      const defaultLogoOpacity = useMigrated16x9Defaults
+      const defaultLogoOpacity = Number.isFinite(Number(overlays?.logo?.opacity))
+        ? Number(overlays.logo.opacity)
+        : useMigrated16x9Defaults
         ? 95
         : typeof savedFormatProfile.logoOpacity === 'number'
         ? Number(savedFormatProfile.logoOpacity)
@@ -6656,6 +6659,20 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
     }
 
     const hookTextConfig = overlays?.hookText || null;
+    // Editor clients that send parityV2 get exact viewer parity (overlay geometry, fades, logo animation, strict clip resolution)
+    const exportParityV2 = overlays?.parityV2 === true;
+    const parityClipAnim = (overlays?.clipAnim || {}) as {
+      animIn?: string;
+      animOut?: string;
+      dur?: number;
+    };
+    const parityHasIntro = clips.some(
+      (pc: any) => Number(pc?.clipNumber) === 0 || pc?.id === 'fixed-doc-intro'
+    );
+    const parityHasOutro = clips.some(
+      (pc: any) => Number(pc?.clipNumber) === 999 || pc?.id === 'fixed-doc-outro'
+    );
+    const parityMissingClips: string[] = [];
 
     const formatAssTime = (sec: number): string => {
       const clamped = Math.max(0, sec);
@@ -6849,7 +6866,14 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         } catch {}
       }
 
-      if (!sourceMp4 || !fs.existsSync(sourceMp4)) continue;
+      if (!sourceMp4 || !fs.existsSync(sourceMp4)) {
+        if (exportParityV2) {
+          parityMissingClips.push(
+            `#${c.clipNumber ?? i + 1} (${fileName}${Number.isFinite(Number(c.start)) ? ` @ ${Number(c.start).toFixed(1)}s` : ''})`
+          );
+        }
+        continue;
+      }
 
       const segOut = path.join(workDir, `seg_${String(i + 1).padStart(3, '0')}.ts`);
       const usingPrebakedOpticalFlow =
@@ -7043,7 +7067,43 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       }
       const afFadePrefix = afFades.length > 0 ? `${afFades.join(',')},` : '';
 
-      const vfFadeSuffix = isFirstClipAfterIntro
+      // Parity: mirror CapCutEditor liveClipAnim exactly (fade in/out per element; any non-'none' anim renders as a fade)
+      const parityFirstAfterIntro =
+        parityHasIntro &&
+        !isIntroClip &&
+        !isOutroClip &&
+        i === firstBodyExportIdx &&
+        c.transition !== 'direct';
+      const parityLastBodyBeforeOutro =
+        parityHasOutro && clips.length >= 3 && i === clips.length - 2 && !isIntroClip && !isOutroClip;
+      const parityGenericDur = Math.max(0.05, Number(parityClipAnim.dur) > 0 ? Number(parityClipAnim.dur) : 0.6);
+      const parityInDur = isIntroClip
+        ? 0.5
+        : isOutroClip
+        ? 0.3
+        : parityFirstAfterIntro
+        ? 1.2
+        : parityClipAnim.animIn && parityClipAnim.animIn !== 'none'
+        ? parityGenericDur
+        : 0;
+      const parityOutDur = isOutroClip
+        ? 0.5
+        : isIntroClip
+        ? 0.8
+        : parityLastBodyBeforeOutro
+        ? 1.0
+        : parityClipAnim.animOut && parityClipAnim.animOut !== 'none'
+        ? parityGenericDur
+        : 0;
+      const parityVfFade =
+        (parityInDur > 0 ? `,fade=t=in:st=0:d=${Math.min(parityInDur, effectiveClipDur).toFixed(3)}` : '') +
+        (parityOutDur > 0
+          ? `,fade=t=out:st=${Math.max(0, effectiveClipDur - parityOutDur).toFixed(3)}:d=${Math.min(parityOutDur, effectiveClipDur).toFixed(3)}`
+          : '');
+
+      const vfFadeSuffix = exportParityV2
+        ? parityVfFade
+        : isFirstClipAfterIntro
         ? ',fade=t=in:st=0:d=1.2'
         : isIntroClip
         ? ',fade=t=in:st=0:d=0.6,fade=t=out:st=7.2:d=0.8'
@@ -7059,6 +7119,7 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
 
       // Build native libass (.ass) file for any subtitles or Hook text falling inside [segStartSec, segEndSec]
       let assFilterSuffix = '';
+      const useParityOverlays = exportParityV2;
       const overlappingCaptions = parsedTimelineCaptions.filter(
         (cp) => cp.endSec > segStartSec + 0.03 && cp.startSec < segEndSec - 0.03
       );
@@ -7070,7 +7131,7 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       const isVertical916 = aspectRatio === '9:16' || outH > outW;
       const refShortSide = Math.min(outW, outH);
 
-      if (overlappingCaptions.length > 0 || hasAssHook) {
+      if (!useParityOverlays && (overlappingCaptions.length > 0 || hasAssHook)) {
         const assEvents: string[] = [];
         const blurScale = Math.max(1, refShortSide / 1080);
         const capStyleCfg = overlays?.captionStyle || {};
@@ -7324,6 +7385,38 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         }
       }
 
+      // WYSIWYG parity path: identical geometry/timing to the CapCut editor viewer (server/exportOverlayAss.ts)
+      if (useParityOverlays) {
+        const parityFontsDir = path.join(process.cwd(), 'data', 'fonts');
+        const parityHook =
+          overlays?.burnInHook !== false &&
+          hookTextConfig &&
+          (hookTextConfig.line1 || hookTextConfig.line2) &&
+          Number.isFinite(Number(hookTextConfig.line1StartSec)) &&
+          Number.isFinite(Number(hookTextConfig.endSec))
+            ? (hookTextConfig as ExportHookConfig)
+            : null;
+        const parityAss = buildSegmentAss({
+          outW,
+          outH,
+          fontsDir: parityFontsDir,
+          segStartSec,
+          segDurSec: effectiveClipDur,
+          captions: overlappingCaptions,
+          captionStyle: overlays?.burnInCaptions !== false ? overlays?.captionStyle || {} : null,
+          hook: parityHook,
+        });
+        if (parityAss) {
+          const assPath = path.join(workDir, `seg_sub_${String(i + 1).padStart(3, '0')}.ass`);
+          fs.writeFileSync(assPath, parityAss, 'utf8');
+          const escFilterPath = (pth: string) =>
+            pth.replace(/\\/g, '/').replace(/:/g, '\\:').replace(/'/g, "\\'");
+          assFilterSuffix = fs.existsSync(parityFontsDir)
+            ? `,subtitles=filename='${escFilterPath(assPath)}':fontsdir='${escFilterPath(parityFontsDir)}'`
+            : `,ass='${escFilterPath(assPath)}'`;
+        }
+      }
+
       const cachedReframe = isVertical916
         ? reframeCacheByClipNum.get(Number(c.clipNumber))
         : undefined;
@@ -7424,14 +7517,35 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         extraOverlayInputs.push('-i', logoOverlayInfo.filePath);
         const inpIdx = extraOverlayInputs.length / 2;
         const nextVLbl = `vb_${++ovrCounter}`;
-        if (i === 0) {
+        // Parity: logo animation durations come from the editor (logoAnimIn/Out + durations; 'none' = no fade)
+        const logoAnimCfg = (overlays?.logo || {}) as {
+          animIn?: string;
+          animInDur?: number;
+          animOut?: string;
+          animOutDur?: number;
+        };
+        const logoInDur = !exportParityV2
+          ? 1.5
+          : logoAnimCfg.animIn === 'none'
+          ? 0
+          : Number(logoAnimCfg.animInDur) > 0
+          ? Number(logoAnimCfg.animInDur)
+          : 1.5;
+        const logoOutDur = !exportParityV2
+          ? 2.5
+          : logoAnimCfg.animOut === 'none'
+          ? 0
+          : Number(logoAnimCfg.animOutDur) > 0
+          ? Number(logoAnimCfg.animOutDur)
+          : 2.5;
+        if (i === 0 && logoInDur > 0) {
           overlayFilterSteps.push(
-            `[__INP_${inpIdx}__:v]loop=loop=-1:size=1:start=0,fps=${safeFps},trim=duration=${effectiveClipDur.toFixed(3)},setpts=PTS-STARTPTS,format=rgba,fade=t=in:st=0:d=1.5:alpha=1[lg_${ovrCounter}];[${currentVLabel}][lg_${ovrCounter}]overlay=${logoOverlayInfo.xPx}:${logoOverlayInfo.yPx}:format=auto[${nextVLbl}]`
+            `[__INP_${inpIdx}__:v]loop=loop=-1:size=1:start=0,fps=${safeFps},trim=duration=${effectiveClipDur.toFixed(3)},setpts=PTS-STARTPTS,format=rgba,fade=t=in:st=0:d=${logoInDur.toFixed(3)}:alpha=1[lg_${ovrCounter}];[${currentVLabel}][lg_${ovrCounter}]overlay=${logoOverlayInfo.xPx}:${logoOverlayInfo.yPx}:format=auto[${nextVLbl}]`
           );
-        } else if (i === clips.length - 1 || isOutroClip) {
-          const logoFadeOutStart = Math.max(0, effectiveClipDur - 2.5);
+        } else if ((i === clips.length - 1 || (!exportParityV2 && isOutroClip)) && logoOutDur > 0) {
+          const logoFadeOutStart = Math.max(0, effectiveClipDur - logoOutDur);
           overlayFilterSteps.push(
-            `[__INP_${inpIdx}__:v]loop=loop=-1:size=1:start=0,fps=${safeFps},trim=duration=${effectiveClipDur.toFixed(3)},setpts=PTS-STARTPTS,format=rgba,fade=t=out:st=${logoFadeOutStart.toFixed(2)}:d=2.5:alpha=1[lg_${ovrCounter}];[${currentVLabel}][lg_${ovrCounter}]overlay=${logoOverlayInfo.xPx}:${logoOverlayInfo.yPx}:format=auto[${nextVLbl}]`
+            `[__INP_${inpIdx}__:v]loop=loop=-1:size=1:start=0,fps=${safeFps},trim=duration=${effectiveClipDur.toFixed(3)},setpts=PTS-STARTPTS,format=rgba,fade=t=out:st=${logoFadeOutStart.toFixed(2)}:d=${Math.min(logoOutDur, effectiveClipDur).toFixed(3)}:alpha=1[lg_${ovrCounter}];[${currentVLabel}][lg_${ovrCounter}]overlay=${logoOverlayInfo.xPx}:${logoOverlayInfo.yPx}:format=auto[${nextVLbl}]`
           );
         } else {
           overlayFilterSteps.push(
@@ -7625,6 +7739,27 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
           }
         },
       });
+    }
+
+    // Parity: never silently drop a timeline clip — doing so shifts every later shot against voice, music and captions
+    if (exportParityV2 && parityMissingClips.length > 0) {
+      const missingMsg = `No se encontró el MP4 de ${parityMissingClips.length} clip(s) del timeline: ${parityMissingClips
+        .slice(0, 12)
+        .join(', ')}${parityMissingClips.length > 12 ? '…' : ''}. Descárgalos o quítalos del timeline antes de exportar (si se omiten, todo lo posterior se desincroniza con la voz y los captions).`;
+      try {
+        fs.rmSync(workDir, { recursive: true, force: true });
+      } catch {}
+      activeRenderJobState = {
+        running: false,
+        progressPct: 0,
+        currentStep: 0,
+        totalSteps: 0,
+        stageLabel: '',
+        startedAt: 0,
+        error: missingMsg,
+      };
+      res.status(409).json({ ok: false, error: missingMsg, missingClips: parityMissingClips });
+      return;
     }
 
     if (normalizedClipPaths.length === 0) {
