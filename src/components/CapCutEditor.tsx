@@ -3812,8 +3812,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   });
   const [timelineZoom, setTimelineZoom] = useState<number>(() => {
     const z = Number(initialDocStateForInit?.timelineZoom ?? initialSessionState?.timelineZoom);
-    return Number.isFinite(z) && z >= 1 && z <= 50 ? z : 20;
-  }); // pixels per second
+    return Number.isFinite(z) && z >= 1 && z <= 240 ? z : 20;
+  }); // pixels per second (máx. 240 = 10 px por fotograma a 24 fps)
   const [isFitEntireProject, setIsFitEntireProject] = useState<boolean>(() =>
     typeof initialDocStateForInit?.isFitEntireProject === 'boolean'
       ? initialDocStateForInit.isFitEntireProject
@@ -10378,7 +10378,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     setTimelineZoom((prev) => {
       const rawNext =
         typeof nextZoomOrUpdater === 'function' ? nextZoomOrUpdater(prev) : nextZoomOrUpdater;
-      return Math.max(1, Math.min(50, rawNext));
+      return Math.max(1, Math.min(240, rawNext));
     });
   };
 
@@ -19692,7 +19692,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             <span className="hidden sm:inline">Zoom ({timelineRulerData.scaleUnitLabel}):</span>
             <button
               type="button"
-              onClick={() => handleChangeTimelineZoom((z) => Math.max(1, z - 3), false)}
+              onClick={() => handleChangeTimelineZoom((z) => Math.max(1, z - Math.max(3, Math.round(z * 0.2))), false)}
               className="px-1.5 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 font-bold cursor-pointer"
               title="Alejar línea de tiempo (ver minutos / horas)"
             >
@@ -19701,14 +19701,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             <input
               type="range"
               min={1}
-              max={50}
+              max={240}
               value={isFitEntireProject ? 1 : timelineZoom}
               onChange={(e) => handleChangeTimelineZoom(Number(e.target.value), false)}
               className="w-20 accent-amber-500 cursor-pointer"
             />
             <button
               type="button"
-              onClick={() => handleChangeTimelineZoom((z) => Math.min(50, z + 3), false)}
+              onClick={() => handleChangeTimelineZoom((z) => Math.min(240, z + Math.max(3, Math.round(z * 0.25))), false)}
               className="px-1.5 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 font-bold cursor-pointer"
               title="Acercar línea de tiempo (ver segundos detallados)"
             >
