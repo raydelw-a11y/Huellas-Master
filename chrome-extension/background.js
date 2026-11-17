@@ -393,27 +393,35 @@ async function ensureSunoDownloadInterceptorInMainWorld(tabId) {
       world: 'MAIN',
       func: () => {
         try {
-          if (window.__HUELLAS_SUNO_DL_HOOK__) return;
-          window.__HUELLAS_SUNO_DL_HOOK__ = true;
-          const blobByUrl = new Map();
-          const origCreate = URL.createObjectURL;
-          URL.createObjectURL = function (obj) {
-            const u = origCreate.apply(this, arguments);
-            try {
-              if (obj && typeof obj === 'object' && 'size' in obj) {
-                blobByUrl.set(u, obj);
-                if (blobByUrl.size > 30) blobByUrl.delete(blobByUrl.keys().next().value);
-              }
-            } catch {}
-            return u;
-          };
+          if (window.__HUELLAS_SUNO_DL_HOOK_V2__) return;
+          window.__HUELLAS_SUNO_DL_HOOK_V2__ = true;
+          const blobByUrl = (window.__HUELLAS_SUNO_BLOBS__ = window.__HUELLAS_SUNO_BLOBS__ || new Map());
+          if (!window.__HUELLAS_SUNO_OBJURL_WRAPPED__) {
+            window.__HUELLAS_SUNO_OBJURL_WRAPPED__ = true;
+            const origCreate = URL.createObjectURL;
+            URL.createObjectURL = function (obj) {
+              const u = origCreate.apply(this, arguments);
+              try {
+                if (obj && typeof obj === 'object' && 'size' in obj) {
+                  blobByUrl.set(u, obj);
+                  if (blobByUrl.size > 30) blobByUrl.delete(blobByUrl.keys().next().value);
+                }
+              } catch {}
+              return u;
+            };
+          }
           const isCapturing = () =>
             document.documentElement.getAttribute('data-huellas-suno-capture') === '1';
           const deliver = (anchor) => {
             const href = anchor.href || '';
             const fileName = anchor.download || '';
-            document.documentElement.removeAttribute('data-huellas-suno-capture');
+            // Ignorar descargas no-MP3 si por algún motivo Suno disparara M4A/WAV antes del MP3
+            if (/\.(m4a|wav|mp4|zip)$/i.test(fileName)) return;
             const send = (blob) => {
+              if (blob && /audio\/mp4|video\/mp4/i.test(blob.type || '') && !/\.mp3$/i.test(fileName)) {
+                return;
+              }
+              document.documentElement.removeAttribute('data-huellas-suno-capture');
               const reader = new FileReader();
               reader.onloadend = () =>
                 window.postMessage(
@@ -421,8 +429,8 @@ async function ensureSunoDownloadInterceptorInMainWorld(tabId) {
                     source: 'HUELLAS_SUNO_DL',
                     dataUrl: typeof reader.result === 'string' ? reader.result : '',
                     fileName,
-                    mime: blob.type || '',
-                    size: blob.size || 0,
+                    mime: (blob && blob.type) || '',
+                    size: (blob && blob.size) || 0,
                     href: href.startsWith('blob:') ? '' : href,
                   },
                   '*'
@@ -441,30 +449,34 @@ async function ensureSunoDownloadInterceptorInMainWorld(tabId) {
                 )
               );
           };
-          const origClick = HTMLAnchorElement.prototype.click;
-          HTMLAnchorElement.prototype.click = function () {
-            try {
-              if (isCapturing() && (this.download || String(this.href || '').startsWith('blob:'))) {
-                deliver(this);
-                return;
-              }
-            } catch {}
-            return origClick.apply(this, arguments);
-          };
-          document.addEventListener(
-            'click',
-            (e) => {
+          window.__HUELLAS_SUNO_DELIVER__ = deliver;
+          if (!window.__HUELLAS_SUNO_ANCHOR_WRAPPED__) {
+            window.__HUELLAS_SUNO_ANCHOR_WRAPPED__ = true;
+            const origClick = HTMLAnchorElement.prototype.click;
+            HTMLAnchorElement.prototype.click = function () {
               try {
-                const a = e.target && e.target.closest ? e.target.closest('a[download]') : null;
-                if (a && isCapturing()) {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  deliver(a);
+                if (isCapturing() && (this.download || String(this.href || '').startsWith('blob:'))) {
+                  window.__HUELLAS_SUNO_DELIVER__(this);
+                  return;
                 }
               } catch {}
-            },
-            true
-          );
+              return origClick.apply(this, arguments);
+            };
+            document.addEventListener(
+              'click',
+              (e) => {
+                try {
+                  const a = e.target && e.target.closest ? e.target.closest('a[download]') : null;
+                  if (a && isCapturing()) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    window.__HUELLAS_SUNO_DELIVER__(a);
+                  }
+                } catch {}
+              },
+              true
+            );
+          }
         } catch {}
       },
     });

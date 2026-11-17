@@ -1191,6 +1191,18 @@
       return musicFail(trackNum, `🛑 ${label}: Suno muestra una verificación humana. Complétala tú en la pestaña y vuelve a intentar.`);
     }
 
+    // 0. Cerrar cualquier diálogo que hubiera quedado abierto de un intento anterior
+    for (const d of Array.from(document.querySelectorAll('[role="dialog"], [role="alertdialog"]'))) {
+      if (!musicIsVisible(d)) continue;
+      const cBtn = Array.from(d.querySelectorAll('button')).find((b) =>
+        /^(close|cancel|cerrar|cancelar)$/i.test((b.getAttribute('aria-label') || b.innerText || '').trim())
+      );
+      if (cBtn) {
+        cBtn.click();
+        await musicSleep(400);
+      }
+    }
+
     // 1. Ir a Create
     reportStatus('WORKING', `🎵 ${label}: abriendo Create...`, { trackNumber: trackNum });
     if (!/^\/create/.test(location.pathname)) {
@@ -1199,7 +1211,33 @@
       createLink.click();
       await musicWaitFor(() => /^\/create/.test(location.pathname), 15000, 400, alive);
     }
-    // 2. Pestaña Advanced
+
+    const isRowDone = (row) =>
+      Array.from(row.querySelectorAll('[role="button"]')).some(
+        (b) => /^Play /.test(b.getAttribute('aria-label') || '') && /^\d{1,2}:\d{2}$/.test((b.innerText || '').trim())
+      );
+
+    // 1.5 Si la tarjeta aún no tenía audio pero la canción con ese título exacto YA está terminada en Suno
+    // (por ejemplo, si falló en la descarga del intento anterior), rescatarla directo sin gastar créditos de nuevo
+    let doneRows = [];
+    if (msg.reuseExistingTitleMatch !== false) {
+      const existingMatches = [];
+      const seenExisting = new Set();
+      for (const x of musicSongAnchors()) {
+        if (seenExisting.has(x.id)) continue;
+        if (x.text.trim().toLowerCase() !== songTitle.trim().toLowerCase()) continue;
+        seenExisting.add(x.id);
+        const row = sunoRowFor(x.a);
+        if (row && isRowDone(row)) existingMatches.push({ ...x, row });
+      }
+      if (existingMatches.length > 0) {
+        doneRows = existingMatches;
+        reportStatus('WORKING', `🎵 ${label}: canción ya creada en Suno ("${songTitle}"), pasando directo a descargar MP3 sin gastar créditos...`, { trackNumber: trackNum });
+      }
+    }
+
+    if (doneRows.length === 0) {
+      // 2. Pestaña Advanced
     const advanced = await musicWaitFor(
       () => Array.from(document.querySelectorAll('button[role="tab"]')).find((b) => (b.innerText || '').trim() === 'Advanced'),
       15000,
@@ -1326,42 +1364,39 @@
     createBtn.click();
     reportStatus('GENERATING', `🎵 ${label}: Create pulsado, Suno está generando 2 versiones...`, { trackNumber: trackNum });
 
-    // 8. Esperar las 2 versiones terminadas (fila con duración M:SS visible)
-    const t0 = Date.now();
-    const maxMs = 10 * 60 * 1000;
-    let doneRows = [];
-    const isRowDone = (row) =>
-      Array.from(row.querySelectorAll('[role="button"]')).some(
-        (b) => /^Play /.test(b.getAttribute('aria-label') || '') && /^\d{1,2}:\d{2}$/.test((b.innerText || '').trim())
-      );
-    while (Date.now() - t0 < maxMs) {
-      if (!alive()) return;
-      if (musicDetectCaptcha()) {
-        return musicFail(trackNum, `🛑 ${label}: apareció una verificación humana. Complétala tú y reintenta.`);
+      // 8. Esperar las 2 versiones terminadas (fila con duración M:SS visible)
+      const t0 = Date.now();
+      const maxMs = 10 * 60 * 1000;
+      while (Date.now() - t0 < maxMs) {
+        if (!alive()) return;
+        if (musicDetectCaptcha()) {
+          return musicFail(trackNum, `🛑 ${label}: apareció una verificación humana. Complétala tú y reintenta.`);
+        }
+        const fresh = musicSongAnchors().filter((x) => !baseline.has(x.id));
+        const uniq = [];
+        const seen = new Set();
+        for (const x of fresh) {
+          if (seen.has(x.id)) continue;
+          seen.add(x.id);
+          const row = sunoRowFor(x.a);
+          if (row) uniq.push({ ...x, row });
+        }
+        doneRows = uniq.filter((x) => isRowDone(x.row));
+        const elapsed = Date.now() - t0;
+        if (doneRows.length >= 2 || (doneRows.length >= 1 && uniq.length === 1 && elapsed > 120000)) break;
+        const sec = Math.round(elapsed / 1000);
+        if (sec % 20 < 5) {
+          reportStatus('GENERATING', `🎵 ${label}: generando... (${sec}s, ${doneRows.length}/2 listas)`, { trackNumber: trackNum });
+        }
+        await musicSleep(5000);
       }
-      const fresh = musicSongAnchors().filter((x) => !baseline.has(x.id));
-      const uniq = [];
-      const seen = new Set();
-      for (const x of fresh) {
-        if (seen.has(x.id)) continue;
-        seen.add(x.id);
-        const row = sunoRowFor(x.a);
-        if (row) uniq.push({ ...x, row });
-      }
-      doneRows = uniq.filter((x) => isRowDone(x.row));
-      const elapsed = Date.now() - t0;
-      if (doneRows.length >= 2 || (doneRows.length >= 1 && uniq.length === 1 && elapsed > 120000)) break;
-      const sec = Math.round(elapsed / 1000);
-      if (sec % 20 < 5) {
-        reportStatus('GENERATING', `🎵 ${label}: generando... (${sec}s, ${doneRows.length}/2 listas)`, { trackNumber: trackNum });
-      }
-      await musicSleep(5000);
+      if (!doneRows.length) return musicFail(trackNum, `⚠️ ${label}: tiempo agotado (10 min) esperando las versiones.`);
+      await musicSleep(2500);
     }
-    if (!doneRows.length) return musicFail(trackNum, `⚠️ ${label}: tiempo agotado (10 min) esperando las versiones.`);
-    const first = doneRows[0];
-    await musicSleep(2500);
 
-    // 9. Download de la primera versión en MP3 (capturado por el interceptor MAIN world)
+    const first = doneRows[0];
+
+    // 9. Download de la primera versión exclusivamente en MP3 (capturado por el interceptor MAIN world)
     reportStatus('WORKING', `🎵 ${label}: descargando la primera versión en MP3...`, { trackNumber: trackNum });
     const moreBtn = first.row.querySelector('button[aria-label="More options"]');
     if (!moreBtn) return musicFail(trackNum, `⚠️ ${label}: no encontré el menú de la canción.`);
@@ -1381,15 +1416,38 @@
       alive
     );
     if (!dialog) return musicFail(trackNum, `⚠️ ${label}: no apareció el diálogo de descarga.`);
-    const mp3Btn = Array.from(dialog.querySelectorAll('button')).find((b) => (b.innerText || '').trim() === 'MP3');
-    if (mp3Btn) {
+
+    // Los formatos del diálogo son toggles multi-selección y M4A viene pre-marcado por defecto:
+    // 1) marcar MP3 si no lo está; 2) desmarcar M4A, WAV y MP4 video asset si estuvieran marcados.
+    const isFmtSelected = (btn) =>
+      Boolean(btn && btn.querySelector('svg')) ||
+      /\bbg-foreground-primary\b/.test(String((btn && btn.className) || '')) ||
+      (btn && btn.getAttribute('aria-checked') === 'true') ||
+      (btn && btn.getAttribute('aria-pressed') === 'true');
+    const fmtBtns = Array.from(dialog.querySelectorAll('button'));
+    const mp3Btn = fmtBtns.find((b) => (b.innerText || '').trim() === 'MP3');
+    if (mp3Btn && !isFmtSelected(mp3Btn)) {
       mp3Btn.click();
-      await musicSleep(500);
+      await musicSleep(400);
     }
+    for (const otherLabel of ['M4A', 'WAV', 'MP4 video asset']) {
+      const otherBtn = fmtBtns.find((b) => (b.innerText || '').trim().toLowerCase() === otherLabel.toLowerCase());
+      if (otherBtn && isFmtSelected(otherBtn)) {
+        otherBtn.click();
+        await musicSleep(350);
+      }
+    }
+
+    // En canciones nuevas el botón primario dice "Unlock & Download"; en canciones ya desbloqueadas dice "Download"
     const goBtn = Array.from(dialog.querySelectorAll('button'))
-      .filter((b) => (b.innerText || '').trim() === 'Download')
+      .filter((b) => {
+        if (b.disabled) return false;
+        const txt = (b.innerText || '').trim();
+        if (/^(m4a|mp3|wav|mp4 video asset|manage|close|cancel)$/i.test(txt)) return false;
+        return /\b(unlock\s*&\s*download|download|descargar)\b/i.test(txt);
+      })
       .pop();
-    if (!goBtn) return musicFail(trackNum, `⚠️ ${label}: no encontré el botón Download del diálogo.`);
+    if (!goBtn) return musicFail(trackNum, `⚠️ ${label}: no encontré el botón Unlock & Download / Download del diálogo.`);
     const captured = new Promise((resolve) => {
       const timer = setTimeout(() => {
         window.removeEventListener('message', onMsg);

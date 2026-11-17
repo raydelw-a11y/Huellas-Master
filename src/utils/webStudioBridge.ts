@@ -97,6 +97,7 @@ export interface WebBridgeCommandPayload {
   lyricsPrompt?: string;
   durationLabel?: string;
   songTitle?: string;
+  reuseExistingTitleMatch?: boolean;
   option?: string;
   optionLabel?: string;
   logoDataUrl?: string;
