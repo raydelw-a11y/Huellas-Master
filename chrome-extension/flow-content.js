@@ -721,12 +721,29 @@
     ).trim();
   }
 
+  // Identificador estable del video: la URL sin parámetros de firma (?Expires=…&Signature=…),
+  // que Flow renueva al repintar la galería y hacían que un video viejo pareciera nuevo.
+  function getStableVideoKey(url) {
+    const u = String(url || '').trim();
+    if (!u) return '';
+    if (u.startsWith('blob:') || u.startsWith('data:')) return u;
+    try {
+      const parsed = new URL(u);
+      return parsed.origin + parsed.pathname;
+    } catch {
+      return u.split('?')[0].split('#')[0];
+    }
+  }
+
   function getAllCurrentVideoUrlsSet() {
     const urls = new Set();
     const videos = Array.from(document.querySelectorAll('video'));
     for (const v of videos) {
       const u = getVideoElementUrl(v);
-      if (u) urls.add(u);
+      if (u) {
+        urls.add(u);
+        urls.add(getStableVideoKey(u));
+      }
     }
     return urls;
   }
@@ -1459,7 +1476,7 @@
 
       for (const v of allVideos) {
         const u = getVideoElementUrl(v);
-        if (!u || baselineUrls.has(u)) continue;
+        if (!u || baselineUrls.has(u) || baselineUrls.has(getStableVideoKey(u))) continue;
         // Ensure video has started loading or has dimensions
         if (v.readyState >= 1 || v.videoWidth > 0 || u.startsWith('http') || u.startsWith('blob:')) {
           candidateVideo = v;
@@ -1487,6 +1504,7 @@
       capturing = true;
       const candidateUrl = getVideoElementUrl(candidateVideo);
       baselineUrls.add(candidateUrl);
+      baselineUrls.add(getStableVideoKey(candidateUrl));
 
       const inferredNum =
         inferClipNumberFromVideoCard(candidateVideo) ||
@@ -1573,8 +1591,13 @@
       if (!url || seenUrls.has(url)) continue;
       seenUrls.add(url);
 
-      const inferredNum = inferClipNumberFromVideoCard(v) || payload?.clipNumber || fallbackIndex;
+      // Un video sin número de clip en su tarjeta solo se asigna al clip pedido si es el único;
+      // si hay varios, asignarlos todos al mismo clip mezclaba videos de otros clips (65 ← 67).
+      const cardNum = inferClipNumberFromVideoCard(v);
+      const inferredNum =
+        cardNum || (payload?.clipNumber ? (videos.length === 1 ? payload.clipNumber : null) : fallbackIndex);
       fallbackIndex++;
+      if (!inferredNum) continue;
 
       const captured = await captureVideoFramesAndBinary(v);
       try {

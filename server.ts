@@ -5698,6 +5698,32 @@ async function finalizeSavedClipVideoInFolder(
   const paddedNum = String(clipNumber).padStart(2, '0');
   const fullTarget = path.join(targetDir, safeName);
 
+  // Red de seguridad: si el video nuevo es idéntico (byte a byte) al de OTRO clip, se rechaza.
+  // Pasó con el clip 65 de Video 77, que se guardó con el video del clip 67 al rehacerlo.
+  try {
+    const newSize = fs.statSync(fullTarget).size;
+    let newHash = '';
+    for (const entry of fs.readdirSync(targetDir)) {
+      if (entry === safeName || isTransientStagingEntry(entry) || !/\.(mp4|mov|webm)$/i.test(entry)) continue;
+      const otherNum = matchVideoEntryClipNumber(entry);
+      if (!otherNum || otherNum === clipNumber) continue;
+      const otherPath = path.join(targetDir, entry);
+      if (fs.statSync(otherPath).size !== newSize) continue;
+      if (!newHash) newHash = crypto.createHash('md5').update(fs.readFileSync(fullTarget)).digest('hex');
+      const otherHash = crypto.createHash('md5').update(fs.readFileSync(otherPath)).digest('hex');
+      if (otherHash === newHash) {
+        try {
+          fs.unlinkSync(fullTarget);
+        } catch {}
+        throw new Error(
+          `El video capturado para el Clip ${clipNumber} es el mismo archivo que ya tiene el Clip ${otherNum} (${entry}). No se guardó: vuelve a generarlo o captúralo de nuevo.`
+        );
+      }
+    }
+  } catch (dupErr: any) {
+    if (String(dupErr?.message || '').includes('es el mismo archivo')) throw dupErr;
+  }
+
   try {
     for (const entry of fs.readdirSync(targetDir)) {
       if (
