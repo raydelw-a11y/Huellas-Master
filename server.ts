@@ -20794,7 +20794,7 @@ function smartViralHeadline(text: string, maxWords = 6): string {
   const weak = new Set(['de','del','la','las','el','los','y','e','o','u','en','que','con','a','al','por','para','un','una','unos','unas','su','sus','se','donde','como','cuando','mil','más','mas','muy']);
   while (words.length > 2) {
     const last = words[words.length - 1].toLowerCase().replace(/[^a-záéíóúüñ0-9]/gi, '');
-    if (weak.has(last) || /^\d+$/.test(last)) words = words.slice(0, -1);
+    if (weak.has(last) || /^\d{1,2}$/.test(last)) words = words.slice(0, -1);
     else break;
   }
   return words.join(' ').replace(/[.,;:!?"»]+$/g, '');
