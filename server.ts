@@ -22740,6 +22740,39 @@ function wakeExtensionInHuellasAppBrowser(forceReload = false) {
   );
 }
 
+// Recarga automática de la extensión de Chrome cuando cambia su código (chrome-extension/*).
+// El temporizador de la extensión se duerme con el service worker de Chrome, así que el servidor
+// la despierta y fuerza la recarga (reloader.html la aplaza si hay una tarea en marcha).
+const EXT_RELOADED_FP_FILE = path.join(os.homedir(), '.huellas-runtime', 'ext_last_reloaded_fingerprint.txt');
+let lastSeenExtFingerprint = '';
+function autoReloadChromeExtensionIfChanged() {
+  try {
+    const fp = computeChromeExtensionFingerprint();
+    if (!fp) return;
+    if (!lastSeenExtFingerprint) {
+      lastSeenExtFingerprint = fp;
+      let stored = '';
+      try {
+        stored = fs.readFileSync(EXT_RELOADED_FP_FILE, 'utf8').trim();
+      } catch {}
+      if (stored === fp) return;
+    } else if (fp === lastSeenExtFingerprint) {
+      return;
+    }
+    lastSeenExtFingerprint = fp;
+    try {
+      fs.mkdirSync(path.dirname(EXT_RELOADED_FP_FILE), { recursive: true });
+      fs.writeFileSync(EXT_RELOADED_FP_FILE, fp, 'utf8');
+    } catch {}
+    console.log('[Extension] Código de la extensión cambió: recargando la extensión en Chrome…');
+    wakeExtensionInHuellasAppBrowser(true);
+  } catch {}
+}
+if (process.platform === 'darwin' && process.env.RENDER !== 'true') {
+  setTimeout(autoReloadChromeExtensionIfChanged, 15000);
+  setInterval(autoReloadChromeExtensionIfChanged, 10000);
+}
+
 function closeTemporaryGeminiWindowFailsafe(opts: {
   windowId?: number | null;
   tabId?: number | null;
