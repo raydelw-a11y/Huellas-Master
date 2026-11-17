@@ -89,7 +89,7 @@ app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, POST, PUT, DELETE, OPTIONS');
   res.setHeader(
     'Access-Control-Allow-Headers',
-    'Content-Type, Authorization, Range, Access-Control-Request-Private-Network'
+    'Content-Type, Authorization, Range, Access-Control-Request-Private-Network, X-Huellas-Access'
   );
   res.setHeader(
     'Access-Control-Expose-Headers',
@@ -117,6 +117,61 @@ app.use((req, res, next) => {
   next();
 });
 app.use(cors({ origin: '*', optionsSuccessStatus: 200 }));
+
+// ============================================================================
+// ACCESO REMOTO (túnel Cloudflare / red local): las APIs y medios exigen la clave de Acceso Privado.
+// Desde la propia Mac (localhost sin cabeceras de Cloudflare) no se pide nada.
+// ============================================================================
+let tunnelAccessTokenCache = '';
+function getExpectedTunnelAccessToken(): string {
+  if (tunnelAccessTokenCache) return tunnelAccessTokenCache;
+  const pw = String(process.env.STUDIO_ACCESS_PASSWORD || '');
+  if (!pw) return '';
+  const key = crypto.pbkdf2Sync(pw, Buffer.from('huellas-studio-media-bridge-v1', 'utf8'), 10000, 32, 'sha256');
+  tunnelAccessTokenCache = crypto
+    .createHash('sha256')
+    .update(Buffer.concat([key, Buffer.from(':tunnel-auth-v1', 'utf8')]))
+    .digest('hex');
+  return tunnelAccessTokenCache;
+}
+function isDirectLocalRequest(req: express.Request): boolean {
+  if (req.headers['cf-ray'] || req.headers['cf-connecting-ip'] || req.headers['x-forwarded-for']) return false;
+  const ra = String(req.socket?.remoteAddress || '');
+  return ra === '127.0.0.1' || ra === '::1' || ra === '::ffff:127.0.0.1';
+}
+const TUNNEL_PUBLIC_PATH_PREFIXES = ['/api/flow-pc/', '/api/instagram/webhook'];
+function readCookieValue(req: express.Request, name: string): string {
+  const raw = String(req.headers.cookie || '');
+  for (const part of raw.split(';')) {
+    const [k, ...v] = part.trim().split('=');
+    if (k === name) return decodeURIComponent(v.join('='));
+  }
+  return '';
+}
+app.use((req, res, next) => {
+  const p = req.path || '';
+  const isProtected =
+    p.startsWith('/api/') || p.startsWith('/viral-clips-media/') || p.startsWith('/flow-cap/');
+  if (!isProtected || TUNNEL_PUBLIC_PATH_PREFIXES.some((pre) => p.startsWith(pre))) return next();
+  if (isDirectLocalRequest(req)) return next();
+  const expected = getExpectedTunnelAccessToken();
+  const provided = String(
+    req.headers['x-huellas-access'] || req.query.hk || readCookieValue(req, 'huellas_hk') || ''
+  ).trim();
+  const ok =
+    !!expected &&
+    provided.length === expected.length &&
+    crypto.timingSafeEqual(Buffer.from(provided), Buffer.from(expected));
+  if (!ok) {
+    res.status(401).json({ ok: false, error: 'Acceso remoto no autorizado.' });
+    return;
+  }
+  // Cookie de primera parte para medios cuando la app se abre desde el propio túnel
+  if (!readCookieValue(req, 'huellas_hk')) {
+    res.append('Set-Cookie', `huellas_hk=${expected}; Path=/; Max-Age=2592000; HttpOnly; Secure; SameSite=Lax`);
+  }
+  next();
+});
 let flowCapEarlyHandler: express.RequestHandler | null = null;
 app.use((req, res, next) => {
   if (flowCapEarlyHandler) {

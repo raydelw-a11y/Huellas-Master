@@ -294,6 +294,7 @@ export async function verifyAndStoreStudioAccessPassword(password: string): Prom
     try {
       localStorage.setItem(STUDIO_ACCESS_KEY_STORAGE, bufToB64(bits));
     } catch {}
+    await storeTunnelAccessTokenFromKey(new Uint8Array(bits));
     return true;
   } catch {
     return false;
@@ -308,10 +309,95 @@ export async function hasValidStoredStudioAccessKey(): Promise<boolean> {
     const bin = atob(b64);
     const u8 = new Uint8Array(bin.length);
     for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
-    return (await sha256Hex(u8.buffer)) === STUDIO_ACCESS_KEY_CHECK;
+    const valid = (await sha256Hex(u8.buffer)) === STUDIO_ACCESS_KEY_CHECK;
+    if (valid) await storeTunnelAccessTokenFromKey(u8);
+    else {
+      try {
+        localStorage.removeItem(TUNNEL_ACCESS_TOKEN_STORAGE);
+      } catch {}
+    }
+    return valid;
   } catch {
     return false;
   }
+}
+
+// ---- Clave para el acceso remoto (túnel / red local) ----
+const TUNNEL_ACCESS_TOKEN_STORAGE = 'huellas_master_tunnel_token_v1';
+let tunnelAccessTokenMem = '';
+
+async function storeTunnelAccessTokenFromKey(keyBytes: Uint8Array): Promise<void> {
+  try {
+    const suffix = new TextEncoder().encode(':tunnel-auth-v1');
+    const joined = new Uint8Array(keyBytes.length + suffix.length);
+    joined.set(keyBytes, 0);
+    joined.set(suffix, keyBytes.length);
+    tunnelAccessTokenMem = await sha256Hex(joined.buffer);
+    localStorage.setItem(TUNNEL_ACCESS_TOKEN_STORAGE, tunnelAccessTokenMem);
+  } catch {}
+}
+
+export function getTunnelAccessToken(): string {
+  if (tunnelAccessTokenMem) return tunnelAccessTokenMem;
+  try {
+    tunnelAccessTokenMem = localStorage.getItem(TUNNEL_ACCESS_TOKEN_STORAGE) || '';
+  } catch {}
+  return tunnelAccessTokenMem;
+}
+
+function isLoopbackHost(h: string): boolean {
+  return h === 'localhost' || h === '127.0.0.1' || h === '[::1]' || h === '::1' || h.endsWith('.localhost');
+}
+function isPrivateLanHost(h: string): boolean {
+  return (
+    /^10\./.test(h) ||
+    /^192\.168\./.test(h) ||
+    /^172\.(1[6-9]|2\d|3[01])\./.test(h) ||
+    h.endsWith('.local')
+  );
+}
+
+/** true si la URL va al servidor de la Mac por el túnel o la red local (necesita la clave). */
+export function needsTunnelAccess(rawUrl: string): boolean {
+  try {
+    if (typeof window === 'undefined') return false;
+    const u = new URL(rawUrl, window.location.href);
+    if (!/^(\/api\/|\/viral-clips-media\/|\/flow-cap\/)/.test(u.pathname)) return false;
+    const h = u.hostname;
+    if (isLoopbackHost(h)) return false;
+    return h.endsWith('.trycloudflare.com') || isPrivateLanHost(h) || u.host === window.location.host;
+  } catch {
+    return false;
+  }
+}
+
+/** Añade ?hk=<clave> a URLs de medios (video/audio/img no pueden enviar cabeceras). */
+export function withTunnelAccessParam(rawUrl: string): string {
+  const token = getTunnelAccessToken();
+  if (!token || !rawUrl || !needsTunnelAccess(rawUrl) || /[?&]hk=/.test(rawUrl)) return rawUrl;
+  return `${rawUrl}${rawUrl.includes('?') ? '&' : '?'}hk=${token}`;
+}
+
+let tunnelFetchInstalled = false;
+/** Envuelve fetch para mandar la cabecera X-Huellas-Access en las llamadas a la Mac remota. */
+export function installTunnelAccessFetch(): void {
+  if (tunnelFetchInstalled || typeof window === 'undefined' || !window.fetch) return;
+  tunnelFetchInstalled = true;
+  const origFetch = window.fetch.bind(window);
+  window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
+    try {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+      const token = getTunnelAccessToken();
+      if (token && needsTunnelAccess(url)) {
+        const headers = new Headers(
+          init?.headers || (typeof input !== 'string' && !(input instanceof URL) ? input.headers : undefined)
+        );
+        headers.set('X-Huellas-Access', token);
+        return origFetch(input, { ...(init || {}), headers });
+      }
+    } catch {}
+    return origFetch(input, init);
+  };
 }
 
 export async function decryptStudioMediaBridgeBox(
@@ -814,6 +900,13 @@ export async function verifyMediaBridgeHealthOrRefresh(
 }
 
 export function rewriteMediaBridgeUrl(
+  rawUrl: string | undefined | null,
+  activeOrigin?: string
+): string {
+  return withTunnelAccessParam(rewriteMediaBridgeUrlInner(rawUrl, activeOrigin));
+}
+
+function rewriteMediaBridgeUrlInner(
   rawUrl: string | undefined | null,
   activeOrigin?: string
 ): string {

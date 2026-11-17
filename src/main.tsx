@@ -2,6 +2,10 @@ import React, { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
+import { installTunnelAccessFetch } from './utils/mediaBridge';
+
+// Acceso remoto (túnel / red local): añade la clave de Acceso Privado a las llamadas a la Mac
+installTunnelAccessFetch();
 
 class RootErrorBoundary extends React.Component<
   { children: React.ReactNode },
