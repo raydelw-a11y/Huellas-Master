@@ -1999,12 +1999,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       if (officialIntroUrl) fileUrls.push(officialIntroUrl);
       if (fileUrls.length === 0) return;
 
-      if (autoWarm) {
-        setPreviewProxyStatus((prev) => ({ ...prev, isWarmingAll: true }));
-      }
-
       try {
-        const res = await fetch('/api/flow/preview-proxy-status', {
+        // Origen del servidor del Mac (igual que el resto del editor): con ruta relativa fallaba fuera de :4200 y quedaba en 0/0
+        const res = await fetch(`${getEditorPrimaryServerOrigin()}/api/flow/preview-proxy-status`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -2016,7 +2013,18 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         if (!res.ok) return;
         const data = await res.json();
         if (data && data.ok) {
-          setPreviewProxyStatus({
+          const nextWarming = Boolean(data.building || data.queued);
+          setPreviewProxyStatus((prev) =>
+            // Sin cambios → mismo objeto: evita re-pintar todo el editor cada 3.5s durante la reproducción
+            prev.quality === targetQuality &&
+            prev.total === (data.total || 0) &&
+            prev.ready === (data.ready || 0) &&
+            prev.building === (data.building || 0) &&
+            prev.queued === (data.queued || 0) &&
+            prev.missing === (data.missing || 0) &&
+            prev.isWarmingAll === nextWarming
+              ? prev
+              : {
             quality: targetQuality,
             total: data.total || 0,
             ready: data.ready || 0,
@@ -2026,7 +2034,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             percent: data.percent ?? 0,
             activeWorkers: data.activeWorkers || 0,
             items: data.items || {},
-            isWarmingAll: Boolean(data.building || data.queued),
+            isWarmingAll: nextWarming,
           });
         }
       } catch {}
