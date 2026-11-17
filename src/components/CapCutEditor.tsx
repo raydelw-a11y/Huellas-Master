@@ -2047,6 +2047,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     // Auto-generate missing proxies silently in background:
     void fetchPreviewProxyStatus(true);
     const interval = setInterval(() => {
+      // Durante la reproducción no se sondea: cada respuesta repinta el editor y traba la aguja
+      if (isPlayingRef.current) return;
       void fetchPreviewProxyStatus(true);
     }, 3500);
     return () => clearInterval(interval);
@@ -4618,7 +4620,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     };
     window.addEventListener('focus', onWinFocus);
     const pollTimer = window.setInterval(() => {
-      if (isEditorActive && !document.hidden) {
+      // Durante la reproducción no se reescanea la carpeta (evita congelar la aguja al procesar la respuesta)
+      if (isEditorActive && !document.hidden && !isPlayingRef.current) {
         void fetchFolderMedia(true);
       }
     }, 6000);
