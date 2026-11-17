@@ -8317,13 +8317,19 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       fs.rmSync(workDir, { recursive: true, force: true });
     } catch {}
 
-    const elapsedSec = ((Date.now() - startedAt) / 1000).toFixed(1);
+    const elapsedTotalSec = Math.round((Date.now() - startedAt) / 1000);
+    const elapsedH = Math.floor(elapsedTotalSec / 3600);
+    const elapsedM = Math.floor((elapsedTotalSec % 3600) / 60);
+    const elapsedS = elapsedTotalSec % 60;
+    const elapsedLabel = elapsedH > 0
+      ? `${elapsedH} h ${elapsedM} min`
+      : elapsedM > 0 ? `${elapsedM} min ${elapsedS} s` : `${elapsedS} s`;
     activeRenderJobState = {
       running: false,
       progressPct: 100,
       currentStep: clips.length,
       totalSteps: clips.length,
-      stageLabel: `✅ ¡Exportación completada en ${elapsedSec}s!`,
+      stageLabel: `✅ ¡Exportación completada en ${elapsedLabel}!`,
       startedAt,
       outputPath: finalOutputPath,
       fileName: finalFileName,
@@ -8334,7 +8340,7 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       outputPath: finalOutputPath,
       fileName: finalFileName,
       clipsRendered: normalizedClipPaths.length,
-      elapsedSec,
+      elapsedSec: elapsedTotalSec,
     });
   } catch (err: any) {
     try {
