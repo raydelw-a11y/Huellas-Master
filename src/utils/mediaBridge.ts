@@ -257,7 +257,7 @@ export async function probeMediaBridgeOrigin(
 // ---- Acceso Privado: verificación sin contraseña en texto plano ----
 const STUDIO_ACCESS_KEY_STORAGE = 'huellas_master_access_key_v2';
 // SHA-256 de la clave PBKDF2 (10.000 iteraciones, sal del puente de medios) derivada de la contraseña
-const STUDIO_ACCESS_KEY_CHECK = '6cd54beba294ea53d8a3baa5c764f98876c25ae7d87dfa9a78c41a47f7b88864';
+const STUDIO_ACCESS_KEY_CHECK = '132e4e54b2e889dd88a1f2d536e6285be2e1fbc75e18791742ce3b655198033c';
 
 function bufToB64(buf: ArrayBuffer): string {
   const u8 = new Uint8Array(buf);

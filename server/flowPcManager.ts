@@ -598,8 +598,13 @@ export function createFlowPcManager(deps: FlowPcManagerDeps, serverPort: number)
 
   function getStudioMediaBridgeKey(): Buffer {
     if (!studioBridgeKeyCache) {
+      // La contraseña de Acceso Privado vive solo en .env (no se sube a GitHub)
+      const accessPassword = String(process.env.STUDIO_ACCESS_PASSWORD || '');
+      if (!accessPassword) {
+        throw new Error('Falta STUDIO_ACCESS_PASSWORD en .env: no se puede cifrar la dirección del túnel.');
+      }
       studioBridgeKeyCache = crypto.pbkdf2Sync(
-        'admin123',
+        accessPassword,
         Buffer.from('huellas-studio-media-bridge-v1', 'utf8'),
         10000,
         32,

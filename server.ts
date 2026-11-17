@@ -12094,6 +12094,57 @@ app.post('/api/flow/sync-reference-downloads', async (req, res) => {
   }
 });
 
+// Carpetas desde las que /api/flow/serve-folder-file puede entregar archivos
+const SERVABLE_MEDIA_ROOTS: string[] = [
+  path.join(process.cwd(), 'data'),
+  path.join(process.cwd(), 'docs'),
+  path.join(process.cwd(), 'public'),
+  path.join(process.cwd(), 'dist'),
+  path.join(os.homedir(), 'Library', 'Mobile Documents', 'com~apple~CloudDocs', '0YouTube'),
+  path.join(os.homedir(), '.huellas-runtime'),
+  os.tmpdir(),
+  '/tmp',
+  '/private/tmp',
+].map((r) => {
+  try {
+    return fs.realpathSync(r);
+  } catch {
+    return path.resolve(r);
+  }
+});
+
+function isServableMediaPath(rawPath: string): boolean {
+  try {
+    let p = String(rawPath || '').trim();
+    if (!p) return false;
+    try {
+      p = decodeURIComponent(p);
+    } catch {}
+    if (p.startsWith('~')) p = path.join(os.homedir(), p.slice(1));
+    if (!path.isAbsolute(p)) p = path.join(process.cwd(), p);
+    let resolved = path.resolve(p).normalize('NFC');
+    try {
+      resolved = fs.realpathSync(resolved).normalize('NFC');
+    } catch {
+      // archivo aún no existe: validar la ruta normalizada
+    }
+    const base = path.basename(resolved);
+    if (base.startsWith('.env') || /\.local\.json$/i.test(base)) return false;
+    // Secretos de la app que viven dentro de data/
+    const dataDir = path.join(process.cwd(), 'data').normalize('NFC');
+    if (resolved === path.join(dataDir, 'config.json') || resolved.startsWith(path.join(dataDir, 'flow-pc') + path.sep)) {
+      return false;
+    }
+    if (resolved.split(path.sep).includes('.git')) return false;
+    return SERVABLE_MEDIA_ROOTS.some((root) => {
+      const r = root.normalize('NFC');
+      return resolved === r || resolved.startsWith(r + path.sep);
+    });
+  } catch {
+    return false;
+  }
+}
+
 app.get('/api/flow/serve-folder-file', async (req, res) => {
   const statFileIfExistsAsync = async (target: string): Promise<fs.Stats | null> => {
     const cached = getCachedMaterializedFileStat(target);
@@ -12141,6 +12192,12 @@ app.get('/api/flow/serve-folder-file', async (req, res) => {
     if (!filePath) {
       res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
       res.status(404).send('Archivo no encontrado');
+      return;
+    }
+    // Seguridad: solo se sirven archivos dentro de las carpetas de la app (nunca /etc, ~/.zshrc, etc.)
+    if (!isServableMediaPath(filePath)) {
+      res.setHeader('Cache-Control', 'no-store');
+      res.status(403).send('Ruta no permitida');
       return;
     }
 
