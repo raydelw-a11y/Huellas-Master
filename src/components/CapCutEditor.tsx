@@ -10199,7 +10199,12 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       const curClip = currentBoundsClips.find((c) => next >= c.start && next < c.end);
       const curClipId = curClip?.id || null;
 
-      if (vid && curClip?.videoUrl) {
+      // En el fotograma del corte React aún no ha girado los decks: `vid` sigue cargado con el clip anterior.
+      // Nunca corregir deriva ni hacer seek sobre un deck que no contiene el clip actual (evita el destello del primer fotograma del clip saliente).
+      const deckAssignNow = deckAssignRef.current;
+      const activeDeckHoldsCurClip =
+        Boolean(curClipId) && deckAssignNow.slotClipIds[deckAssignNow.activeSlot] === curClipId;
+      if (vid && curClip?.videoUrl && activeDeckHoldsCurClip) {
         const { effectiveRate, clampedOffset } = computeClipVideoSyncParams(
           vid,
           curClip,

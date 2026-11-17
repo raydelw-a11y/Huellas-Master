@@ -196,7 +196,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '11:11 PM - 11/16/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '11:20 PM - 11/16/2026';
 
 // Etapa 8: nombre de archivo canónico de cada canción → "Canción_01_El_Muelle_de_la_Despedida"
 // (quita prefijos "Pista 1:" / "Canción 1:", comillas y rangos de tiempo "00:08 - 02:38" del título)
@@ -10282,7 +10282,12 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           // Prioridad: nombre exacto guardado en la tarjeta (3) > Canción_## (2) > FlowMusic_## (1) > otros nombres legados (0)
           const newSunoRank: Record<number, number> = {};
           const tracksNow: SunoTrack[] = currentDoc?.sunoTracks || [];
-          const normName = (n: string) => String(n || '').normalize('NFC').toLowerCase();
+          // El servidor guarda "Canción_01" como "Canci_n_01" (acentos → "_"): se comparan ambos nombres ya saneados
+          const normName = (n: string) =>
+            String(n || '')
+              .normalize('NFC')
+              .toLowerCase()
+              .replace(/[^a-z0-9._@-]/g, '_');
           const trackNumByFileName = new Map<string, number>();
           tracksNow.forEach((t, i) => {
             if (t?.audioFileName) trackNumByFileName.set(normName(t.audioFileName), i + 1);
@@ -10303,7 +10308,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                 const sunoMatch = exactNum
                   ? null
                   : String(entryName).normalize('NFC').match(
-                      /(?:canci[oó]n|flowmusic|flow_music|suno|musica|pista|track)[_\-\s]*0*(\d+)/i
+                      /(?:canci[oó_]n|flowmusic|flow_music|suno|musica|pista|track)[_\-\s]*0*(\d+)/i
                     );
                 if (exactNum || sunoMatch) {
                   const tNum = exactNum || parseInt(sunoMatch![1], 10) || 1;
@@ -10318,7 +10323,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                   }
                   const rank = exactNum
                     ? 3
-                    : /^canci[oó]n/i.test(String(entryName).normalize('NFC'))
+                    : /^canci[oó_]n/i.test(String(entryName).normalize('NFC'))
                     ? 2
                     : /^(?:flowmusic|flow_music)/i.test(String(entryName))
                     ? 1

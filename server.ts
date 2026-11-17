@@ -5793,7 +5793,10 @@ app.post('/api/flow/save-asset-to-folder', async (req, res) => {
       res.status(400).json({ error: 'Faltan parámetros para guardar el archivo.' });
       return;
     }
-    let safeName = path.basename(String(fileName).replace(/[^a-zA-Z0-9._@-]/g, '_'));
+    // Conserva letras acentuadas (Canción_01_...) para que el nombre en disco coincida con el de la tarjeta
+    let safeName = path.basename(
+      String(fileName).normalize('NFC').replace(/[^\p{L}\p{N}._@-]/gu, '_')
+    );
     if (/^suno[_\-\s]*0*\d+\.(mp3|wav|m4a|ogg)$/i.test(safeName)) {
       res.json({ ok: true, skippedLegacySuno: true, fileName: safeName });
       return;
