@@ -20782,6 +20782,24 @@ app.post('/api/viral-clips/resolve-doc-source', async (req, res) => {
 });
 
 // 4. OpusClip AI Virality Analyzer (/api/viral-clips/analyze)
+// Titular corto que no termina a media frase: usa la primera cláusula si es breve y quita
+// palabras débiles o números sueltos al final ("... DE 11" -> "...").
+function smartViralHeadline(text: string, maxWords = 6): string {
+  const clean = String(text || '').replace(/^[¡¿"«—\-\s]+/, '').trim();
+  const firstClause = clean.split(/[,:;.!?…]/)[0].trim().split(/\s+/).filter(Boolean);
+  let words =
+    firstClause.length >= 3 && firstClause.length <= maxWords + 1
+      ? firstClause
+      : clean.split(/\s+/).filter(Boolean).slice(0, maxWords);
+  const weak = new Set(['de','del','la','las','el','los','y','e','o','u','en','que','con','a','al','por','para','un','una','unos','unas','su','sus','se','donde','como','cuando','mil']);
+  while (words.length > 2) {
+    const last = words[words.length - 1].toLowerCase().replace(/[^a-záéíóúüñ0-9]/gi, '');
+    if (weak.has(last) || /^\d+$/.test(last)) words = words.slice(0, -1);
+    else break;
+  }
+  return words.join(' ').replace(/[.,;:!?"»]+$/g, '');
+}
+
 app.post('/api/viral-clips/analyze', async (req, res) => {
   try {
     const {
@@ -20954,19 +20972,8 @@ app.post('/api/viral-clips/analyze', async (req, res) => {
 
     const rawClips = picked.map((p, k) => {
       const startSeg = segments[p.startIdx] || segments[0];
-      const cleanWords = startSeg.text
-        .replace(/^[¡¿"«—\-\s]+/, '')
-        .split(/\s+/)
-        .slice(0, 6)
-        .join(' ')
-        .replace(/[.,;:!?"»]+$/g, '');
-      const bannerWords = p.bestTeaserSeg.text
-        .replace(/^[¡¿"«—\-\s]+/, '')
-        .split(/\s+/)
-        .slice(0, 6)
-        .join(' ')
-        .replace(/[.,;:!?"»]+$/g, '')
-        .toUpperCase();
+      const cleanWords = smartViralHeadline(startSeg.text);
+      const bannerWords = smartViralHeadline(p.bestTeaserSeg.text).toUpperCase();
 
       return {
         title: cleanWords || `Momento Viral #${k + 1}`,
