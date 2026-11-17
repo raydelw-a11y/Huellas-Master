@@ -199,7 +199,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '04:33 PM - 11/17/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '06:16 PM - 11/17/2026';
 
 // Etapa 8: nombre de archivo canónico de cada canción → "Canción_01_El_Muelle_de_la_Despedida"
 // (quita prefijos "Pista 1:" / "Canción 1:", comillas y rangos de tiempo "00:08 - 02:38" del título)
@@ -13372,22 +13372,67 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           const currentPinned = (latestDoc.pinnedComment ?? '').trim();
           const currentTags = (latestDoc.youtubeTags ?? '').trim();
 
-          const candidateYt = bundle.youtube
+          let candidateYt = bundle.youtube
             ? stripLeadingTitleFromYoutubeMetadata(bundle.youtube, latestDoc.publishTitle).body
             : '';
-          const candidateFb = bundle.facebook ? cleanStage11SingleMetadataText(bundle.facebook) : '';
-          const candidatePinned = bundle.pinnedComment
+          let candidateFb = bundle.facebook ? cleanStage11SingleMetadataText(bundle.facebook) : '';
+          let candidatePinned = bundle.pinnedComment
             ? stripStage12ClosingChatter(bundle.pinnedComment)
                 .replace(/^(?:3\.\s*)?(?:Comentario\s+Fijado(?:\s+del\s+Video)?\s*[:—-]?\s*)/i, '')
                 .trim()
             : '';
-          const candidateTags = bundle.youtubeTags
+          let candidateTags = bundle.youtubeTags
             ? stripStage12ClosingChatter(bundle.youtubeTags)
                 .replace(/^(?:4\.\s*)?(?:Tags(?:\s+de\s+YouTube|\s+SEO)?\s*[:—-]?\s*)/i, '')
                 .replace(/\r?\n+/g, ', ')
                 .replace(/,\s*,+/g, ', ')
                 .trim()
             : '';
+
+          // Auto-recover scans whatever Gemini chat is open (no docId): only accept text that
+          // really is Stage 9 output AND belongs to this documentary.
+          const docKeywords = `${latestDoc.title || ''} ${latestDoc.topic || ''}`
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[̀-ͯ]/g, '')
+            .split(/[^a-z0-9ñ]+/)
+            .filter((w) => w.length >= 5 && !/^(video|huellas|humanidad|parte)$/.test(w));
+          const mentionsDoc = (t: string) => {
+            if (docKeywords.length === 0) return true;
+            const n = t.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+            return docKeywords.some((w) => n.includes(w));
+          };
+          const looksLikeScriptOrOtherStage = (t: string) =>
+            /ETAPA\s*[0-8]\b|GUION\s+DE\s+LA\s+VOZ|\(\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}\s*\||\[pausa:/i.test(t);
+          const looksLikeCode = (t: string) =>
+            /\b(ctx\.|const |function\s*\(|=>|\.tsx?\b|rgba\(|#[0-9a-f]{6}\b)/i.test(t);
+          const validYt =
+            !!candidateYt &&
+            mentionsDoc(candidateYt) &&
+            !looksLikeScriptOrOtherStage(candidateYt) &&
+            !looksLikeCode(candidateYt) &&
+            (/#[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9_]+/.test(candidateYt) || /(^|\n)\s*0?0:00\b/.test(candidateYt));
+          const validFb =
+            !!candidateFb &&
+            mentionsDoc(candidateFb) &&
+            !looksLikeScriptOrOtherStage(candidateFb) &&
+            !looksLikeCode(candidateFb);
+          // A pinned comment is a sentence for viewers, not an ALL-CAPS thumbnail overlay
+          const validPinned =
+            !!candidatePinned &&
+            !looksLikeCode(candidatePinned) &&
+            !looksLikeScriptOrOtherStage(candidatePinned) &&
+            !(candidatePinned === candidatePinned.toUpperCase() && candidatePinned.length < 120) &&
+            candidatePinned.length >= 40;
+          const validTags =
+            !!candidateTags &&
+            !looksLikeCode(candidateTags) &&
+            (candidateTags.match(/,/g) || []).length >= 3 &&
+            mentionsDoc(candidateTags);
+          if (!validYt) candidateYt = '';
+          if (!validFb) candidateFb = '';
+          if (!validPinned) candidatePinned = '';
+          if (!validTags) candidateTags = '';
 
           const currentPrefix = currentYt.slice(0, 28).trim().toLowerCase();
           const candidatePrefix = candidateYt.slice(0, 28).trim().toLowerCase();
