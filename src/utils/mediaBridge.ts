@@ -1,3 +1,4 @@
+import { sha256 as pureSha256, pbkdf2Sha256_32 } from './pureSha256';
 // ============================================================================
 // HUELLAS MASTER — LIVE MAC MEDIA BRIDGE UTILITIES
 // Transport-decoupled media resolution, auto-discovery & origin rewriting
@@ -266,9 +267,30 @@ function bufToB64(buf: ArrayBuffer): string {
   return btoa(bin);
 }
 
+const hasSubtleCrypto = () =>
+  typeof window !== 'undefined' && !!window.crypto && !!window.crypto.subtle;
+
 async function sha256Hex(buf: ArrayBuffer): Promise<string> {
-  const h = await window.crypto.subtle.digest('SHA-256', buf);
-  return Array.from(new Uint8Array(h)).map((b) => b.toString(16).padStart(2, '0')).join('');
+  // Sin https (p. ej. http://192.168.x.x en el iPhone) el navegador desactiva crypto.subtle
+  const h = hasSubtleCrypto()
+    ? new Uint8Array(await window.crypto.subtle.digest('SHA-256', buf))
+    : pureSha256(new Uint8Array(buf));
+  return Array.from(h).map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function deriveStudioAccessKeyBits(password: string): Promise<ArrayBuffer> {
+  const enc = new TextEncoder();
+  const salt = enc.encode('huellas-studio-media-bridge-v1');
+  if (hasSubtleCrypto()) {
+    const baseKey = await window.crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveBits']);
+    return window.crypto.subtle.deriveBits(
+      { name: 'PBKDF2', salt, iterations: 10000, hash: 'SHA-256' },
+      baseKey,
+      256
+    );
+  }
+  const out = pbkdf2Sha256_32(enc.encode(password), salt, 10000);
+  return out.buffer.slice(out.byteOffset, out.byteOffset + out.byteLength) as ArrayBuffer;
 }
 
 export function getStoredStudioAccessKeyB64(): string {
@@ -282,14 +304,8 @@ export function getStoredStudioAccessKeyB64(): string {
 /** Comprueba la contraseña; si es correcta guarda la clave derivada y devuelve true. */
 export async function verifyAndStoreStudioAccessPassword(password: string): Promise<boolean> {
   try {
-    if (!password || !window.crypto?.subtle) return false;
-    const enc = new TextEncoder();
-    const baseKey = await window.crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveBits']);
-    const bits = await window.crypto.subtle.deriveBits(
-      { name: 'PBKDF2', salt: enc.encode('huellas-studio-media-bridge-v1'), iterations: 10000, hash: 'SHA-256' },
-      baseKey,
-      256
-    );
+    if (!password) return false;
+    const bits = await deriveStudioAccessKeyBits(password);
     if ((await sha256Hex(bits)) !== STUDIO_ACCESS_KEY_CHECK) return false;
     try {
       localStorage.setItem(STUDIO_ACCESS_KEY_STORAGE, bufToB64(bits));
@@ -305,7 +321,7 @@ export async function verifyAndStoreStudioAccessPassword(password: string): Prom
 export async function hasValidStoredStudioAccessKey(): Promise<boolean> {
   try {
     const b64 = getStoredStudioAccessKeyB64();
-    if (!b64 || !window.crypto?.subtle) return false;
+    if (!b64) return false;
     const bin = atob(b64);
     const u8 = new Uint8Array(bin.length);
     for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
