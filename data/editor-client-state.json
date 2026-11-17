@@ -43,7 +43,7 @@
     "_v5_16x9_captionBottom10": true,
     "_v6_16x9_captionOriginalDefault": true
   },
-  "updatedAt": "2026-11-17T05:35:59.051Z",
+  "updatedAt": "2026-11-17T12:05:46.707Z",
   "overlayStyles": {
     "logoScalePct": 5,
     "logoOpacity": 95,
@@ -56,8 +56,8 @@
     "logoAnimOut": "fade",
     "logoAnimOutDur": 2.5,
     "hookFontFamily": "'Cinzel', Georgia, 'Times New Roman', serif",
-    "hookLine1FontSize": 15,
-    "hookLine2FontSize": 24,
+    "hookLine1FontSize": 19,
+    "hookLine2FontSize": 26,
     "hookLine1Color": "#fcd34d",
     "hookLine2Color": "#ffffff",
     "hookShadowStyle": "cinema",
@@ -65,9 +65,9 @@
     "hookBgColor": "#000000",
     "hookBgOpacity": 55,
     "hookLeftPct": 50,
-    "hookTopPct": 50,
-    "hookBoxWidthPct": 82,
-    "hookLine1StartSec": 8,
+    "hookTopPct": 48,
+    "hookBoxWidthPct": 96,
+    "hookLine1StartSec": 9,
     "hookLine1AnimIn": "fade",
     "hookLine1AnimInDur": 1,
     "hookLine1AnimOut": "fade",
@@ -77,7 +77,7 @@
     "hookLine2AnimInDur": 1,
     "hookLine2AnimOut": "fade",
     "hookLine2AnimOutDur": 1,
-    "clip1OverlayEndSec": 14,
+    "clip1OverlayEndSec": 16,
     "captionFontFamily": "'Cinzel', Georgia, 'Times New Roman', serif",
     "captionFontSize": 25,
     "captionFontSize16x9": 25,
@@ -177,6 +177,27 @@
       "foleyVolume": 0,
       "audioMuted": true,
       "customVolumeSet": true
+    },
+    "fixed-doc-intro": {
+      "foleyVolume": 100,
+      "audioMuted": false,
+      "customVolumeSet": false,
+      "audioFadeInSec": 1.5,
+      "audioFadeOutSec": 5
+    },
+    "num_0_full": {
+      "foleyVolume": 100,
+      "audioMuted": false,
+      "customVolumeSet": false,
+      "audioFadeInSec": 1.5,
+      "audioFadeOutSec": 5
+    },
+    "num_0": {
+      "foleyVolume": 100,
+      "audioMuted": false,
+      "customVolumeSet": false,
+      "audioFadeInSec": 1.5,
+      "audioFadeOutSec": 5
     }
   },
   "timelineClips": [
