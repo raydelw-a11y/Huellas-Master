@@ -20788,10 +20788,10 @@ function smartViralHeadline(text: string, maxWords = 6): string {
   const clean = String(text || '').replace(/^[¡¿"«—\-\s]+/, '').trim();
   const firstClause = clean.split(/[,:;.!?…]/)[0].trim().split(/\s+/).filter(Boolean);
   let words =
-    firstClause.length >= 3 && firstClause.length <= maxWords + 1
+    firstClause.length >= 4 && firstClause.length <= maxWords + 1
       ? firstClause
       : clean.split(/\s+/).filter(Boolean).slice(0, maxWords);
-  const weak = new Set(['de','del','la','las','el','los','y','e','o','u','en','que','con','a','al','por','para','un','una','unos','unas','su','sus','se','donde','como','cuando','mil']);
+  const weak = new Set(['de','del','la','las','el','los','y','e','o','u','en','que','con','a','al','por','para','un','una','unos','unas','su','sus','se','donde','como','cuando','mil','más','mas','muy']);
   while (words.length > 2) {
     const last = words[words.length - 1].toLowerCase().replace(/[^a-záéíóúüñ0-9]/gi, '');
     if (weak.has(last) || /^\d+$/.test(last)) words = words.slice(0, -1);
