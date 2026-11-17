@@ -13505,10 +13505,12 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           const srtText = captions
             .map((c, idx) => {
               const fmt = (sec: number) => {
-                const h = Math.floor(sec / 3600);
-                const m = Math.floor((sec % 3600) / 60);
-                const s = Math.floor(sec % 60);
-                const ms = Math.round((sec - Math.floor(sec)) * 1000);
+                // Redondear a milisegundos enteros primero para no producir ",1000"
+                const totalMs = Math.max(0, Math.round(sec * 1000));
+                const h = Math.floor(totalMs / 3600000);
+                const m = Math.floor((totalMs % 3600000) / 60000);
+                const s = Math.floor((totalMs % 60000) / 1000);
+                const ms = totalMs % 1000;
                 return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(
                   s
                 ).padStart(2, '0')},${String(ms).padStart(3, '0')}`;
