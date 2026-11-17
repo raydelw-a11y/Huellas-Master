@@ -5325,6 +5325,8 @@ export function reformatCaptionItems<
     maxCharsPerLine?: number;
     maxWordsPerLine?: number;
     mode?: 'subdivide' | 'wrap' | 'original';
+    /** 16:9: no dejar una palabra sola en una línea salvo que sea una oración de una sola palabra */
+    avoidSingleWordLines?: boolean;
   }
 ): T[] {
   if (!Array.isArray(rawItems) || rawItems.length === 0) return [];
@@ -5436,6 +5438,30 @@ export function reformatCaptionItems<
   }
   if (curIsland.length > 0) islands.push(curIsland);
 
+  const avoidSingle = !!options?.avoidSingleWordLines && effWords !== 1;
+  const endsSentence = (w: string) => /[.?!…]["'»”)\]]*$/.test(String(w || '').trim());
+  const isOneWordSentence = (line: TimedWord[], prevWord: TimedWord | null) =>
+    line.length === 1 && endsSentence(line[0].word) && (!prevWord || /[.?!…:]["'»”)\]]*$/.test(prevWord.word.trim()));
+  if (avoidSingle) {
+    // Una isla de una sola palabra (por pausa) se une a la vecina, salvo que sea una oración completa
+    for (let k = 0; k < islands.length; k++) {
+      const isl = islands[k];
+      if (isl.length !== 1) continue;
+      const prevIsl = k > 0 ? islands[k - 1] : null;
+      const prevWord = prevIsl ? prevIsl[prevIsl.length - 1] : null;
+      if (isOneWordSentence(isl, prevWord)) continue;
+      if (prevIsl && prevWord && !endsSentence(prevWord.word)) {
+        prevIsl.push(isl[0]);
+        islands.splice(k, 1);
+        k--;
+      } else if (k + 1 < islands.length && !endsSentence(isl[0].word)) {
+        islands[k + 1].unshift(isl[0]);
+        islands.splice(k, 1);
+        k--;
+      }
+    }
+  }
+
   const rebuilt: T[] = [];
   const templateItem = rawItems[0];
 
@@ -5468,6 +5494,29 @@ export function reformatCaptionItems<
       curLineChars += (curLineChars > 0 ? 1 : 0) + tw.word.length;
     }
     if (curLine.length > 0) islLines.push(curLine);
+
+    if (avoidSingle && islLines.length >= 2) {
+      for (let k = 0; k < islLines.length; k++) {
+        const line = islLines[k];
+        if (line.length !== 1) continue;
+        const prevLine = k > 0 ? islLines[k - 1] : null;
+        const prevWord = prevLine ? prevLine[prevLine.length - 1] : null;
+        if (isOneWordSentence(line, prevWord)) continue;
+        if (prevLine && prevWord && !endsSentence(prevWord.word)) {
+          if (prevLine.length >= 3) {
+            line.unshift(prevLine.pop()!); // pasar la última palabra de la línea anterior
+          } else {
+            prevLine.push(line[0]);
+            islLines.splice(k, 1);
+            k--;
+          }
+        } else if (k + 1 < islLines.length) {
+          islLines[k + 1].unshift(line[0]);
+          islLines.splice(k, 1);
+          k--;
+        }
+      }
+    }
 
     if (lineMode === 'wrap') {
       let k = 0;

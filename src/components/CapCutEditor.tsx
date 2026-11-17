@@ -3321,6 +3321,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         const reformattedAudio = reformatCaptionItems(audioDomainInput, {
           maxCharsPerLine: captionMaxChars,
           maxWordsPerLine: activeWordsLimit,
+          avoidSingleWordLines: aspectRatio === '16:9',
           mode: captionLineMode,
           lineMode: captionLineMode === 'wrap' ? 'wrap' : 'single',
         } as any).map((rc) => ({
@@ -3342,6 +3343,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         reformatted = reformatCaptionItems(prevCaps, {
           maxCharsPerLine: captionMaxChars,
           maxWordsPerLine: activeWordsLimit,
+          avoidSingleWordLines: aspectRatio === '16:9',
           mode: captionLineMode,
           lineMode: captionLineMode === 'wrap' ? 'wrap' : 'single',
         } as any);
@@ -6897,6 +6899,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       reformatCaptionItems(list, {
         maxCharsPerLine: captionMaxChars,
         maxWordsPerLine: activeWordsLimit,
+          avoidSingleWordLines: aspectRatio === '16:9',
         mode: captionLineMode,
         lineMode: captionLineMode === 'wrap' ? 'wrap' : 'single',
       } as any);
@@ -7750,6 +7753,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         {
           maxCharsPerLine: captionMaxChars,
           maxWordsPerLine: activeWordsLimit,
+          avoidSingleWordLines: aspectRatio === '16:9',
           mode: captionLineMode,
         }
       );
@@ -7860,7 +7864,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       });
       const final76 = reformatCaptionItems(
         alignCaptionsToIntroPlacement(gen76, effectiveMode, baseHookForCap, 8, sloganSplitAudioSec),
-        { maxCharsPerLine: captionMaxChars, maxWordsPerLine: activeWordsLimit, mode: captionLineMode }
+        { maxCharsPerLine: captionMaxChars, maxWordsPerLine: activeWordsLimit,
+          avoidSingleWordLines: aspectRatio === '16:9', mode: captionLineMode }
       );
       setCaptions(final76);
       persistDocOverlaysPatch(
@@ -8460,6 +8465,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           {
             maxCharsPerLine: captionMaxChars,
             maxWordsPerLine: activeWordsLimit,
+          avoidSingleWordLines: aspectRatio === '16:9',
             mode: captionLineMode,
           }
         );
@@ -8489,6 +8495,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       const merged = reformatCaptionItems(rawMerged, {
         maxCharsPerLine: captionMaxChars,
         maxWordsPerLine: activeWordsLimit,
+          avoidSingleWordLines: aspectRatio === '16:9',
         mode: captionLineMode,
       });
       setCaptions(merged);
