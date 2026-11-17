@@ -196,7 +196,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '12:08 AM - 11/17/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '12:33 AM - 11/17/2026';
 
 // Etapa 8: nombre de archivo canónico de cada canción → "Canción_01_El_Muelle_de_la_Despedida"
 // (quita prefijos "Pista 1:" / "Canción 1:", comillas y rangos de tiempo "00:08 - 02:38" del título)
@@ -4197,9 +4197,38 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     }, 1200);
   };
 
+  // Si la fusión periódica no cambió nada, se conservan los mismos objetos: así React no repinta toda la app
+  // ni se reescribe localStorage (antes esto congelaba la página ~4-5s cada 4.5s aunque no hubiera cambios).
+  const keepUnchangedDocIdentities = (
+    prev: DocumentaryProject[],
+    merged: DocumentaryProject[]
+  ): DocumentaryProject[] => {
+    try {
+      const prevById = new Map(prev.map((d) => [d?.id, d]));
+      let allSame = prev.length === merged.length;
+      const out = merged.map((m, i) => {
+        const p = prevById.get(m?.id);
+        if (p && (p === m || JSON.stringify(p) === JSON.stringify(m))) {
+          if (prev[i] !== p) allSame = false;
+          return p;
+        }
+        allSame = false;
+        return m;
+      });
+      return allSame ? prev : out;
+    } catch {
+      return merged;
+    }
+  };
+
   const silentRealtimeSync = async () => {
     // Do not overwrite while user is actively typing/saving within the last 3 seconds
     if (cloudPushTimerRef.current || Date.now() - lastLocalEditAtRef.current < 3000) {
+      return;
+    }
+    // Mientras el Editor de Video reproduce no se sincroniza: fusionar y guardar los documentales congela la página varios segundos.
+    // Se reanuda sola en el siguiente ciclo (4.5s) tras pausar.
+    if ((window as any).__huellasEditorIsPlaying) {
       return;
     }
     try {
@@ -4224,11 +4253,11 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                 const normalizedSrv = srvList.map((d) => normalizeDocumentaryVoiceoverAudio(d));
                 setDocumentaries((prev) => {
                   const localBase = prev.length > 0 ? prev : loadLocalCachedDocumentaries();
-                  const merged = mergeDocumentariesLists(
-                    localBase,
-                    normalizedSrv,
-                    getLocalDeletedDocIds()
+                  const merged = keepUnchangedDocIdentities(
+                    prev,
+                    mergeDocumentariesLists(localBase, normalizedSrv, getLocalDeletedDocIds())
                   );
+                  if (merged === prev) return prev;
                   saveLocalCachedDocumentaries(merged);
                   return merged;
                 });
@@ -4290,11 +4319,11 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
               );
               setDocumentaries((prev) => {
                 const localBase = prev.length > 0 ? prev : loadLocalCachedDocumentaries();
-                const merged = mergeDocumentariesLists(
-                  localBase,
-                  normalizedFromDisk,
-                  getLocalDeletedDocIds()
+                const merged = keepUnchangedDocIdentities(
+                  prev,
+                  mergeDocumentariesLists(localBase, normalizedFromDisk, getLocalDeletedDocIds())
                 );
+                if (merged === prev) return prev;
                 saveLocalCachedDocumentaries(merged);
                 return merged;
               });

@@ -3877,6 +3877,13 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   });
   const isPlayingRef = useRef<boolean>(false);
   isPlayingRef.current = isPlaying;
+  // Señal global para que App.tsx pause su sincronización periódica (bloquea ~4s la página) mientras se reproduce
+  useEffect(() => {
+    (window as any).__huellasEditorIsPlaying = isPlaying;
+    return () => {
+      (window as any).__huellasEditorIsPlaying = false;
+    };
+  }, [isPlaying]);
 
   const previewVideoRef = useRef<HTMLVideoElement | null>(null);
   const deckAVideoRef = useRef<HTMLVideoElement | null>(null);
