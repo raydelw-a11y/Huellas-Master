@@ -2507,8 +2507,37 @@ function huellasDebugLog(event, data) {
   } catch {}
 }
 
+// Pestañas de Gemini con una orden en marcha: reciben un "tick" cada 400 ms para que sus temporizadores
+// no se congelen cuando la pestaña está oculta (Chrome los frena a 1/min en segundo plano).
+const huellasGeminiTickTabs = new Map(); // tabId -> startedAt
+let huellasGeminiTickTimer = null;
+function huellasStartGeminiTicks(tabId) {
+  if (!tabId) return;
+  huellasGeminiTickTabs.set(tabId, Date.now());
+  if (huellasGeminiTickTimer) return;
+  huellasGeminiTickTimer = setInterval(() => {
+    const now = Date.now();
+    for (const [id, startedAt] of [...huellasGeminiTickTabs]) {
+      if (now - startedAt > 30 * 60 * 1000) {
+        huellasGeminiTickTabs.delete(id);
+        continue;
+      }
+      chrome.tabs.sendMessage(id, { target: 'GEMINI_TICK', action: 'HUELLAS_TICK' }).catch(() => {
+        huellasGeminiTickTabs.delete(id);
+      });
+    }
+    if (huellasGeminiTickTabs.size === 0) {
+      clearInterval(huellasGeminiTickTimer);
+      huellasGeminiTickTimer = null;
+    }
+  }, 400);
+}
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (!message) return false;
+  if (message.type === 'GEMINI_RESPONSE_READY' && sender?.tab?.id && message.taskType !== 'AUTO_RECOVER_STAGE11') {
+    huellasGeminiTickTabs.delete(sender.tab.id);
+  }
   if (message.type === 'HUELLAS_DEBUG_LOG') {
     huellasDebugLog(message.event, { ...(message.data || {}), tabUrl: sender?.tab?.url || '' });
     return false;
@@ -3279,6 +3308,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             });
             deliveredToTab = true;
           } catch {}
+        }
+        if (targetService === 'GEMINI' && action === 'SEND_PROMPT' && deliveredToTab) {
+          huellasStartGeminiTicks(targetTab.id);
         }
         huellasDebugLog('bg:delivered', { targetService, action, stage: finalDispatchPayload?.stageNumber, deliveredToTab, tabId: targetTab.id, tabUrl: targetTab.url });
 

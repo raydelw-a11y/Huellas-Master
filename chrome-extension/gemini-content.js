@@ -14,6 +14,71 @@
   window.__HUELLAS_GEMINI_SCRIPT_VERSION__ = 22;
   window.__HUELLAS_GEMINI_SCRIPT_LOADED__ = true;
 
+  // Chrome frena a 1 vez por minuto los temporizadores de pestañas ocultas. Mientras hay una orden en
+  // marcha, background.js manda "HUELLAS_TICK" cada ~400 ms (los mensajes sí llegan al instante) y aquí
+  // se ejecutan los temporizadores que ya vencieron. Estas versiones locales sombrean las globales en
+  // todo este script.
+  const __nativeSetTimeout = window.setTimeout.bind(window);
+  const __nativeClearTimeout = window.clearTimeout.bind(window);
+  const __nativeClearInterval = window.clearInterval.bind(window);
+  const __pendingTimers = new Map();
+  const __intervalTimers = new Map();
+  let __timerSeq = 1;
+  function __fireTimer(id) {
+    const p = __pendingTimers.get(id);
+    if (!p) return;
+    __pendingTimers.delete(id);
+    __nativeClearTimeout(p.nativeId);
+    try {
+      if (typeof p.fn === 'function') p.fn(...p.args);
+    } catch (e) {
+      console.error('[Huellas Gemini] timer error', e);
+    }
+  }
+  function setTimeout(fn, ms, ...args) {
+    const delay = Math.max(0, Number(ms) || 0);
+    const id = __timerSeq++;
+    const nativeId = __nativeSetTimeout(() => __fireTimer(id), delay);
+    __pendingTimers.set(id, { fn, args, due: Date.now() + delay, nativeId });
+    return id;
+  }
+  function clearTimeout(id) {
+    const p = __pendingTimers.get(id);
+    if (p) {
+      __nativeClearTimeout(p.nativeId);
+      __pendingTimers.delete(id);
+    } else if (id != null) {
+      __nativeClearTimeout(id);
+    }
+  }
+  function setInterval(fn, ms, ...args) {
+    const iid = __timerSeq++;
+    const tick = () => {
+      if (!__intervalTimers.has(iid)) return;
+      __intervalTimers.set(iid, setTimeout(tick, ms));
+      fn(...args);
+    };
+    __intervalTimers.set(iid, setTimeout(tick, ms));
+    return iid;
+  }
+  function clearInterval(iid) {
+    if (__intervalTimers.has(iid)) {
+      clearTimeout(__intervalTimers.get(iid));
+      __intervalTimers.delete(iid);
+    } else if (iid != null) {
+      __nativeClearInterval(iid);
+    }
+  }
+  try {
+    chrome.runtime.onMessage.addListener((m) => {
+      if (m && m.action === 'HUELLAS_TICK') {
+        const now = Date.now();
+        for (const [id, p] of [...__pendingTimers]) if (p.due <= now) __fireTimer(id);
+      }
+      return false;
+    });
+  } catch {}
+
   if (window.__HUELLAS_GEMINI_ACTIVE_WATCH_TIMER__) {
     clearInterval(window.__HUELLAS_GEMINI_ACTIVE_WATCH_TIMER__);
     window.__HUELLAS_GEMINI_ACTIVE_WATCH_TIMER__ = null;
