@@ -8025,7 +8025,10 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
     let muxerArgs: string[] = [];
     if (hasVo || resolvedMusicInputs.length > 0) {
       muxerArgs = ['-y', '-f', 'concat', '-safe', '0', '-i', concatListPath];
-      const totalTimelineDurStr = Math.max(1, runningTimelineSec).toFixed(3);
+      // The muxed video lasts the SUM of its segments; if clips overlap on the timeline that sum is longer than the
+      // last clip's end, and trimming audio to the timeline end cut the Outro's sound before its picture ended.
+      const summedSegmentsSec = segmentEncodeTasks.reduce((acc, t) => acc + (Number(t?.durationSec) || 0), 0);
+      const totalTimelineDurStr = Math.max(1, runningTimelineSec, summedSegmentsSec).toFixed(3);
       const filterParts: string[] = [
         `[0:a]asetpts=N/SR/TB,atrim=start_sample=1024,asetpts=N/SR/TB,aformat=sample_fmts=fltp:sample_rates=44100:channel_layouts=stereo,apad=whole_dur=${totalTimelineDurStr},atrim=0:${totalTimelineDurStr}[clip_a]`,
       ];
