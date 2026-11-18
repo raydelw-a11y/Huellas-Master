@@ -1835,6 +1835,38 @@
                 ? `${prevStage8Text}\n\n${rawTurnText.trim()}`
                 : rawTurnText;
 
+            // Gemini sometimes answers a valid order with a generic refusal: retry the order (max 2)
+            // instead of handing the refusal to Huellas Master as if it were the result.
+            const looksLikeGeminiRefusal =
+              String(resolvedText || '').trim().length < 400 &&
+              /no me han programado|no puedo ayudarte con eso|no puedo ayudar con eso|soy (?:solo )?un modelo de lenguaje|I'm not able to help|I can(?:'|no)t help with that|I'm just a language model|I'm not programmed/i.test(
+                String(resolvedText || '')
+              );
+            if (
+              looksLikeGeminiRefusal &&
+              meta &&
+              meta.originalOrder &&
+              (Number(meta.originalOrder.__phantomRetries) || 0) < 2
+            ) {
+              isBusyWithOrder = false;
+              const retryOrder = {
+                ...meta.originalOrder,
+                __phantomRetries: (Number(meta.originalOrder.__phantomRetries) || 0) + 1,
+              };
+              try {
+                chrome.runtime.sendMessage({ type: 'HUELLAS_DEBUG_LOG', event: 'gemini:refusal-retry', data: { stage: meta.stageNumber, retry: retryOrder.__phantomRetries, text: String(resolvedText).slice(0, 120) } }).catch(() => {});
+              } catch {}
+              reportStatus('WORKING', '🔁 Gemini rechazó la orden sin motivo; reenviándola...', { stageNumber: meta.stageNumber });
+              chrome.runtime
+                .sendMessage({
+                  type: 'GEMINI_NAVIGATE_AND_RESUME',
+                  url: window.location.href.split(/[?#]/)[0],
+                  order: retryOrder,
+                })
+                .catch(() => {});
+              return;
+            }
+
             isBusyWithOrder = false;
             try {
               chrome.storage.local.remove('huellasActiveGeminiStageOrder').catch(() => {});
