@@ -199,7 +199,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '06:16 PM - 11/17/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '07:29 PM - 11/17/2026';
 
 // Etapa 8: nombre de archivo canónico de cada canción → "Canción_01_El_Muelle_de_la_Despedida"
 // (quita prefijos "Pista 1:" / "Canción 1:", comillas y rangos de tiempo "00:08 - 02:38" del título)
@@ -13403,7 +13403,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
             return docKeywords.some((w) => n.includes(w));
           };
           const looksLikeScriptOrOtherStage = (t: string) =>
-            /ETAPA\s*[0-8]\b|GUION\s+DE\s+LA\s+VOZ|\(\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}\s*\||\[pausa:/i.test(t);
+            /ETAPA\s*[0-8]\b|GUION\s+DE\s+LA\s+VOZ|Opci[oó]n\s*\d+\s*:|L[ií]nea\s*\d\s*:|\(\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}\s*\||\[pausa:/i.test(t);
           const looksLikeCode = (t: string) =>
             /\b(ctx\.|const |function\s*\(|=>|\.tsx?\b|rgba\(|#[0-9a-f]{6}\b)/i.test(t);
           const validYt =
