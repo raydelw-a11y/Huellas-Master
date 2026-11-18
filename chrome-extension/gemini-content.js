@@ -524,6 +524,8 @@
           bundle.facebook = clean;
           continue;
         }
+        // The preceding prompt belongs to another stage (script, clips, Clip 1 text, music…): never guess.
+        continue;
       }
 
       const hasChapters =
@@ -546,7 +548,9 @@
         !clean.includes('?') &&
         clean.length <= 1000;
 
-      if (hasChapters && clean.length >= 500) {
+      // Stage 6/7 production prompts also carry many MM:SS ranges: never treat them as metadata
+      if (/\b(?:Image|Clip|Inicial)\s*\d+\s*[:(]|fix the name|\[Model:/i.test(clean)) continue;
+      if (hasChapters && clean.length >= 500 && hashtags.length >= 3) {
         if (!bundle.youtube || clean.length >= bundle.youtube.length - 100 || hashtags.length >= 3) {
           bundle.youtube = clean;
         }
@@ -562,19 +566,8 @@
         bundle.youtubeTags = clean
           .replace(/^(?:Tags(?:\s+de\s+YouTube|\s+SEO)?|YouTube\s+(?:SEO\s+)?Tags|SEO\s+Tags)\s*:\s*/i, '')
           .trim();
-      } else if (
-        !hasChapters &&
-        !hasSlogan &&
-        !hasAiNote &&
-        hashtags.length < 3 &&
-        clean.length >= 40 &&
-        clean.length <= 1800 &&
-        !isCommaTagList
-      ) {
-        bundle.pinnedComment = clean
-          .replace(/^(?:Comentario\s+Fijado(?:\s+del\s+Video)?|Pinned\s+Comment(?:\s+for\s+Video)?)\s*:\s*/i, '')
-          .trim();
       }
+      // Pinned comment is never guessed from untagged turns (it matched Clip 1 hooks and titles).
     }
 
     return bundle;
@@ -1738,14 +1731,6 @@
             const resolvedText =
               stageNum === 8 && prevStage8Text
                 ? `${prevStage8Text}\n\n${rawTurnText.trim()}`
-                : stageNum === 111 && stage11Bundle?.youtube && stage11Bundle.youtube.length > finalLatest.text.length
-                ? stage11Bundle.youtube
-                : stageNum === 112 && stage11Bundle?.facebook && stage11Bundle.facebook.length > finalLatest.text.length
-                ? stage11Bundle.facebook
-                : stageNum === 113 && stage11Bundle?.pinnedComment
-                ? stage11Bundle.pinnedComment
-                : stageNum === 114 && stage11Bundle?.youtubeTags
-                ? stage11Bundle.youtubeTags
                 : rawTurnText;
 
             isBusyWithOrder = false;

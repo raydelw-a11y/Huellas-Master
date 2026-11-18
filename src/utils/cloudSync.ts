@@ -4083,7 +4083,8 @@ Output ONLY the 3 Spanish lines, one per line, without numbering or quotation ma
         ? Math.round(clip2StartSec + Number(doc.audioTracks[0].duration))
         : 0;
     const confirmedSec11 = parseMmSsToSec11(doc.confirmedFinalDuration);
-    const totalDocSec11 = Math.max(
+    // The duration confirmed from the real exported video wins over planned clip ranges / target duration
+    const totalDocSec11 = confirmedSec11 > 125 ? confirmedSec11 : Math.max(
       lastClipEndSec11,
       voiceDurSec11,
       confirmedSec11 > 125 ? confirmedSec11 : 0,
