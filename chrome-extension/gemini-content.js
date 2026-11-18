@@ -1477,6 +1477,40 @@
         hasStarted = true;
       }
 
+      // "Phantom send": Gemini shows our message locally but its backend never answers (no reply turn
+      // appears at all). After 90 s with no reply, reload the chat and send the same order again (max 2).
+      if (
+        !isDeepResearch &&
+        !isImageOrder &&
+        elapsedMs >= 90000 &&
+        currentCount <= initialCount &&
+        !(latest.text && latest.text !== initialLastText) &&
+        meta &&
+        meta.originalOrder &&
+        (Number(meta.originalOrder.__phantomRetries) || 0) < 2 &&
+        /^https:\/\/gemini\.google\.com\/(?:u\/\d+\/)?app\/[a-zA-Z0-9_-]{6,}/.test(window.location.href)
+      ) {
+        clearInterval(activeWatchTimer);
+        activeWatchTimer = null;
+        isBusyWithOrder = false;
+        const retryOrder = {
+          ...meta.originalOrder,
+          __phantomRetries: (Number(meta.originalOrder.__phantomRetries) || 0) + 1,
+        };
+        try {
+          chrome.runtime.sendMessage({ type: 'HUELLAS_DEBUG_LOG', event: 'gemini:phantom-retry', data: { stage: meta.stageNumber, retry: retryOrder.__phantomRetries } }).catch(() => {});
+        } catch {}
+        reportStatus('WORKING', '🔁 Gemini no respondió a la orden; recargando el chat y reenviándola...', { stageNumber: meta.stageNumber });
+        chrome.runtime
+          .sendMessage({
+            type: 'GEMINI_NAVIGATE_AND_RESUME',
+            url: window.location.href.split(/[?#]/)[0],
+            order: retryOrder,
+          })
+          .catch(() => {});
+        return;
+      }
+
       if (hasStarted && isNewTurnResponse && (latest.text || latest.images.length > 0)) {
         // If Deep Research just clicked "Start research", wait until the final report replaces/expands the plan
         if (
@@ -4448,6 +4482,7 @@
             initialLastImageUrl,
             promptFingerprint,
             chatState,
+            originalOrder: payload,
           });
 
           // Link the chat id once Gemini assigns /app/<chatId> inside the notebook, then rename ONLY that chat (once)
