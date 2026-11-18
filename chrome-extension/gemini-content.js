@@ -34,6 +34,9 @@
   let lastConfiguredModelMode = null;
 
   function reportStatus(status, message, extra = {}) {
+    try {
+      chrome.runtime.sendMessage({ type: 'HUELLAS_DEBUG_LOG', event: 'gemini:status', data: { status, message, ...extra } }).catch(() => {});
+    } catch {}
     chrome.runtime.sendMessage({
       type: 'BRIDGE_STATUS',
       service: 'GEMINI',
@@ -4365,6 +4368,9 @@
   }
 
   function handleSendPrompt(payload) {
+    try {
+      chrome.runtime.sendMessage({ type: 'HUELLAS_DEBUG_LOG', event: 'gemini:send-prompt', data: { stage: payload.stageNumber, busy: isBusyWithOrder, watching: activeWatchTimer !== null, generating: isGeminiStillGenerating(), queue: promptQueue.length } }).catch(() => {});
+    } catch {}
     if (isBusyWithOrder || activeWatchTimer !== null || isGeminiStillGenerating()) {
       promptQueue.push(payload);
       reportStatus(

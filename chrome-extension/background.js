@@ -2497,8 +2497,22 @@ async function executeFlowPromptHardware(tabId, rawPromptText, payload = {}) {
 // MESSAGE LISTENER (HUELLAS MASTER + CONTENT SCRIPTS)
 // ============================================================================
 
+function huellasDebugLog(event, data) {
+  try {
+    fetch('http://localhost:4200/api/extension/debug-log', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ t: Date.now(), event, data }),
+    }).catch(() => {});
+  } catch {}
+}
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (!message) return false;
+  if (message.type === 'HUELLAS_DEBUG_LOG') {
+    huellasDebugLog(message.event, { ...(message.data || {}), tabUrl: sender?.tab?.url || '' });
+    return false;
+  }
 
   const senderWindowId = sender?.tab?.windowId;
 
@@ -2600,6 +2614,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         : 'GEMINI';
     const payload = message.payload || {};
     const action = payload.action;
+    huellasDebugLog('bg:command', { targetService, action, stage: payload.stageNumber, docId: payload.docId });
 
     (async () => {
       try {
@@ -3265,6 +3280,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             deliveredToTab = true;
           } catch {}
         }
+        huellasDebugLog('bg:delivered', { targetService, action, stage: finalDispatchPayload?.stageNumber, deliveredToTab, tabId: targetTab.id, tabUrl: targetTab.url });
 
         // MAIN-world hooks already installed via ensureFlowMusicAntiAutoplayInMainWorld (no duplicate prompt injector/submitter here)
         if (targetService === 'SUNO') {
@@ -3273,6 +3289,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
         sendResponse({ ok: true, tabId: targetTab.id, tabTitle: targetTab.title });
       } else {
+        huellasDebugLog('bg:no-tab', { targetService, action, stage: payload.stageNumber });
         sendResponse({
           ok: false,
           error: 'No se encontró la pestaña en esta ventana.',
@@ -3280,6 +3297,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
       } catch (cmdErr) {
         console.error('[Huellas HUELLAS_COMMAND] Error:', cmdErr);
+        huellasDebugLog('bg:error', { targetService, action, error: String(cmdErr?.message || cmdErr) });
         broadcastToHuellasTabsInSameWindow(senderWindowId, {
           type: 'BRIDGE_STATUS',
           service: targetService,

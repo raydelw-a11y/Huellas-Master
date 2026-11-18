@@ -23838,6 +23838,15 @@ app.post('/api/gemini-web/remote-stage-result', async (req, res) => {
   res.json({ ok: true });
 });
 
+// Diagnóstico: la extensión de Chrome escribe aquí lo que hace con cada orden (solo desde la Mac)
+app.post('/api/extension/debug-log', (req, res) => {
+  try {
+    const line = JSON.stringify({ at: new Date().toISOString(), ...(req.body || {}) }).slice(0, 4000);
+    fs.appendFileSync(path.join(os.tmpdir(), 'huellas-extension-debug.log'), line + '\n');
+  } catch {}
+  res.json({ ok: true });
+});
+
 app.post('/api/gemini-web/link-chat', (req, res) => {
   try {
     const docId = String(req.body?.docId || '').trim();
