@@ -2701,6 +2701,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           payload,
           senderWindowId
         );
+        huellasDebugLog('bg:acquired', { stage: payload.stageNumber, tabId: preResolvedGeminiDispatch?.targetTab?.id, tabUrl: preResolvedGeminiDispatch?.targetTab?.url, openedNewWindow: Boolean(preResolvedGeminiDispatch?.openedNewWindow) });
         if (preResolvedGeminiDispatch && preResolvedGeminiDispatch.targetTab) {
           preferredServiceTab = preResolvedGeminiDispatch.targetTab;
           if (preResolvedGeminiDispatch.openedNewWindow) {
@@ -3287,6 +3288,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           if (action === 'SEND_PROMPT' && !preResolvedGeminiDispatch?.skipPrePosition) {
             finalDispatchPayload = await prePositionGeminiTabForOrder(targetTab, finalDispatchPayload);
           }
+          huellasDebugLog('bg:prepositioned', { stage: finalDispatchPayload?.stageNumber, tabId: targetTab.id });
           await ensureScriptInjected(targetTab.id, 'gemini-content.js');
         }
 
