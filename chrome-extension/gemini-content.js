@@ -4330,12 +4330,30 @@
               ''
             ).trim();
 
+            const currentUserQueries = document.querySelectorAll(
+              'user-query, [data-message-author-role="user"]'
+            ).length;
             if (
               isGeminiStillGenerating() ||
               currentResponsesCount > initialCount ||
-              remainingText.length < 5
+              currentUserQueries > initialUserQueries
             ) {
               break;
+            }
+            // An empty box does NOT mean it was sent: Gemini turns very long pastes into an attached
+            // "pasted text" chip, so keep clicking Send while it is enabled.
+            if (remainingText.length < 5) {
+              const chipSendBtn = findSendButton();
+              if (chipSendBtn) {
+                try {
+                  chipSendBtn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+                  chipSendBtn.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
+                  chipSendBtn.click();
+                } catch {}
+                continue;
+              }
+              if (attempt >= 6) break;
+              continue;
             }
 
             let sendBtn = findSendButton();
