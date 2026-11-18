@@ -199,7 +199,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '09:19 PM - 11/17/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '09:45 PM - 11/17/2026';
 
 // Etapa 8: nombre de archivo canónico de cada canción → "Canción_01_El_Muelle_de_la_Despedida"
 // (quita prefijos "Pista 1:" / "Canción 1:", comillas y rangos de tiempo "00:08 - 02:38" del título)
@@ -374,6 +374,27 @@ function cleanStage11SingleMetadataText(raw: string): string {
   }
 
   return stripStage12ClosingChatter(clean);
+}
+
+/** El hashtag #DocumentalEnEspañol va siempre: sustituye al hashtag genérico (o al último) si Gemini no lo puso. */
+function ensureDocumentalEnEspanolHashtag(text: string): string {
+  const raw = String(text || '');
+  if (!raw.trim() || /#DocumentalEnEspa(?:ñ|n)ol\b/i.test(raw)) {
+    return raw.replace(/#DocumentalEnEspanol\b/gi, '#DocumentalEnEspañol');
+  }
+  const lines = raw.split(/\r?\n/);
+  let idx = -1;
+  for (let i = lines.length - 1; i >= 0; i--) {
+    if ((lines[i].match(/#[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9_]+/g) || []).length >= 2) {
+      idx = i;
+      break;
+    }
+  }
+  if (idx === -1) return raw;
+  const tags = lines[idx].match(/#[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9_]+/g) || [];
+  const generic = tags.find((t) => /^#Documental/i.test(t)) || tags[tags.length - 1];
+  lines[idx] = lines[idx].replace(generic, '#DocumentalEnEspañol');
+  return lines.join('\n');
 }
 
 function stripLeadingTitleFromYoutubeMetadata(
@@ -5503,14 +5524,14 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
             parsed4.youtube,
             activeDocRef.current?.publishTitle
           );
-          patch.rawYoutubeMetadata = ytStripped.body;
-          patch.rawMetadataText = ytStripped.body;
+          patch.rawYoutubeMetadata = ensureDocumentalEnEspanolHashtag(ytStripped.body);
+          patch.rawMetadataText = ensureDocumentalEnEspanolHashtag(ytStripped.body);
           if (!activeDocRef.current?.publishTitle && ytStripped.extractedTitle) {
             patch.publishTitle = ytStripped.extractedTitle;
           }
         }
         if (parsed4.facebook) {
-          patch.rawFacebookMetadata = parsed4.facebook;
+          patch.rawFacebookMetadata = ensureDocumentalEnEspanolHashtag(parsed4.facebook);
         }
         if (parsed4.pinnedComment) {
           patch.pinnedComment = parsed4.pinnedComment;
@@ -5535,8 +5556,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           activeDocRef.current?.publishTitle
         );
         updateActiveDoc({
-          rawYoutubeMetadata: ytStripped.body,
-          rawMetadataText: ytStripped.body,
+          rawYoutubeMetadata: ensureDocumentalEnEspanolHashtag(ytStripped.body),
+          rawMetadataText: ensureDocumentalEnEspanolHashtag(ytStripped.body),
           ...(!activeDocRef.current?.publishTitle && ytStripped.extractedTitle
             ? { publishTitle: ytStripped.extractedTitle }
             : {}),
@@ -5570,7 +5591,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         lines[0] = lockedTitle;
         fbClean = lines.join('\n');
       }
-      updateActiveDoc({ rawFacebookMetadata: fbClean });
+      updateActiveDoc({ rawFacebookMetadata: ensureDocumentalEnEspanolHashtag(fbClean) });
       if (pendingStage11QueueRef.current.length > 0) {
         const nextSubStage = pendingStage11QueueRef.current.shift()!;
         setAiGenerating(true);

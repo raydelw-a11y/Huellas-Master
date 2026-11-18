@@ -4138,7 +4138,7 @@ All generated publication copy, chapters, disclaimers, slogans, hashtags, pinned
 4. Mandatory Spanish section "Capítulos:" with 10 chronological Spanish chapters from 00:00 to before ${resolvedFinalDuration11} (00:00 must name the opening story beat, NEVER "Prólogo" or "Introducción").
 5. Verbatim Spanish AI Disclaimer: (Nota: Este documental inmersivo ha sido recreado utilizando herramientas de inteligencia artificial generativa basándonos estrictamente en registros históricos de la época. Es posible que existan incongruencias o errores visuales).
 6. Verbatim Spanish Slogan: Cada historia deja una huella. Aquí seguimos sus rastros.
-7. Exactly 5 Spanish hashtags in #CamelCase composed of TWO WORDS each.]
+7. Exactly 5 Spanish hashtags in #CamelCase composed of TWO WORDS each. One of the 5 MUST be exactly #DocumentalEnEspañol (verbatim, always included); the other 4 must relate specifically to this documentary (its event, protagonists, place or era), never generic like #DocumentalHistorico.]
 
 ===SECCION_FACEBOOK===
 [Deliver the SPANISH FACEBOOK METADATA in continuous format separated ONLY by braille blank lines (⠀):
@@ -4170,7 +4170,7 @@ Generate STAGE 11: YOUTUBE PUBLICATION METADATA in continuous format separated O
 4. Mandatory "Capítulos:" section with 10 chronological Spanish chapters starting at 00:00 (NEVER write "Prólogo" or "Introducción").
 5. Verbatim Spanish AI Note: (Nota: Este documental inmersivo ha sido recreado utilizando herramientas de inteligencia artificial generativa basándonos estrictamente en registros históricos de la época. Es posible que existan incongruencias o errores visuales).
 6. Verbatim Spanish Slogan: Cada historia deja una huella. Aquí seguimos sus rastros.
-7. Exactly 5 two-word #CamelCase Spanish hashtags at the very end.
+7. Exactly 5 two-word #CamelCase Spanish hashtags at the very end. One of the 5 MUST be exactly #DocumentalEnEspañol (verbatim, always included); the other 4 must relate specifically to this documentary (its event, protagonists, place or era), never generic like #DocumentalHistorico.
 8. Strictly FORBIDDEN to add any closing remark after the 5th hashtag.`;
     } else if (stageNumber === 112) {
       const selectedPublishTitle = (doc.publishTitle || '').trim();
@@ -4192,7 +4192,7 @@ Generate STAGE 11: FACEBOOK PUBLICATION METADATA in continuous format separated 
 5. Spanish description divided into EXACTLY 3 paragraphs separated by a braille line (⠀).
 6. Verbatim Spanish AI Note: (Nota: Este video inmersivo ha sido recreado utilizando herramientas de inteligencia artificial generativa basándonos estrictamente en registros históricos de la época. Es posible que existan incongruencias o errores visuales).
 7. Verbatim Spanish Slogan: Cada historia deja una huella. Aquí seguimos sus rastros.
-8. Exactly 5 two-word #CamelCase Spanish hashtags at the end, with ZERO text after the 5th hashtag.`;
+8. Exactly 5 two-word #CamelCase Spanish hashtags at the end, with ZERO text after the 5th hashtag. One of the 5 MUST be exactly #DocumentalEnEspañol (verbatim, always included); the other 4 must relate specifically to this documentary (its event, protagonists, place or era), never generic like #DocumentalHistorico.`;
     } else if (stageNumber === 113) {
       stagePrompt = `[STAGE_113_PINNED_COMMENT]
 Act as Community & Retention Strategist for the Spanish-language documentary channel "Huellas de la Humanidad".

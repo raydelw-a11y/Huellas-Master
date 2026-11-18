@@ -4716,7 +4716,7 @@ CRITICAL OUTPUT LANGUAGE REQUIREMENT: Generate STAGE 11 YOUTUBE PUBLISHING METAD
 5. Mandatory "Capítulos:" section with 10 chronological Spanish chapters (where 00:00 starts directly inside the story; NEVER write "Prólogo" or "Introducción").
 6. Official Spanish AI Note verbatim: (Nota: Este documental inmersivo ha sido recreado utilizando herramientas de inteligencia artificial generativa basándonos estrictamente en registros históricos de la época. Es posible que existan incongruencias o errores visuales).
 7. Official Spanish Slogan verbatim: Cada historia deja una huella. Aquí seguimos sus rastros.
-8. Exactly 5 Spanish hashtags in #CamelCase composed of TWO WORDS each.`;
+8. Exactly 5 Spanish hashtags in #CamelCase composed of TWO WORDS each. One of the 5 MUST be exactly #DocumentalEnEspañol (verbatim, always included); the other 4 must relate specifically to this documentary (its event, protagonists, place or era), never generic like #DocumentalHistorico.`;
     } else if (stageNumber === 112) {
       stagePrompt = `[STAGE_112_FACEBOOK_METADATA]
 Act as Publishing Strategist for the Spanish-language historical documentary channel "Huellas de la Humanidad".
@@ -4736,7 +4736,7 @@ CRITICAL OUTPUT LANGUAGE REQUIREMENT: Generate STAGE 11 FACEBOOK PUBLISHING META
 5. DESCRIPTION IN EXACTLY 3 PARAGRAPHS separated by Braille blank lines (⠀).
 6. Official Spanish AI Note verbatim: (Nota: Este video inmersivo ha sido recreado utilizando herramientas de inteligencia artificial generativa basándonos estrictamente en registros históricos de la época. Es posible que existan incongruencias o errores visuales).
 7. Official Spanish Slogan verbatim: Cada historia deja una huella. Aquí seguimos sus rastros.
-8. Exactly 5 Spanish hashtags in #CamelCase composed of TWO WORDS each.`;
+8. Exactly 5 Spanish hashtags in #CamelCase composed of TWO WORDS each. One of the 5 MUST be exactly #DocumentalEnEspañol (verbatim, always included); the other 4 must relate specifically to this documentary (its event, protagonists, place or era), never generic like #DocumentalHistorico.`;
     } else if (stageNumber === 113) {
       stagePrompt = `[STAGE_113_PINNED_COMMENT]
 Act as Community & Retention Strategist for the Spanish-language historical documentary channel "Huellas de la Humanidad".
