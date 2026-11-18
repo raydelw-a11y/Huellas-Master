@@ -6410,6 +6410,7 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       srtContent = '',
       srtCoordinateSpace = '',
       overlays = {},
+      skipRanges916 = [],
     } = req.body;
 
     const resolvedDocFolder = resolveLocalDocumentaryFolder(folderPath, folderName, docTitle);
@@ -8307,6 +8308,46 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         try {
           fs.unlinkSync(tempMuxOutputPath);
         } catch {}
+      }
+    }
+
+    // 9:16: quitar intro/outro (rangos de la línea de tiempo) si el documental lo pide (promptConfig.MOSTRAR_INTRO_OUTRO_9X16 = false)
+    const skipList = (Array.isArray(skipRanges916) ? skipRanges916 : [])
+      .map((r: any) => ({ start: Number(r?.start), end: Number(r?.end) }))
+      .filter((r) => Number.isFinite(r.start) && Number.isFinite(r.end) && r.end > r.start + 0.05)
+      .sort((a, b) => a.start - b.start);
+    if (aspectRatio === '9:16' && skipList.length > 0 && fs.existsSync(finalOutputPath)) {
+      activeRenderJobState = { ...activeRenderJobState, progressPct: 99, stageLabel: 'Quitando intro/outro del Reel 9:16...' };
+      const keeps: { start: number; end: number | null }[] = [];
+      let cursor = 0;
+      for (const r of skipList) {
+        if (r.start > cursor + 0.05) keeps.push({ start: cursor, end: r.start });
+        cursor = Math.max(cursor, r.end);
+      }
+      keeps.push({ start: cursor, end: null });
+      const parts: string[] = [];
+      const labels: string[] = [];
+      keeps.forEach((k, i) => {
+        const tr = k.end === null ? `start=${k.start.toFixed(3)}` : `start=${k.start.toFixed(3)}:end=${k.end.toFixed(3)}`;
+        parts.push(`[0:v]trim=${tr},setpts=PTS-STARTPTS[v${i}]`);
+        parts.push(`[0:a]atrim=${tr},asetpts=PTS-STARTPTS[a${i}]`);
+        labels.push(`[v${i}][a${i}]`);
+      });
+      const filter = `${parts.join(';')};${labels.join('')}concat=n=${keeps.length}:v=1:a=1[vo][ao]`;
+      const trimmedPath = finalOutputPath.replace(/\.mp4$/i, '') + '.__trim916.mp4';
+      const vEnc = process.platform === 'darwin'
+        ? ['-c:v', 'h264_videotoolbox', '-b:v', `${Math.max(8, Number(bitrateMbps) || 16)}M`]
+        : ['-c:v', 'libx264', '-preset', 'veryfast', '-crf', '18'];
+      const trimOk = await new Promise<boolean>((resolveTrim) => execFile(getFfmpegPath(), [
+        '-y', '-i', finalOutputPath, '-filter_complex', filter, '-map', '[vo]', '-map', '[ao]',
+        ...vEnc, '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '320k', '-movflags', '+faststart', trimmedPath,
+      ], { maxBuffer: 64 * 1024 * 1024 }, (err) => resolveTrim(!err)));
+      if (trimOk && fs.existsSync(trimmedPath)) {
+        try { fs.unlinkSync(finalOutputPath); } catch {}
+        fs.renameSync(trimmedPath, finalOutputPath);
+      } else {
+        try { fs.unlinkSync(trimmedPath); } catch {}
+        console.warn('[render-ffmpeg] No se pudo recortar intro/outro 9:16; se conserva el render completo.');
       }
     }
 

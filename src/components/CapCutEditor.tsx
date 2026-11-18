@@ -10083,6 +10083,25 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   isViewerFullscreenRef.current = isViewerFullscreen;
   const totalDurationSecRef = useRef(totalDurationSec);
   totalDurationSecRef.current = totalDurationSec;
+  // 9:16: intro/outro opcionales por documental (promptConfig.MOSTRAR_INTRO_OUTRO_9X16, por defecto visibles).
+  // No afecta a 16:9: los rangos solo se omiten en vista previa y exportación cuando el formato es 9:16.
+  const showIntroOutro916 = activeDoc?.promptConfig?.MOSTRAR_INTRO_OUTRO_9X16 !== false;
+  const hiddenIntroOutroRanges916 = useMemo(() => {
+    if (aspectRatio !== '9:16' || showIntroOutro916) return [] as { start: number; end: number }[];
+    return clipsWithTimelineBounds
+      .filter(
+        (c) =>
+          c.id === 'fixed-doc-intro' ||
+          c.id === 'fixed-doc-outro' ||
+          c.clipNumber === 0 ||
+          c.clipNumber === 999
+      )
+      .map((c) => ({ start: c.start, end: c.end }))
+      .filter((r) => r.end > r.start + 0.05)
+      .sort((x, y) => x.start - y.start);
+  }, [aspectRatio, showIntroOutro916, clipsWithTimelineBounds]);
+  const hiddenIntroOutroRanges916Ref = useRef(hiddenIntroOutroRanges916);
+  hiddenIntroOutroRanges916Ref.current = hiddenIntroOutroRanges916;
 
   useEffect(() => {
     if (viewerTotalDurationRef.current) {
@@ -10219,6 +10238,23 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         return;
       }
 
+      // 9:16 sin intro/outro: saltar por encima de esos rangos en la reproducción
+      const hiddenRange = hiddenIntroOutroRanges916Ref.current.find(
+        (r) => next >= r.start && next < r.end - 0.02
+      );
+      if (hiddenRange) {
+        if (hiddenRange.end >= totalDurationSecRef.current - 0.1) {
+          syncPlayheadDomImperatively(hiddenRange.start);
+          currentTimeRef.current = hiddenRange.start;
+          setIsPlaying(false);
+          setCurrentTime(hiddenRange.start);
+          return;
+        }
+        seekToTimeRef.current(hiddenRange.end);
+        playheadRafIdRef.current = requestAnimationFrame(tick);
+        return;
+      }
+
       // Voiceover audio phase-lock (if voiceover audio is active)
       const vo = voiceAudioRef.current;
       const { voiceStartOffsetSec: vStart, postSloganIntroBounds: psBounds } =
@@ -10245,6 +10281,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           // NEVER pull master clock backward on negative drift, which caused backwards jumping and stutter!
           if (drift > 0.040 && drift <= 0.35) {
             next = next + drift * 0.20;
+            playTimelineStartSecRef.current = next;
+            playWallStartMsRef.current = nowMs;
+          }
+          // Audio BEHIND the wall clock (mobile: output latency / slow buffering). Instead of letting the
+          // render effect hard-seek the voice (which replayed the same word twice on iPhone), hold the
+          // timeline until the voice catches up. Monotonic: the master clock never moves backward.
+          else if (drift < -0.06 && drift >= -1.2) {
+            next = Math.max(currentTimeRef.current, audioTimelineSec);
             playTimelineStartSecRef.current = next;
             playWallStartMsRef.current = nowMs;
           }
@@ -10664,12 +10708,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   }, [totalDurationSec, timelineZoom, isFitEntireProject]);
 
   // Click & drag on the Top Time Ruler or Playhead handle to scrub the vertical playhead in real time
-  const handleStartRulerScrub = (e: React.MouseEvent<HTMLDivElement>) => {
+  const handleStartRulerScrub = (e: React.PointerEvent<HTMLDivElement>) => {
     const rulerEl = timelineRulerLaneRef.current;
     if (!rulerEl) return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
     e.preventDefault();
     e.stopPropagation();
     isScrubbingRulerRef.current = true;
+    const pointerId = e.pointerId;
 
     const updateFromClientX = (clientX: number) => {
       const rect = rulerEl.getBoundingClientRect();
@@ -10680,17 +10726,24 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
     updateFromClientX(e.clientX);
 
-    const onMove = (moveEvt: MouseEvent) => {
+    // Pointer events (mouse + touch + pen): continuous scrubbing while held. touch-action:none on the
+    // ruler/handle keeps touch drags from scrolling the timeline horizontally.
+    const onMove = (moveEvt: PointerEvent) => {
+      if (moveEvt.pointerId !== pointerId) return;
+      if (moveEvt.cancelable) moveEvt.preventDefault();
       updateFromClientX(moveEvt.clientX);
     };
-    const onUp = () => {
+    const onUp = (upEvt: PointerEvent) => {
+      if (upEvt.pointerId !== pointerId) return;
       isScrubbingRulerRef.current = false;
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
     };
 
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
+    window.addEventListener('pointermove', onMove, { passive: false });
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
   };
 
   // Sync Dual-Deck (A/B Ping-Pong) preview <video>, voice <audio>, Suno music <audio>, and Ambience fallback with 85ms Pre-Roll for 0ms seamless cuts
@@ -10888,7 +10941,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           (!vo.ended &&
             withinPlayableVoiceMedia &&
             ((vo.paused && Math.abs(vo.currentTime - voTime) > 0.12) ||
-              Math.abs(vo.currentTime - voTime) > 0.38))
+              // During playback the rAF clock phase-locks to the voice; only re-seek on gross desync
+              // (> 1.5 s). The old 0.38 s threshold fired on mobile latency and replayed words.
+              (!vo.seeking && Math.abs(vo.currentTime - voTime) > 1.5)))
         ) {
           appliedVoiceSeekVersionRef.current = lastSeekVersionRef.current;
           if (isPlaying) {
@@ -13746,6 +13801,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   : {}),
                 audioDataUrl: mt.audioUrl && mt.audioUrl.startsWith('data:') ? mt.audioUrl : '',
               })),
+              skipRanges916: aspectRatio === '9:16' ? hiddenIntroOutroRanges916 : [],
               srtContent: srtText,
               srtCoordinateSpace: 'timeline',
               overlays: {
@@ -15677,6 +15733,33 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           {aspectRatio === '9:16' && (
             <div className="w-full px-3 py-1 bg-[#14100b] border-b border-amber-500/30 flex items-center justify-between gap-2 flex-wrap shrink-0 text-[10px]">
               <div className="flex items-center gap-1.5 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!activeDoc) return;
+                    const next = !showIntroOutro916;
+                    updateActiveDoc({
+                      promptConfig: {
+                        ...(activeDoc.promptConfig || {}),
+                        MOSTRAR_INTRO_OUTRO_9X16: next,
+                      } as any,
+                    });
+                    setStatusMessage(
+                      next
+                        ? '🎬 Reel 9:16: intro y outro activados (vista previa y exportación).'
+                        : '✂️ Reel 9:16: intro y outro quitados (vista previa y exportación). El 16:9 no cambia.'
+                    );
+                  }}
+                  aria-pressed={showIntroOutro916}
+                  className={`px-2 py-0.5 rounded border font-black cursor-pointer transition ${
+                    showIntroOutro916
+                      ? 'bg-emerald-950/80 border-emerald-500/60 text-emerald-300 hover:bg-emerald-900/80'
+                      : 'bg-rose-950/80 border-rose-500/60 text-rose-300 hover:bg-rose-900/80'
+                  }`}
+                  title="Poner o quitar el intro y el outro oficiales solo en el Reel 9:16 (se guarda en este documental)"
+                >
+                  {showIntroOutro916 ? '🎬 Intro/Outro: Sí' : '✂️ Intro/Outro: No'}
+                </button>
                 <span className="px-2 py-0.5 rounded bg-amber-500/20 border border-amber-500/40 text-amber-200 font-black">
                   📱 Encuadre 9:16{' '}
                   {activeClipAtPlayhead
@@ -16747,7 +16830,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
             {/* CapCut-Style Compact Bottom Player Bar: Timecode (Left), Transport & Scrubber (Center), Ratio & Fullscreen (Right) */}
             <div
-              className={`w-full bg-[#110e0b] border-t border-slate-800/90 px-3 py-1.5 flex items-center gap-2 transition-all duration-300 shrink-0 ${
+              className={`w-full bg-[#110e0b] border-t border-slate-800/90 px-3 py-1.5 flex flex-wrap sm:flex-nowrap items-center gap-x-2 gap-y-1 transition-all duration-300 shrink-0 ${
                 isViewerFullscreen
                   ? `absolute inset-x-0 bottom-0 z-30 bg-[#110e0b]/95 backdrop-blur-md ${
                       showFullscreenControls
@@ -16828,7 +16911,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               </div>
 
               {/* Scrubber Timeline */}
-              <div className="flex-1 flex items-center min-w-[80px]">
+              <div className="order-last sm:order-none basis-full sm:basis-auto flex-1 flex items-center min-w-[80px]">
                 <input
                   ref={viewerRangeInputRef}
                   type="range"
@@ -19945,8 +20028,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               <div className="absolute top-0 bottom-0 left-0 -translate-x-1/2 w-[2.5px] bg-gradient-to-b from-amber-300 via-rose-500 to-amber-400 shadow-[0_0_12px_rgba(244,63,94,0.95)]" />
               {/* Sticky Top Playhead Handle & Time Badge */}
               <div
-                onMouseDown={handleStartRulerScrub}
+                onPointerDown={handleStartRulerScrub}
                 title="Arrastra la aguja para moverte por la línea de tiempo"
+                style={{ touchAction: 'none' }}
                 className="sticky top-0 z-50 pointer-events-auto cursor-ew-resize w-max -translate-x-1/2 flex flex-col items-center select-none pt-0.5"
               >
                 <div
@@ -19966,7 +20050,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 isFitEntireProject ? 'w-full' : 'min-w-max'
               }`}
             >
-              <div className="w-24 sm:w-36 shrink-0 px-1.5 sm:px-2 py-1 rounded bg-slate-950 border border-amber-500/30 text-[9px] font-bold text-amber-300 flex items-center justify-between truncate">
+              <div className="w-24 sm:w-36 shrink-0 sticky left-0 z-[35] shadow-[4px_0_6px_-2px_rgba(0,0,0,0.7)] px-1.5 sm:px-2 py-1 rounded bg-slate-950 border border-amber-500/30 text-[9px] font-bold text-amber-300 flex items-center justify-between truncate">
                 <span className="truncate">⏱️ Regla</span>
                 <span className="hidden sm:inline px-1 py-0.5 rounded bg-amber-500/15 text-[8px] font-mono text-amber-200">
                   {timelineRulerData.scaleUnitLabel}
@@ -19974,11 +20058,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               </div>
               <div
                 ref={timelineRulerLaneRef}
-                onMouseDown={handleStartRulerScrub}
+                onPointerDown={handleStartRulerScrub}
                 style={
                   isFitEntireProject
-                    ? undefined
-                    : { width: `${Math.max(300, totalDurationSec * timelineZoom)}px` }
+                    ? { touchAction: 'none' }
+                    : { width: `${Math.max(300, totalDurationSec * timelineZoom)}px`, touchAction: 'none' }
                 }
                 title="Haz clic o arrastra sobre la regla para mover el guion vertical al segundo exacto"
                 className={`relative h-6 bg-[#090806] border border-slate-800 rounded cursor-ew-resize select-none overflow-hidden ${
@@ -20053,7 +20137,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
             {/* TRACK 1: BRANDING OVERLAYS (LOGO + CLIP 1 HOOK TEXT) */}
             <div className={`flex items-center gap-2 ${isFitEntireProject ? 'w-full' : 'min-w-max'}`}>
-              <div className="w-24 sm:w-36 shrink-0 px-1.5 sm:px-2 py-1 rounded bg-slate-900 border border-slate-800 text-[9px] sm:text-[10px] font-bold text-amber-300 truncate">
+              <div className="w-24 sm:w-36 shrink-0 sticky left-0 z-[35] shadow-[4px_0_6px_-2px_rgba(0,0,0,0.7)] px-1.5 sm:px-2 py-1 rounded bg-slate-900 border border-slate-800 text-[9px] sm:text-[10px] font-bold text-amber-300 truncate">
                 1. 🏷️ Logo + Texto
               </div>
               <div
@@ -20221,7 +20305,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
             {/* TRACK 2: CAPTIONS (.SRT) */}
             <div className={`flex items-center gap-2 ${isFitEntireProject ? 'w-full' : 'min-w-max'}`}>
-              <div className="w-24 sm:w-36 shrink-0 px-1.5 sm:px-2 py-1 rounded bg-slate-900 border border-slate-800 text-[9px] sm:text-[10px] font-bold text-sky-300 truncate">
+              <div className="w-24 sm:w-36 shrink-0 sticky left-0 z-[35] shadow-[4px_0_6px_-2px_rgba(0,0,0,0.7)] px-1.5 sm:px-2 py-1 rounded bg-slate-900 border border-slate-800 text-[9px] sm:text-[10px] font-bold text-sky-300 truncate">
                 2. 💬 Captions ({captions.length})
               </div>
               <div
@@ -20303,7 +20387,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
             {/* TRACK 3: VIDEO CLIPS + FOLEY (DRAG & DROP REORDERING + REAL-TIME PLAYHEAD SELECTION) */}
             <div className={`flex items-center gap-2 ${isFitEntireProject ? 'w-full' : 'min-w-max'}`}>
-              <div className="w-24 sm:w-36 shrink-0 px-1.5 sm:px-2 py-1.5 rounded bg-amber-500/15 border border-amber-500/40 text-[9px] sm:text-[10px] font-black text-amber-300 flex flex-col gap-1">
+              <div className="w-24 sm:w-36 shrink-0 sticky left-0 z-[35] shadow-[4px_0_6px_-2px_rgba(0,0,0,0.7)] px-1.5 sm:px-2 py-1.5 rounded bg-[#2a1f0c] border border-amber-500/40 text-[9px] sm:text-[10px] font-black text-amber-300 flex flex-col gap-1">
                 <span className="truncate">3. 🎬 Clips ({timelineClips.length})</span>
               </div>
               <div
@@ -20756,7 +20840,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
             {/* TRACK 4: VOICEOVER NARRATION (FULL DURATION ON TIMELINE) */}
             <div className={`flex items-center gap-2 ${isFitEntireProject ? 'w-full' : 'min-w-max'}`}>
-              <div className="w-24 sm:w-36 shrink-0 px-1.5 sm:px-2 py-1 rounded bg-slate-900 border border-slate-800 text-[9px] sm:text-[10px] font-bold text-emerald-300 truncate">
+              <div className="w-24 sm:w-36 shrink-0 sticky left-0 z-[35] shadow-[4px_0_6px_-2px_rgba(0,0,0,0.7)] px-1.5 sm:px-2 py-1 rounded bg-slate-900 border border-slate-800 text-[9px] sm:text-[10px] font-bold text-emerald-300 truncate">
                 4. 🎙️ Voz Narrativa
               </div>
               <div
@@ -20865,7 +20949,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             {/* TRACK 5: FLOW MUSIC MULTI-SCENE SOUNDTRACK (CLICKABLE SONGS WITH VOLUME, FADE-IN & FADE-OUT) */}
             <div className={`flex flex-col gap-1 ${isFitEntireProject ? 'w-full' : 'min-w-max'}`}>
               <div className={`flex items-center gap-2 ${isFitEntireProject ? 'w-full' : 'min-w-max'}`}>
-                <div className="w-24 sm:w-36 shrink-0 px-1.5 sm:px-2 py-1 rounded bg-slate-900 border border-slate-800 text-[9px] sm:text-[10px] font-bold text-purple-300 flex items-center justify-between truncate">
+                <div className="w-24 sm:w-36 shrink-0 sticky left-0 z-[35] shadow-[4px_0_6px_-2px_rgba(0,0,0,0.7)] px-1.5 sm:px-2 py-1 rounded bg-slate-900 border border-slate-800 text-[9px] sm:text-[10px] font-bold text-purple-300 flex items-center justify-between truncate">
                   <span className="truncate">5. 🎵 FlowMusic ({musicTracks.length})</span>
                 </div>
                 <div
