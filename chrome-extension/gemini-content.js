@@ -4393,6 +4393,27 @@
             }
           }
 
+          try {
+            const dbgInput = findPromptInput();
+            chrome.runtime.sendMessage({
+              type: 'HUELLAS_DEBUG_LOG',
+              event: 'gemini:after-submit-loop',
+              data: {
+                stage: payload.stageNumber,
+                promptLen: rawPrompt.length,
+                inputLen: String((dbgInput && (dbgInput.value ?? dbgInput.innerText)) || '').length,
+                sendBtn: Boolean(findSendButton()),
+                generating: isGeminiStillGenerating(),
+                responses: getModelResponseElements().length,
+                initialCount,
+                userQueries: document.querySelectorAll('user-query, [data-message-author-role="user"]').length,
+                initialUserQueries,
+                chips: document.querySelectorAll('uploader-file-preview, file-preview, .file-preview-container, [data-test-id*="file" i]').length,
+                hidden: document.hidden,
+              },
+            }).catch(() => {});
+          } catch {}
+
           const resolvedTargetChatTitle = isStandaloneNoNotebook
             ? ''
             : (chatState && chatState.targetChatTitle) ||
