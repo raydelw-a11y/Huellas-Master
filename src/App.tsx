@@ -199,7 +199,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '09:45 PM - 11/17/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '09:55 PM - 11/17/2026';
 
 // Etapa 8: nombre de archivo canónico de cada canción → "Canción_01_El_Muelle_de_la_Despedida"
 // (quita prefijos "Pista 1:" / "Canción 1:", comillas y rangos de tiempo "00:08 - 02:38" del título)
@@ -374,6 +374,25 @@ function cleanStage11SingleMetadataText(raw: string): string {
   }
 
   return stripStage12ClosingChatter(clean);
+}
+
+/** YouTube rechaza títulos de más de 100 caracteres: recorta el gancho (no el sufijo) por una frontera natural. */
+const YOUTUBE_TITLE_MAX_CHARS = 100;
+function fitYoutubeTitle(title: string): string {
+  const t = String(title || '').replace(/\s+/g, ' ').trim();
+  if (t.length <= YOUTUBE_TITLE_MAX_CHARS) return t;
+  const m = t.match(/^(.*?)(\s*\|\s*[^|]{1,40})$/);
+  const suffix = m ? ` | ${m[2].replace(/^\s*\|\s*/, '').trim()}` : '';
+  let base = (m ? m[1] : t).trim();
+  const budget = YOUTUBE_TITLE_MAX_CHARS - suffix.length;
+  if (base.length > budget) {
+    const cut = base.slice(0, budget);
+    const natural = Math.max(cut.lastIndexOf(':'), cut.lastIndexOf(','), cut.lastIndexOf(' y '), cut.lastIndexOf(' tras '));
+    base = (natural >= budget * 0.5 ? cut.slice(0, natural) : cut.slice(0, cut.lastIndexOf(' ') > 0 ? cut.lastIndexOf(' ') : budget))
+      .replace(/[\s,:;—–-]+$/, '')
+      .trim();
+  }
+  return `${base}${suffix}`.slice(0, YOUTUBE_TITLE_MAX_CHARS);
 }
 
 /** El hashtag #DocumentalEnEspañol va siempre: sustituye al hashtag genérico (o al último) si Gemini no lo puso. */
@@ -5527,7 +5546,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           patch.rawYoutubeMetadata = ensureDocumentalEnEspanolHashtag(ytStripped.body);
           patch.rawMetadataText = ensureDocumentalEnEspanolHashtag(ytStripped.body);
           if (!activeDocRef.current?.publishTitle && ytStripped.extractedTitle) {
-            patch.publishTitle = ytStripped.extractedTitle;
+            patch.publishTitle = fitYoutubeTitle(ytStripped.extractedTitle);
           }
         }
         if (parsed4.facebook) {
@@ -5559,7 +5578,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           rawYoutubeMetadata: ensureDocumentalEnEspanolHashtag(ytStripped.body),
           rawMetadataText: ensureDocumentalEnEspanolHashtag(ytStripped.body),
           ...(!activeDocRef.current?.publishTitle && ytStripped.extractedTitle
-            ? { publishTitle: ytStripped.extractedTitle }
+            ? { publishTitle: fitYoutubeTitle(ytStripped.extractedTitle) }
             : {}),
         });
         if (stageNum === 11) {
@@ -5663,6 +5682,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
             .trim()
         )
         .filter((l) => l.length >= 18 && !/^(?:aqu[ií]\s+tienes|t[ií]tulos\s+sugeridos)/i.test(l))
+        .map((l) => fitYoutubeTitle(l))
         .slice(0, 6);
 
       if (cleanedLines.length > 0) {
@@ -5809,7 +5829,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           splitPatch.rawYoutubeMetadata = ytStripped4.body;
           splitPatch.rawMetadataText = ytStripped4.body;
           if (!activeDoc.publishTitle && ytStripped4.extractedTitle) {
-            splitPatch.publishTitle = ytStripped4.extractedTitle;
+            splitPatch.publishTitle = fitYoutubeTitle(ytStripped4.extractedTitle);
           }
         }
         if (parsed4.facebook && !rawFb.trim()) {
@@ -5842,7 +5862,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       cleanupPatch.rawMetadataText = cleanedYt;
     }
     if (!activeDoc.publishTitle && ytStripped.extractedTitle) {
-      cleanupPatch.publishTitle = ytStripped.extractedTitle;
+      cleanupPatch.publishTitle = fitYoutubeTitle(ytStripped.extractedTitle);
     }
     if (rawFb && cleanedFb !== rawFb) {
       cleanupPatch.rawFacebookMetadata = cleanedFb;

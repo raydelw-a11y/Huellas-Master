@@ -4098,7 +4098,8 @@ Output ONLY the 3 Spanish lines, one per line, without numbering or quotation ma
     const specificTitleLaw11 = `UNBREAKABLE SPANISH VIDEO TITLE LAW (ULTRA-SPECIFIC, HIGH-CTR & FAITHFUL TO THE REAL SCRIPT):
    - FORBIDDEN GENERIC OR VAGUE TITLES: Never output abstract or poetic titles that hide the concrete historical topic (e.g., forbidden "El Precio del Destino", "Sombras entre Dos Orillas", "Crónicas de un Imperio").
    - HISTORICAL SPECIFICITY + MAGNETIC HOOK FORMULA: Every Spanish title MUST explicitly name the historical protagonist, human group, emblematic place, or concrete event from the Script (years in digits, centuries/monarchs in Roman numerals, zero exclamation marks) paired with the central paradox, sacrifice, or revelation.
-   - SMART NON-REPETITION: Do not copy verbatim the Thumbnail Overlay ("${doc.thumbnailTextOverlay || ''}") or Clip 1 Hook ("${doc.clip1Line2Hook || ''}"), while still naming the real historical subject. ${titleSuffixRule11}`;
+   - SMART NON-REPETITION: Do not copy verbatim the Thumbnail Overlay ("${doc.thumbnailTextOverlay || ''}") or Clip 1 Hook ("${doc.clip1Line2Hook || ''}"), while still naming the real historical subject. ${titleSuffixRule11}
+   - HARD YOUTUBE LIMIT: every complete title (INCLUDING any " | Documental Completo" suffix) MUST be 100 characters or fewer counting spaces. Count before answering; shorten the hook if needed (aim for 70-95 characters).`;
     const chaptersTimelineGuide =
       Array.isArray(doc.clips) && doc.clips.length > 0
         ? doc.clips
@@ -4239,7 +4240,8 @@ UNBREAKABLE RULES:
 2. HISTORICAL SPECIFICITY + NARRATIVE TENSION: Every Spanish title MUST explicitly name the historical event, human group, protagonist, or central place from the script (years in digits, centuries/monarchs in Roman numerals, zero exclamation marks) combined with its core revelation, human drama, or paradox.
 3. NO VERBATIM REPETITION: Do not repeat word-for-word the Thumbnail Overlay ("${doc.thumbnailTextOverlay || ''}") or Clip 1 Text ("${doc.clip1Line2Hook || ''}").
 4. ${titleSuffixRule11}
-5. DELIVERY FORMAT: Output ONLY the 5 Spanish titles, one per line (5 lines total), with NO numbering ("1.", "Option 1:"), NO bullets, NO quotes, and NO intro or closing text.`;
+5. HARD YOUTUBE LIMIT: each complete title line (INCLUDING the suffix) MUST be 100 characters or fewer counting spaces — YouTube rejects longer titles. Aim for 70-95 characters.
+6. DELIVERY FORMAT: Output ONLY the 5 Spanish titles, one per line (5 lines total), with NO numbering ("1.", "Option 1:"), NO bullets, NO quotes, and NO intro or closing text.`;
     }
   }
 
