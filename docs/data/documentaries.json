@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-10-27T02:05:48.997Z",
-    "updatedAt": "2026-11-19T18:16:57.862Z",
+    "updatedAt": "2026-11-19T18:17:12.361Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -20,7 +20,7 @@
       "TEMA_DEL_VIDEO": "Video 74 Castillo Louvre Parte II",
       "UBICACION_INTRO_MARCA": "INTRO_INICIO_00",
       "FIELD_CLEARED_AT_voiceoverScript": "0",
-      "PROMPTS_RESTORED_AT": "1795112217862",
+      "PROMPTS_RESTORED_AT": "1795112232361",
       "FIELD_CLEARED_AT_rawClipsText": "0",
       "FIELD_CLEARED_AT_pinnedComment": "1795091965654",
       "FIELD_CLEARED_AT_correctedSrt": "0",
@@ -1332,7 +1332,7 @@
         "imageReady": true,
         "videoReady": true,
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "auditStatus": "ok",
         "auditReason": "🖼️ Escena B-Roll Solo Imagen lista (pendiente de revisión) — movimiento 4K 60fps local en Editor.",
@@ -1352,7 +1352,7 @@
         "brollCameraMotion": "tilt_up",
         "promptUpdatedAt": 1795110741675,
         "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2030%20Castillo%20Louvre%20Parte%20II%2F05_Clips_Video%2F20_Imagen_Inicial_Create_an_image_in_16.jpg&t=1795110740790&v=1795110741675",
-        "reviewedUpdatedAt": 1795110741675
+        "reviewedUpdatedAt": 1795110773128
       },
       {
         "id": "clip-21-1794891908295-7515",
@@ -1671,7 +1671,7 @@
         "auditStatus": "ok",
         "auditReason": "Sincronizado con el tramo de voz narrativa.",
         "videoSavedFileName": "31_Clip_31_Create_a_video_in_Gran_d0dc85eb_4K.mp4",
-        "videoSavedAt": 1795111725213,
+        "videoSavedAt": 1795112079366,
         "videoDiscardOverriddenAt": 1795111725213,
         "videoAuditStatus": "approved",
         "videoAuditReason": "",
@@ -1700,7 +1700,7 @@
         "timeRange": "05:26 - 05:36",
         "cameraSelection": "",
         "visualExplanation": "",
-        "imagePrompt": "Image 33: Create an image in 16-9 horizontal aspect ratio master royal cooks entering the vaulted limestone Great Hall of the Louvre in Paris, France, 1200, carrying large silver banquet platters bearing golden-brown oven-roasted pheasant, swan, and peacock dishes with crispy glazed cooked skin resting flat on roasted apples and spiced herbs, garnished with a ceremonial fan of tail feathers tucked into the silver tray as culinary decoration, purely inanimate cooked banquet food, horizontal 16-9, medium wide shot, dramatic torchlight shadows on the stone walls, seated nobles watching in awe, 35mm film grain, cinematic documentary realism, safe framing composition, no modern objects, no CGI look Clip 33 (05, 16 - 05, 26), Create a video in the vaulted limestone Great Hall of the Louvre, Paris, France, 1200, horizontal 16-9, single continuous 10-second shot, low-angle tracking shot following the procession of master cooks carrying large silver platters with steaming golden-brown roasted pheasant and peacock banquet dishes garnished with ornamental tail feathers toward the royal table, warm culinary steam rising from the crispy glazed roast meat, purely inanimate cooked food on platters, synchronized foley of heavy ceremonial footsteps, silver trays resonating, and sizzling roast glaze, strictly no music, no speech, Acto seguido comenzaba el desfile de los entremeses de ilusión. Los maestros cocineros presentaban cisnes y pavos reales asados que habían sido cosidos de nuevo dentro de su propio, portrayed by anonymous mature adult historical reenactment actors in authentic period costume (no real public figures or prominent people), cinematic documentary realism, safe framing composition, 8k resolution, sharp focus, no modern objects, no CGI look, no text, no spoken voice, no human speech, no music. fix the name to Inicial_33_create_an_image_in_16_9",
+        "imagePrompt": "Image 33: Create an image in 16-9 horizontal aspect ratio master royal cooks entering the vaulted limestone Great Hall of the Louvre in Paris, France, 1200, carrying large silver banquet platters bearing golden-brown oven-roasted pheasant, swan, and peacock dishes with crispy glazed cooked skin resting flat on roasted apples and spiced herbs, garnished with a ceremonial fan of tail feathers tucked into the silver tray as culinary decoration, purely inanimate cooked banquet food, horizontal 16-9, medium wide shot, dramatic torchlight shadows on the stone walls, seated nobles watching in awe, 35mm film grain, cinematic documentary realism, safe framing composition, no modern objects, no CGI look Clip 33 (05, 16 - 05, 26), Create a video in the vaulted limestone Great Hall of the Louvre, Paris, France, 1200, horizontal 16-9, single continuous 10-second shot, low-angle tracking shot following the procession of master cooks carrying large silver platters with steaming golden-brown roasted pheasant and peacock banquet dishes garnished with ornamental tail feathers toward the royal table, warm culinary steam rising from the crispy glazed roast meat, purely inanimate cooked food on platters, synchronized foley of heavy ceremonial footsteps, silver trays resonating, and sizzling roast glaze, strictly no music, no speech, Acto seguido comenzaba el desfile de los entremeses de ilusión. Los maestros cocineros presentaban cisnes y pavos reales asados que habían sido cosidos de nuevo dentro de su propio, portrayed by anonymous mature adult historical reenactment actors in authentic period costume, cinematic documentary realism, safe framing composition, 8k resolution, sharp focus, no modern objects, no CGI look, no text, no spoken voice, no human speech, no music. fix the name to Inicial_33_create_an_image_in_16_9",
         "videoPrompt": "",
         "narrationSegment": "estaba saturado de especias orientales consideradas fragmentos directos del Paraíso Terrenal: azafrán, canela de Ceilán, clavo de olor, nuez moscada y jengibre, servidos en",
         "imageReady": false,
