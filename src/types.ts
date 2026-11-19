@@ -218,6 +218,8 @@ export interface DocumentaryClip {
   reframeFocusXStart?: number; // 0 to 100 (50 = center)
   reframeFocusXEnd?: number;   // 0 to 100 (50 = center)
   reframeFocusY?: number;      // 0 to 100 (50 = center)
+  frameZoom16x9?: number;     // clip size in the 16:9 frame, percent (100 = normal, >100 enlarges, <100 shrinks)
+  frameZoom9x16?: number;     // clip size in the 9:16 frame, percent
   reframeConfidence?: number;
   reframeReason?: string;
   // Motor de video específico de este clip (Omni 1.1 Flash si hay personas, Veo 3.1 - Lite [Lower Priority] para el resto)

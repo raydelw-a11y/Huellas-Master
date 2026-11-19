@@ -202,7 +202,20 @@ function buildOfficialIntroOutroUrls(version?: number) {
   return { introVideoUrl, introPosterUrl, outroVideoUrl, outroPosterUrl };
 }
 
-export interface TimelineClipItem {
+export const FRAME_ZOOM_MIN_PCT = 50;
+const FRAME_ZOOM_MAX_PCT = 300;
+
+/** Clip size inside the frame for the given format, percent (100 = normal). */
+function getClipFrameZoomPct(
+  clip: { frameZoom16x9?: number; frameZoom9x16?: number } | null | undefined,
+  ratio: string
+): number {
+  const raw = Number(ratio === '9:16' ? clip?.frameZoom9x16 : clip?.frameZoom16x9);
+  if (!Number.isFinite(raw) || raw <= 0) return 100;
+  return Math.max(FRAME_ZOOM_MIN_PCT, Math.min(FRAME_ZOOM_MAX_PCT, Math.round(raw)));
+}
+
+interface TimelineClipItem {
   id: string;
   clipNumber: number;
   fileName: string;
@@ -247,6 +260,8 @@ export interface TimelineClipItem {
   reframeFocusXEnd?: number;   // 0 to 100 (50 = center)
   reframeUpdatedAt?: number;   // ms epoch of the last manual reframe (newest wins between doc and timeline)
   reframeFocusY?: number;      // 0 to 100 (50 = center)
+  frameZoom16x9?: number;      // clip size in the 16:9 frame, percent (100 = normal)
+  frameZoom9x16?: number;      // clip size in the 9:16 frame, percent (100 = normal)
   reframeConfidence?: number;
   reframeReason?: string;
   userReframed9x16?: boolean;  // true when user manually set or adjusted reframe in the editor
@@ -3150,6 +3165,30 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           }),
         }).catch(() => {});
       } catch {}
+    }
+  };
+
+  // Clip size inside the frame (per format). `commit: false` only updates the live preview while dragging the
+  // slider; `commit: true` (on release / buttons) also saves it to the timeline overlays and the documentary.
+  const handleUpdateClipFrameZoom = (clipId: string, zoomPct: number, commit: boolean) => {
+    const safeZoom = Math.max(FRAME_ZOOM_MIN_PCT, Math.min(FRAME_ZOOM_MAX_PCT, Math.round(zoomPct)));
+    const zoomKey = aspectRatio === '9:16' ? 'frameZoom9x16' : 'frameZoom16x9';
+    const docId = activeDoc?.id || 'default';
+    const matchedClip = timelineClips.find((tc) => tc.id === clipId);
+    const targetClipNum = matchedClip ? matchedClip.clipNumber : -1;
+    setTimelineClips((prev) => {
+      const updated = prev.map((tc) => (tc.id === clipId ? { ...tc, [zoomKey]: safeZoom } : tc));
+      if (commit) {
+        persistDocOverlaysPatch({ customTimelineClips: updated, userEditedClips: true }, docId);
+      }
+      return updated;
+    });
+    if (commit && targetClipNum > 0 && targetClipNum < 999 && activeDoc && Array.isArray(activeDoc.clips)) {
+      updateActiveDoc({
+        clips: activeDoc.clips.map((c) =>
+          c.clipNumber === targetClipNum ? ({ ...c, [zoomKey]: safeZoom } as any) : c
+        ),
+      });
     }
   };
 
@@ -6327,6 +6366,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         reframeFocusXStart: existingItem?.reframeFocusXStart ?? c.reframeFocusXStart,
         reframeFocusXEnd: existingItem?.reframeFocusXEnd ?? c.reframeFocusXEnd,
         reframeFocusY: existingItem?.reframeFocusY ?? c.reframeFocusY,
+        frameZoom16x9: existingItem?.frameZoom16x9 ?? c.frameZoom16x9,
+        frameZoom9x16: existingItem?.frameZoom9x16 ?? c.frameZoom9x16,
         reframeConfidence: existingItem?.reframeConfidence ?? c.reframeConfidence,
         reframeReason: existingItem?.reframeReason || c.reframeReason,
       };
@@ -6915,6 +6956,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         reframeFocusXStart: liveMatch?.reframeFocusXStart ?? bc.reframeFocusXStart,
         reframeFocusXEnd: liveMatch?.reframeFocusXEnd ?? bc.reframeFocusXEnd,
         reframeFocusY: liveMatch?.reframeFocusY ?? bc.reframeFocusY,
+        frameZoom16x9: liveMatch?.frameZoom16x9 ?? bc.frameZoom16x9,
+        frameZoom9x16: liveMatch?.frameZoom9x16 ?? bc.frameZoom9x16,
         reframeConfidence: liveMatch?.reframeConfidence ?? bc.reframeConfidence,
         reframeReason: liveMatch?.reframeReason || bc.reframeReason,
         ...(() => {
@@ -10523,7 +10566,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           if (cD > 0.1) {
             const prog = Math.max(0, Math.min(1, (next - cS) / cD));
             const panProg = pE >= 96 ? Math.min(1, prog / 0.6) : prog;
-            panVid.style.objectPosition = `${(pS + (pE - pS) * panProg).toFixed(2)}% ${pY.toFixed(1)}%`;
+            const panX = (pS + (pE - pS) * panProg).toFixed(2);
+            panVid.style.objectPosition = `${panX}% ${pY.toFixed(1)}%`;
+            const zoomOriginY = panVid.dataset.zoomOriginY;
+            if (zoomOriginY) panVid.style.transformOrigin = `${panX}% ${zoomOriginY}%`;
           }
         }
       } catch {}
@@ -13906,6 +13952,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                       : 50,
                   reframeFocusY: typeof c.reframeFocusY === 'number' ? c.reframeFocusY : 50,
                   userReframed9x16: Boolean(c.userReframed9x16),
+                  frameZoom: getClipFrameZoomPct(c, aspectRatio),
                   videoDataUrl: c.videoUrl && c.videoUrl.startsWith('data:') ? c.videoUrl : '',
                 };
               }),
@@ -15886,6 +15933,68 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             </div>
           </div>
 
+          {/* Clip size bar: enlarge / shrink the clip under the playhead inside the frame (saved per format) */}
+          {activeClipAtPlayhead &&
+            activeClipAtPlayhead.clipNumber !== 0 &&
+            activeClipAtPlayhead.clipNumber !== 999 &&
+            activeClipAtPlayhead.id !== 'fixed-doc-intro' &&
+            activeClipAtPlayhead.id !== 'fixed-doc-outro' &&
+            (() => {
+              const zoomClip = activeClipAtPlayhead;
+              const zoomPct = getClipFrameZoomPct(zoomClip, aspectRatio);
+              return (
+                <div className="w-full px-3 py-1 bg-[#100e0b] border-b border-slate-800 flex items-center gap-2 flex-wrap shrink-0 text-[10px]">
+                  <span
+                    className="px-2 py-0.5 rounded bg-slate-900 border border-slate-700 text-slate-200 font-black"
+                    title="Agranda el clip para mostrar menos (más cerca) o achícalo para mostrar más. Se guarda por clip y por formato (16:9 / 9:16) y se aplica al exportar."
+                  >
+                    🔍 Tamaño • Clip {String(zoomClip.clipNumber).padStart(2, '0')}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handleUpdateClipFrameZoom(zoomClip.id, zoomPct - 5, true)}
+                    disabled={zoomPct <= FRAME_ZOOM_MIN_PCT}
+                    className="w-6 h-5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 font-black cursor-pointer disabled:opacity-40"
+                    title="Achicar el clip (muestra más)"
+                  >
+                    −
+                  </button>
+                  <input
+                    type="range"
+                    min={FRAME_ZOOM_MIN_PCT}
+                    max={FRAME_ZOOM_MAX_PCT}
+                    step={1}
+                    value={zoomPct}
+                    onChange={(e) => handleUpdateClipFrameZoom(zoomClip.id, Number(e.target.value), false)}
+                    onMouseUp={(e) => handleUpdateClipFrameZoom(zoomClip.id, Number((e.target as HTMLInputElement).value), true)}
+                    onTouchEnd={(e) => handleUpdateClipFrameZoom(zoomClip.id, Number((e.target as HTMLInputElement).value), true)}
+                    onKeyUp={(e) => handleUpdateClipFrameZoom(zoomClip.id, Number((e.target as HTMLInputElement).value), true)}
+                    className="flex-1 min-w-[90px] max-w-[260px] accent-amber-400 cursor-pointer"
+                    aria-label="Tamaño del clip en el cuadro"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleUpdateClipFrameZoom(zoomClip.id, zoomPct + 5, true)}
+                    disabled={zoomPct >= FRAME_ZOOM_MAX_PCT}
+                    className="w-6 h-5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 font-black cursor-pointer disabled:opacity-40"
+                    title="Agrandar el clip (muestra menos)"
+                  >
+                    +
+                  </button>
+                  <span className="w-10 text-right font-mono font-bold text-amber-200">{zoomPct}%</span>
+                  <button
+                    type="button"
+                    onClick={() => handleUpdateClipFrameZoom(zoomClip.id, 100, true)}
+                    disabled={zoomPct === 100}
+                    className="px-2 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 font-bold cursor-pointer disabled:opacity-40"
+                    title="Volver al tamaño normal (100%)"
+                  >
+                    Restablecer
+                  </button>
+                </div>
+              );
+            })()}
+
           {/* Smart Auto-Reframe 9:16 Control Bar (Visible when editing in 9:16 Vertical mode) */}
           {aspectRatio === '9:16' && (
             <div className="w-full px-3 py-1 bg-[#14100b] border-b border-amber-500/30 flex items-center justify-between gap-2 flex-wrap shrink-0 text-[10px]">
@@ -16271,6 +16380,15 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                       aspectRatio === '9:16' && !isFitBlur
                         ? `${liveFocusX.toFixed(2)}% ${fY.toFixed(1)}%`
                         : '50% 50%';
+                    // Clip size (matches the export crop: enlarging keeps the 9:16 focus point, shrinking centers vertically)
+                    const slotZoom =
+                      isSlotIntro || isSlotOutro ? 1 : getClipFrameZoomPct(slotClip, aspectRatio) / 100;
+                    const hasSlotZoom = Math.abs(slotZoom - 1) > 0.004;
+                    const zoomUsesFocus = aspectRatio === '9:16' && !isFitBlur;
+                    const zoomOriginY = zoomUsesFocus && slotZoom > 1 ? fY : 50;
+                    const zoomOrigin = zoomUsesFocus
+                      ? `${liveFocusX.toFixed(2)}% ${zoomOriginY.toFixed(1)}%`
+                      : '50% 50%';
                     return (
                       <video
                         key={`dual-deck-${slotIdx}`}
@@ -16292,6 +16410,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                             ? `${fStart}|${fEnd}|${fY}|${slotClip.start}|${slotClip.duration}`
                             : undefined
                         }
+                        data-zoom-origin-y={hasSlotZoom && zoomUsesFocus ? zoomOriginY.toFixed(1) : undefined}
                         className={`absolute inset-0 w-full h-full ${
                           isFitBlur ? 'object-contain' : 'object-cover'
                         } block bg-transparent`}
@@ -16304,7 +16423,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                             ? aspectRatio === '9:16'
                               ? 'scale(2.085)'
                               : 'scale(0.88) translateY(-2.5%)'
+                            : hasSlotZoom
+                            ? `scale(${slotZoom.toFixed(3)})`
                             : undefined,
+                          transformOrigin: hasSlotZoom ? zoomOrigin : undefined,
                           filter:
                             isSlotOutro && previewQuality !== 'low'
                               ? 'contrast(1.12) brightness(0.92)'

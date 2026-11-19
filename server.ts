@@ -7821,6 +7821,23 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
           ? `framerate=fps=${safeFps}:interp_start=0:interp_end=255:scene=8.2`
           : `fps=${safeFps}`;
 
+      // Per-clip frame size chosen in the editor (100 = normal). >100 enlarges the clip (shows less of it),
+      // <100 shrinks it (shows more, with black bars). Stored per format; intro/outro are never resized.
+      const rawFrameZoomPct = Number(
+        (c as any).frameZoom ??
+          (isVertical916 ? (savedClipMatch as any)?.frameZoom9x16 : (savedClipMatch as any)?.frameZoom16x9) ??
+          100
+      );
+      const frameZoom =
+        Number.isFinite(rawFrameZoomPct) && rawFrameZoomPct > 0
+          ? Math.max(0.5, Math.min(3, rawFrameZoomPct / 100))
+          : 1;
+      const hasFrameZoom = !isIntroClip && !isOutroClip && Math.abs(frameZoom - 1) > 0.004;
+      const zoomW = 2 * Math.round((outW * frameZoom) / 2);
+      const zoomH = 2 * Math.round((outH * frameZoom) / 2);
+      const zoomCropSize = `'min(iw,${outW})':'min(ih,${outH})'`;
+      const zoomPad = `pad=${outW}:${outH}:(ow-iw)/2:(oh-ih)/2:black`;
+
       let scaleAndCropVf: string;
       if (isOutroClip) {
         if (isVertical916) {
@@ -7866,9 +7883,13 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
           ? `'max(0,min(iw-ow,(iw-ow)*(${fStart.toFixed(4)}+(${(fEnd - fStart).toFixed(4)})*min(1,max(0,t/${panDurSec.toFixed(3)})))))'`
           : `'max(0,min(iw-ow,(iw-ow)*${fStart.toFixed(4)}))'`;
         const cropYExpr = `'max(0,min(ih-oh,(ih-oh)*${fY.toFixed(4)}))'`;
-        scaleAndCropVf = `scale=${outW}:${outH}:force_original_aspect_ratio=increase:flags=fast_bilinear,${fpsInterpStage},crop=${outW}:${outH}:${cropXExpr}:${cropYExpr}`;
+        scaleAndCropVf = hasFrameZoom
+          ? `scale=${zoomW}:${zoomH}:force_original_aspect_ratio=increase:force_divisible_by=2:flags=fast_bilinear,${fpsInterpStage},crop=${zoomCropSize}:${cropXExpr}:${cropYExpr},${zoomPad}`
+          : `scale=${outW}:${outH}:force_original_aspect_ratio=increase:flags=fast_bilinear,${fpsInterpStage},crop=${outW}:${outH}:${cropXExpr}:${cropYExpr}`;
       } else {
-        scaleAndCropVf = `scale=${outW}:${outH}:force_original_aspect_ratio=decrease:flags=fast_bilinear,${fpsInterpStage},pad=${outW}:${outH}:(ow-iw)/2:(oh-ih)/2:black`;
+        scaleAndCropVf = hasFrameZoom
+          ? `scale=${zoomW}:${zoomH}:force_original_aspect_ratio=decrease:force_divisible_by=2:flags=fast_bilinear,${fpsInterpStage},crop=${zoomCropSize},${zoomPad}`
+          : `scale=${outW}:${outH}:force_original_aspect_ratio=decrease:flags=fast_bilinear,${fpsInterpStage},pad=${outW}:${outH}:(ow-iw)/2:(oh-ih)/2:black`;
       }
 
       const baseVfChain = `setpts=${ptsFactor}*(PTS-STARTPTS),${scaleAndCropVf},format=yuv420p${vfTrimSuffix}${vfFadeSuffix}${assFilterSuffix}`;
