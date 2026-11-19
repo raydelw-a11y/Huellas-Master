@@ -20050,7 +20050,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 isFitEntireProject ? 'w-full' : 'min-w-max'
               }`}
             >
-              <div className="w-24 sm:w-36 shrink-0 sticky left-0 z-[35] self-stretch shadow-[0_0_0_4px_#0e0c09,4px_0_6px_-2px_rgba(0,0,0,0.7)] px-1.5 sm:px-2 py-1 rounded bg-slate-950 border border-amber-500/30 text-[9px] font-bold text-amber-300 flex items-center justify-between truncate">
+              <div className="w-24 sm:w-36 shrink-0 sticky left-0 z-[35] self-stretch shadow-[0_0_0_4px_#0e0c09,-8px_0_0_4px_#0e0c09,4px_0_6px_-2px_rgba(0,0,0,0.7)] px-1.5 sm:px-2 py-1 rounded bg-slate-950 border border-amber-500/30 text-[9px] font-bold text-amber-300 flex items-center justify-between truncate">
                 <span className="truncate">⏱️ Regla</span>
                 <span className="hidden sm:inline px-1 py-0.5 rounded bg-amber-500/15 text-[8px] font-mono text-amber-200">
                   {timelineRulerData.scaleUnitLabel}
@@ -20137,7 +20137,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
             {/* TRACK 1: BRANDING OVERLAYS (LOGO + CLIP 1 HOOK TEXT) */}
             <div className={`flex items-center gap-2 ${isFitEntireProject ? 'w-full' : 'min-w-max'}`}>
-              <div className="w-24 sm:w-36 shrink-0 sticky left-0 z-[35] self-stretch shadow-[0_0_0_4px_#0e0c09,4px_0_6px_-2px_rgba(0,0,0,0.7)] px-1.5 sm:px-2 py-1 rounded bg-slate-900 border border-slate-800 text-[9px] sm:text-[10px] font-bold text-amber-300 truncate flex items-center">
+              <div className="w-24 sm:w-36 shrink-0 sticky left-0 z-[35] self-stretch shadow-[0_0_0_4px_#0e0c09,-8px_0_0_4px_#0e0c09,4px_0_6px_-2px_rgba(0,0,0,0.7)] px-1.5 sm:px-2 py-1 rounded bg-slate-900 border border-slate-800 text-[9px] sm:text-[10px] font-bold text-amber-300 truncate flex items-center">
                 1. 🏷️ Logo + Texto
               </div>
               <div
@@ -20305,7 +20305,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
             {/* TRACK 2: CAPTIONS (.SRT) */}
             <div className={`flex items-center gap-2 ${isFitEntireProject ? 'w-full' : 'min-w-max'}`}>
-              <div className="w-24 sm:w-36 shrink-0 sticky left-0 z-[35] self-stretch shadow-[0_0_0_4px_#0e0c09,4px_0_6px_-2px_rgba(0,0,0,0.7)] px-1.5 sm:px-2 py-1 rounded bg-slate-900 border border-slate-800 text-[9px] sm:text-[10px] font-bold text-sky-300 truncate flex items-center">
+              <div className="w-24 sm:w-36 shrink-0 sticky left-0 z-[35] self-stretch shadow-[0_0_0_4px_#0e0c09,-8px_0_0_4px_#0e0c09,4px_0_6px_-2px_rgba(0,0,0,0.7)] px-1.5 sm:px-2 py-1 rounded bg-slate-900 border border-slate-800 text-[9px] sm:text-[10px] font-bold text-sky-300 truncate flex items-center">
                 2. 💬 Captions ({captions.length})
               </div>
               <div
@@ -20387,7 +20387,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
             {/* TRACK 3: VIDEO CLIPS + FOLEY (DRAG & DROP REORDERING + REAL-TIME PLAYHEAD SELECTION) */}
             <div className={`flex items-center gap-2 ${isFitEntireProject ? 'w-full' : 'min-w-max'}`}>
-              <div className="w-24 sm:w-36 shrink-0 sticky left-0 z-[35] self-stretch shadow-[0_0_0_4px_#0e0c09,4px_0_6px_-2px_rgba(0,0,0,0.7)] px-1.5 sm:px-2 py-1.5 rounded bg-[#2a1f0c] border border-amber-500/40 text-[9px] sm:text-[10px] font-black text-amber-300 flex flex-col gap-1">
+              <div className="w-24 sm:w-36 shrink-0 sticky left-0 z-[35] self-stretch shadow-[0_0_0_4px_#0e0c09,-8px_0_0_4px_#0e0c09,4px_0_6px_-2px_rgba(0,0,0,0.7)] px-1.5 sm:px-2 py-1.5 rounded bg-[#2a1f0c] border border-amber-500/40 text-[9px] sm:text-[10px] font-black text-amber-300 flex flex-col gap-1">
                 <span className="truncate">3. 🎬 Clips ({timelineClips.length})</span>
               </div>
               <div
@@ -20840,7 +20840,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
             {/* TRACK 4: VOICEOVER NARRATION (FULL DURATION ON TIMELINE) */}
             <div className={`flex items-center gap-2 ${isFitEntireProject ? 'w-full' : 'min-w-max'}`}>
-              <div className="w-24 sm:w-36 shrink-0 sticky left-0 z-[35] self-stretch shadow-[0_0_0_4px_#0e0c09,4px_0_6px_-2px_rgba(0,0,0,0.7)] px-1.5 sm:px-2 py-1 rounded bg-slate-900 border border-slate-800 text-[9px] sm:text-[10px] font-bold text-emerald-300 truncate flex items-center">
+              <div className="w-24 sm:w-36 shrink-0 sticky left-0 z-[35] self-stretch shadow-[0_0_0_4px_#0e0c09,-8px_0_0_4px_#0e0c09,4px_0_6px_-2px_rgba(0,0,0,0.7)] px-1.5 sm:px-2 py-1 rounded bg-slate-900 border border-slate-800 text-[9px] sm:text-[10px] font-bold text-emerald-300 truncate flex items-center">
                 4. 🎙️ Voz Narrativa
               </div>
               <div
@@ -20949,7 +20949,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             {/* TRACK 5: FLOW MUSIC MULTI-SCENE SOUNDTRACK (CLICKABLE SONGS WITH VOLUME, FADE-IN & FADE-OUT) */}
             <div className={`flex flex-col gap-1 ${isFitEntireProject ? 'w-full' : 'min-w-max'}`}>
               <div className={`flex items-center gap-2 ${isFitEntireProject ? 'w-full' : 'min-w-max'}`}>
-                <div className="w-24 sm:w-36 shrink-0 sticky left-0 z-[35] self-stretch shadow-[0_0_0_4px_#0e0c09,4px_0_6px_-2px_rgba(0,0,0,0.7)] px-1.5 sm:px-2 py-1 rounded bg-slate-900 border border-slate-800 text-[9px] sm:text-[10px] font-bold text-purple-300 flex items-center justify-between truncate">
+                <div className="w-24 sm:w-36 shrink-0 sticky left-0 z-[35] self-stretch shadow-[0_0_0_4px_#0e0c09,-8px_0_0_4px_#0e0c09,4px_0_6px_-2px_rgba(0,0,0,0.7)] px-1.5 sm:px-2 py-1 rounded bg-slate-900 border border-slate-800 text-[9px] sm:text-[10px] font-bold text-purple-300 flex items-center justify-between truncate">
                   <span className="truncate">5. 🎵 FlowMusic ({musicTracks.length})</span>
                 </div>
                 <div
