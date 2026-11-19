@@ -1286,7 +1286,10 @@
         "reframeConfidence": 0.82,
         "reframeReason": "Paneo dinámico IA (78% → 28%) desde sujeto derecho hacia escena izquierda (Der → Izq)",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-2-1794442731165-p25y",
@@ -1314,7 +1317,10 @@
         "reframeFocusY": 50,
         "reframeConfidence": 0.55,
         "reframeReason": "Encuadre central simétrico IA (50%)",
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-3-1794442731175-5puj",
@@ -1340,7 +1346,10 @@
         "reframeConfidence": 0.55,
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-4-1794442731185-oogs",
@@ -1366,7 +1375,10 @@
         "reframeConfidence": 0.82,
         "reframeReason": "Paneo dinámico IA (34% → 78%) entre dos sujetos (Izq → Der)",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-5-1794442731196-lbnk",
@@ -1392,7 +1404,10 @@
         "reframeConfidence": 0.55,
         "reframeReason": "Paneo dinámico IA (67% → 54%) siguiendo acción/sujeto",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-6-1794442731207-xswg",
@@ -1418,7 +1433,10 @@
         "reframeConfidence": 0.55,
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-7-1794442731217-3c0i",
@@ -1444,7 +1462,10 @@
         "reframeConfidence": 0.92,
         "reframeReason": "Paneo dinámico IA (31% → 16%) siguiendo acción/sujeto",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-8-1794442731227-k4l8",
@@ -1470,7 +1491,10 @@
         "reframeConfidence": 0.84,
         "reframeReason": "Paneo dinámico IA (24% → 76%) desde escena izquierda hacia sujeto derecho (Izq → Der)",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-9-1794442731237-p9r9",
@@ -1496,7 +1520,10 @@
         "reframeConfidence": 0.55,
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-10-1794442731248-4ctv",
@@ -1522,7 +1549,10 @@
         "reframeConfidence": 0.82,
         "reframeReason": "Paneo dinámico IA (18% → 76%) desde sujeto izquierdo hacia escena derecha (Izq → Der)",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-11-1794442731258-u43d",
@@ -1548,7 +1578,10 @@
         "reframeConfidence": 0.57,
         "reframeReason": "Paneo dinámico IA (58% → 32%) siguiendo acción/sujeto",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-12-1794442731269-szpx",
@@ -1576,7 +1609,10 @@
         "reframeConfidence": 0.93,
         "reframeReason": "Paneo dinámico IA (78% → 24%) desde sujeto derecho hacia escena izquierda (Der → Izq)",
         "videoDiscardOverriddenAt": 1794830501989,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-13-1794442731279-62ej",
@@ -1604,7 +1640,10 @@
         "reframeFocusY": 50,
         "reframeConfidence": 0.55,
         "reframeReason": "Encuadre central simétrico IA (50%)",
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-14-1794442731290-gj5t",
@@ -1630,7 +1669,10 @@
         "reframeConfidence": 0.55,
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-15-1794442731300-zjsg",
@@ -1656,7 +1698,10 @@
         "reframeConfidence": 0.55,
         "reframeReason": "Paneo dinámico IA (69% → 50%) siguiendo acción/sujeto",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-16-1794442731310-1oob",
@@ -1684,7 +1729,10 @@
         "reframeFocusY": 50,
         "reframeConfidence": 0.55,
         "reframeReason": "Encuadre central simétrico IA (50%)",
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-17-1794442731321-hp1z",
@@ -1710,7 +1758,10 @@
         "reframeConfidence": 0.55,
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-18-1794442731331-b44g",
@@ -1739,7 +1790,10 @@
         "reframeConfidence": 0.82,
         "reframeReason": "Paneo dinámico IA (18% → 76%) desde sujeto izquierdo hacia escena derecha (Izq → Der)",
         "previousVideoPrompt": "Clip 18 (02:24 - 02:32): Create a cinematic 8-second static B-roll video executing ONLY a smooth, continuous, ultra-steady optical Ken Burns zoom-in over the frozen scene: ONLY a slow, steady optical Ken Burns zoom-in (gradual push-in from wide to tight framing with zero lens distortion) across the 100% still archival photograph plate of the open 1929 scientific bulletin with monochrome bacterial agar illustrations resting motionless on @Mesa_Historiador, keeping the entire starting image 100% frozen as a still documentary B-roll plate from 0s to 8s with zero internal object animation, with no people present. STATIC B-ROLL PLATE LOCK (CAMERA MOTION ONLY): Treat the starting image as a 100% frozen, motionless archival B-roll still plate from 0s to 8s with strictly zero internal object animation, zero morphing, and zero lighting shifts—ONLY the virtual optical rostrum camera performs the zoom in movement. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: subtle archival library room tone, faint dry paper stillness, single continuous shot, strictly no shot changes, no music, no speech, no text. [B-Roll: STATIC_ZOOM_IN] [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-19-1794442731341-phaw",
@@ -1765,7 +1819,10 @@
         "reframeConfidence": 0.78,
         "reframeReason": "Paneo dinámico IA (22% → 81%) entre dos sujetos (Izq → Der)",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-20-1794442731352-xt0y",
@@ -1793,7 +1850,10 @@
         "reframeFocusY": 50,
         "reframeConfidence": 0.62,
         "reframeReason": "Paneo dinámico IA (39% → 58%) siguiendo acción/sujeto",
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-21-1794442731362-gggd",
@@ -1820,8 +1880,11 @@
         "reframeReason": "Paneo manual (76% → 53%): termina con el hombre centrado",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "userReframed9x16": true,
-        "reframeUpdatedAt": 1795055359917
+        "reframeUpdatedAt": 1795055359917,
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-22-1794442731372-yoqz",
@@ -1847,7 +1910,10 @@
         "reframeConfidence": 0.55,
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-23-1794442731382-trx5",
@@ -1873,7 +1939,10 @@
         "reframeConfidence": 0.99,
         "reframeReason": "Paneo dinámico IA (82% → 24%) desde sujeto derecho hacia escena izquierda (Der → Izq)",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-24-1794442731393-v2r1",
@@ -1899,7 +1968,10 @@
         "reframeConfidence": 0.55,
         "reframeReason": "Paneo dinámico IA (66% → 46%) siguiendo acción/sujeto",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-25-1794442731403-pd0o",
@@ -1925,7 +1997,10 @@
         "reframeConfidence": 0.86,
         "reframeReason": "Paneo dinámico IA (22% → 78%) entre dos sujetos (Izq → Der)",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-26-1794442731413-x9gl",
@@ -1953,7 +2028,10 @@
         "reframeFocusY": 50,
         "reframeConfidence": 0.55,
         "reframeReason": "Encuadre central simétrico IA (50%)",
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-27-1794442731423-3exw",
@@ -1979,7 +2057,10 @@
         "reframeConfidence": 0.82,
         "reframeReason": "Paneo dinámico IA (22% → 76%) desde sujeto izquierdo hacia escena derecha (Izq → Der)",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-28-1794442731434-q1gg",
@@ -2008,7 +2089,10 @@
         "reframeConfidence": 0.55,
         "reframeReason": "Enfoque inteligente IA en tercio derecho (63%)",
         "previousVideoPrompt": "Clip 28 (03:44 - 03:52): Create a cinematic 8-second static B-roll video executing ONLY a smooth, continuous, ultra-steady optical Ken Burns zoom-out over the frozen scene: ONLY a slow, steady optical Ken Burns zoom-out (gradual pull-back from close detail to wide framing revealing full context) across the 100% still archival photograph plate of the preserved 1928 Petri dish, cloth-bound notebook, and brass fountain pen frozen in slanting light on the wooden bench of @Laboratorio_St_Mary, keeping the entire starting image 100% frozen as a still documentary B-roll plate from 0s to 8s with zero internal object animation, with no people present. STATIC B-ROLL PLATE LOCK (CAMERA MOTION ONLY): Treat the starting image as a 100% frozen, motionless archival B-roll still plate from 0s to 8s with strictly zero internal object animation, zero morphing, and zero lighting shifts—ONLY the virtual optical rostrum camera performs the zoom out movement. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: quiet regulator wall clock ticking in the basement laboratory, calm room tone, single continuous shot, strictly no shot changes, no music, no speech, no text. [B-Roll: STATIC_ZOOM_OUT] [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-29-1794442731445-pba0",
@@ -2034,7 +2118,10 @@
         "reframeConfidence": 0.68,
         "reframeReason": "Enfoque inteligente IA en tercio derecho (64%)",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-30-1794442731455-7f9y",
@@ -2060,7 +2147,10 @@
         "reframeConfidence": 0.82,
         "reframeReason": "Paneo dinámico IA (82% → 24%) desde sujeto derecho hacia escena izquierda (Der → Izq)",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-31-1794442731466-enz2",
@@ -2086,7 +2176,10 @@
         "reframeConfidence": 0.78,
         "reframeReason": "Paneo dinámico IA (22% → 82%) entre dos sujetos (Izq → Der)",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-32-1794442731476-jirb",
@@ -2115,7 +2208,10 @@
         "reframeConfidence": 0.74,
         "reframeReason": "Enfoque inteligente IA en tercio izquierdo (17%)",
         "promptUpdatedAt": 1794572688032,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-33-1794442731487-7ng7",
@@ -2143,7 +2239,10 @@
         "reframeFocusY": 50,
         "reframeConfidence": 0.66,
         "reframeReason": "Enfoque inteligente IA en tercio izquierdo (21%)",
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-34-1794442731497-4xpp",
@@ -2169,7 +2268,10 @@
         "reframeConfidence": 0.64,
         "reframeReason": "Enfoque inteligente IA en tercio derecho (66%)",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-35-1794442731509-otas",
@@ -2195,7 +2297,10 @@
         "reframeConfidence": 0.78,
         "reframeReason": "Paneo dinámico IA (22% → 72%) entre dos sujetos (Izq → Der)",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-36-1794442731519-xlej",
@@ -2221,7 +2326,10 @@
         "reframeConfidence": 0.68,
         "reframeReason": "Paneo dinámico IA (84% → 66%) siguiendo acción/sujeto",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-37-1794442731530-acku",
@@ -2247,7 +2355,10 @@
         "reframeConfidence": 0.92,
         "reframeReason": "Paneo dinámico IA (22% → 76%) desde sujeto izquierdo hacia escena derecha (Izq → Der)",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-38-1794442731541-yayn",
@@ -2273,7 +2384,10 @@
         "reframeConfidence": 0.55,
         "reframeReason": "Paneo dinámico IA (46% → 62%) siguiendo acción/sujeto",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-39-1794442731552-ehq1",
@@ -2305,7 +2419,9 @@
         "reframeReason": "Paneo dinámico IA (24% → 76%) desde escena izquierda hacia sujeto derecho (Izq → Der)",
         "previousVideoPrompt": "Clip 39 (05:12 - 05:20): Create a cinematic 8-second video showing a slow macro dolly-in on the workbench of the vintage Oxford research laboratory as the tall British researcher in the laboratory coat gently seats a tiny white porcelain assay cylinder onto the smooth agar surface and fills its center with a single measured drop from a glass pipette across the full 8 seconds, holding a natural composed frame through the final second. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous action across the full 8 seconds, holding a natural composed posture through the final frame. Fixed subject count from 0s to 8s (no new people appearing out of nowhere, vanishing, or morphing; background figures stationary in shallow optical bokeh). Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects. Cinematic historical drama reenactment featuring anonymous fictionalized theatre actors in period costume (no real public figures or prominent people, steady continuous lighting with zero sudden flashes). Ambient Foley: delicate click of fine steel forceps against porcelain cylinder, soft squeeze of rubber pipette bulb, single continuous shot, strictly no shot changes, no music, no speech, no text. [Duration: 8s] [Model: Omni 1.1 Flash] fix the name",
         "promptUpdatedAt": 1794710702075,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-40-1794442731564-hlpz",
@@ -2334,7 +2450,10 @@
         "reframeConfidence": 0.82,
         "reframeReason": "Paneo dinámico IA (22% → 76%) desde sujeto izquierdo hacia escena derecha (Izq → Der)",
         "promptUpdatedAt": 1794572688032,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-41-1794442731575-fc3o",
@@ -2360,7 +2479,10 @@
         "reframeConfidence": 0.84,
         "reframeReason": "Paneo dinámico IA (24% → 76%) desde escena izquierda hacia sujeto derecho (Izq → Der)",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-42-1794442731586-of1g",
@@ -2386,7 +2508,10 @@
         "reframeConfidence": 0.84,
         "reframeReason": "Paneo dinámico IA (24% → 76%) desde escena izquierda hacia sujeto derecho (Izq → Der)",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-43-1794442731599-cg5y",
@@ -2415,7 +2540,10 @@
         "reframeConfidence": 0.55,
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "previousVideoPrompt": "Clip 43 (05:44 - 05:52): Create a cinematic 8-second static B-roll video executing ONLY a smooth, continuous vertical rostrum camera tilt upward from bottom to top over the frozen scene: ONLY a slow, controlled vertical pedestal tilt upward from the base of the still archival frame to the top across the 100% still documentary photograph plate ascending from the lower glass milk bottles up the reclaimed oak shelving, hand-blown glass spirals, and copper coils inside @Escuela_Dunn_Oxford, keeping the entire starting image 100% frozen as a still documentary B-roll plate from 0s to 8s with zero internal object animation, with no people present. STATIC B-ROLL PLATE LOCK (CAMERA MOTION ONLY): Treat the starting image as a 100% frozen, motionless archival B-roll still plate from 0s to 8s with strictly zero internal object animation, zero morphing, and zero lighting shifts—ONLY the virtual optical rostrum camera performs the tilt arriba movement. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: soft resonant glass-and-oak laboratory room tone, distant faint condenser hum, single continuous shot, strictly no shot changes, no music, no speech, no text. [B-Roll: STATIC_TILT_UP] [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-44-1794442731610-w47n",
@@ -2443,7 +2571,10 @@
         "reframeFocusY": 50,
         "reframeConfidence": 0.82,
         "reframeReason": "Paneo dinámico IA (78% → 24%) desde sujeto derecho hacia escena izquierda (Der → Izq)",
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-45-1794442731621-fnyp",
@@ -2469,7 +2600,10 @@
         "reframeConfidence": 0.62,
         "reframeReason": "Enfoque inteligente IA en tercio izquierdo (32%)",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-46-1794442731633-e6ac",
@@ -2495,7 +2629,10 @@
         "reframeConfidence": 0.55,
         "reframeReason": "Paneo dinámico IA (50% → 30%) siguiendo acción/sujeto",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-47-1794442731644-ywek",
@@ -2527,7 +2664,10 @@
         "reframeReason": "Enfoque inteligente IA en tercio izquierdo (37%)",
         "previousVideoPrompt": "Clip 47 (06:16 - 06:24): Create a cinematic 8-second video showing a smooth gentle arc shot inside the vintage Oxford research laboratory as the dark-haired mustachioed male biochemist in his white lab coat exchanges a quiet triumphant look with the bespectacled male pathology professor in his white lab coat over a brown tweed waistcoat beside him over the open printed medical journal pages bathed in warm late-summer daylight across the full 8 seconds, holding a natural composed frame through the final second. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous action across the full 8 seconds, holding a natural composed posture through the final frame. Fixed subject count from 0s to 8s (no new people appearing out of nowhere, vanishing, or morphing; background figures stationary in shallow optical bokeh). Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects. Cinematic historical drama reenactment featuring anonymous fictionalized theatre actors in period costume (no real public figures or prominent people, steady continuous lighting with zero sudden flashes). Ambient Foley: crisp rustle of freshly printed journal pages, distant cheerful chime of Oxford college bells, single continuous shot, strictly no shot changes, no music, no speech, no text. [Duration: 8s] [Model: Omni 1.1 Flash] fix the name",
         "promptUpdatedAt": 1794572688032,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-48-1794442731654-m6ir",
@@ -2556,7 +2696,10 @@
         "reframeConfidence": 0.55,
         "reframeReason": "Paneo dinámico IA (28% → 64%) siguiendo acción/sujeto",
         "previousVideoPrompt": "Clip 48 (06:24 - 06:32): Create a cinematic 8-second video showing a sweeping slow crane glide down the center aisle of @Escuela_Dunn_Oxford revealing row after row of white enameled hospital bedpans and improvised tin vessels stacked neatly from floor to ceiling, with no people present across the full 8 seconds, holding a natural composed frame through the final second. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: warm steady hum of steam heating pipes, subtle metallic creak of heavily loaded wooden racks, single continuous shot, strictly no shot changes, no music, no speech, no text. [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-49-1794442731666-cfvg",
@@ -2582,7 +2725,10 @@
         "reframeConfidence": 0.63,
         "reframeReason": "Enfoque inteligente IA en tercio derecho (68%)",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-50-1794442731676-b8ih",
@@ -2608,7 +2754,10 @@
         "reframeConfidence": 0.84,
         "reframeReason": "Paneo dinámico IA (42% → 60%) siguiendo acción/sujeto",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-51-1794442731688-pq81",
@@ -2634,7 +2783,10 @@
         "reframeConfidence": 0.55,
         "reframeReason": "Enfoque inteligente IA en tercio izquierdo (17%)",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-52-1794442731699-6uh0",
@@ -2660,7 +2812,10 @@
         "reframeConfidence": 0.82,
         "reframeReason": "Paneo dinámico IA (78% → 24%) desde sujeto derecho hacia escena izquierda (Der → Izq)",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-53-1794442731709-4sk9",
@@ -2686,7 +2841,10 @@
         "reframeConfidence": 0.55,
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-54-1794442731720-3ejb",
@@ -2712,7 +2870,10 @@
         "reframeConfidence": 0.57,
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-55-1794442731732-p5pv",
@@ -2740,7 +2901,10 @@
         "reframeFocusY": 50,
         "reframeConfidence": 0.61,
         "reframeReason": "Enfoque inteligente IA en tercio izquierdo (16%)",
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-56-1794442731742-n1x9",
@@ -2766,7 +2930,10 @@
         "reframeConfidence": 0.55,
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-57-1794442731753-3p0f",
@@ -2792,7 +2959,10 @@
         "reframeConfidence": 0.58,
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-58-1794442731764-8ly5",
@@ -2818,7 +2988,10 @@
         "reframeConfidence": 0.55,
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-59-1794442731775-xu0d",
@@ -2844,7 +3017,10 @@
         "reframeConfidence": 0.55,
         "reframeReason": "Enfoque inteligente IA en tercio izquierdo (22%)",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-60-1794442731786-dixj",
@@ -2870,7 +3046,10 @@
         "reframeConfidence": 0.82,
         "reframeReason": "Paneo dinámico IA (78% → 24%) desde sujeto derecho hacia escena izquierda (Der → Izq)",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-61-1794442731797-nx38",
@@ -2899,7 +3078,10 @@
         "reframeConfidence": 0.99,
         "reframeReason": "Paneo dinámico IA (82% → 28%) desde sujeto derecho hacia escena izquierda (Der → Izq)",
         "previousVideoPrompt": "Clip 61 (08:08 - 08:16): Create a cinematic 8-second static B-roll video executing ONLY a smooth, continuous, ultra-steady optical Ken Burns zoom-in over the frozen scene: ONLY a slow, steady optical Ken Burns zoom-in (gradual push-in from wide to tight framing with zero lens distortion) across the 100% still macro photograph plate of the vintage syringe needle tip touching the completely dry empty glass medicine vial on sterile gauze inside @Enfermeria_Radcliffe, keeping the entire starting image 100% frozen as a still documentary B-roll plate from 0s to 8s with zero internal object animation, with no people present. STATIC B-ROLL PLATE LOCK (CAMERA MOTION ONLY): Treat the starting image as a 100% frozen, motionless archival B-roll still plate from 0s to 8s with strictly zero internal object animation, zero morphing, and zero lighting shifts—ONLY the virtual optical rostrum camera performs the zoom in movement. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: heavy solemn hospital ward silence, faint distant radiator tone, single continuous shot, strictly no shot changes, no music, no speech, no text. [B-Roll: STATIC_ZOOM_IN] [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-62-1794442731808-jvta",
@@ -2925,7 +3107,10 @@
         "reframeConfidence": 0.55,
         "reframeReason": "Paneo dinámico IA (54% → 24%) siguiendo acción/sujeto",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-63-1794442731820-w4pm",
@@ -2951,7 +3136,10 @@
         "reframeConfidence": 0.82,
         "reframeReason": "Paneo dinámico IA (18% → 76%) desde sujeto izquierdo hacia escena derecha (Izq → Der)",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794572688032
+        "videoSavedAt": 1794572688032,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-64-1794442731831-o2eo",
@@ -2983,7 +3171,10 @@
         "reframeReason": "Paneo dinámico IA (22% → 78%) entre dos sujetos (Izq → Der)",
         "previousVideoPrompt": "Clip 64 (08:32 - 08:40): Create a cinematic 8-second video showing a slow tense dolly pull-back away from the tightly shut heavy mahogany and brass boardroom doors as cold shadow falls across the polished marble corridor floor, with no people present across the full 8 seconds, holding a natural composed frame through the final second. Strictly zero people or human figures appearing anywhere in the frame from 0s to 8s. All furniture, tables, and props remain 100% physically solid and non-deforming from 0s to 8s, with zero self-moving, floating, morphing, mutating, vanishing, or shape-shifting objects. Cinematic historical documentary still-life cinematography (no real public figures or prominent people, steady continuous lighting with zero sudden flashes). Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects, steady continuous lighting with zero sudden flashes. Ambient Foley: deep resonant thud of heavy mahogany boardroom doors latching shut, echoing silence in marble hallway, single continuous shot, strictly no shot changes, no music, no speech, no text. [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
         "promptUpdatedAt": 1794784316977,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-65-1794442731842-ehl6",
@@ -3015,7 +3206,9 @@
         "brollCameraMotion": "zoom_out",
         "previousVideoPrompt": "Clip 65: Generate a video in 16-9 horizontal aspect ratio across 8 seconds showing a slow sweeping pan across the paneled wood lecture hall as a gray-haired official ties red cloth tape around the Oxford research dossier and sets it flat onto a stack of deferred 1940s period committee papers across the full 8 seconds, holding a natural composed frame through the final second, all background furniture, architectural fixtures, and tabletop props remain 100% gravity-locked and stationary while any held object moves smoothly under natural hand control, fixed subject count from 0s to 8s, single continuous shot, strictly no shot changes, with subtle ambient foley of quiet period room tone and natural atmospheric acoustics. fix the name to Clip_65_generate_a_video_in_16_9. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous action across the full 8 seconds, holding a natural composed posture through the final frame. Fixed subject count from 0s to 8s, exact same character(s) remain in frame with locked anatomy, no new people appearing out of nowhere mid-shot, no characters vanishing or morphing, background figures stationary in soft f/1.8 bokeh. Solid, non-deforming walls and rigid 3D architectural geometry from 0s to 8s that never warp, breathe, or mutate during camera movement. All furniture, tables, and props remain 100% physically solid and non-deforming from 0s to 8s, with zero self-moving, floating, morphing, mutating, vanishing, or shape-shifting objects. Cinematic historical drama reenactment featuring anonymous fictionalized theatre actors in period costume (no real public figures or prominent people, steady continuous lighting with zero sudden flashes). cinematic documentary realism, safe framing composition, 8k resolution, sharp focus, no modern objects, no CGI look, no text, no spoken voice, no human speech, no music. fix the name to Clip_65_generate_a_video_in_16_9",
         "promptUpdatedAt": 1794952434581,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-66-1794442731853-yf0x",
@@ -3043,7 +3236,10 @@
         "reframeFocusY": 50,
         "reframeConfidence": 0.55,
         "reframeReason": "Paneo dinámico IA (56% → 39%) siguiendo acción/sujeto",
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-67-1794442731863-n024",
@@ -3069,7 +3265,10 @@
         "reframeConfidence": 0.96,
         "reframeReason": "Paneo dinámico IA (22% → 77%) entre dos sujetos (Izq → Der)",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794573067176
+        "videoSavedAt": 1794573067176,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-68-1794442731874-xin2",
@@ -3096,7 +3295,10 @@
         "reframeConfidence": 0.71,
         "reframeReason": "Enfoque inteligente IA en tercio izquierdo (16%)",
         "videoDiscardOverriddenAt": 1794830501989,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-69-1794442731885-nk42",
@@ -3128,7 +3330,10 @@
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "previousVideoPrompt": "Clip 69 (09:12 - 09:20): Create a cinematic 8-second video showing a slow lateral dolly shot across the drafting table as a senior British engineer runs his hand incredulously over the massive bottle-count calculation sheet and closes the blueprint portfolio across the full 8 seconds, holding a natural composed frame through the final second. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous action across the full 8 seconds, holding a natural composed posture through the final frame. Fixed subject count from 0s to 8s (no new people appearing out of nowhere, vanishing, or morphing; background figures stationary in shallow optical bokeh). Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects. Cinematic historical drama reenactment featuring anonymous fictionalized theatre actors in period costume (no real public figures or prominent people, steady continuous lighting with zero sudden flashes). Ambient Foley: heavy rustle of rolled blueprint sheets closing, quiet sigh in dim 1940s period office, single continuous shot, strictly no shot changes, no music, no speech, no text. [Duration: 8s] [Model: Omni 1.1 Flash] fix the name",
         "promptUpdatedAt": 1794785728722,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-70-1794442731896-6f4i",
@@ -3154,7 +3359,10 @@
         "reframeConfidence": 0.55,
         "reframeReason": "Paneo dinámico IA (43% → 68%) siguiendo acción/sujeto",
         "videoAuditStatus": "approved",
-        "videoSavedAt": 1794573067176
+        "videoSavedAt": 1794573067176,
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-71-1794442731907-k11s",
@@ -3186,7 +3394,9 @@
         "videoSavedAt": 1794828751925,
         "previousVideoPrompt": "Clip 71: Generate a video in 16-9 horizontal aspect ratio across 8 seconds showing a slow tracking dolly shot inside the gleaming synthetic laboratory as the chief corporate chemist waves a dismissive hand toward the ceramic botanical moss vessel held by the bespectacled senior professor in the tweed suit and turns proudly back toward racks of white white pressed mineral discs across the full 8 seconds, holding a natural composed frame through the final second, with no people present and zero human figures, all background furniture, architectural fixtures, and tabletop props remain 100% gravity-locked and stationary while any held object moves smoothly under natural hand control, fixed subject count from 0s to 8s, single continuous shot, strictly no shot changes, with subtle ambient foley of sharp click of glass condenser joints, brisk footsteps on tiled floor, cold clinical room tone. cinematic documentary realism, safe framing composition, 8k resolution, sharp focus, no modern objects, no CGI look, no text, no spoken voice, no human speech, no music. fix the name to Clip_71_generate_a_video_in_16_9",
         "promptUpdatedAt": 1794828751925,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-72-1794442731918-ofy3",
@@ -3214,7 +3424,10 @@
         "reframeFocusY": 50,
         "reframeConfidence": 0.55,
         "reframeReason": "Paneo dinámico IA (65% → 38%) siguiendo acción/sujeto",
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-73-1794442731929-3g7v",
@@ -3246,7 +3459,9 @@
         "videoSavedAt": 1794828799339,
         "previousVideoPrompt": "Clip 73: Generate a video in 16-9 horizontal aspect ratio across 8 seconds showing a slow camera push-in toward the corporate laboratory table as one chemist pushes aside the flask of living botanical moss with the tip of a wooden pointer and taps confidently against the chalk molecular diagram behind him across the full 8 seconds, holding a natural composed frame through the final second, with no people present and zero human figures, all background furniture, architectural fixtures, and tabletop props remain 100% gravity-locked and stationary while any held object moves smoothly under natural hand control, fixed subject count from 0s to 8s, single continuous shot, strictly no shot changes, with subtle ambient foley of dry tap of wooden pointer against slate chalkboard, faint slide of glass flask on slate bench. cinematic documentary realism, safe framing composition, 8k resolution, sharp focus, no modern objects, no CGI look, no text, no spoken voice, no human speech, no music. fix the name to Clip_73_generate_a_video_in_16_9",
         "promptUpdatedAt": 1794828799339,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-74-1794442731941-0qe0",
@@ -3277,7 +3492,10 @@
         "reframeConfidence": 0.98,
         "reframeReason": "Paneo dinámico IA (18% → 76%) desde sujeto izquierdo hacia escena derecha (Izq → Der)",
         "previousVideoPrompt": "Clip 74 (09:52 - 10:00): Create a cinematic 8-second static B-roll video executing ONLY a smooth, continuous horizontal rostrum camera pan from left to right over the frozen scene: ONLY a slow, level horizontal fluid-head pan from left to right across the still archival frame across the 100% still archival photograph plate gliding laterally from the crossed-out chalk molecular ring diagrams on the slate blackboard across the row of cold inert synthesis flasks, keeping the entire starting image 100% frozen as a still documentary B-roll plate from 0s to 8s with zero internal object animation, with no people present. STATIC B-ROLL PLATE LOCK (CAMERA MOTION ONLY): Treat the starting image as a 100% frozen, motionless archival B-roll still plate from 0s to 8s with strictly zero internal object animation, zero morphing, and zero lighting shifts—ONLY the virtual optical rostrum camera performs the pan derecha movement. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: quiet ticking of a laboratory stopwatch, distant muffled wartime night stillness, single continuous shot, strictly no shot changes, no music, no speech, no text. [B-Roll: STATIC_PAN_RIGHT] [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-75-1794442731952-yj52",
@@ -3305,7 +3523,10 @@
         "reframeFocusY": 50,
         "reframeConfidence": 0.96,
         "reframeReason": "Paneo dinámico IA (18% → 72%) desde sujeto izquierdo hacia escena derecha (Izq → Der)",
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-76-1794442731963-qvug",
@@ -3333,7 +3554,10 @@
         "reframeFocusY": 50,
         "reframeConfidence": 0.82,
         "reframeReason": "Paneo dinámico IA (82% → 24%) desde sujeto derecho hacia escena izquierda (Der → Izq)",
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-77-1794442731974-12ee",
@@ -3361,7 +3585,9 @@
         "reframeConfidence": 0.55,
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
-        "videoDiscardedAt": 1794641982559
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-78-1794442731985-09h8",
@@ -3389,7 +3615,9 @@
         "reframeConfidence": 0.55,
         "reframeReason": "Enfoque inteligente IA en tercio izquierdo (41%)",
         "videoAuditStatus": "approved",
-        "videoDiscardedAt": 1794641982559
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-79-1794442731996-nr8s",
@@ -3417,7 +3645,9 @@
         "reframeConfidence": 0.55,
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
-        "videoDiscardedAt": 1794641982559
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-80-1794442732007-j5h7",
@@ -3445,7 +3675,9 @@
         "reframeConfidence": 0.84,
         "reframeReason": "Paneo dinámico IA (24% → 76%) desde escena izquierda hacia sujeto derecho (Izq → Der)",
         "videoAuditStatus": "approved",
-        "videoDiscardedAt": 1794641982559
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-81-1794442732018-m1iu",
@@ -3473,7 +3705,9 @@
         "reframeConfidence": 0.55,
         "reframeReason": "Paneo dinámico IA (39% → 21%) siguiendo acción/sujeto",
         "videoAuditStatus": "approved",
-        "videoDiscardedAt": 1794641982559
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-82-1794442732030-lb3b",
@@ -3501,7 +3735,9 @@
         "reframeConfidence": 0.82,
         "reframeReason": "Paneo dinámico IA (78% → 28%) desde sujeto derecho hacia escena izquierda (Der → Izq)",
         "videoAuditStatus": "approved",
-        "videoDiscardedAt": 1794641982559
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-83-1794442732041-uaqf",
@@ -3529,7 +3765,9 @@
         "reframeConfidence": 0.62,
         "reframeReason": "Paneo dinámico IA (84% → 67%) siguiendo acción/sujeto",
         "videoAuditStatus": "approved",
-        "videoDiscardedAt": 1794641982559
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-84-1794442732052-2jsf",
@@ -3557,7 +3795,9 @@
         "reframeConfidence": 0.55,
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
-        "videoDiscardedAt": 1794641982559
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-85-1794442732062-pu57",
@@ -3585,7 +3825,9 @@
         "reframeConfidence": 0.62,
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
-        "videoDiscardedAt": 1794641982559
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-86-1794442732073-4bhu",
@@ -3613,7 +3855,10 @@
         "videoSavedFileName": "86_generate_a_video_in_16_9_fa3e1eea_4K.mp4",
         "videoDiscardOverriddenAt": 1794830501989,
         "videoSavedAt": 1794830501989,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-87-1794442732084-d7yk",
@@ -3641,7 +3886,9 @@
         "videoSavedFileName": "87_generate_a_video_in_16_9_68ccc0a1_4K.mp4",
         "videoSavedAt": 1794831222323,
         "videoAuditStatus": "approved",
-        "videoDiscardedAt": 1794641982559
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-88-1794442732096-cubd",
@@ -3669,7 +3916,10 @@
         "videoSavedFileName": "88_generate_a_video_in_16_9_32a9c80d_4K.mp4",
         "videoDiscardOverriddenAt": 1794830501883,
         "videoSavedAt": 1794830501883,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-89-1794442732107-bpco",
@@ -3700,7 +3950,10 @@
         "videoDiscardOverriddenAt": 1794830501989,
         "videoSavedAt": 1794830501989,
         "previousVideoPrompt": "Clip 89 (11:52 - 12:00): Create a cinematic 8-second static B-roll video executing ONLY a smooth, continuous, ultra-steady optical Ken Burns zoom-in over the frozen scene: ONLY a slow, steady optical Ken Burns zoom-in (gradual push-in from wide to tight framing with zero lens distortion) across the 100% still macro photograph plate of the netted cantaloupe rind on the steel tray inside @Laboratorio_Peoria centering tightly on the luminous golden-yellow mold scar, keeping the entire starting image 100% frozen as a still documentary B-roll plate from 0s to 8s with zero internal object animation, with no people present. STATIC B-ROLL PLATE LOCK (CAMERA MOTION ONLY): Treat the starting image as a 100% frozen, motionless archival B-roll still plate from 0s to 8s with strictly zero internal object animation, zero morphing, and zero lighting shifts—ONLY the virtual optical rostrum camera performs the zoom in movement. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: hushed laboratory room tone, faint sterile ventilation hum, single continuous shot, strictly no shot changes, no music, no speech, no text. [B-Roll: STATIC_ZOOM_IN] [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-90-1794442732119-3md7",
@@ -3728,7 +3981,10 @@
         "videoSavedFileName": "90_generate_a_video_in_16_9_9af3bf5c_4K.mp4",
         "videoDiscardOverriddenAt": 1794830668929,
         "videoSavedAt": 1794830668929,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-91-1794442732130-8vtn",
@@ -3756,7 +4012,10 @@
         "videoSavedFileName": "91_Engineers_turning_valve_wheel_e3ba7443_4K.mp4",
         "videoDiscardOverriddenAt": 1794830768488,
         "videoSavedAt": 1794830768488,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-92-1794442732142-fl8g",
@@ -3787,7 +4046,10 @@
         "videoDiscardOverriddenAt": 1794830768977,
         "videoSavedAt": 1794830768977,
         "previousVideoPrompt": "Clip 92 (12:16 - 12:24): Create a cinematic 8-second video showing a slow solemn wide tracking glide across the wet sand of @Playas_Normandia_1944 past the olive-drab medical crates toward gray Atlantic waves breaking against dark steel beach obstacles, with no people present across the full 8 seconds, holding a natural composed frame through the final second. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: rolling crash of cold English Channel waves on wet sand, sea wind snapping canvas tent ropes, single continuous shot, strictly no shot changes, no music, no speech, no text. [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-93-1794442732153-2vi5",
@@ -3819,7 +4081,10 @@
         "videoSavedAt": 1794831962791,
         "previousVideoPrompt": "Clip 93: Generate a video in 16-9 horizontal aspect ratio across 8 seconds showing a slow tense push-in across the green baize conference table as a military medical officer closes a heavy leather dispatch portfolio beside a small rack of golden amber botanical solution ampoules across the full 8 seconds, holding a natural composed frame through the final second, with no people present and zero human figures, all background furniture, architectural fixtures, and tabletop props remain 100% gravity-locked and stationary while any held object moves smoothly under natural hand control, fixed subject count from 0s to 8s, single continuous shot, strictly no shot changes, with subtle ambient foley of quiet period room tone and natural atmospheric acoustics. cinematic documentary realism, safe framing composition, 8k resolution, sharp focus, no modern objects, no CGI look, no text, no spoken voice, no human speech, no music. fix the name to Clip_93_generate_a_video_in_16_9",
         "promptUpdatedAt": 1794831962791,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-94-1794442732164-svpi",
@@ -3847,7 +4112,10 @@
         "videoSavedFileName": "94_generate_a_video_in_16_9_2fd4b301_4K.mp4",
         "videoDiscardOverriddenAt": 1794830848719,
         "videoSavedAt": 1794830848719,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-95-1794442732175-7kii",
@@ -3879,7 +4147,9 @@
         "videoSavedAt": 1794831877546,
         "previousVideoPrompt": "Clip 95: Generate a video in 16-9 horizontal aspect ratio across 8 seconds showing a smooth rack-focus macro shot shifting from golden drops falling steadily inside the glass laboratory dropper vessel onto the sharp downward plunge of the ink line on the 1942 wooden clipboard chart across the full 8 seconds, holding a natural composed frame through the final second, with no people present and zero human figures, all background furniture, architectural fixtures, and tabletop props remain 100% gravity-locked and stationary while any held object moves smoothly under natural hand control, fixed subject count from 0s to 8s, single continuous shot, strictly no shot changes, with subtle ambient foley of quiet period room tone and natural atmospheric acoustics. cinematic documentary realism, safe framing composition, 8k resolution, sharp focus, no modern objects, no CGI look, no text, no spoken voice, no human speech, no music. fix the name to Clip_95_generate_a_video_in_16_9",
         "promptUpdatedAt": 1794831877546,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-96-1794442732186-06fb",
@@ -3907,7 +4177,10 @@
         "videoSavedFileName": "96_generate_a_video_in_16_9_6816d844_4K.mp4",
         "videoDiscardOverriddenAt": 1794830848719,
         "videoSavedAt": 1794830848719,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-97-1794442732197-k75v",
@@ -3939,7 +4212,9 @@
         "videoSavedAt": 1794831697842,
         "previousVideoPrompt": "Clip 97: Generate a video in 16-9 horizontal aspect ratio across 8 seconds showing a slow dramatic dolly arc around the oak table as the chemical engineer plants brass paperweights on the giant tank blueprint corners and looks squarely at the silent executives weighing the financial gamble across the full 8 seconds, holding a natural composed frame through the final second, with no people present and zero human figures, all background furniture, architectural fixtures, and tabletop props remain 100% gravity-locked and stationary while any held object moves smoothly under natural hand control, fixed subject count from 0s to 8s, single continuous shot, strictly no shot changes, with subtle ambient foley of quiet period room tone and natural atmospheric acoustics. cinematic documentary realism, safe framing composition, 8k resolution, sharp focus, no modern objects, no CGI look, no text, no spoken voice, no human speech, no music. fix the name to Clip_97_generate_a_video_in_16_9",
         "promptUpdatedAt": 1794831697842,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-98-1794442732208-3o3n",
@@ -3967,7 +4242,10 @@
         "videoSavedFileName": "98_generate_a_video_in_16_9_428838ae_4K.mp4",
         "videoDiscardOverriddenAt": 1794830848621,
         "videoSavedAt": 1794830896464,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-99-1794442732219-nfs5",
@@ -3995,7 +4273,10 @@
         "videoSavedFileName": "99_generate_a_video_in_16_9_54882613_4K.mp4",
         "videoDiscardOverriddenAt": 1794830848621,
         "videoSavedAt": 1794830896464,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-100-1794442732230-snyf",
@@ -4023,7 +4304,9 @@
         "videoSavedFileName": "100_generate_a_video_in_16_9_a78a4b78_4K.mp4",
         "videoSavedAt": 1794830896464,
         "videoAuditStatus": "approved",
-        "videoDiscardedAt": 1794641982559
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-101-1794442732241-qds1",
@@ -4051,7 +4334,10 @@
         "videoSavedFileName": "101_generate_a_video_in_16_9_b880831c_4K.mp4",
         "videoDiscardOverriddenAt": 1794833523145,
         "videoSavedAt": 1794833770519,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-102-1794442732253-5tcv",
@@ -4079,7 +4365,10 @@
         "videoSavedFileName": "102_generate_a_video_in_16_9_ed07957f_4K.mp4",
         "videoDiscardOverriddenAt": 1794833540414,
         "videoSavedAt": 1794833770519,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-103-1794442732266-j79n",
@@ -4110,7 +4399,10 @@
         "videoDiscardOverriddenAt": 1794833737283,
         "videoSavedAt": 1794833770519,
         "previousVideoPrompt": "Clip 103 (13:44 - 13:52): Create a cinematic 8-second static B-roll video executing ONLY a smooth, continuous, ultra-steady optical Ken Burns zoom-out over the frozen scene: ONLY a slow, steady optical Ken Burns zoom-out (gradual pull-back from close detail to wide framing revealing full context) across the 100% still high-angle archival photograph plate pulling back from a tight cluster of golden penicillin ampoules to reveal the vast 1944 Allied supply depot filled wall-to-wall with crates, keeping the entire starting image 100% frozen as a still documentary B-roll plate from 0s to 8s with zero internal object animation, with no people present. STATIC B-ROLL PLATE LOCK (CAMERA MOTION ONLY): Treat the starting image as a 100% frozen, motionless archival B-roll still plate from 0s to 8s with strictly zero internal object animation, zero morphing, and zero lighting shifts—ONLY the virtual optical rostrum camera performs the zoom out movement. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: deep cavernous warehouse echo, faint wooden crate stillness, single continuous shot, strictly no shot changes, no music, no speech, no text. [B-Roll: STATIC_ZOOM_OUT] [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-104-1794442732280-ee8o",
@@ -4138,7 +4430,10 @@
         "videoSavedFileName": "104_generate_a_video_in_16_9_f8515fd6_4K.mp4",
         "videoDiscardOverriddenAt": 1794833737161,
         "videoSavedAt": 1794833770519,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-105-1794442732292-6p8i",
@@ -4166,7 +4461,10 @@
         "videoSavedFileName": "105_generate_a_video_in_16_9_43c4d466_4K.mp4",
         "videoDiscardOverriddenAt": 1794833737161,
         "videoSavedAt": 1794833770519,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-106-1794442732303-7smm",
@@ -4198,7 +4496,10 @@
         "videoSavedAt": 1794834092912,
         "previousVideoPrompt": "Clip 106 (14:08 - 14:16): Create a cinematic 8-second video showing a slow graceful macro slider shot across the marble counter from the humble vintage coins toward the abundant gleaming glass vials bathed in warm afternoon sunlight, with no people present across the full 8 seconds, holding a natural composed frame through the final second. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: warm peaceful afternoon street murmur muffled behind shop glass, quiet clock tick, single continuous shot, strictly no shot changes, no music, no speech, no text. [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
         "promptUpdatedAt": 1794834092912,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-107-1794442732315-wuh5",
@@ -4226,7 +4527,10 @@
         "videoSavedFileName": "107_generate_a_video_in_16_9_bc78d322_4K.mp4",
         "videoDiscardOverriddenAt": 1794833737161,
         "videoSavedAt": 1794833770519,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-108-1794442732326-kak7",
@@ -4254,7 +4558,10 @@
         "videoSavedFileName": "108_generate_a_video_in_16_9_677164e7_4K.mp4",
         "videoDiscardOverriddenAt": 1794833737161,
         "videoSavedAt": 1794833770519,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-109-1794442732338-ycxg",
@@ -4282,7 +4589,10 @@
         "videoSavedFileName": "109_generate_a_video_in_16_9_bdd34910_4K.mp4",
         "videoDiscardOverriddenAt": 1794833737161,
         "videoSavedAt": 1794833770519,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-110-1794442732349-awuc",
@@ -4314,7 +4624,9 @@
         "videoSavedAt": 1794834175757,
         "previousVideoPrompt": "Clip 110: Generate a video in 16-9 horizontal aspect ratio across 8 seconds showing a slow solemn push-in across the green leather desk as the gold fountain pen completes the signature on the official March 1944 health decree and a heavy brass ink blotter is pressed firmly beside it across the full 8 seconds, holding a natural composed frame through the final second, all background furniture, architectural fixtures, and tabletop props remain 100% gravity-locked and stationary while any held object moves smoothly under natural hand control, fixed subject count from 0s to 8s, single continuous shot, strictly no shot changes, with subtle ambient foley of quiet period room tone and natural atmospheric acoustics. cinematic documentary realism, safe framing composition, 8k resolution, sharp focus, no modern objects, no CGI look, no text, no spoken voice, no human speech, no music. fix the name to Clip_110_generate_a_video_in_16_9",
         "promptUpdatedAt": 1794834175757,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-111-1794442732360-m8p9",
@@ -4342,7 +4654,10 @@
         "videoSavedFileName": "111_generate_a_video_in_16_9_49d2f830_4K.mp4",
         "videoDiscardOverriddenAt": 1794833880030,
         "videoSavedAt": 1794833880030,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-112-1794442732371-jcbd",
@@ -4370,7 +4685,10 @@
         "videoSavedFileName": "112_generate_a_video_in_16_9_a4e28e73_4K.mp4",
         "videoDiscardOverriddenAt": 1794833880030,
         "videoSavedAt": 1794833880030,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-113-1794442732383-311u",
@@ -4398,7 +4716,10 @@
         "videoSavedFileName": "113_generate_a_video_in_16_9_5ec6a430_4K.mp4",
         "videoDiscardOverriddenAt": 1794833880030,
         "videoSavedAt": 1794833880030,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-114-1794442732394-hfo9",
@@ -4426,7 +4747,10 @@
         "videoSavedFileName": "114_generate_a_video_in_16_9_ddf9513e_4K.mp4",
         "videoDiscardOverriddenAt": 1794833880030,
         "videoSavedAt": 1794833880030,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-115-1794442732405-30jk",
@@ -4454,7 +4778,10 @@
         "videoSavedFileName": "115_generate_a_video_in_16_9_c275daa9_4K.mp4",
         "videoDiscardOverriddenAt": 1794833880030,
         "videoSavedAt": 1794833880030,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-116-1794442732416-vn88",
@@ -4482,7 +4809,10 @@
         "videoSavedFileName": "116_generate_a_video_in_16_9_07c55c8d_4K.mp4",
         "videoDiscardOverriddenAt": 1794834839299,
         "videoSavedAt": 1794834839299,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-117-1794442732427-ue28",
@@ -4514,7 +4844,9 @@
         "videoSavedAt": 1794835434404,
         "previousVideoPrompt": "Clip 117: Generate a video in 16-9 horizontal aspect ratio across 8 seconds showing a warm fluid tracking shot along the sunlit Havana colonnade outside the classic 1940s wooden apothecary interior as neighbors in linen guayaberas warmly clasp the recovered man shoulder in joyful disbelief across the full 8 seconds, holding a natural composed frame through the final second, all background furniture, architectural fixtures, and tabletop props remain 100% gravity-locked and stationary while any held object moves smoothly under natural hand control, fixed subject count from 0s to 8s, single continuous shot, strictly no shot changes, with subtle ambient foley of quiet period room tone and natural atmospheric acoustics. cinematic documentary realism, safe framing composition, 8k resolution, sharp focus, no modern objects, no CGI look, no text, no spoken voice, no human speech, no music. fix the name to Clip_117_generate_a_video_in_16_9",
         "promptUpdatedAt": 1794835434404,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-118-1794442732439-0mur",
@@ -4542,7 +4874,10 @@
         "videoSavedFileName": "118_generate_a_video_in_16_9_441aa98b_4K.mp4",
         "videoDiscardOverriddenAt": 1794834883252,
         "videoSavedAt": 1794834883252,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-119-1794442732451-3e1d",
@@ -4570,7 +4905,10 @@
         "videoSavedFileName": "119_generate_a_video_in_16_9_ddc1debd_4K.mp4",
         "videoDiscardOverriddenAt": 1794835144268,
         "videoSavedAt": 1794835203918,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-120-1794442732463-ccap",
@@ -4601,7 +4939,10 @@
         "videoDiscardOverriddenAt": 1794835003300,
         "videoSavedAt": 1794835003300,
         "previousVideoPrompt": "Clip 120 (16:00 - 16:08): Create a cinematic 8-second static B-roll video executing ONLY a smooth, continuous horizontal rostrum camera pan from right to left over the frozen scene: ONLY a slow, level horizontal fluid-head pan from right to left across the still archival frame across the 100% still archival photograph plate panning smoothly from the closed neoclassical stone ministry facade leftward toward the misty iron harbor cranes along the Rio de la Plata in 1944 Buenos Aires, keeping the entire starting image 100% frozen as a still documentary B-roll plate from 0s to 8s with zero internal object animation, with no people present. STATIC B-ROLL PLATE LOCK (CAMERA MOTION ONLY): Treat the starting image as a 100% frozen, motionless archival B-roll still plate from 0s to 8s with strictly zero internal object animation, zero morphing, and zero lighting shifts—ONLY the virtual optical rostrum camera performs the pan izquierda movement. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: distant ship foghorn echoing across river mist, cold wind over wet granite, single continuous shot, strictly no shot changes, no music, no speech, no text. [B-Roll: STATIC_PAN_LEFT] [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-121-1794442732475-ac8b",
@@ -4633,7 +4974,9 @@
         "videoSavedAt": 1794835481014,
         "previousVideoPrompt": "Clip 121: Generate a video in 16-9 horizontal aspect ratio across 8 seconds showing a slow emotional push-in toward the Argentine research physician in the white coat at his laboratory workbench as he finishes signing the formal petition letter, adjusts his round tortoiseshell glasses, and seals the envelope with resolute urgency across the full 8 seconds, holding a natural composed frame through the final second, all background furniture, architectural fixtures, and tabletop props remain 100% gravity-locked and stationary while any held object moves smoothly under natural hand control, fixed subject count from 0s to 8s, single continuous shot, strictly no shot changes, with subtle ambient foley of quiet period room tone and natural atmospheric acoustics. cinematic documentary realism, safe framing composition, 8k resolution, sharp focus, no modern objects, no CGI look, no text, no spoken voice, no human speech, no music. fix the name to Clip_121_generate_a_video_in_16_9",
         "promptUpdatedAt": 1794835481014,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-122-1794442732486-pltb",
@@ -4661,7 +5004,10 @@
         "videoSavedFileName": "122_generate_a_video_in_16_9_f171a7a6_4K.mp4",
         "videoDiscardOverriddenAt": 1794835172529,
         "videoSavedAt": 1794835203918,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-123-1794442732497-1vru",
@@ -4690,8 +5036,11 @@
         "videoDiscardOverriddenAt": 1794954475626,
         "videoSavedAt": 1794954475626,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "userReframed9x16": true,
-        "reframeUpdatedAt": 1795057123761
+        "reframeUpdatedAt": 1795057123761,
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-124-1794442732509-vhdf",
@@ -4719,7 +5068,10 @@
         "videoSavedFileName": "124_generate_a_video_in_16_9_f7d3be8a_4K.mp4",
         "videoDiscardOverriddenAt": 1794835214531,
         "videoSavedAt": 1794835215441,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-125-1794442732520-b13p",
@@ -4747,7 +5099,10 @@
         "videoSavedFileName": "125_generate_a_video_in_16_9_979944d8_4K.mp4",
         "videoDiscardOverriddenAt": 1794835225209,
         "videoSavedAt": 1794835226645,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-126-1794442732531-q0wa",
@@ -4775,7 +5130,10 @@
         "videoSavedFileName": "126_generate_a_video_in_16_9_56029371_4K.mp4",
         "videoDiscardOverriddenAt": 1794835248432,
         "videoSavedAt": 1794835312992,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-127-1794442732542-lrcg",
@@ -4809,7 +5167,9 @@
         "promptUpdatedAt": 1794835513257,
         "videoAuditStatus": "approved",
         "userReframed9x16": true,
-        "reframeUpdatedAt": 1795057169716
+        "reframeUpdatedAt": 1795057169716,
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-128-1794442732553-4yyc",
@@ -4837,7 +5197,10 @@
         "videoSavedFileName": "128_generate_a_video_in_16_9_eb255e38_4K.mp4",
         "videoDiscardOverriddenAt": 1794835071960,
         "videoSavedAt": 1794835203918,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-129-1794442732564-24nk",
@@ -4865,7 +5228,10 @@
         "videoSavedFileName": "129_generate_a_video_in_16_9_875c592f_4K.mp4",
         "videoDiscardOverriddenAt": 1794835087120,
         "videoSavedAt": 1794835203918,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-130-1794442732576-r340",
@@ -4893,7 +5259,10 @@
         "videoSavedFileName": "130_generate_a_video_in_16_9_4364691e_4K.mp4",
         "videoDiscardOverriddenAt": 1794835263417,
         "videoSavedAt": 1794835312992,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-131-1794442732587-9egp",
@@ -4922,8 +5291,11 @@
         "videoDiscardOverriddenAt": 1794836340448,
         "videoSavedAt": 1794836402971,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "userReframed9x16": true,
-        "reframeUpdatedAt": 1795057310443
+        "reframeUpdatedAt": 1795057310443,
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-132-1794442732598-871o",
@@ -4951,7 +5323,10 @@
         "videoSavedFileName": "132_generate_a_video_in_16_9_f9e8a9b3_4K.mp4",
         "videoDiscardOverriddenAt": 1794836366907,
         "videoSavedAt": 1794836402971,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-133-1794442732609-kfab",
@@ -4979,7 +5354,9 @@
         "videoSavedFileName": "133_generate_a_video_in_16_9_90b71187_4K.mp4",
         "videoSavedAt": 1794839803726,
         "videoAuditStatus": "approved",
-        "videoDiscardedAt": 1794641982559
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-134-1794442732620-cfsy",
@@ -5013,7 +5390,9 @@
         "promptUpdatedAt": 1794837248325,
         "videoAuditStatus": "approved",
         "userReframed9x16": true,
-        "reframeUpdatedAt": 1795057343426
+        "reframeUpdatedAt": 1795057343426,
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-135-1794442732632-dl9e",
@@ -5042,8 +5421,11 @@
         "videoDiscardOverriddenAt": 1794836406278,
         "videoSavedAt": 1794836494024,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "userReframed9x16": true,
-        "reframeUpdatedAt": 1795057358371
+        "reframeUpdatedAt": 1795057358371,
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-136-1794442732644-n4wi",
@@ -5072,8 +5454,11 @@
         "videoDiscardOverriddenAt": 1794836700830,
         "videoSavedAt": 1794836700830,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "userReframed9x16": true,
-        "reframeUpdatedAt": 1795057376889
+        "reframeUpdatedAt": 1795057376889,
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-137-1794442732656-9na5",
@@ -5102,8 +5487,11 @@
         "videoDiscardOverriddenAt": 1794837016438,
         "videoSavedAt": 1794837074425,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "userReframed9x16": true,
-        "reframeUpdatedAt": 1795057396376
+        "reframeUpdatedAt": 1795057396376,
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-138-1794442732667-f729",
@@ -5134,7 +5522,10 @@
         "videoDiscardOverriddenAt": 1794836700983,
         "videoSavedAt": 1794836700983,
         "previousVideoPrompt": "Clip 138 (18:24 - 18:32): Create a cinematic 8-second static B-roll video executing ONLY a smooth, continuous vertical rostrum camera tilt downward from top to bottom over the frozen scene: ONLY a slow, controlled vertical pedestal tilt downward from the top of the still archival frame to the base detail across the 100% still overhead documentary photograph plate tilting downward across the slate bench grid of ten Petri dishes onto the four plates overrun by golden resistant bacterial colonies, keeping the entire starting image 100% frozen as a still documentary B-roll plate from 0s to 8s with zero internal object animation, with no people present. STATIC B-ROLL PLATE LOCK (CAMERA MOTION ONLY): Treat the starting image as a 100% frozen, motionless archival B-roll still plate from 0s to 8s with strictly zero internal object animation, zero morphing, and zero lighting shifts—ONLY the virtual optical rostrum camera performs the tilt abajo movement. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: quiet hum of laboratory lighting ballast, cold clinical glass stillness, single continuous shot, strictly no shot changes, no music, no speech, no text. [B-Roll: STATIC_TILT_DOWN] [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-139-1794442732679-jcda",
@@ -5162,7 +5553,10 @@
         "videoSavedFileName": "139_generate_a_video_in_16_9_9545d9c5_4K.mp4",
         "videoDiscardOverriddenAt": 1794836700830,
         "videoSavedAt": 1794836700830,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-140-1794442732691-pwyq",
@@ -5190,7 +5584,10 @@
         "videoSavedFileName": "140_generate_a_video_in_16_9_beedc931_4K.mp4",
         "videoDiscardOverriddenAt": 1794837076411,
         "videoSavedAt": 1794837111382,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-141-1794442732703-fpm0",
@@ -5218,7 +5615,10 @@
         "videoSavedFileName": "141_generate_a_video_in_16_9_e1b4955d_4K.mp4",
         "videoDiscardOverriddenAt": 1794837087507,
         "videoSavedAt": 1794837111382,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-142-1794442732714-vxqm",
@@ -5247,8 +5647,11 @@
         "videoDiscardOverriddenAt": 1794837119656,
         "videoSavedAt": 1794837119656,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "userReframed9x16": true,
-        "reframeUpdatedAt": 1795057490839
+        "reframeUpdatedAt": 1795057490839,
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-143-1794442732725-ry7q",
@@ -5276,7 +5679,9 @@
         "videoSavedFileName": "143_generate_a_video_in_16_9_c4991e65_4K.mp4",
         "videoSavedAt": 1794839561116,
         "videoAuditStatus": "approved",
-        "videoDiscardedAt": 1794641982559
+        "videoFrames": [],
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       }
     ],
     "capcutRawSrt": "",
@@ -5403,8 +5808,8 @@
     "thumbnailReady": true,
     "platform": "YOUTUBE",
     "rawMetadataText": "",
-    "rawYoutubeMetadata": "ETAPA 4: GUION DE LA VOZ EN OFF\n(00:00 - 00:08 | Intro Oficial de Marca — Sin voz narrativa, sin música de fondo)\n(00:08 - 00:16 | Clip 1: Hook Visual Mudo — Sonido seco de un vial de vidrio vacío apoyándose sobre una bandeja quirúrgica de acero en la penumbra de la Enfermería Radcliffe, respiración agónica que cesa y roce de una sábana de lino blanco)\n(00:16 | Entrada exacta de la Voz Narrativa en Off)\nAño 1941, Enfermería Radcliffe, Oxford, Inglaterra. Por la falta de apenas unos miligramos de polvo amarillo, el primer ser humano rescatado de una infección letal acababa de recaer y perder la vida.\nEn los próximos minutos descubrirás cómo un moho olvidado dos veces en un estante y rechazado tres veces por los gigantes farmacéuticos pasó de cultivarse en bacinillas de hospital a salvar millones de vidas en la Segunda Guerra Mundial. Si quieres seguir cruzando el umbral del tiempo para vivir la historia desde dentro, dale like a este video, compártelo y suscríbete. Cada historia deja una huella. Aquí seguimos sus rastros. [pausa: 1.5s]\nBajo las pesadas cortinas negras que ocultaban las ventanas de Oxford frente a los bombarderos nocturnos, el joven médico Charles Fletcher contemplaba en silencio un frasco de cristal completamente seco. Sobre el catre de hierro descansaba el agente de reserva número 231 de la policía de Berkshire, Albert Alexander, un hombre de 43 años nacido en 1897 que había ingresado al cuerpo policial en 1921. Durante semanas, dos bacterias implacables, el estafilococo dorado y el estreptococo piógeno, habían devorado sus tejidos desde el interior. Con los pulmones invadidos y el rostro cubierto de abscesos profundos, los cirujanos se habían visto forzados a extirparle el ojo izquierdo a comienzos de febrero de 1941.\nDurante décadas, las crónicas populares repitieron una fábula amable sobre aquel infortunio. Se aseguró que el policía se había rasguñado la mejilla con la espina de una rosa mientras podaba su jardín en las afueras de la ciudad. Sin embargo, los archivos oficiales de su comisaría y la memoria conservada en Newbury desenterraron una verdad mucho más cruda, ocultada entonces por la propaganda de guerra para no desmoralizar a la población civil. Albert Alexander no cayó por cuidar flores; había resultado herido el 30 de noviembre de 1940 durante un feroz ataque aéreo alemán contra una estación policial en Southampton. [pausa: 1.5s]\nEn aquel invierno del siglo XX, la medicina carecía de defensas reales frente a la septicemia avanzada. Las sulfonamidas habían fracasado por completo y el paciente aguardaba su desenlace. Fue entonces cuando la doctora Ethel Florey alertó a su esposo, el patólogo Howard Florey, sobre aquel caso desahuciado. Apenas unas semanas antes, en enero de 1941, una voluntaria con una dolencia terminal había sufrido violentos escalofríos tras recibir una primera muestra impura del compuesto experimental, hasta que el químico Edward Abraham logró limpiar las toxinas mediante columnas de cromatografía. El 12 de febrero de 1941, con ese minúsculo lote purificado, el doctor Fletcher hundió la aguja en el brazo del policía e inyectó 200 miligramos iniciales, seguidos de 100 miligramos cada 3 horas.\nLo que ocurrió en las 24 horas siguientes desafió siglos de impotencia clínica. La fiebre abrasadora se desplomó, las heridas dejaron de supurar y el moribundo se incorporó para pedir alimento. Años más tarde, el propio Charles Fletcher confesaría que aquello fue lo más cercano que estuvo en toda su existencia a presenciar un milagro. Pero aquel prodigio encerraba una trampa biológica despiadada: los riñones humanos eliminaban más de la mitad del remedio en cuestión de minutos. Al quinto día no quedaba una sola gota en toda Gran Bretaña, y el 15 de marzo de 1941 el paciente expiró. [pausa: 2s] ¿Cómo pudo la humanidad tener el arma definitiva contra las infecciones impresa en un boletín público desde 1929 y dejarla pudrirse en un estante durante 12 años? [pausa: 2s]\nPara desentrañar esa negligencia histórica es preciso retroceder al 28 de septiembre de 1928 en el barrio de Paddington, Londres, Inglaterra. Esa mañana húmeda de inicios de otoño, el bacteriólogo escocés Alexander Fleming, entonces de 47 años, abrió la puerta de su diminuto laboratorio en el sótano del Hospital St. Mary tras regresar de unas vacaciones de verano en el campo. Fleming no era un investigador metódico de superficies relucientes; su mesa de madera era un laberinto de tubos de ensayo, mecheros de gas de hierro fundido, cuadernos manchados de tinta y decenas de cajas de Petri acumuladas sin lavar.\nAntes de marcharse de descanso, había sembrado colonias amarillentas de estafilococos sobre gelatina nutritiva. Al volver, comenzó a descartar los recipientes viejos sumergiéndolos en una bandeja poco profunda llena de desinfectante lisol. Aquí intervino una anomalía estadística irrepetible. Tantas placas se apilaron en desorden que la caja situada en la cima quedó suspendida por encima del nivel del líquido antiséptico, salvándose por un milímetro de quedar esterilizada para siempre. Al tomarla con sus pinzas de latón para inspeccionarla a contraluz frente a la ventana sucia de hollín, Fleming se detuvo en seco.\nUna espora microscópica del hongo Penicillium notatum había flotado por el aire londinense hasta posarse sobre el cultivo. Alrededor de aquella mancha circular verdeazulada se extendía un anillo completamente cristalino donde las letales bacterias habían sido disueltas como terrones de azúcar en agua caliente. Décadas después, el investigador escocés recordaría con ironía que al despertar justo después del amanecer el 28 de septiembre de 1928 ciertamente no planeaba revolucionar toda la medicina descubriendo el primer asesino de bacterias del mundo, pero supuso que eso fue exactamente lo que hizo. [pausa: 1.5s]\nDurante los meses siguientes, Fleming alimentó aquel hongo en matraces con caldo tibio de corazón de res. Al líquido amarillento que brotaba en la superficie lo bautizó primero como jugo de moho y, en marzo de 1929, le dio el nombre definitivo de penicilina. Comprobó que aquel fluido aniquilaba neumococos, estreptococos y bacilos de la difteria sin dañar en absoluto los glóbulos blancos de la sangre humana, algo que ningún antiséptico químico de la época conseguía. Sin embargo, el 10 de mayo de 1929 entregó su manuscrito y en junio de ese año apareció publicado en las páginas 226 a 236 del volumen 10 del British Journal of Experimental Pathology, consumándose así la primera gran caída en el olvido.\nTres muros invisibles sepultaron aquel hallazgo a plena vista. El primero fue el implacable dogma académico que reinaba en su propio instituto. El jefe del departamento, Sir Almroth Wright, sostenía con autoridad férrea que el único camino legítimo para vencer las infecciones era estimular las defensas naturales mediante vacunas, despreciando cualquier sustancia química inyectada en el torrente sanguíneo. Bajo esa presión intelectual, el propio Fleming redactó un título que desvió la atención de todo el planeta médico: presentó su hallazgo apenas como un truco técnico de laboratorio útil para limpiar placas y aislar el bacilo de la influenza, o cuando mucho como un ungüento superficial para heridas externas.\nEl tercer muro fue la exasperante fragilidad de la molécula. Cada vez que Fleming o sus jóvenes ayudantes intentaban hervir o evaporar aquel caldo marrón para concentrar el principio activo, la potencia curativa se esfumaba en el aire en cuestión de horas. Cuando expuso sus notas ante el Club de Investigación Médica de Londres en 1929, ningún colega en la sala de paneles de caoba formuló una sola pregunta. Nadie levantó la vista mientras recogían sus carteras. Convencido de que era imposible estabilizar aquel compuesto sin un equipo de bioquímicos expertos, Fleming guardó el hongo en un armario y cambió de tema. [pausa: 1.5s] Pero 10 años después, mientras Europa marchaba hacia el abismo, un refugiado que huía del nazismo abrió por accidente aquel archivo olvidado. [pausa: 2s]\nCorría el año 1938 en la Escuela Sir William Dunn de Patología, en la Universidad de Oxford. Allí trabajaban dos mentes de temperamentos opuestos que cambiarían el curso del siglo XX. El director era Howard Florey, un patólogo australiano de 40 años, severo, pragmático y de mirada penetrante tras sus gafas de montura fina. A su lado investigaba Ernst Chain, un bioquímico de origen judío nacido en Berlín de 32 años, de bigote tupido y carácter apasionado, que había escapado de Alemania en 1933 con apenas unas monedas en el bolsillo tras el ascenso del régimen totalitario.\nSin buscar una cura milagrosa inmediata, ambos exploraban por pura curiosidad científica cómo ciertos microorganismos fabricaban armas químicas para destruir a sus rivales. Revisando centenares de revistas atrasadas en la biblioteca universitaria, Ernst Chain tropezó con aquel ignorado boletín de Fleming de junio de 1929. La sorpresa fue mayúscula cuando descubrieron que en un estante polvoriento de su propio edificio en Oxford alguien conservaba todavía un tubo con descendientes vivos del moho original de St. Mary. Inicialmente supusieron que se trataba de una enzima pesada, pero al analizarla comprendieron por qué Fleming se había rendido: era una estructura diminuta que se desintegraba al menor roce con el calor o con cualquier ácido mal calculado.\nEl 1 de septiembre de 1939 estalló la Segunda Guerra Mundial en Europa, y un mes después, el 2 de octubre de 1939, Florey reclutó a la pieza silenciosa sin la cual nada habría funcionado: el bioquímico e ingeniero experimental Norman George Heatley, un joven británico de 28 años dotado de un ingenio manual extraordinario. Ante la carencia absoluta de instrumentos comerciales, Heatley perforó pequeñas placas de vidrio e inventó un sistema de cilindros de porcelana para medir con exactitud milimétrica la fuerza letal de cada gota, creando el estándar mundial conocido como la Unidad Oxford, equivalente a apenas seis décimas de microgramo de sustancia pura.\nActo seguido, resolvió el enigma que había derrotado a Londres una década atrás. Descubrió que enfriando el caldo, ajustando su acidez y pasándolo de un solvente de éter de vuelta a agua ligeramente alcalina para luego congelarlo al vacío, obtenía un finísimo polvo pardo amarillento que conservaba intacto su poder destructor. Como los talleres británicos estaban absorbidos fabricando armamento, Heatley armó una máquina extractora continua desmantelando estanterías viejas de madera de la Biblioteca Bodleian, uniendo metros de tuberías de vidrio soplado, serpentines de cobre, botellas de leche y el timbre eléctrico arrancado de una puerta antigua para que sonara cada vez que un depósito amenazaba con desbordarse. [pausa: 1.5s]\nEn la mañana del sábado 25 de mayo de 1940, mientras las divisiones blindadas alemanas acorralaban a las tropas aliadas en las costas de Francia, el equipo de Oxford encerró a 8 ratones blancos inoculados con cien millones de estreptococos letales. A 4 los dejaron sin tratamiento y a los otros 4 les inyectaron aquel polvo marrón. A la madrugada siguiente, los primeros habían sucumbido, mientras que los 4 tratados correteaban sanos por sus jaulas. El 24 de agosto de 1940 publicaron la hazaña en la revista The Lancet. Pero al calcular cuánto líquido necesitaban para tratar a un ser humano, chocaron contra una barrera matemática desoladora: un hombre requería tres mil veces más dosis que un roedor, y un litro entero de cultivo apenas rendía una milésima de gramo.\nFue entonces cuando la Escuela Dunn se transformó en la fábrica más insólita de la historia de la medicina. Para que el moho respirara y creciera en una capa superficial a 24 grados centígrados constantes, necesitaban miles de recipientes planos y anchos. Heatley vació alacenas y requisó bandejas de pastelería, botellas de vino, bidones de gasolina desinfectados, cientos de latas cuadradas de galletas de la firma Huntley and Palmers y 16 bacinillas de cama de hierro esmaltado prestadas por la Enfermería Radcliffe. Cuando se agotaron los orinales de hospital en toda la comarca, dibujó los planos de una vasija rectangular de cerámica con boquilla lateral apilable, viajó bajo las alarmas aéreas hasta las alfarerías de James Macintyre en Stoke-on-Trent y encargó 600 piezas horneadas en barro que llegaron a Oxford el día de Navidad de 1940.\nPara operar aquella granja microbiana contrataron por apenas 2 libras esterlinas semanales a 6 jóvenes técnicas: Ruth Callow, Betty Cooke, Peggy Gardner, Claire Inayat, Patricia McKegney y Megan Lancaster. Conocidas como las Chicas de la Penicilina, trabajaban 6 días por semana entre salas heladas de extracción y cuartos húmedos de incubación, sembrando y aspirando a mano cientos de litros de caldo fétido para rescatar granos microscópicos de polvo dorado.\nCuando en febrero de 1941 iniciaron el tratamiento del policía Albert Alexander, la escasez era tan extrema que recurrieron a una medida desesperada. Cada pocas horas, el doctor Fletcher recogía los frascos con la orina recién evacuada por el enfermo y Norman Heatley pedaleaba a toda velocidad en su bicicleta bajo la lluvia helada de Oxford hacia el laboratorio, filtrando los desechos renales para recuperar los restos intactos del antibiótico y volver a inyectárselos en las venas.\nA pesar de aquel esfuerzo sobrehumano, el cuerpo del agente absorbió hasta el último rastro disponible y sobrevino el segundo colapso con su fallecimiento el 15 de marzo de 1941. En los meses siguientes lograron curar a pacientes de menor peso corporal que requerían menos miligramos, documentando 4 vidas salvadas en un informe histórico de 13 páginas publicado en The Lancet el 16 de agosto de 1941. Sabían que el polvo amarillo obraba milagros, pero su fábrica artesanal de bacinillas era una trampa mortal. [pausa: 1.5s] Cuando Florey tocó la puerta de los gigantes británicos para pedir ayuda industrial, recibió tres portazos en la cara. [pausa: 2s]\nLa secuencia de aquellos tres rechazos quedó grabada años después como un escándalo de miopía institucional discutido hasta en la Cámara de los Comunes en Londres. El primer rechazo había nacido en las propias esferas oficiales del Estado: cuando el proyecto apenas arrancaba en otoño de 1939 y el equipo solicitó respaldo urgente al poderoso Consejo de Investigación Médica británico, la burocracia les concedió una suma irrisoria de 25 libras esterlinas, negándose a financiar la expansión. La investigación habría naufragado ese mismo invierno de no haber sido por una subvención externa de 1 mil 500 libras otorgada desde el extranjero por la Fundación Rockefeller en noviembre de 1939.\nEl segundo portazo provino de las grandes casas farmacéuticas tradicionales del Reino Unido, incluyendo firmas del calibre de Boots, Burroughs Wellcome y British Drug Houses. Agobiados por la destrucción de sus plantas bajo los bombardeos nocturnos de la aviación alemana y la carencia de acero y vidrio, sus directores observaron con espanto la exigencia de cultivar veinte mil litros de caldo en botellas manuales apenas para extraer un gramo inestable, declarando inviable cualquier intento de producción a gran escala.\nEl tercer rechazo brotó de la soberbia tecnológica de los colosos químicos imperiales como Imperial Chemical Industries y May and Baker. Embriagados por el éxito comercial de las sulfonamidas fabricadas en tubos de ensayo, sus jefes de laboratorio despreciaron la fermentación con hongos vivos calificándola de método arcaico propio de cerveceros medievales, convencidos de que sus químicos lograrían sintetizar la molécula artificialmente en pocas semanas. Se equivocaron por casi dos décadas.\nAcorralados por las bombas y ante el temor real de que el ejército alemán invadiera las costas inglesas en cualquier momento de 1941, Florey y su equipo tomaron una determinación clandestina digna de una novela de espionaje. Si las instalaciones de Oxford caían en manos enemigas o eran arrasadas por el fuego, era imperativo destruir todos los aparatos, pero la cepa viva jamás debía extinguirse. Antes de abordar un vuelo transatlántico encubierto rumbo a Lisboa y luego a Nueva York a finales de junio de 1941, sabían que los frascos de cristal podían quebrarse en el equipaje o perderse en el océano. Por sugerencia de Norman Heatley, los científicos empaparon con líquido repleto de esporas del moho el tejido interior de lana de sus propios abrigos oscuros. Las fibras microscópicas podían hibernar durante años cosidas en la tela, garantizando que, si uno solo de los viajeros llegaba con vida a Norteamérica, bastaría raspar su solapa para resucitar la cura.\nAl aterrizar bajo el calor sofocante de julio de 1941 en Estados Unidos, un país que aún no había entrado formalmente en la contienda, fueron remitidos a un rincón inesperado del corazón agrícola norteamericano: el Laboratorio Regional de Investigación del Norte del Departamento de Agricultura en Peoria, estado de Illinois. Dirigido por Orville May y Robert Coghill, aquel centro en medio de interminables maizales poseía la llave maestra que Europa ignoraba: una maestría absoluta en fermentaciones industriales.\nEn Peoria, tres golpes de ingenio pulverizaron en 24 meses el cuello de botella que había paralizado a la ciencia durante 13 años. El primero llegó de las manos del veterano micólogo de 60 años Andrew Jackson Moyer. Buscando alimentar al hambriento hongo británico con algo más nutritivo que el azúcar común, Moyer le añadió licor de maceración de maíz, un desecho viscoso, ácido y oscuro rico en nitrógeno y aminoácidos que sobraba por miles de toneladas en las moliendas húmedas de almidón de Illinois y que hasta entonces se arrojaba como residuo contaminante. De la noche a la mañana, el rendimiento del moho se multiplicó por diez.\nEl segundo salto consistió en arrancar al hongo de las bandejas planas. En lugar de dejarlo flotar perezosamente en la superficie de miles de frascos, los ingenieros de Peoria diseñaron tambores giratorios y tanques sumergidos donde inyectaban torrentes de aire comprimido completamente estéril mediante hélices mecánicas, obligando al microorganismo a crecer en las profundidades de todo el líquido al mismo tiempo.\nSin embargo, la cepa original traída desde el sótano londinense de Fleming detestaba vivir sumergida. Comenzó entonces una cacería planetaria: pilotos militares estadounidenses recogieron muestras de tierra fértil en aeródromos de China, India, África y Sudamérica para enviarlas por correo aéreo a Illinois. Pero la salvación no llegó de tierras exóticas. En el verano de 1943, una asistente técnica de unos 25 años llamada Mary Hunt tenía el encargo diario de recorrer las fruterías y almacenes de barrio de Peoria pidiendo a los comerciantes que le guardaran sus piezas más descompuestas. Los vecinos comenzaron a apodarla la chica de los mohos.\nUn día de 1943, Mary Hunt regresó al laboratorio sosteniendo un melón cantalupo común comprado en un mercado local, cuya cáscara exhibía una llamativa cicatriz de moho bonito y dorado. Al analizarlo bajo el microscopio, descubrieron que no era la especie de Fleming, sino una variante salvaje denominada Penicillium chrysogenum. Mientras el hongo londinense de 1928 apenas entregaba 3 unidades por mililitro, aquel melón podrido rindió de inmediato 250 unidades, y tras someter sus esporas a mutaciones con lámparas de rayos ultravioleta y rayos X en las universidades estadounidenses, la cifra escaló hasta 1 mil 500 unidades por cada mililitro de caldo. [pausa: 1.5s] Aquel melón de un mercado de Illinois multiplicó la potencia del hongo por quinientas veces. Ahora solo faltaba construir monstruos de acero de 10 mil galones antes de que comenzara el desembarco en Normandía. [pausa: 2s]\nEl ataque a Pearl Harbor en diciembre de 1941 había convertido a aquel polvo amarillo en un secreto militar de prioridad equivalente al desarrollo de las armas estratégicas. Bajo el mando implacable de la Junta de Producción de Guerra coordinada por el químico Albert Elder, el gobierno estadounidense convocó a más de 20 corporaciones rivales, entre ellas Pfizer, Merck, Squibb y Eli Lilly, obligándolas a compartir sus hallazgos técnicos. Todavía en marzo de 1942, cuando salvaron en un hospital de Connecticut a Anne Miller, la esposa de un directivo universitario que agonizaba tras trece días con fiebre superior a 40 grados por una infección posparto, se consumió casi la mitad de toda la reserva existente en el país. Para junio de 1942 apenas alcanzaba para tratar a 10 personas en todo el territorio norteamericano.\nFue entonces cuando el ingeniero químico Jasper Kane y los directivos de Pfizer en Nueva York ejecutaron una apuesta colosal que amenazaba con llevarlos a la bancarrota si fallaba. Compraron una gigantesca planta abandonada de fabricación de hielo en el barrio de Brooklyn y en tiempo récord la llenaron con catorce tanques verticales de acero de 10 mil galones de capacidad cada uno, rodeados de kilómetros de tuberías de vapor, compresores gigantes para evitar cualquier bacteria intrusa y enfriadores industriales.\nLa fábrica de hielo reconvertida funcionó las 24 horas del día. El salto estadístico no tuvo precedentes en la historia manufacturera: de producir apenas unos pocos cientos de millones de unidades en los primeros meses de 1943, las 21 plantas aliadas pasaron a envasar más de 650 mil millones de unidades mensuales hacia el final de la guerra. Cuando al amanecer del 6 de junio de 1944 miles de barcazas aliadas abatieron sus compuertas sobre las playas ensangrentadas de Normandía en Francia, los médicos de combate desembarcaron escoltados por 2 millones 300 mil dosis individuales listas para inyectarse en la arena misma.\nPor primera vez desde el origen de las guerras humanas, los proyectiles dejaron de tener como aliada segura a la gangrena gaseosa. Mientras en la Primera Guerra Mundial hasta el 18 por ciento de los heridos en las trincheras perdían la vida por infecciones bacterianas secundarias, en la campaña europea de 1944 esa tasa mortal cayó a menos del 1 por ciento, reduciendo en un 95 por ciento las amputaciones por podredumbre de tejidos y devolviendo a los soldados de pie en cuestión de días. Al liberarse su venta comercial civil el 15 de marzo de 1945, el costo de una ampolla de 100 mil unidades, que en 1943 ascendía a 20 dólares, se desplomó a 55 centavos en 1946 y poco después a centavos por frasco. [pausa: 1.5s]\nAl mismo tiempo que el antibiótico transformaba los frentes europeos, una onda expansiva de urgencia, contrabando y esperanza sacudía a toda América Latina entre 1943 y 1945. En México, donde casi el 65 por ciento de los habitantes vivía en zonas rurales golpeadas por epidemias infecciosas y la esperanza media de vida apenas rozaba los 34 años en la década de 1930, el primer milagro documentado ocurrió en agosto de 1943 en Monterrey. El médico investigador Eduardo Aguirre Pequeño, quien en un acto extremo de entrega científica se había inoculado a sí mismo en 1939 la espiroqueta del mal del pinto para estudiar sus síntomas, cayó postrado al borde de la muerte con meningoencefalitis y severas lesiones en la arteria aorta. En una gestión diplomática contrarreloj, el gobernador de Nuevo León, Arturo B. de la Garza, consiguió que Washington despachara en avión 1 millón 200 mil unidades del fármaco restringido, arrebatándolo de la agonía.\nLa conmoción pública llevó al presidente mexicano Manuel Ávila Camacho a firmar en marzo de 1944 un decreto en el Diario Oficial de la Federación declarando a la penicilina recurso de interés público para la salubridad general de la República y creando una comisión nacional para vigilar cada ampolleta contra la especulación. Para el 5 de agosto de 1944 los periódicos celebraban su primera aplicación provincial en Colima, y en noviembre de ese mismo año el psiquiatra Manuel Guevara Oropesa la introdujo en los pabellones del legendario Manicomio General de La Castañeda en la capital mexicana, vaciando celdas enteras al extinguir la demencia provocada por la neurosífilis. En junio de 1945, largas filas de familias trabajadoras rodeaban boticas como la Farmacia y Droguería del Carmen en la calzada de Popotla para adquirir libremente viales a 11 pesos con 50 centavos, iniciando un salto demográfico que elevaría la vida promedio del país a 57 años.\nEn la isla de Cuba, en medio del racionamiento estricto de 1944, la llegada de las primeras cajas salvó en una clínica de Cienfuegos a un paciente de 13 años llamado Laureano Rodríguez González de una gangrena apendicular fulminante que había resistido a todas las sulfamidas, mientras en La Habana la curación instantánea de René Llanes Mérida causó tal asombro en la prensa caribeña que el pueblo lo bautizó como Míster Penicilina. Nueve años más tarde, en abril de 1953, invitado por su discípula cubana Margarita Tamargo, el propio Alexander Fleming viajaría a La Habana junto a su segunda esposa, la doctora griega Amalia Koutsouri, alojándose en el Hotel Nacional rodeado de multitudes agradecidas.\nSin embargo, más al sur, en el Río de la Plata, el arribo del medicamento desnudó de nuevo el viejo fantasma de la ceguera burocrática. En el Buenos Aires de 1944, mientras las pocas dosis filtradas de contrabando alcanzaban cifras astronómicas en el mercado negro y los familiares suplicaban en las puertas de los ministerios, el célebre médico y bacteriólogo argentino Salvador Mazza se encerró en su laboratorio de la Universidad de Buenos Aires y logró destilar artesanalmente 500 unidades puras que salvaron a un puñado de desahuciados. Entusiasmado, Mazza escribió una súplica formal al rector universitario, el premio Nobel de la Paz Carlos Saavedra Lamas, pidiendo fondos mínimos para levantar una planta nacional. Jamás recibió siquiera un acuse de recibo. Al enterarse de que un paciente había expirado esperando respuesta oficial, Salvador Mazza entró a su cuarto de trabajo y destrozó a golpes todo su instrumental de vidrio exclamando ante sus ayudantes que allí no se hacía más nada, poco antes de que en 1945 comenzaran las importaciones formales y en 1947 se entregara el monopolio fabril a los laboratorios extranjeros Squibb. [pausa: 1.5s] El hongo despreciado había derrotado a la infección en medio mundo, pero detrás del triunfo estalló una guerra silenciosa por las patentes y una profecía sombría. [pausa: 2s]\nEn octubre de 1945, la Academia Sueca anunció que el Premio Nobel de Fisiología o Medicina sería compartido por Alexander Fleming, Howard Florey y Ernst Chain. Fiel a su reglamento estricto que impedía premiar a más de tres personas, el comité dejó en las sombras al hombre que inventó el sistema de medición, purificó el polvo, construyó los extractores y diseñó las vasijas cerámicas: Norman Heatley. No sería sino hasta medio siglo después cuando la historia repararía simbólicamente aquel silencio y Sir Henry Harris sentenciaría en Oxford una verdad irrefutable: sin Heatley, jamás habría existido la penicilina.\nParalelamente estalló una profunda herida ética entre las dos orillas del Atlántico. Cuando Ernst Chain había sugerido proteger legalmente sus procesos en Inglaterra en 1941, Howard Florey y los mandarines del Consejo Médico británico se negaron con indignación, afirmando que patentar un salvavidas médico para lucrar con el sufrimiento humano violaba el código de honor de la ciencia. Pero en Estados Unidos regían otras leyes comerciales. Sin informar a sus colegas británicos, Andrew Jackson Moyer inscribió a su propio nombre entre 1944 y 1945 las patentes norteamericanas número 2 millones 423 mil 873 y 2 millones 443 mil 989 sobre la fermentación con licor de maíz, mientras las firmas industriales blindaban los métodos de tanque profundo. Para estupor de Gran Bretaña, el país que había descubierto el moho en 1928 y descifrado su poder curativo en 1940 terminó obligado en la posguerra a pagar millones de dólares en regalías extranjeras para fabricar su propia medicina.\nCon todo, la advertencia más inquietante de esta epopeya resonó la tarde del 11 de diciembre de 1945 bajo los candelabros de Estocolmo, Suecia. Mientras el planeta celebraba eufórico el fin de las plagas bacterianas y las farmacias vendían pastillas, chicles y cremas dentales con penicilina sin receta, un envejecido Alexander Fleming de 64 años, vestido de frac negro, subió al estrado de la Fundación Nobel y leyó las líneas registradas en la página 93 de las actas oficiales que helaron el entusiasmo de los presentes. [pausa: 1.5s]\nFleming pronosticó que llegaría el momento en que cualquiera podría comprar penicilina libremente en las tiendas. Advirtió entonces el peligro mortal de que una persona desinformada se aplicara por cuenta propia una dosis insuficiente y, al exponer a sus microbios a cantidades no letales de la sustancia, los educara para volverse resistentes y transmitir esa armadura genética a sus descendientes, condenando a muerte al siguiente enfermo contagiado.\nNo fue una exageración teórica. Apenas dos años más tarde, en 1947, los análisis de la doctora Mary Barber en el Hospital Hammersmith de Londres y los primeros reportes clínicos en Ciudad de México confirmaban que casi cuatro de cada diez infecciones hospitalarias por estafilococos ya habían aprendido a destruir la molécula que antes las aniquilaba. La complacencia humana, la misma soberbia que había ignorado al moho durante 12 años en un armario eduardiano y le había cerrado tres veces las puertas de las fábricas británicas, amenazaba ahora con desgastar por abuso el mayor escudo biológico jamás entregado a nuestra especie.\nDesde aquel frasco vacío sobre la mesa metálica de Oxford en marzo de 1941 hasta nuestro presente en el siglo XXI, aquel hallazgo salvado de una bandeja de desinfectante ha rescatado de la muerte a más de 500 millones de seres humanos. Déjanos saber en los comentarios qué crees que pesa más en el destino de la humanidad: los golpes de azar como aquella ventana abierta en Londres, o la terquedad de quienes se niegan a rendirse cuando todos los imperios les cierran la puerta. [pausa: 1.5s]\nCada historia deja una huella. Aquí seguimos sus rastros.\n(19:52 - 20:00 | Outro Oficial de Marca — 8 segundos fijos)",
-    "rawFacebookMetadata": "1. Arquitectura Visual Pixel-Art de Alto Impacto a 60 FPS\nPara alcanzar la fidelidad visual de Dead Ahead: Zombie Warfare en 720x336 manteniendo 60 FPS constantes (< 6 ms de presupuesto de render en gama media móvil), la regla de oro en Canvas 2D es hornear todo lo estático o acumulativo en OffscreenCanvas y prohibir ctx.shadowBlur, ctx.filter y asignaciones de memoria (filter/map) dentro del requestAnimationFrame.\nPipeline de Capas y Presupuesto por Frame (src/engine/PixelArtRenderer.ts)\nOrdenCapa / BufferResoluciónTécnica de Render y Coste por Frame\n1skyAndFarBgCanvas (Offscreen)840x336Pre-renderizado al cargar misión. Cielo degradado por bandas pixel-art + horizonte del bioma (forest, bridge, suburbs, military). Parallax 0.25x ante shake/paneo (1 drawImage).\n2roadAndStaticCanvas (Offscreen)720x336Asfalto texturizado con ruido determinista, líneas viales rotas, grietas y SUV destrozado trasero. Coste en vivo: 1 drawImage.\n3decalCanvas (Acumulativo)720x190Franja vial (Y: 126..316). Sangre (#5e0d12, #380609), hollín de barriles, cráteres, casquillos ya detenidos y ceniza de cadáveres se estampan una sola vez al ocurrir y quedan gratis el resto de la partida (1 drawImage).\n4Sombras Proyectadas720x336Pase único antes de las entidades usando un atlas de elipses pixeladas pre-dibujadas (núcleo rgba(12,9,18,0.46) + borde rgba(12,9,18,0.20)), desplazadas según el sol del bioma y comprimidas si la unidad salta o retrocede.\n5Entidades Y-Sorted (Y: 132..298)720x336Ordenamiento in-place (Insertion Sort sobre array pre-alojado, casi O(N) porque los Y cambian poco entre frames): Autobús + Sheriff Bill, Barricada, Barriles OIL, 11 supervivientes, 6 tipos de zombis y casquillos en vuelo.\n6Balística y Partículas Activas720x336Object Pool fijo (MAX_PARTICLES = 180, MAX_TRACERS = 32). Trazadoras, chispas de blindaje, llamas de flamethrower y números flotantes de crítico.\n7lightmapCanvas (Iluminación)180x841/4 de resolución (15,120 px). Tinte ambiental del bioma + halos cálidos de fuego, boca de cañón, láser de sniper/turret y ojos de infectados. Se escala a 720x336 con globalCompositeOperation = 'multiply' + pase puntual 'lighter'.\n8Foreground Oclusivo (Viñeta de Profundidad)720x336Siluetas oscuras en Y > 296 (camión militar volcado en primer plano, vallas rotas, cables colgando) con parallax 1.18x en screen-shake para dar sensación de diorama 2.5D.\nTécnicas Concretas en PixelArtRenderer.ts\n1. Texturizado Procedural Pixel-Art de Asfalto, Biomas y Vehículos (Baked)\nEn lugar de rectángulos planos (fillRect lisos), genera texturas al iniciar la partida en roadAndStaticCanvas usando un hash entero rápido (x * 374761393 + y * 668265263) ^ seed:\nAsfalto con micro-grano y desgaste vial: Base #2b2d34, salpicando un 14% de píxeles con #24262c y un 6% con #353841 (gravilla), más parches de alquitrán más oscuros (#1e2026) y grietas ramificadas de 1px con labio iluminado inferior (#3f434e) para dar relieve inmediato.\nIdentidad cromática por bioma:\nforest: Neblina verdosa fría en la arboleda lejana (#1c2b27 -> #2f443b), rayos de sol diagonales semitransparentes (rgba(255,235,175,0.06)) entre pinos y hojas secas en los bordes del asfalto.\nbridge: Vigas de acero remachadas con entramado diagonal, juntas de dilatación metálicas cada 140px en la calzada, barandilla rota dejando ver agua turbia animada abajo (2 frames de reflejos cada 350ms) y niebla baja azul acero.\nsuburbs: Aceras agrietadas con bordillo biselado, bocas de incendio, cables eléctricos combados entre postes y fachadas quemadas con ventanas rotas a distintas profundidades.\nmilitary: Barreras Jersey de hormigón con franjas de peligro negro/amarillo desgastadas por dithering Bayer 4x4, alambre de espino en espiral pixelada, torres de vigilancia y focos estáticos rompiendo un cielo ceniza/ocre.\nAutobús Escolar Blindado (BOARD OF EDUCATION) + Sheriff Bill:\nChasis vivo: Aplica un ciclo de ralentí diésel (const engineBob = (Math.floor(time * 10) % 2) desplazando la carrocería 1px en Y sin mover las ruedas) y bocanadas grises desde el tubo de escape trasero.\nBlindaje artesanal: Pintura amarilla escolar con 3 bandas tonales (#f2b632 luz superior, #d9921e cuerpo medio con letras BOARD OF EDUCATION en #1d1d21 desgastadas, #9e6012 sombra baja), chapas de acero soldadas grises con remaches de 1x1px (#8b939c / #32373d), rejas en las ventanas y arado frontal manchado de óxido/sangre.\nSheriff Bill dinámico: Asoma por la escotilla superior cuando la furia sube o al disparar su rifle (retroceso horizontal de -2px, destello de cañón y eyección de cartucho hacia el techo del bus).\nProps reactivos (SUV, Camión Militar, Barriles OIL, Barricada):\nLos barriles muestran abolladuras y etiqueta OIL o franja roja explosiva; al recibir un impacto muestran 1 frame blanco y fugan gotas inflamables al decalCanvas.\nLa barricada enemiga cambia de sprite/geometría en 4 estados reales (100-76%, 75-51%, 50-26%, <25%): saltan tablones, se doblan chapas corrugadas y sale humo negro progresivo desde el motor de la chatarra apilada.\n2. Sombreado de los 17 Sprites (11 Supervivientes + 6 Zombis) sin Perder Legibilidad\nRegla de 4 tonos + Rim Light de 1px: En fondos oscuros de carretera, las siluetas oscuras (policeman, juggernaut, sniper, armored) se empastan si no llevan una línea de luz cenital/trasera (rim light) de 1px en hombros, casco y arma (#9fb4c7 frío en metal/tela oscura, #ffe29a cálido cerca de fuego).\nCache de Hit-Flash y Estado Infectado (Cero ctx.filter): Al inicializar el atlas de sprites en memoria, genera dos copias offscreen del atlas usando globalCompositeOperation = 'source-in':\nAtlas Blanco (#fff8e7): Se dibuja durante 55ms al recibir daño (feedback táctil instantáneo).\nAtlas Carmesí/Ámbar (#ff5a26): Parpadea en unidades quemándose o en crit_zombie / juggernaut justo 180ms antes de ejecutar un golpe crítico (telegrafía visual que permite jugar con timing).\nDetalles de micro-animación por unidad:\nflamethrower y juggernaut: Visor con píxel emisivo y mochila/mazo con inercia de 1 frame de retraso respecto al torso.\ndrone y hound: El drone proyecta sombra pequeña lejana en el asfalto (Y base) mientras oscila con Math.sin(t * 7) * 2.5 en altura e ilumina el suelo con un cono láser tenue; hound estira su silueta horizontal +3px en el frame de zancada.\nbloated y crit_zombie: Pústulas/venas verdosas emisivas (#8be043) que se dibujan también en el lightmapCanvas para que destaquen entre la multitud de walkers.\n3. Balística, Casquillos con Física 2.5D e Iluminación Aditiva Barata\n// Pool estático sin basura de GC para casquillos y escombros (src/engine/PixelArtRenderer.ts)\ninterface ShellCasing {\n  active: boolean;\n  x: number; y: number;   // Posición base en calzada (para Y-sort)\n  z: number;              // Altura sobre el suelo (px)\n  vx: number; vy: number; vz: number;\n  bounces: number;\n  color: string;          // '#e8b948' latón rifle/torreta | '#c8322b' cartucho escopeta\n  w: number; h: number;\n}\n\n// Actualización O(1) por slot activo; al detenerse se \"hornea\" en decalCanvas y libera el slot\nfunction updateShells(dt: number, decalCtx: CanvasRenderingContext2D) {\n  for (let i = 0; i < SHELL_POOL.length; i++) {\n    const s = SHELL_POOL[i];\n    if (!s.active) continue;\n    s.x += s.vx * dt;\n    s.y += s.vy * dt;\n    s.vz -= 440 * dt; // Gravedad nítida pixel-art\n    s.z += s.vz * dt;\n    if (s.z <= 0) {\n      s.z = 0;\n      s.vx *= 0.55; s.vy *= 0.55;\n      if (++s.bounces >= 2 || Math.abs(s.vz) < 35) {\n        decalCtx.fillStyle = s.color;\n        decalCtx.fillRect(s.x | 0, (s.y - ROAD_DECAL_TOP) | 0, s.w, s.h);\n        s.active = false;\n      } else {\n        s.vz = -s.vz * 0.42;\n      }\n    }\n  }\n}\nTrazadoras balísticas diferenciadas por arma:\npoliceman / farmer (Escopeta): Cono de 4-5 perdigones cortos (5px, vida 45ms, #ffd97d) + nube de pólvora gris de 3 frames.\nturret / drone: Ráfagas alternando trazadora ámbar (9px cola #ff9d2e + 3px punta #ffffff) cada 2 disparos y chispas metálicas al rebotar en armored.\nsniper: Línea láser roja punteada (rgba(255,45,55,0.45)) durante 0.35s de apuntado que colapsa en una estela supersónica blanca de ancho 1px atravesando objetivos + retroceso seco de cámara (1.5px horizontal durante 50ms).\nIluminación Atmosférica y Fuego (lightmapCanvas 180x84):\nRellena lightCtx con el color ambiente del bioma (ej. suburbs al atardecer: #cbb4a8; forest sombrío: #aebec2; military: #c4beae).",
+    "rawYoutubeMetadata": "En el invierno de 1941, bajo las pesadas cortinas negras que protegían las salas de la Enfermería Radcliffe en Oxford frente a los bombarderos nocturnos, el joven médico Charles Fletcher contempló impotente un último frasco de cristal completamente vacío. Sobre el catre de hierro yacía el agente de reserva número 231 de la policía de Berkshire, Albert Alexander, herido meses atrás durante un ataque aéreo sobre Southampton y devorado por una septicemia fulminante. Apenas cuatro días antes, unas cuantas inyecciones de un misterioso polvo amarillo habían logrado un milagro clínico sin precedentes en el siglo XX, despejando su fiebre y devolviéndole el aliento; pero al agotarse los escasos miligramos disponibles, incluso después de filtrar cada gota de la orina del propio paciente para reciclar el fármaco, la infección retomó el control hasta su desenlace fatal el 15 de marzo de 1941. Aquella tragedia dejaba al descubierto una pregunta perturbadora: cómo era posible que la humanidad tuviera la fórmula capaz de vencer a las bacterias impresa en un boletín científico desde junio de 1929 y la hubiera dejado olvidada en un estante durante doce largos años.\n⠀\nEsta investigación documental reconstruye el arco completo de diecisiete años entre 1928 y 1945 que transformó un accidente microscópico en el mayor salvavidas de la medicina moderna. Retrocedemos al húmedo otoño londinense del 28 de septiembre de 1928 en el sótano del Hospital St. Mary, donde Alexander Fleming descubrió que una espora fortuita de Penicillium notatum había disuelto sus colonias de estafilococos sobre una placa que escapó por milímetros de una bandeja de desinfectante, solo para chocar contra el férreo dogma de las vacunas y el silencio indiferente de los clubes médicos británicos. Seguimos el rescate del archivo olvidado en Oxford por Howard Florey, Ernst Chain y el ingenioso Norman Heatley, quienes ante la falta absoluta de recursos armaron extractores con estanterías viejas de biblioteca y cultivaron el hongo en cientos de latas de galletas, bacinillas de hospital y vasijas cerámicas junto a las seis jóvenes técnicas conocidas como las Chicas de la Penicilina.\n⠀\nAcorralados por las bombas y tras recibir tres portazos consecutivos de la burocracia y de los gigantes farmacéuticos y químicos del Reino Unido, los investigadores impregnaron el forro de lana de sus propios abrigos con esporas vivas para cruzar el Atlántico en secreto rumbo a Peoria, Illinois, en el verano de 1941. Allí, el licor de desecho de maíz de Andrew Moyer, el hallazgo de un melón cantalupo cubierto de moho dorado en un mercado local por Mary Hunt y la apuesta colosal de reconvertir una fábrica de hielo en Brooklyn con tanques de diez mil galones permitieron desembarcar millones de dosis en las playas de Normandía y llevar alivio urgente a hospitales y boticas de México, La Habana y el Río de la Plata, culminando en el Premio Nobel de 1945 y en la inquietante profecía de Estocolmo sobre las superbacterias resistentes nacidas de la soberbia humana.\n⠀\nCapítulos:\n00:00 El último frasco vacío en la Enfermería Radcliffe de Oxford (1941)\n01:36 El verdadero caso del policía Albert Alexander frente a la septicemia\n03:04 Londres, 1928: La placa sin lavar de Alexander Fleming y el primer olvido\n04:32 El rescate del boletín de 1929 por Ernst Chain y Howard Florey\n06:00 El ingenio de Norman Heatley y la fábrica secreta de bacinillas\n07:28 Las Chicas de la Penicilina y el segundo colapso por falta de dosis\n08:56 Los tres portazos de la industria británica en plena guerra\n10:24 Esporas ocultas en los abrigos y el salto al laboratorio de Peoria\n11:52 Mary Hunt, el melón dorado de Illinois y los tanques de Brooklyn\n14:48 Del Día D a América Latina y la profecía final de Estocolmo (1945)\n⠀\n(Nota: Este documental inmersivo ha sido recreado utilizando herramientas de inteligencia artificial generativa basándonos estrictamente en registros históricos de la época. Es posible que existan incongruencias o errores visuales).\n⠀\nCada historia deja una huella. Aquí seguimos sus rastros.\n⠀\n#HistoriaMedica #LaPenicilina #SegundaGuerra #AlexanderFleming #DocumentalEnEspañol",
+    "rawFacebookMetadata": "La Penicilina: Abandonada 2 veces en un estante, rechazada 3 veces y así salvó millones de vidas en la Segunda Guerra Mundial | Documental Completo\n⠀\nEn el crudo invierno de 1941, bajo las pesadas cortinas negras que ocultaban las ventanas de la Enfermería Radcliffe en Oxford frente a los bombarderos nocturnos, el joven médico Charles Fletcher contemplaba en absoluto silencio un último frasco de cristal completamente seco. Sobre el catre de hierro descansaba el agente de reserva número 231 de la policía de Berkshire, Albert Alexander, un hombre de 43 años que no había caído por rasguñarse con la espina de una rosa en su jardín como repitieron durante décadas las leyendas populares, sino tras resultar herido el 30 de noviembre de 1940 durante un ataque aéreo contra una estación policial en Southampton. Consumido por una septicemia fulminante frente a la cual la medicina del siglo XX carecía de defensas reales, unas cuantas inyecciones de un misterioso polvo amarillo purificado semanas antes por Edward Abraham habían obrado un milagro clínico sin precedentes en apenas veinticuatro horas; sin embargo, cuando las reservas se agotaron por completo pese al desesperado esfuerzo de filtrar la orina del propio enfermo para reciclar cada miligramo, la infección retomó el control hasta que perdió la vida el 15 de marzo de 1941.\n⠀\nAquella derrota en la penumbra de un hospital británico dejó al descubierto una incógnita estremecedora para la historia humana: cómo fue posible tener el arma definitiva contra las infecciones impresa en un boletín público desde junio de 1929 y dejarla olvidada en un estante durante doce años enteros. Este relato viaja hasta la húmeda mañana del 28 de septiembre de 1928 en el sótano del Hospital St. Mary de Paddington, Londres, donde el bacteriólogo escocés Alexander Fleming descubrió que una espora microscópica de Penicillium notatum había disuelto sus colonias de estafilococos sobre una caja de Petri salvada por milímetros del desinfectante, solo para estrellarse contra el implacable dogma de las vacunas y la frialdad indiferente de los salones médicos londinenses. Diez años más tarde, en vísperas de la guerra, Howard Florey, Ernst Chain y el ingenioso Norman Heatley rescataron aquel archivo olvidado en Oxford, construyendo máquinas extractoras con estanterías viejas de biblioteca, botellas de leche y un timbre eléctrico de puerta, mientras seis jóvenes técnicas conocidas como las Chicas de la Penicilina cultivaban cientos de litros en latas de galletas, bacinillas de hospital y vasijas de barro horneado.\n⠀\nTras sufrir aquel segundo colapso en la sala clínica y recibir tres portazos consecutivos de la burocracia estatal y de los gigantes farmacéuticos y químicos británicos, los investigadores tomaron una decisión digna del espionaje: impregnaron el forro interior de lana de sus abrigos con esporas vivas del hongo y cruzaron el Atlántico rumbo a Peoria, Illinois, en julio de 1941. En el corazón agrícola de Estados Unidos, el licor de desecho de maíz empleado por Andrew Moyer, los tanques sumergidos de aire estéril y un melón cantalupo cubierto de moho dorado hallado en un mercado de barrio por Mary Hunt multiplicaron por quinientas veces la potencia del compuesto. La apuesta industrial de reconvertir una antigua planta de hielo en Brooklyn con catorce tanques verticales de diez mil galones permitió desembarcar más de dos millones de dosis en las playas de Normandía en 1944 y llevar esperanza urgente a hospitales y boticas de México, La Habana y el Río de la Plata, cerrando en 1945 con el Premio Nobel en Estocolmo y la sombría advertencia de Fleming sobre la resistencia bacteriana provocada por la complacencia humana.\n⠀\n(Nota: Este video inmersivo ha sido recreado utilizando herramientas de inteligencia artificial generativa basándonos estrictamente en registros históricos de la época. Es posible que existan incongruencias o errores visuales).\n⠀\nCada historia deja una huella. Aquí seguimos sus rastros.\n⠀\n#HistoriaMedica #LaPenicilina #SegundaGuerra #AlexanderFleming #DocumentalEnEspañol",
     "publishTitle": "La Penicilina: Abandonada 2 veces en un estante, rechazada 3 veces y así salvó millones de vidas en la Segunda Guerra Mundial | Documental Completo",
     "publishDescription": "",
     "youtubeChapters": "",
@@ -5412,7 +5817,7 @@
     "slogan": "Cada historia deja una huella. Aquí seguimos sus rastros.",
     "hashtags": "",
     "youtubeTags": "historia de la penicilina, descubrimiento de la penicilina, alexander fleming, como se descubrio la penicilina, la penicilina documental, historia de la medicina, segunda guerra mundial, oxford 1941, albert alexander, howard florey, ernst chain, norman heatley, origen de los antibioticos, penicilina 1928, londres 1928, inventos historicos, medicina siglo xx, resistencia bacteriana, documental historico, documentales de historia, ciencia e historia, huellas de la humanidad",
-    "pinnedComment": "FALTÓ UNA GOTA 12 AÑOS OCULTA EL FRASCO VACÍO",
+    "pinnedComment": "Hoy abrimos el botiquín de casa con total naturalidad, olvidando que hasta mediados del siglo XX una simple herida cotidiana marcaba el destino de familias enteras. ¿Alguna vez tus abuelos te contaron cómo se vivían las infecciones antes de 1945, o crees que el mayor mérito de esta hazaña estuvo en el azar o en la perseverancia frente al rechazo? Cuéntanos tu recuerdo familiar o tu reflexión aquí abajo, te leemos con atención en los comentarios.",
     "downloadFolderName": "Video 77 — La Penicilina",
     "downloadFolderPath": "/Users/raydelsantana/Library/Mobile Documents/com~apple~CloudDocs/0YouTube/Huellas de la Humanidad/Videos/Video 77 — La Penicilina",
     "geminiChatTitle": "Video 77 — La Penicilina",
