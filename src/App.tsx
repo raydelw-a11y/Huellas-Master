@@ -199,7 +199,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '07:44 AM - 11/19/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '07:50 AM - 11/19/2026';
 
 // Etapa 8: nombre de archivo canónico de cada canción → "Canción_01_El_Muelle_de_la_Despedida"
 // (quita prefijos "Pista 1:" / "Canción 1:", comillas y rangos de tiempo "00:08 - 02:38" del título)
@@ -414,6 +414,48 @@ function ensureDocumentalEnEspanolHashtag(text: string): string {
   const generic = tags.find((t) => /^#Documental/i.test(t)) || tags[tags.length - 1];
   lines[idx] = lines[idx].replace(generic, '#DocumentalEnEspañol');
   return lines.join('\n');
+}
+
+/** Facebook / TikTok (9:16) descriptions accept at most 4000 characters. */
+const FACEBOOK_DESCRIPTION_MAX_CHARS = 4000;
+
+/**
+ * Keeps the Facebook/TikTok description within 4000 characters by shortening the body paragraphs
+ * (one closing sentence at a time, longest paragraph first). The title line, the AI note, the slogan
+ * and the hashtags are never touched.
+ */
+function fitFacebookDescription(text: string): string {
+  const raw = String(text || '');
+  if (raw.length <= FACEBOOK_DESCRIPTION_MAX_CHARS) return raw;
+  const lines = raw.split(/\r?\n/);
+  const isSeparator = (l: string) => /^[\s\u2800]*$/.test(l);
+  const firstContentIdx = lines.findIndex((l) => !isSeparator(l));
+  const isProtected = (l: string, idx: number) =>
+    idx === firstContentIdx ||
+    /^\s*\(Nota:/i.test(l) ||
+    /Cada historia deja una huella/i.test(l) ||
+    (l.match(/#[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9_]+/g) || []).length >= 2;
+  const total = () => lines.join('\n').length;
+  let guard = 0;
+  while (total() > FACEBOOK_DESCRIPTION_MAX_CHARS && guard++ < 400) {
+    let target = -1;
+    for (let i = 0; i < lines.length; i++) {
+      if (isSeparator(lines[i]) || isProtected(lines[i], i)) continue;
+      if (target === -1 || lines[i].length > lines[target].length) target = i;
+    }
+    if (target === -1) break;
+    const sentences = lines[target].match(/[^.!?…]+[.!?…]+["'»”)]*\s*|[^.!?…]+$/g) || [lines[target]];
+    if (sentences.length > 1) {
+      sentences.pop();
+      lines[target] = sentences.join('').trim();
+    } else {
+      const over = total() - FACEBOOK_DESCRIPTION_MAX_CHARS;
+      const cut = lines[target].slice(0, Math.max(0, lines[target].length - over - 1));
+      lines[target] = `${cut.replace(/\s+\S*$/, '').replace(/[,;:]$/, '')}…`;
+      if (lines[target].length <= 1) break;
+    }
+  }
+  return lines.join('\n').slice(0, FACEBOOK_DESCRIPTION_MAX_CHARS);
 }
 
 function stripLeadingTitleFromYoutubeMetadata(
@@ -5550,7 +5592,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           }
         }
         if (parsed4.facebook) {
-          patch.rawFacebookMetadata = ensureDocumentalEnEspanolHashtag(parsed4.facebook);
+          patch.rawFacebookMetadata = fitFacebookDescription(ensureDocumentalEnEspanolHashtag(parsed4.facebook));
         }
         if (parsed4.pinnedComment) {
           patch.pinnedComment = parsed4.pinnedComment;
@@ -5610,7 +5652,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         lines[0] = lockedTitle;
         fbClean = lines.join('\n');
       }
-      updateActiveDoc({ rawFacebookMetadata: ensureDocumentalEnEspanolHashtag(fbClean) });
+      updateActiveDoc({ rawFacebookMetadata: fitFacebookDescription(ensureDocumentalEnEspanolHashtag(fbClean)) });
       if (pendingStage11QueueRef.current.length > 0) {
         const nextSubStage = pendingStage11QueueRef.current.shift()!;
         setAiGenerating(true);

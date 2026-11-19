@@ -4260,7 +4260,7 @@ CRITICAL OUTPUT LANGUAGE REQUIREMENT: Write the entire deliverable 100% in SPANI
 Generate STAGE 11: FACEBOOK PUBLICATION METADATA in continuous format separated ONLY by braille blank lines (⠀), obeying these unbreakable rules:
 1. ZERO section labels and ZERO conversational intros. No markdown code blocks (\`\`\`).
 2. NO Chapters section and NO SEO Tags block.
-3. Total length ~2800 to 3000 characters from Title through the 5th hashtag.
+3. Total length ~2800 to 3000 characters from Title through the 5th hashtag. HARD FACEBOOK / TIKTOK LIMIT: the ENTIRE text, from the title through the 5th hashtag and counting spaces and braille lines, must be 4000 characters or fewer; never exceed it.
 4. ${selectedPublishTitle ? `On Line 1 write EXACTLY this Spanish title: "${selectedPublishTitle.replace(/\s*\|\s*Documental\s+Completo\s*$/i, '')}"` : specificTitleLaw11.replace(/\s*\|\s*Documental Completo/g, '')}
 5. Spanish description divided into EXACTLY 3 paragraphs separated by a braille line (⠀).
 6. Verbatim Spanish AI Note: (Nota: Este video inmersivo ha sido recreado utilizando herramientas de inteligencia artificial generativa basándonos estrictamente en registros históricos de la época. Es posible que existan incongruencias o errores visuales).
