@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-10-27T02:05:48.997Z",
-    "updatedAt": "2026-11-19T05:58:42.725Z",
+    "updatedAt": "2026-11-19T05:58:49.947Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -20,7 +20,7 @@
       "TEMA_DEL_VIDEO": "Video 74 Castillo Louvre Parte II",
       "UBICACION_INTRO_MARCA": "INTRO_INICIO_00",
       "FIELD_CLEARED_AT_voiceoverScript": "0",
-      "PROMPTS_RESTORED_AT": "1795067922725",
+      "PROMPTS_RESTORED_AT": "1795067929947",
       "FIELD_CLEARED_AT_rawClipsText": "0",
       "FIELD_CLEARED_AT_pinnedComment": "0",
       "FIELD_CLEARED_AT_correctedSrt": "0",
@@ -1031,7 +1031,7 @@
         "imageReady": true,
         "videoReady": true,
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "auditStatus": "ok",
         "auditReason": "Sincronizado con el tramo de voz narrativa.",
@@ -1045,7 +1045,8 @@
         "videoAuditReason": "",
         "videoAuditIssues": [],
         "videoSavedFileName": "10_Clip_10_Create_a_video_@Gran_Salon_del_Louvre_3fd5387b_4K.mp4",
-        "videoSavedAt": 1795067338163
+        "videoSavedAt": 1795067338163,
+        "reviewedUpdatedAt": 1795067929946
       },
       {
         "id": "clip-11-1794891908277-5as9",
