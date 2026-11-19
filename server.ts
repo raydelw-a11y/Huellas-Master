@@ -12026,13 +12026,17 @@ app.post('/api/flow/sync-reference-downloads', async (req, res) => {
       const ext = path.extname(baseName);
       const withoutExt = path.basename(baseName, ext);
       // Exclude numbered clip keyframes, thumbnails, logos, or generic browser downloads
+      // Flow now names reference downloads "NN_Image_@Tag__Create_hash_4K.jpg": the "@" marks a
+      // reference, so the leading number must not make it look like a clip keyframe.
+      const isNumberedRefDownload = /^0*\d+[_\-\s.]*(?:image|imagen)[_\-\s.]*@/i.test(withoutExt);
       const isExcluded =
-        /^(?:(?:image|imagen|clip|scene|escena)[_\-\s.]*)?0*\d+[_\-\s.(]/i.test(withoutExt) ||
-        /^(?:miniatura|logo|thumbnail|intro|outro|img_\d+|image|download|untitled|captura|screenshot)\b/i.test(
-          withoutExt
-        );
+        !isNumberedRefDownload &&
+        (/^(?:(?:image|imagen|clip|scene|escena)[_\-\s.]*)?0*\d+[_\-\s.(]/i.test(withoutExt) ||
+          /^(?:miniatura|logo|thumbnail|intro|outro|img_\d+|image|download|untitled|captura|screenshot)\b/i.test(
+            withoutExt
+          ));
 
-      const stripped = withoutExt
+      const stripped = (isNumberedRefDownload ? withoutExt.replace(/^0*\d+[_\-\s.]*/, '') : withoutExt)
         .replace(/\s*\(\d+\)\s*$/g, '')
         .replace(/[_\-\s]*(?:4k|2k|1k|hd)?[_\-\s]*20\d{12,14}$/i, '')
         .replace(/[_\-\s]*(?:4k|2k|1k|hd)$/i, '')
