@@ -44,7 +44,7 @@
     "_v6_16x9_captionOriginalDefault": true,
     "_v7_9x16_captions22": true
   },
-  "updatedAt": "2026-11-19T19:02:48.270Z",
+  "updatedAt": "2026-11-19T19:03:57.801Z",
   "overlayStyles": {
     "logoScalePct": 12,
     "logoOpacity": 95,
@@ -80,7 +80,7 @@
     "hookLine2AnimOutDur": 1,
     "clip1OverlayEndSec": 14,
     "captionFontFamily": "'Cinzel', Georgia, 'Times New Roman', serif",
-    "captionFontSize": 25,
+    "captionFontSize": 21,
     "captionFontSize16x9": 25,
     "captionFontSize9x16": 21,
     "captionWordsPerLine16x9": 4,
@@ -89,7 +89,7 @@
     "captionLineMode": "subdivide",
     "captionOriginal16x9V1": true,
     "captionFontSizeV25": true,
-    "captionBottomPct": 15,
+    "captionBottomPct": 10,
     "captionBottom16x9V10": true,
     "captionColor": "white",
     "captionCustomColor": "#ffffff",
