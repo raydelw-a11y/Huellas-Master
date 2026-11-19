@@ -2836,6 +2836,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   ]);
 
   const [isAnalyzingReframe9x16, setIsAnalyzingReframe9x16] = useState<boolean>(false);
+
+  // Editor notifications auto-hide after 10 s. Messages shown while a long job is running
+  // (export render / 9:16 reframe analysis) stay visible until the job ends.
+  useEffect(() => {
+    if (!statusMessage || isRenderingVideo || isAnalyzingReframe9x16) return;
+    const hideTimer = window.setTimeout(() => setStatusMessage(''), 10000);
+    return () => window.clearTimeout(hideTimer);
+  }, [statusMessage, isRenderingVideo, isAnalyzingReframe9x16]);
   const [reframeSummary9x16, setReframeSummary9x16] = useState<string>(
     () =>
       initialDocStateForInit?.reframeSummary9x16 ||
