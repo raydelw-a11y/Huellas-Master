@@ -3266,7 +3266,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     setCaptionFontSize(nextRatio === '9:16' ? captionFontSize9x16 : captionFontSize16x9);
     if (nextRatio === '9:16') {
       const docKey = activeDoc?.id || activeDoc?.title || 'default';
-      if (!autoReframedDocIdsRef.current.has(docKey) && !isAutoReframe9x16Activated) {
+      if (
+        !autoReframedDocIdsRef.current.has(docKey) &&
+        !isAutoReframe9x16Activated &&
+        activeDoc?.promptConfig?.PRODUCTION_LOCKED !== 'YES'
+      ) {
         autoReframedDocIdsRef.current.add(docKey);
         setTimeout(() => {
           handleRunSmartAutoReframe9x16(false);
@@ -3278,6 +3282,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   useEffect(() => {
     const docKey = activeDoc?.id || activeDoc?.title || '';
     if (!docKey || autoReframedDocIdsRef.current.has(docKey)) return;
+    // A locked (finished) documentary keeps its reframes: the analysis only runs when the user asks for it
+    if (activeDoc?.promptConfig?.PRODUCTION_LOCKED === 'YES') return;
     if (timelineClips.length === 0) return;
     autoReframedDocIdsRef.current.add(docKey);
     const allHaveReframe = timelineClips

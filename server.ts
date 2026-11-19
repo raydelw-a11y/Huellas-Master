@@ -851,6 +851,87 @@ function protectAgainstForeignClips(list: any[]): any[] {
   });
 }
 
+// PRODUCTION LOCK (every write path). A documentary the user locked (promptConfig.PRODUCTION_LOCKED === 'YES')
+// keeps its script, voice, timeline, subtitles and the structure of its clips exactly as they were when it
+// was locked: no automatic recalculation and no stale copy can change them. Everything else (metadata,
+// thumbnails, review marks, 9:16 reframes, saved files) stays editable. The newest PRODUCTION_LOCK_AT decides
+// whether it is locked, so an old copy can neither unlock nor re-lock it.
+const LOCKED_DOC_FROZEN_FIELDS = [
+  'voiceoverScript',
+  'timelineSentences',
+  'timelineFormattedText',
+  'correctedSrt',
+  'audioTracks',
+  'masterAudioUrl',
+  'confirmedFinalDuration',
+  'rawClipsText',
+  'operationalHeader',
+];
+const LOCKED_CLIP_FROZEN_FIELDS = [
+  'id',
+  'clipNumber',
+  'timeRange',
+  'narrationSegment',
+  'pauseNotes',
+  'imagePrompt',
+  'videoPrompt',
+  'previousVideoPrompt',
+  'cameraSelection',
+  'visualExplanation',
+  'isStaticBroll',
+  'brollCameraMotion',
+  'auditStatus',
+  'auditReason',
+];
+function protectLockedDocs(list: any[]): any[] {
+  let diskById: Map<string, any>;
+  try {
+    const raw = fs.existsSync(DOCS_FILE) ? JSON.parse(fs.readFileSync(DOCS_FILE, 'utf8')) : [];
+    diskById = new Map((Array.isArray(raw) ? raw : []).map((d: any) => [d?.id, d]));
+  } catch {
+    return list;
+  }
+  return list.map((docIn: any) => {
+    const disk = docIn?.id ? diskById.get(docIn.id) : null;
+    if (!disk) return docIn;
+    const diskAt = Number(disk.promptConfig?.PRODUCTION_LOCK_AT || 0);
+    const inAt = Number(docIn.promptConfig?.PRODUCTION_LOCK_AT || 0);
+    let doc = docIn;
+    if (diskAt > inAt) {
+      doc = {
+        ...docIn,
+        promptConfig: {
+          ...(docIn.promptConfig || {}),
+          PRODUCTION_LOCKED: disk.promptConfig.PRODUCTION_LOCKED,
+          PRODUCTION_LOCK_AT: disk.promptConfig.PRODUCTION_LOCK_AT,
+        },
+      };
+    }
+    const wasLocked = disk.promptConfig?.PRODUCTION_LOCKED === 'YES';
+    const staysLocked = doc.promptConfig?.PRODUCTION_LOCKED === 'YES';
+    if (!wasLocked || !staysLocked) return doc;
+
+    const frozen: any = { ...doc };
+    for (const k of LOCKED_DOC_FROZEN_FIELDS) {
+      if (disk[k] === undefined) delete frozen[k];
+      else frozen[k] = disk[k];
+    }
+    const diskClips: any[] = Array.isArray(disk.clips) ? disk.clips : [];
+    const inByNum = new Map<number, any>(
+      (Array.isArray(doc.clips) ? doc.clips : []).map((c: any) => [Number(c?.clipNumber), c])
+    );
+    frozen.clips = diskClips.map((dc: any) => {
+      const merged: any = { ...(inByNum.get(Number(dc?.clipNumber)) || dc) };
+      for (const k of LOCKED_CLIP_FROZEN_FIELDS) {
+        if (dc[k] === undefined) delete merged[k];
+        else merged[k] = dc[k];
+      }
+      return merged;
+    });
+    return frozen;
+  });
+}
+
 // NARRATION SCRIPT GUARD (every write path: PUT, bulk save, GitHub merge). When the script on disk was
 // matched to the recorded voice (VOICEOVER_SCRIPT_MATCHES_AUDIO === 'YES'), a stale copy from another
 // device must not bring back a shorter script. A deliberate rewrite carries the flag as 'NO'.
@@ -886,7 +967,9 @@ function protectRecordedNarrationScripts(list: any[]): any[] {
 
 function writeDocumentaries(list: any[], skipCloudPush = false) {
   const sanitizedList = Array.isArray(list)
-    ? protectAgainstForeignClips(protectRecordedNarrationScripts(protectPublishMetadata(list))).map(
+    ? protectLockedDocs(
+        protectAgainstForeignClips(protectRecordedNarrationScripts(protectPublishMetadata(list)))
+      ).map(
         sanitizeServerDocAudioUrls
       )
     : list;
@@ -8802,7 +8885,7 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       totalSteps: 0,
       stageLabel: '',
       startedAt: 0,
-      error: err?.message || 'Error ejecutando FFmpeg para renderizar el documental.',
+      error: describeRenderError(err),
       errorAt: Date.now(),
       error8K: render8KRequested,
     };
@@ -8817,7 +8900,7 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       );
     }
     res.status(500).json({
-      error: err.message || 'Error ejecutando FFmpeg para renderizar el documental.',
+      error: describeRenderError(err),
     });
   }
 });
@@ -9682,6 +9765,134 @@ app.post('/api/editor/auto-reframe-9x16', async (req, res) => {
     res.status(500).json({
       error: err?.message || 'Error analizando Auto-Reframe 9:16.',
     });
+  }
+});
+
+// A file that lives only in iCloud fails to open with EDEADLK/EAGAIN ("Unknown system error -11"):
+// say so in plain words instead of surfacing the raw system error.
+function describeRenderError(err: any): string {
+  const raw = String(err?.message || '').trim();
+  if (/Unknown system error -11|EDEADLK|EAGAIN|Resource deadlock avoided|Resource temporarily unavailable/i.test(raw)) {
+    return 'Algunos archivos de este video están solo en iCloud y no en esta Mac. Descárgalos primero con el aviso "Descargar de iCloud" y vuelve a exportar.';
+  }
+  return raw || 'Error ejecutando FFmpeg para renderizar el documental.';
+}
+
+// ============================================================================
+// iCLOUD-ONLY FILES: which files of a documentary folder are not downloaded on this Mac, per subfolder
+// ============================================================================
+const CLOUD_ROOT_CATEGORY = '(raíz)';
+function listCloudOnlyFilesInDocFolder(targetRoot: string): {
+  categories: Record<string, { cloudOnly: number; total: number; cloudOnlyBytes: number }>;
+  cloudOnlyPaths: Array<{ category: string; filePath: string }>;
+} {
+  const categories: Record<string, { cloudOnly: number; total: number; cloudOnlyBytes: number }> = {};
+  const cloudOnlyPaths: Array<{ category: string; filePath: string }> = [];
+  const visit = (dir: string, category: string, depth: number) => {
+    let entries: fs.Dirent[] = [];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const ent of entries) {
+      const full = path.join(dir, ent.name);
+      if (ent.isDirectory()) {
+        if (ent.name.startsWith('.')) continue;
+        if (depth < 3) visit(full, depth === 0 ? ent.name : category, depth + 1);
+        continue;
+      }
+      // iCloud placeholders of evicted files on older macOS: ".name.ext.icloud"
+      const isLegacyPlaceholder = ent.name.startsWith('.') && ent.name.endsWith('.icloud');
+      if (ent.name.startsWith('.') && !isLegacyPlaceholder) continue;
+      let st: fs.Stats | null = null;
+      try {
+        st = fs.statSync(full);
+      } catch {
+        continue;
+      }
+      if (!st.isFile()) continue;
+      const bucket = (categories[category] = categories[category] || { cloudOnly: 0, total: 0, cloudOnlyBytes: 0 });
+      bucket.total++;
+      if (isLegacyPlaceholder || !isMaterializedLocalFile(st)) {
+        bucket.cloudOnly++;
+        bucket.cloudOnlyBytes += isLegacyPlaceholder ? 0 : st.size;
+        cloudOnlyPaths.push({ category, filePath: full });
+      }
+    }
+  };
+  visit(targetRoot, CLOUD_ROOT_CATEGORY, 0);
+  return { categories, cloudOnlyPaths };
+}
+
+const cloudDownloadJobs = new Map<string, { startedAt: number; requested: number }>();
+
+app.get('/api/flow/cloud-files-status', (req, res) => {
+  try {
+    const targetRoot = resolveLocalDocumentaryFolder(
+      String(req.query.folderPath || ''),
+      String(req.query.folderName || ''),
+      String(req.query.docTitle || '')
+    );
+    if (!targetRoot || !fs.existsSync(targetRoot)) {
+      res.json({ ok: true, found: false, categories: {}, totalCloudOnly: 0, downloading: false });
+      return;
+    }
+    const { categories, cloudOnlyPaths } = listCloudOnlyFilesInDocFolder(targetRoot);
+    const job = cloudDownloadJobs.get(targetRoot);
+    if (job && (cloudOnlyPaths.length === 0 || Date.now() - job.startedAt > 6 * 60 * 60 * 1000)) {
+      cloudDownloadJobs.delete(targetRoot);
+    }
+    res.json({
+      ok: true,
+      found: true,
+      folderName: path.basename(targetRoot),
+      categories,
+      totalCloudOnly: cloudOnlyPaths.length,
+      downloading: cloudDownloadJobs.has(targetRoot),
+      downloadRequested: cloudDownloadJobs.get(targetRoot)?.requested || 0,
+    });
+  } catch (err: any) {
+    res.status(500).json({ ok: false, error: err?.message || 'No se pudo revisar la carpeta.' });
+  }
+});
+
+app.post('/api/flow/cloud-files-download', (req, res) => {
+  try {
+    if (process.platform !== 'darwin') {
+      res.status(400).json({ ok: false, error: 'La descarga de iCloud solo funciona en la Mac.' });
+      return;
+    }
+    const { folderPath, folderName, docTitle, categories } = req.body || {};
+    const targetRoot = resolveLocalDocumentaryFolder(
+      String(folderPath || ''),
+      String(folderName || ''),
+      String(docTitle || '')
+    );
+    if (!targetRoot || !fs.existsSync(targetRoot)) {
+      res.status(404).json({ ok: false, error: 'No se encontró la carpeta del documental.' });
+      return;
+    }
+    const wanted = Array.isArray(categories) && categories.length > 0 ? new Set(categories.map(String)) : null;
+    const pending = listCloudOnlyFilesInDocFolder(targetRoot).cloudOnlyPaths.filter(
+      (f) => !wanted || wanted.has(f.category)
+    );
+    if (pending.length === 0) {
+      res.json({ ok: true, requested: 0 });
+      return;
+    }
+    cloudDownloadJobs.set(targetRoot, { startedAt: Date.now(), requested: pending.length });
+    // "brctl download" only asks iCloud to fetch the file; it returns at once and macOS downloads in the background.
+    let idx = 0;
+    const worker = () => {
+      const item = pending[idx++];
+      if (!item) return;
+      execFile('brctl', ['download', item.filePath], { timeout: 20000 }, () => worker());
+    };
+    for (let i = 0; i < Math.min(4, pending.length); i++) worker();
+    res.json({ ok: true, requested: pending.length });
+  } catch (err: any) {
+    res.status(500).json({ ok: false, error: err?.message || 'No se pudo pedir la descarga a iCloud.' });
   }
 });
 

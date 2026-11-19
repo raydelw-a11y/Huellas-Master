@@ -199,7 +199,60 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '12:34 PM - 11/19/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '12:51 PM - 11/19/2026';
+
+// PRODUCTION LOCK: while promptConfig.PRODUCTION_LOCKED === 'YES' these fields never change (the server
+// enforces the same list in protectLockedDocs). Metadata, thumbnails, review marks and reframes stay editable.
+const PRODUCTION_LOCK_FROZEN_DOC_FIELDS = [
+  'voiceoverScript',
+  'timelineSentences',
+  'timelineFormattedText',
+  'correctedSrt',
+  'audioTracks',
+  'masterAudioUrl',
+  'confirmedFinalDuration',
+  'rawClipsText',
+  'operationalHeader',
+] as const;
+const PRODUCTION_LOCK_FROZEN_CLIP_FIELDS = [
+  'id',
+  'clipNumber',
+  'timeRange',
+  'narrationSegment',
+  'pauseNotes',
+  'imagePrompt',
+  'videoPrompt',
+  'previousVideoPrompt',
+  'cameraSelection',
+  'visualExplanation',
+  'isStaticBroll',
+  'brollCameraMotion',
+  'auditStatus',
+  'auditReason',
+] as const;
+const isDocProductionLocked = (doc?: { promptConfig?: Record<string, any> | null } | null) =>
+  doc?.promptConfig?.PRODUCTION_LOCKED === 'YES';
+
+// iCloud-only files: which folders of the documentary each stage needs on this Mac
+const CLOUD_ROOT_CATEGORY = '(raíz)';
+const CLOUD_CATEGORIES_BY_STAGE: Record<number, string[]> = {
+  4: ['02_Audio'],
+  5: ['03_Miniaturas'],
+  6: ['04_Referencias'],
+  8: ['05_Clips_Video', '02_Audio'],
+  9: ['03_Subtitulos_SRT', CLOUD_ROOT_CATEGORY],
+};
+const CLOUD_CATEGORIES_EDITOR = ['05_Clips_Video', '02_Audio', '03_Subtitulos_SRT', CLOUD_ROOT_CATEGORY];
+const CLOUD_CATEGORY_LABELS: Record<string, string> = {
+  '01_Guion_y_SEO': 'guion y SEO',
+  '02_Audio': 'audio (voz y música)',
+  '03_Miniaturas': 'miniaturas',
+  '03_Subtitulos_SRT': 'subtítulos',
+  '04_Referencias': 'imágenes de referencia',
+  '05_Clips_Video': 'clips de video',
+  '06_Video_Final': 'videos exportados',
+  [CLOUD_ROOT_CATEGORY]: 'archivos sueltos de la carpeta',
+};
 
 // Etapa 8: nombre de archivo canónico de cada canción → "Canción_01_El_Muelle_de_la_Despedida"
 // (quita prefijos "Pista 1:" / "Canción 1:", comillas y rangos de tiempo "00:08 - 02:38" del título)
@@ -4662,6 +4715,161 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
 
   // Update active documentary in state + persist to local backend OR GitHub Cloud
   const localDocMutationSeqRef = useRef(0);
+  // Lock / unlock a finished documentary (see PRODUCTION_LOCK_FROZEN_DOC_FIELDS). The newest PRODUCTION_LOCK_AT wins everywhere.
+  const setDocProductionLock = async (docId: string, locked: boolean) => {
+    const current = documentaries.find((d) => d.id === docId);
+    if (!current) return;
+    const nowMs = Date.now();
+    const lockKeys = { PRODUCTION_LOCKED: locked ? 'YES' : 'NO', PRODUCTION_LOCK_AT: String(nowMs) };
+    const applyLock = (d: DocumentaryProject): DocumentaryProject => ({
+      ...d,
+      promptConfig: { ...(d.promptConfig || {}), ...lockKeys },
+      updatedAt: new Date(nowMs).toISOString(),
+    });
+    const target = applyLock(current);
+    const nextList = documentaries.map((d) => (d.id === docId ? target : d));
+    if (activeDocRef.current?.id === docId) activeDocRef.current = applyLock(activeDocRef.current);
+    setDocumentaries((prev) => {
+      const next = prev.map((d) => (d.id === docId ? applyLock(d) : d));
+      saveLocalCachedDocumentaries(next);
+      return next;
+    });
+    if (isCloudMode) {
+      triggerDebouncedCloudPush(nextList);
+      return;
+    }
+    try {
+      const res = await fetch(`/api/documentaries/${docId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...target, _patchKeys: ['promptConfig'] }),
+      });
+      if (!res.ok) triggerDebouncedCloudPush(nextList);
+    } catch {
+      triggerDebouncedCloudPush(nextList);
+    }
+  };
+
+  // iCloud-only files of the active documentary's folder (asked to the Mac server; empty when it is unreachable)
+  const [cloudFiles, setCloudFiles] = useState<{
+    docId: string;
+    categories: Record<string, { cloudOnly: number; total: number; cloudOnlyBytes: number }>;
+    downloading: boolean;
+  }>({ docId: '', categories: {}, downloading: false });
+  const cloudFilesDocKey = `${activeDoc?.id || ''}|${activeDoc?.downloadFolderPath || ''}|${activeDoc?.downloadFolderName || ''}|${activeDoc?.title || ''}`;
+  const cloudFilesHasPending = Object.values(cloudFiles.categories).some((c) => c.cloudOnly > 0);
+  const cloudFilesQueryRef = useRef<() => Promise<void>>(async () => {});
+  cloudFilesQueryRef.current = async () => {
+    const doc = latestRenderActiveDocRef.current;
+    if (!doc) return;
+    try {
+      const origin = getMediaBridgeSnapshot().activeOrigin || getOrderedMediaBridgeBases()[0] || '';
+      const qs = new URLSearchParams({
+        folderPath: doc.downloadFolderPath || '',
+        folderName: doc.downloadFolderName || '',
+        docTitle: doc.title || '',
+      });
+      const r = await fetch(`${origin}/api/flow/cloud-files-status?${qs.toString()}`);
+      if (!r.ok) return;
+      const data = await r.json();
+      if (!data?.ok || latestRenderActiveDocRef.current?.id !== doc.id) return;
+      setCloudFiles({ docId: doc.id, categories: data.categories || {}, downloading: Boolean(data.downloading) });
+    } catch {}
+  };
+  useEffect(() => {
+    if (!activeDoc?.id || (mainView !== 'studio' && mainView !== 'capcut_editor')) return;
+    cloudFilesQueryRef.current();
+    const everyMs = cloudFiles.downloading ? 5000 : cloudFilesHasPending ? 20000 : 90000;
+    const timer = window.setInterval(() => cloudFilesQueryRef.current(), everyMs);
+    return () => window.clearInterval(timer);
+  }, [cloudFilesDocKey, mainView, cloudFiles.downloading, cloudFilesHasPending]);
+  const handleDownloadCloudFiles = async (categories: string[]) => {
+    const doc = latestRenderActiveDocRef.current;
+    if (!doc) return;
+    setCloudFiles((prev) => ({ ...prev, downloading: true }));
+    try {
+      const origin = getMediaBridgeSnapshot().activeOrigin || getOrderedMediaBridgeBases()[0] || '';
+      await fetch(`${origin}/api/flow/cloud-files-download`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          folderPath: doc.downloadFolderPath || '',
+          folderName: doc.downloadFolderName || '',
+          docTitle: doc.title || '',
+          categories,
+        }),
+      });
+    } catch {}
+    cloudFilesQueryRef.current();
+  };
+  // One notice for a set of folders: what is only in iCloud, and a button to bring it to this Mac
+  const renderCloudFilesNotice = (categories: string[], variant: 'inline' | 'floating') => {
+    if (!activeDoc || cloudFiles.docId !== activeDoc.id) return null;
+    const hits = categories
+      .map((cat) => ({ cat, info: cloudFiles.categories[cat] }))
+      .filter((h) => h.info && h.info.cloudOnly > 0);
+    if (hits.length === 0) return null;
+    const total = hits.reduce((n, h) => n + h.info.cloudOnly, 0);
+    const gb = hits.reduce((n, h) => n + h.info.cloudOnlyBytes, 0) / 1024 ** 3;
+    const sizeTxt = gb >= 1 ? `${gb.toFixed(1)} GB` : `${Math.max(1, Math.round(gb * 1024))} MB`;
+    return (
+      <div
+        className={
+          variant === 'floating'
+            ? 'fixed bottom-3 left-3 z-[250] max-w-[min(26rem,calc(100vw-1.5rem))] rounded-xl border border-sky-400/60 bg-slate-950/95 backdrop-blur shadow-2xl px-3 py-2 text-[11px] text-sky-100'
+            : 'rounded-xl border border-sky-400/50 bg-sky-950/40 px-4 py-3 text-xs text-sky-100'
+        }
+      >
+        <div className="font-black">
+          ☁️ {total} archivo{total === 1 ? '' : 's'} de este video {total === 1 ? 'está' : 'están'} solo en iCloud ({sizeTxt})
+        </div>
+        <div className="mt-0.5 text-sky-200/90">
+          {hits.map((h) => `${h.info.cloudOnly} de ${CLOUD_CATEGORY_LABELS[h.cat] || h.cat}`).join(' · ')}.
+          {' '}Descárgalos a esta Mac antes de trabajar con ellos o exportar.
+        </div>
+        <div className="mt-2 flex items-center gap-2">
+          <button
+            type="button"
+            disabled={cloudFiles.downloading}
+            onClick={() => handleDownloadCloudFiles(hits.map((h) => h.cat))}
+            className="px-3 py-1 rounded-lg bg-sky-400 hover:bg-sky-300 disabled:opacity-60 text-slate-950 font-black cursor-pointer"
+          >
+            {cloudFiles.downloading ? `Descargando… faltan ${total}` : 'Descargar de iCloud'}
+          </button>
+          {cloudFiles.downloading && (
+            <span className="text-sky-300/80">iCloud los baja en segundo plano; este aviso se va solo al terminar.</span>
+          )}
+        </div>
+      </div>
+    );
+  };
+  const renderProductionLockNotice = (variant: 'inline' | 'floating') => {
+    if (!activeDoc || !isDocProductionLocked(activeDoc)) return null;
+    return (
+      <div
+        className={
+          variant === 'floating'
+            ? 'fixed bottom-3 right-3 z-[250] max-w-[min(24rem,calc(100vw-1.5rem))] rounded-xl border border-amber-400/60 bg-slate-950/95 backdrop-blur shadow-2xl px-3 py-2 text-[11px] text-amber-100 flex items-center gap-2'
+            : 'rounded-xl border border-amber-400/50 bg-amber-950/30 px-4 py-3 text-xs text-amber-100 flex items-center gap-3'
+        }
+      >
+        <div className="flex-1 min-w-0">
+          <div className="font-black">🔒 Documental bloqueado</div>
+          <div className="text-amber-200/90">
+            Su guion, voz, timeline, subtítulos y clips no se recalculan ni se pueden cambiar. Desbloquéalo para editarlos.
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => setDocProductionLock(activeDoc.id, false)}
+          className="shrink-0 px-3 py-1 rounded-lg bg-amber-400 hover:bg-amber-300 text-slate-950 font-black cursor-pointer"
+        >
+          Desbloquear
+        </button>
+      </div>
+    );
+  };
+
   const updateActiveDoc = async (
     patch: Partial<DocumentaryProject>,
     options?: { allowClearFields?: string[]; source?: string; docId?: string }
@@ -4686,6 +4894,37 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     const allowedClearSet = new Set(options?.allowClearFields || []);
     const protectedFieldSet = new Set<string>(PROTECTED_DOC_TEXT_FIELDS);
     const sanitizedPatch: Partial<DocumentaryProject> = { ...patch };
+
+    // 0. Production lock: the lock itself only changes through setDocProductionLock, and while locked the
+    //    script, voice, timeline, subtitles and clip structure are never rewritten (automatic or manual).
+    const baseLockAt = currentBaseDoc.promptConfig?.PRODUCTION_LOCK_AT;
+    if (sanitizedPatch.promptConfig && baseLockAt) {
+      sanitizedPatch.promptConfig = {
+        ...sanitizedPatch.promptConfig,
+        PRODUCTION_LOCKED: currentBaseDoc.promptConfig?.PRODUCTION_LOCKED,
+        PRODUCTION_LOCK_AT: baseLockAt,
+      };
+    }
+    if (isDocProductionLocked(currentBaseDoc)) {
+      for (const fk of PRODUCTION_LOCK_FROZEN_DOC_FIELDS) delete (sanitizedPatch as any)[fk];
+      if (Array.isArray(sanitizedPatch.clips)) {
+        const baseClips = currentBaseDoc.clips || [];
+        const incomingByNum = new Map<number, DocumentaryClip>(
+          sanitizedPatch.clips.map((c) => [Number(c.clipNumber), c])
+        );
+        const frozenClips = baseClips.map((bc) => {
+          const merged: any = { ...(incomingByNum.get(Number(bc.clipNumber)) || bc) };
+          for (const ck of PRODUCTION_LOCK_FROZEN_CLIP_FIELDS) {
+            if ((bc as any)[ck] === undefined) delete merged[ck];
+            else merged[ck] = (bc as any)[ck];
+          }
+          return merged as DocumentaryClip;
+        });
+        if (JSON.stringify(frozenClips) === JSON.stringify(baseClips)) delete sanitizedPatch.clips;
+        else sanitizedPatch.clips = frozenClips;
+      }
+      if (Object.keys(sanitizedPatch).length === 0) return;
+    }
 
     // 1. Structural guard against accidental wipe or Tier-2 -> Tier-0/1 downgrade on protected text fields
     for (const tk of PROTECTED_DOC_TEXT_FIELDS) {
@@ -17746,6 +17985,24 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                           <Download className="w-3.5 h-3.5" />
                         </button>
                         <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDocProductionLock(doc.id, !isDocProductionLocked(doc));
+                          }}
+                          className={`p-1.5 rounded-lg hover:bg-slate-800 ${
+                            isDocProductionLocked(doc)
+                              ? 'text-amber-300 hover:text-amber-200'
+                              : 'text-slate-400 hover:text-slate-200'
+                          }`}
+                          title={
+                            isDocProductionLocked(doc)
+                              ? '🔒 Bloqueado: guion, voz, timeline, subtítulos y clips no cambian. Clic para desbloquear.'
+                              : 'Bloquear documental terminado (no se recalcula solo al abrirlo)'
+                          }
+                        >
+                          <Lock className={`w-3.5 h-3.5 ${isDocProductionLocked(doc) ? '' : 'opacity-50'}`} />
+                        </button>
+                        <button
                           onClick={(e) => handleDuplicateDocumentary(doc.id, e)}
                           className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200"
                           title="Duplicar Documental"
@@ -17777,6 +18034,10 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           <PromptGenerator />
         </div>
       )}
+
+      {/* Editor view: iCloud-only files it needs (bottom-left) and the production lock (bottom-right) */}
+      {mainView === 'capcut_editor' && renderCloudFilesNotice(CLOUD_CATEGORIES_EDITOR, 'floating')}
+      {mainView === 'capcut_editor' && renderProductionLockNotice('floating')}
 
       {/* Background export indicator (outside the editor view; inside it the Export button shows progress) */}
       {bgExport.state !== 'idle' && mainView !== 'capcut_editor' && (
@@ -18168,6 +18429,10 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                 </div>
               );
             })()}
+
+            {/* Production lock and iCloud-only files of the folders this stage needs */}
+            {renderProductionLockNotice('inline')}
+            {renderCloudFilesNotice(CLOUD_CATEGORIES_BY_STAGE[activeStage] || [], 'inline')}
 
             {/* ===============================================================
                 ETAPA 1 UNIFICADA: PROMPT MAESTRO (CARPETA + TEMA Y DURACIÓN + VIDEOS ANALIZADOS + COMENTARIOS ×N + DEEP RESEARCH + PERGAMINO)
