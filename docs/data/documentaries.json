@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-10-27T02:05:48.997Z",
-    "updatedAt": "2026-11-19T18:41:06.233Z",
+    "updatedAt": "2026-11-19T18:41:17.134Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -20,7 +20,7 @@
       "TEMA_DEL_VIDEO": "Video 74 Castillo Louvre Parte II",
       "UBICACION_INTRO_MARCA": "INTRO_INICIO_00",
       "FIELD_CLEARED_AT_voiceoverScript": "0",
-      "PROMPTS_RESTORED_AT": "1795113666233",
+      "PROMPTS_RESTORED_AT": "1795113677134",
       "FIELD_CLEARED_AT_rawClipsText": "0",
       "FIELD_CLEARED_AT_pinnedComment": "1795091965654",
       "FIELD_CLEARED_AT_correctedSrt": "0",
@@ -1690,7 +1690,7 @@
         "imageReady": true,
         "videoReady": true,
         "pauseNotes": "Contiene [pausa: 1.1s] en la locución",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "auditStatus": "ok",
         "auditReason": "🖼️ Escena B-Roll Solo Imagen lista (pendiente de revisión) — movimiento 4K 60fps local en Editor.",
@@ -1704,7 +1704,7 @@
         "isStaticBroll": true,
         "brollCameraMotion": "zoom_in",
         "imagePreviewUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2030%20Castillo%20Louvre%20Parte%20II%2F05_Clips_Video%2F32_Imagen_Inicial_Create_an_image_in_16.jpg&t=1795112890615&v=1795112892902",
-        "reviewedUpdatedAt": 1795112892902
+        "reviewedUpdatedAt": 1795113677133
       },
       {
         "id": "clip-33-1794891908322-h8z8",
