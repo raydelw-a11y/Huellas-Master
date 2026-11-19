@@ -728,8 +728,52 @@ function writeFileAtomicUtf8(targetPath: string, content: string) {
   fs.renameSync(tmpPath, targetPath);
 }
 
+// PUBLISH METADATA GUARD: stale copies (old browser caches, another checkout's data file) used to
+// bring back junk into the YouTube / Facebook / pinned-comment fields: the Stage 4 narration script,
+// an unrelated chat, the thumbnail text. Junk is never written; a healthy value on disk is kept.
+function isJunkPublishMetadata(field: string, value: any): boolean {
+  const v = String(value || '');
+  if (!v.trim()) return false;
+  const scriptLike =
+    /ETAPA\s*\d+\s*:|GUION\s+DE\s+LA\s+VOZ|\[pausa:|\(\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}\s*\|/i.test(v);
+  const codeLike = /```|Canvas\s*2D|\b60\s*FPS\b|function\s*\(|=>\s*\{/i.test(v);
+  if (field === 'rawYoutubeMetadata' || field === 'rawFacebookMetadata') {
+    return scriptLike || codeLike || v.length > 7000;
+  }
+  if (field === 'pinnedComment') {
+    const letters = v.replace(/[^A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/g, '');
+    const allCaps = letters.length > 0 && letters === letters.toUpperCase();
+    return scriptLike || codeLike || v.trim().length < 60 || allCaps;
+  }
+  return false;
+}
+
+function protectPublishMetadata(list: any[]): any[] {
+  if (!Array.isArray(list)) return list;
+  let diskById = new Map<string, any>();
+  try {
+    if (fs.existsSync(DOCS_FILE)) {
+      const disk = JSON.parse(fs.readFileSync(DOCS_FILE, 'utf8'));
+      if (Array.isArray(disk)) diskById = new Map(disk.filter((d: any) => d?.id).map((d: any) => [d.id, d]));
+    }
+  } catch {}
+  return list.map((doc) => {
+    if (!doc || typeof doc !== 'object') return doc;
+    let out = doc;
+    for (const field of ['rawYoutubeMetadata', 'rawFacebookMetadata', 'pinnedComment']) {
+      if (!isJunkPublishMetadata(field, doc[field])) continue;
+      const diskVal = diskById.get(doc.id)?.[field];
+      const keep = diskVal && !isJunkPublishMetadata(field, diskVal) ? diskVal : '';
+      if (out === doc) out = { ...doc };
+      out[field] = keep;
+      console.warn(`[PublishMetadataGuard] Blocked junk ${field} on ${doc.id} (${String(doc[field]).length} chars)`);
+    }
+    return out;
+  });
+}
+
 function writeDocumentaries(list: any[], skipCloudPush = false) {
-  const sanitizedList = Array.isArray(list) ? list.map(sanitizeServerDocAudioUrls) : list;
+  const sanitizedList = Array.isArray(list) ? protectPublishMetadata(list.map(sanitizeServerDocAudioUrls)) : list;
   const jsonStr = JSON.stringify(sanitizedList, null, 2);
   try {
     const currentDisk = fs.existsSync(DOCS_FILE) ? fs.readFileSync(DOCS_FILE, 'utf8') : '';
