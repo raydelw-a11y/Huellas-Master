@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-10-27T02:05:48.997Z",
-    "updatedAt": "2026-11-19T06:11:06.147Z",
+    "updatedAt": "2026-11-19T06:11:22.908Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -20,7 +20,7 @@
       "TEMA_DEL_VIDEO": "Video 74 Castillo Louvre Parte II",
       "UBICACION_INTRO_MARCA": "INTRO_INICIO_00",
       "FIELD_CLEARED_AT_voiceoverScript": "0",
-      "PROMPTS_RESTORED_AT": "1795068666147",
+      "PROMPTS_RESTORED_AT": "1795068682908",
       "FIELD_CLEARED_AT_rawClipsText": "0",
       "FIELD_CLEARED_AT_pinnedComment": "0",
       "FIELD_CLEARED_AT_correctedSrt": "0",
@@ -5866,7 +5866,8 @@
         "reframeFocusXEnd": 50,
         "reframeFocusY": 50,
         "reframeConfidence": 0.55,
-        "reframeReason": "Encuadre central simétrico IA (50%)"
+        "reframeReason": "Encuadre central simétrico IA (50%)",
+        "videoDiscardedAt": 1794641982559
       },
       {
         "id": "clip-78-1794442731985-09h8",
@@ -5896,7 +5897,8 @@
         "reframeFocusXEnd": 41,
         "reframeFocusY": 50,
         "reframeConfidence": 0.55,
-        "reframeReason": "Enfoque inteligente IA en tercio izquierdo (41%)"
+        "reframeReason": "Enfoque inteligente IA en tercio izquierdo (41%)",
+        "videoDiscardedAt": 1794641982559
       },
       {
         "id": "clip-79-1794442731996-nr8s",
@@ -5926,7 +5928,8 @@
         "reframeFocusXEnd": 50,
         "reframeFocusY": 50,
         "reframeConfidence": 0.55,
-        "reframeReason": "Encuadre central simétrico IA (50%)"
+        "reframeReason": "Encuadre central simétrico IA (50%)",
+        "videoDiscardedAt": 1794641982559
       },
       {
         "id": "clip-80-1794442732007-j5h7",
@@ -5956,7 +5959,8 @@
         "reframeFocusXEnd": 76,
         "reframeFocusY": 50,
         "reframeConfidence": 0.84,
-        "reframeReason": "Paneo dinámico IA (24% → 76%) desde escena izquierda hacia sujeto derecho (Izq → Der)"
+        "reframeReason": "Paneo dinámico IA (24% → 76%) desde escena izquierda hacia sujeto derecho (Izq → Der)",
+        "videoDiscardedAt": 1794641982559
       },
       {
         "id": "clip-81-1794442732018-m1iu",
@@ -5986,7 +5990,8 @@
         "reframeFocusXEnd": 21,
         "reframeFocusY": 50,
         "reframeConfidence": 0.55,
-        "reframeReason": "Paneo dinámico IA (39% → 21%) siguiendo acción/sujeto"
+        "reframeReason": "Paneo dinámico IA (39% → 21%) siguiendo acción/sujeto",
+        "videoDiscardedAt": 1794641982559
       },
       {
         "id": "clip-82-1794442732030-lb3b",
@@ -6016,7 +6021,8 @@
         "reframeFocusXEnd": 28,
         "reframeFocusY": 50,
         "reframeConfidence": 0.82,
-        "reframeReason": "Paneo dinámico IA (78% → 28%) desde sujeto derecho hacia escena izquierda (Der → Izq)"
+        "reframeReason": "Paneo dinámico IA (78% → 28%) desde sujeto derecho hacia escena izquierda (Der → Izq)",
+        "videoDiscardedAt": 1794641982559
       },
       {
         "id": "clip-83-1794442732041-uaqf",
@@ -6046,7 +6052,8 @@
         "reframeFocusXEnd": 67,
         "reframeFocusY": 50,
         "reframeConfidence": 0.62,
-        "reframeReason": "Paneo dinámico IA (84% → 67%) siguiendo acción/sujeto"
+        "reframeReason": "Paneo dinámico IA (84% → 67%) siguiendo acción/sujeto",
+        "videoDiscardedAt": 1794641982559
       },
       {
         "id": "clip-84-1794442732052-2jsf",
@@ -6076,7 +6083,8 @@
         "reframeFocusXEnd": 50,
         "reframeFocusY": 50,
         "reframeConfidence": 0.55,
-        "reframeReason": "Encuadre central simétrico IA (50%)"
+        "reframeReason": "Encuadre central simétrico IA (50%)",
+        "videoDiscardedAt": 1794641982559
       },
       {
         "id": "clip-85-1794442732062-pu57",
@@ -6106,7 +6114,8 @@
         "reframeFocusXEnd": 50,
         "reframeFocusY": 50,
         "reframeConfidence": 0.62,
-        "reframeReason": "Encuadre central simétrico IA (50%)"
+        "reframeReason": "Encuadre central simétrico IA (50%)",
+        "videoDiscardedAt": 1794641982559
       },
       {
         "id": "clip-86-1794442732073-4bhu",
@@ -6167,7 +6176,8 @@
         "reframeConfidence": 0.55,
         "reframeReason": "Enfoque inteligente IA en tercio derecho (62%)",
         "videoAuditReason": "",
-        "videoAuditIssues": []
+        "videoAuditIssues": [],
+        "videoDiscardedAt": 1794641982559
       },
       {
         "id": "clip-88-1794442732096-cubd",
@@ -6588,7 +6598,8 @@
         "videoAuditStatus": "approved",
         "reviewedUpdatedAt": 1794831554100,
         "videoAuditReason": "",
-        "videoAuditIssues": []
+        "videoAuditIssues": [],
+        "videoDiscardedAt": 1794641982559
       },
       {
         "id": "clip-101-1794442732241-qds1",
@@ -7642,7 +7653,8 @@
         "reframeConfidence": 0.55,
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditReason": "",
-        "videoAuditIssues": []
+        "videoAuditIssues": [],
+        "videoDiscardedAt": 1794641982559
       },
       {
         "id": "clip-134-1794442732620-cfsy",
@@ -7968,7 +7980,8 @@
         "reframeConfidence": 0.57,
         "reframeReason": "Paneo dinámico IA (73% → 53%) siguiendo acción/sujeto",
         "videoAuditReason": "",
-        "videoAuditIssues": []
+        "videoAuditIssues": [],
+        "videoDiscardedAt": 1794641982559
       }
     ],
     "capcutRawSrt": "",
