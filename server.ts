@@ -786,8 +786,43 @@ function protectPublishMetadata(list: any[]): any[] {
   });
 }
 
+// NARRATION SCRIPT GUARD (every write path: PUT, bulk save, GitHub merge). When the script on disk was
+// matched to the recorded voice (VOICEOVER_SCRIPT_MATCHES_AUDIO === 'YES'), a stale copy from another
+// device must not bring back a shorter script. A deliberate rewrite carries the flag as 'NO'.
+function protectRecordedNarrationScripts(list: any[]): any[] {
+  let diskById: Map<string, any>;
+  try {
+    const raw = fs.existsSync(DOCS_FILE) ? JSON.parse(fs.readFileSync(DOCS_FILE, 'utf8')) : [];
+    diskById = new Map((Array.isArray(raw) ? raw : []).map((d: any) => [d?.id, d]));
+  } catch {
+    return list;
+  }
+  const countWords = (t: string) => t.replace(/\[[^\]]*\]/g, ' ').trim().split(/\s+/).filter(Boolean).length;
+  return list.map((doc: any) => {
+    const disk = doc && diskById.get(doc.id);
+    if (
+      !disk ||
+      disk.promptConfig?.VOICEOVER_SCRIPT_MATCHES_AUDIO !== 'YES' ||
+      doc.promptConfig?.VOICEOVER_SCRIPT_MATCHES_AUDIO === 'NO' ||
+      typeof disk.voiceoverScript !== 'string' ||
+      typeof doc.voiceoverScript !== 'string' ||
+      countWords(doc.voiceoverScript) >= countWords(disk.voiceoverScript) - 15
+    ) {
+      return doc;
+    }
+    console.warn(`[NarrationScriptGuard] Blocked stale shorter voiceoverScript on ${doc.id}`);
+    return {
+      ...doc,
+      voiceoverScript: disk.voiceoverScript,
+      promptConfig: { ...(doc.promptConfig || {}), VOICEOVER_SCRIPT_MATCHES_AUDIO: 'YES' },
+    };
+  });
+}
+
 function writeDocumentaries(list: any[], skipCloudPush = false) {
-  const sanitizedList = Array.isArray(list) ? protectPublishMetadata(list).map(sanitizeServerDocAudioUrls) : list;
+  const sanitizedList = Array.isArray(list)
+    ? protectRecordedNarrationScripts(protectPublishMetadata(list)).map(sanitizeServerDocAudioUrls)
+    : list;
   const jsonStr = JSON.stringify(sanitizedList, null, 2);
   try {
     const currentDisk = fs.existsSync(DOCS_FILE) ? fs.readFileSync(DOCS_FILE, 'utf8') : '';
