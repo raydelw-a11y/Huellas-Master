@@ -9234,7 +9234,8 @@ app.post('/api/editor/auto-reframe-9x16', async (req, res) => {
           (df && normRootBase.includes(df)) ||
           (dt && normRootBase.includes(dt.slice(0, 14))) ||
           (normRootBase.includes('76') && dt.includes('76')) ||
-          (normRootBase.includes('75') && dt.includes('75'))
+          (normRootBase.includes('75') && dt.includes('75')) ||
+          (normRootBase.includes('video 30') && dt.includes('video 30'))
         );
       });
       if (matchedDoc && Array.isArray(matchedDoc.clips)) {
@@ -10039,7 +10040,7 @@ function extractVideoNumberFromText(text?: string): string {
   const m = t.match(/\b(?:video|documental|ep\.?)\s*0*(\d+)\b/i);
   if (m) return String(parseInt(m[1], 10));
   if (t.includes('éxodo español') || t.includes('exodo espanol') || t.includes('maliaño')) return '76';
-  if (t.includes('louvre')) return '75';
+  if (t.includes('louvre')) return '30';
   if (t.includes('princesas de la edad media')) return '74';
   return '';
 }

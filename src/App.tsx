@@ -199,7 +199,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '11:27 PM - 11/18/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '11:57 PM - 11/18/2026';
 
 // Etapa 8: nombre de archivo canónico de cada canción → "Canción_01_El_Muelle_de_la_Despedida"
 // (quita prefijos "Pista 1:" / "Canción 1:", comillas y rangos de tiempo "00:08 - 02:38" del título)
@@ -5913,7 +5913,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     const m = t.match(/\b(?:video|documental|ep\.?)\s*0*(\d+)\b/i);
     if (m) return String(parseInt(m[1], 10));
     if (t.includes('éxodo español') || t.includes('exodo espanol') || t.includes('maliaño')) return '76';
-    if (t.includes('louvre')) return '75';
+    if (t.includes('louvre')) return '30';
     if (t.includes('princesas de la edad media')) return '74';
     return '';
   };
@@ -5922,7 +5922,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     if (!doc) return '';
     const num = extractDocVideoNumber(`${doc.title || ''} ${doc.topic || ''}`);
     if (num === '76') return 'Video 76 Éxodo Español Transatlántico (1880-1940)';
-    if (num === '75') return 'Video 75 Castillo Louvre Parte II';
+    if (num === '30' || num === '75') return 'Video 30 Castillo Louvre Parte II';
     if (num === '74') return 'Video 74 Las Princesas de la Edad Media';
     return '';
   };
@@ -5955,7 +5955,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     const clean = (folderCandidate || '').trim();
     if (!clean) return false;
     const fNum = extractDocVideoNumber(clean);
-    if (fNum === '74' || fNum === '75' || fNum === '76') return false;
+    if (fNum === '74' || fNum === '75' || fNum === '76' || fNum === '30') return false;
     return true;
   };
 
