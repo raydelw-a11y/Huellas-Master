@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-10-27T02:05:48.997Z",
-    "updatedAt": "2026-11-19T05:39:30.511Z",
+    "updatedAt": "2026-11-19T05:40:47.847Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -20,7 +20,7 @@
       "TEMA_DEL_VIDEO": "Video 74 Castillo Louvre Parte II",
       "UBICACION_INTRO_MARCA": "INTRO_INICIO_00",
       "FIELD_CLEARED_AT_voiceoverScript": "0",
-      "PROMPTS_RESTORED_AT": "1795066770511",
+      "PROMPTS_RESTORED_AT": "1795066847847",
       "FIELD_CLEARED_AT_rawClipsText": "0",
       "FIELD_CLEARED_AT_pinnedComment": "0",
       "FIELD_CLEARED_AT_correctedSrt": "0",
@@ -660,7 +660,89 @@
       "includeLineNumbers": true
     },
     "rawReferencePrompts": "",
-    "references": [],
+    "references": [
+      {
+        "id": "ref-1795066847661-1",
+        "tag": "@Felipe_II_Augusto",
+        "category": "persona",
+        "description": "Felipe II Augusto",
+        "prompt": "",
+        "isCreated": true,
+        "imageUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2030%20Castillo%20Louvre%20Parte%20II%2F04_Referencias%2FFelipe_II_Augusto_79d26462_4K.jpg&v=1795066497341"
+      },
+      {
+        "id": "ref-1795066847662-2",
+        "tag": "@Leonor_de_Aquitania",
+        "category": "persona",
+        "description": "Leonor de Aquitania",
+        "prompt": "",
+        "isCreated": true,
+        "imageUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2030%20Castillo%20Louvre%20Parte%20II%2F04_Referencias%2FLeonor_de_Aquitania_185eb31a_4K.jpg&v=1795066514109"
+      },
+      {
+        "id": "ref-1795066847662-3",
+        "tag": "@Blanca_de_Castilla",
+        "category": "persona",
+        "description": "Blanca de Castilla",
+        "prompt": "",
+        "isCreated": true,
+        "imageUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2030%20Castillo%20Louvre%20Parte%20II%2F04_Referencias%2FBlanca_de_Castilla_c595043c_4K.jpg&v=1795066505069"
+      },
+      {
+        "id": "ref-1795066847663-4",
+        "tag": "@Fortaleza_Real_del_Louvre",
+        "category": "lugar",
+        "description": "Fortaleza Real del Louvre",
+        "prompt": "",
+        "isCreated": true,
+        "imageUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2030%20Castillo%20Louvre%20Parte%20II%2F04_Referencias%2FFortaleza_Real_del_Louvre_69c68ac1_4K.jpg&v=1795066511884"
+      },
+      {
+        "id": "ref-1795066847663-5",
+        "tag": "@Gran_Salon_del_Louvre",
+        "category": "lugar",
+        "description": "Gran Salon del Louvre",
+        "prompt": "",
+        "isCreated": true,
+        "imageUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2030%20Castillo%20Louvre%20Parte%20II%2F04_Referencias%2FGran_Salon_del_Louvre_4c68dcb8_4K.jpg&v=1795066501850"
+      },
+      {
+        "id": "ref-1795066847664-6",
+        "tag": "@Camara_de_Bano_Real",
+        "category": "lugar",
+        "description": "Camara de Bano Real",
+        "prompt": "",
+        "isCreated": true,
+        "imageUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2030%20Castillo%20Louvre%20Parte%20II%2F04_Referencias%2FCamara_de_Bano_Real_6c81a1c7_4K.jpg&v=1795066527078"
+      },
+      {
+        "id": "ref-1795066847664-7",
+        "tag": "@Catedral_de_Notre_Dame",
+        "category": "lugar",
+        "description": "Catedral de Notre Dame",
+        "prompt": "",
+        "isCreated": true,
+        "imageUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2030%20Castillo%20Louvre%20Parte%20II%2F04_Referencias%2FCatedral_de_Notre_Dame_d1afc9e9_4K.jpg&v=1795066520921"
+      },
+      {
+        "id": "ref-1795066847664-8",
+        "tag": "@Jardin_Real_del_Louvre",
+        "category": "lugar",
+        "description": "Jardin Real del Louvre",
+        "prompt": "",
+        "isCreated": true,
+        "imageUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2030%20Castillo%20Louvre%20Parte%20II%2F04_Referencias%2FJardin_Real_del_Louvre_bb6e0be4_4K.jpg&v=1795066543270"
+      },
+      {
+        "id": "ref-1795066847664-9",
+        "tag": "@Gran_Torre_del_Louvre",
+        "category": "lugar",
+        "description": "Gran Torre del Louvre",
+        "prompt": "",
+        "isCreated": true,
+        "imageUrl": "/api/flow/serve-folder-file?filePath=%2FUsers%2Fraydelsantana%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2F0YouTube%2FHuellas%20de%20la%20Humanidad%2FVideos%2FVideo%2030%20Castillo%20Louvre%20Parte%20II%2F04_Referencias%2FGran_Torre_del_Louvre_0968ae88_4K.jpg&v=1795066532956"
+      }
+    ],
     "clip1TextMode": "CAPCUT_MANUAL",
     "clip1Line1LocationTime": "París, Francia, Siglo XIII",
     "clip1Line2Hook": "Así era la vida secreta de la élite dentro del Louvre",
@@ -5700,8 +5782,7 @@
         "reframeFocusXEnd": 50,
         "reframeFocusY": 50,
         "reframeConfidence": 0.55,
-        "reframeReason": "Encuadre central simétrico IA (50%)",
-        "videoDiscardedAt": 1794641982559
+        "reframeReason": "Encuadre central simétrico IA (50%)"
       },
       {
         "id": "clip-78-1794442731985-09h8",
@@ -5731,8 +5812,7 @@
         "reframeFocusXEnd": 41,
         "reframeFocusY": 50,
         "reframeConfidence": 0.55,
-        "reframeReason": "Enfoque inteligente IA en tercio izquierdo (41%)",
-        "videoDiscardedAt": 1794641982559
+        "reframeReason": "Enfoque inteligente IA en tercio izquierdo (41%)"
       },
       {
         "id": "clip-79-1794442731996-nr8s",
@@ -5762,8 +5842,7 @@
         "reframeFocusXEnd": 50,
         "reframeFocusY": 50,
         "reframeConfidence": 0.55,
-        "reframeReason": "Encuadre central simétrico IA (50%)",
-        "videoDiscardedAt": 1794641982559
+        "reframeReason": "Encuadre central simétrico IA (50%)"
       },
       {
         "id": "clip-80-1794442732007-j5h7",
@@ -5793,8 +5872,7 @@
         "reframeFocusXEnd": 76,
         "reframeFocusY": 50,
         "reframeConfidence": 0.84,
-        "reframeReason": "Paneo dinámico IA (24% → 76%) desde escena izquierda hacia sujeto derecho (Izq → Der)",
-        "videoDiscardedAt": 1794641982559
+        "reframeReason": "Paneo dinámico IA (24% → 76%) desde escena izquierda hacia sujeto derecho (Izq → Der)"
       },
       {
         "id": "clip-81-1794442732018-m1iu",
@@ -5824,8 +5902,7 @@
         "reframeFocusXEnd": 21,
         "reframeFocusY": 50,
         "reframeConfidence": 0.55,
-        "reframeReason": "Paneo dinámico IA (39% → 21%) siguiendo acción/sujeto",
-        "videoDiscardedAt": 1794641982559
+        "reframeReason": "Paneo dinámico IA (39% → 21%) siguiendo acción/sujeto"
       },
       {
         "id": "clip-82-1794442732030-lb3b",
@@ -5855,8 +5932,7 @@
         "reframeFocusXEnd": 28,
         "reframeFocusY": 50,
         "reframeConfidence": 0.82,
-        "reframeReason": "Paneo dinámico IA (78% → 28%) desde sujeto derecho hacia escena izquierda (Der → Izq)",
-        "videoDiscardedAt": 1794641982559
+        "reframeReason": "Paneo dinámico IA (78% → 28%) desde sujeto derecho hacia escena izquierda (Der → Izq)"
       },
       {
         "id": "clip-83-1794442732041-uaqf",
@@ -5886,8 +5962,7 @@
         "reframeFocusXEnd": 67,
         "reframeFocusY": 50,
         "reframeConfidence": 0.62,
-        "reframeReason": "Paneo dinámico IA (84% → 67%) siguiendo acción/sujeto",
-        "videoDiscardedAt": 1794641982559
+        "reframeReason": "Paneo dinámico IA (84% → 67%) siguiendo acción/sujeto"
       },
       {
         "id": "clip-84-1794442732052-2jsf",
@@ -5917,8 +5992,7 @@
         "reframeFocusXEnd": 50,
         "reframeFocusY": 50,
         "reframeConfidence": 0.55,
-        "reframeReason": "Encuadre central simétrico IA (50%)",
-        "videoDiscardedAt": 1794641982559
+        "reframeReason": "Encuadre central simétrico IA (50%)"
       },
       {
         "id": "clip-85-1794442732062-pu57",
@@ -5948,8 +6022,7 @@
         "reframeFocusXEnd": 50,
         "reframeFocusY": 50,
         "reframeConfidence": 0.62,
-        "reframeReason": "Encuadre central simétrico IA (50%)",
-        "videoDiscardedAt": 1794641982559
+        "reframeReason": "Encuadre central simétrico IA (50%)"
       },
       {
         "id": "clip-86-1794442732073-4bhu",
@@ -6010,8 +6083,7 @@
         "reframeConfidence": 0.55,
         "reframeReason": "Enfoque inteligente IA en tercio derecho (62%)",
         "videoAuditReason": "",
-        "videoAuditIssues": [],
-        "videoDiscardedAt": 1794641982559
+        "videoAuditIssues": []
       },
       {
         "id": "clip-88-1794442732096-cubd",
@@ -6432,8 +6504,7 @@
         "videoAuditStatus": "approved",
         "reviewedUpdatedAt": 1794831554100,
         "videoAuditReason": "",
-        "videoAuditIssues": [],
-        "videoDiscardedAt": 1794641982559
+        "videoAuditIssues": []
       },
       {
         "id": "clip-101-1794442732241-qds1",
@@ -7487,8 +7558,7 @@
         "reframeConfidence": 0.55,
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditReason": "",
-        "videoAuditIssues": [],
-        "videoDiscardedAt": 1794641982559
+        "videoAuditIssues": []
       },
       {
         "id": "clip-134-1794442732620-cfsy",
@@ -7814,8 +7884,7 @@
         "reframeConfidence": 0.57,
         "reframeReason": "Paneo dinámico IA (73% → 53%) siguiendo acción/sujeto",
         "videoAuditReason": "",
-        "videoAuditIssues": [],
-        "videoDiscardedAt": 1794641982559
+        "videoAuditIssues": []
       }
     ],
     "capcutRawSrt": "",
