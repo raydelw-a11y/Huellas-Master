@@ -622,8 +622,25 @@ function normalizeServerFolderServedMediaUrl(rawUrl: unknown): string {
   );
 }
 
-function sanitizeServerDocAudioUrls(doc: any): any {
+// Renumbered documentaries: stale clients must never bring the old number back.
+function applyDocumentaryRenumbering(doc: any): any {
   if (!doc || typeof doc !== 'object') return doc;
+  const OLD = 'Video 75 Castillo Louvre';
+  const NEW = 'Video 30 Castillo Louvre';
+  let out = doc;
+  for (const key of ['title', 'topic', 'downloadFolderName', 'downloadFolderPath']) {
+    const v = doc[key];
+    if (typeof v === 'string' && v.includes(OLD)) {
+      if (out === doc) out = { ...doc };
+      out[key] = v.split(OLD).join(NEW);
+    }
+  }
+  return out;
+}
+
+function sanitizeServerDocAudioUrls(docIn: any): any {
+  if (!docIn || typeof docIn !== 'object') return docIn;
+  const doc = applyDocumentaryRenumbering(docIn);
   const rawTracks = Array.isArray(doc.audioTracks) ? doc.audioTracks : [];
   const folderDonor = rawTracks.find(
     (t: any) =>
@@ -10299,9 +10316,10 @@ function resolveLocalDocumentaryFolder(
   folderNameQuery?: string,
   docTitleQuery?: string
 ): string {
-  const rawPath = String(folderPathQuery || '').trim();
-  const rawName = String(folderNameQuery || '').trim();
-  const rawTitle = String(docTitleQuery || '').trim();
+  const renum = (v: string) => v.split('Video 75 Castillo Louvre').join('Video 30 Castillo Louvre');
+  const rawPath = renum(String(folderPathQuery || '').trim());
+  const rawName = renum(String(folderNameQuery || '').trim());
+  const rawTitle = renum(String(docTitleQuery || '').trim());
   const homeDir = process.env.HOME || process.env.USERPROFILE || '';
   if (!homeDir) return '';
 

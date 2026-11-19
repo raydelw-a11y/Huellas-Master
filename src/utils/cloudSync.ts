@@ -530,8 +530,25 @@ export function normalizeVoiceoverUrlString(url?: string): string {
   return trimmed;
 }
 
-export function normalizeDocumentaryVoiceoverAudio(doc: DocumentaryProject): DocumentaryProject {
-  if (!doc) return doc;
+// Renumbered documentaries: stale copies (browser caches, old tabs) must never bring the old number back.
+export function applyDocumentaryRenumbering<T extends Record<string, any>>(doc: T): T {
+  if (!doc || typeof doc !== 'object') return doc;
+  const OLD = 'Video 75 Castillo Louvre';
+  const NEW = 'Video 30 Castillo Louvre';
+  let out: any = doc;
+  for (const key of ['title', 'topic', 'downloadFolderName', 'downloadFolderPath']) {
+    const v = (doc as any)[key];
+    if (typeof v === 'string' && v.includes(OLD)) {
+      if (out === doc) out = { ...doc };
+      out[key] = v.split(OLD).join(NEW);
+    }
+  }
+  return out as T;
+}
+
+export function normalizeDocumentaryVoiceoverAudio(docIn: DocumentaryProject): DocumentaryProject {
+  if (!docIn) return docIn;
+  const doc = applyDocumentaryRenumbering(docIn);
   let masterAudioUrl = normalizeVoiceoverUrlString(doc.masterAudioUrl);
   let audioTracks = Array.isArray(doc.audioTracks)
     ? doc.audioTracks.map((t) => ({
