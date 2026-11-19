@@ -44,7 +44,7 @@
     "_v6_16x9_captionOriginalDefault": true,
     "_v7_9x16_captions22": true
   },
-  "updatedAt": "2026-11-19T02:27:49.272Z",
+  "updatedAt": "2026-11-19T02:31:13.196Z",
   "overlayStyles": {
     "logoScalePct": 12,
     "logoOpacity": 95,
@@ -57,8 +57,8 @@
     "logoAnimOut": "fade",
     "logoAnimOutDur": 2.5,
     "hookFontFamily": "'Cinzel', Georgia, 'Times New Roman', serif",
-    "hookLine1FontSize": 13,
-    "hookLine2FontSize": 20,
+    "hookLine1FontSize": 12,
+    "hookLine2FontSize": 17,
     "hookLine1Color": "#fcd34d",
     "hookLine2Color": "#ffffff",
     "hookShadowStyle": "cinema",
@@ -67,8 +67,8 @@
     "hookBgOpacity": 55,
     "hookLeftPct": 50,
     "hookTopPct": 48,
-    "hookBoxWidthPct": 88,
-    "hookLine1StartSec": 8,
+    "hookBoxWidthPct": 90,
+    "hookLine1StartSec": 9,
     "hookLine1AnimIn": "fade",
     "hookLine1AnimInDur": 1,
     "hookLine1AnimOut": "fade",
@@ -78,7 +78,7 @@
     "hookLine2AnimInDur": 1,
     "hookLine2AnimOut": "fade",
     "hookLine2AnimOutDur": 1,
-    "clip1OverlayEndSec": 14,
+    "clip1OverlayEndSec": 16,
     "captionFontFamily": "'Cinzel', Georgia, 'Times New Roman', serif",
     "captionFontSize": 21,
     "captionFontSize16x9": 25,
@@ -667,7 +667,7 @@
       "audioMuted": false,
       "reframe9x16Mode": "auto_pan",
       "reframeFocusXStart": 76,
-      "reframeFocusXEnd": 31,
+      "reframeFocusXEnd": 53,
       "reframeFocusY": 50
     },
     {
