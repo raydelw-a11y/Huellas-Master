@@ -7274,7 +7274,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const reviewedClipsSignature = (activeDoc?.clips || [])
     .map(
       (c) =>
-        `${c.clipNumber}:${c.reviewedForEditor ? 1 : 0}:${c.videoReady ? 1 : 0}:${c.videoAuditStatus || ''}:${c.auditStatus || ''}:${c.discardedVideoFileName || ''}:${c.videoDiscardOverriddenAt || 0}:${c.isStaticBroll ? 1 : 0}:${c.brollCameraMotion || ''}:${c.videoSavedFileName || ''}`
+        `${c.clipNumber}:${c.reviewedForEditor ? 1 : 0}:${c.videoReady ? 1 : 0}:${c.videoAuditStatus || ''}:${c.auditStatus || ''}:${c.discardedVideoFileName || ''}:${c.videoDiscardOverriddenAt || 0}:${c.isStaticBroll ? 1 : 0}:${c.brollCameraMotion || ''}:${c.videoSavedFileName || ''}:${(c as any).reframeUpdatedAt || 0}`
     )
     .join('|');
 
