@@ -12434,6 +12434,28 @@ app.get('/api/flow/serve-folder-file', async (req, res) => {
       return;
     }
 
+    // Renumbered documentary (Video 75 → Video 30): stale URLs kept by browsers still point to the old
+    // folder and to files that used to sit loose in its root. Map them to where the files live now.
+    if (filePath.includes('Video 75 Castillo Louvre')) {
+      const renumRoot = 'Video 30 Castillo Louvre Parte II';
+      let mapped = filePath.split('Video 75 Castillo Louvre').join('Video 30 Castillo Louvre');
+      mapped = path.join(path.dirname(mapped), path.basename(mapped).replace(/^Video 75 /, 'Video 30 '));
+      if (!(await statFileIfExistsAsync(mapped))) {
+        const rootIdx = mapped.indexOf(renumRoot);
+        if (rootIdx >= 0) {
+          const docRoot = mapped.slice(0, rootIdx + renumRoot.length);
+          for (const sub of ['02_Audio', '01_Guion_y_SEO', '03_Miniaturas', '04_Referencias', '05_Clips_Video', '06_Video_Final']) {
+            const candidate = path.join(docRoot, sub, path.basename(mapped));
+            if (await statFileIfExistsAsync(candidate)) {
+              mapped = candidate;
+              break;
+            }
+          }
+        }
+      }
+      filePath = mapped;
+    }
+
     // Immediate local SSD short-circuit for any legacy Intro:Outro iCloud path (zero iCloud stat/open)
     const matchedOfficialAsset = mayBeOfficialIntroOutroIcloudPath(filePath);
     if (matchedOfficialAsset) {
