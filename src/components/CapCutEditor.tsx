@@ -105,6 +105,33 @@ function normalizeEditorClipTransition(raw: unknown): ClipTransitionType {
   return 'direct';
 }
 
+// A media URL served from another documentary's folder (".../Videos/Video NN .../") never belongs to this one.
+// At the instant of switching documentary the editor still holds the previous documentary's frame and video
+// maps (they are cleared one render later), and saved timelines may carry such URLs from older builds.
+function getDocVideoNumberFromText(text?: string): string {
+  const m = String(text || '').match(/\bVideo\s+0*(\d{1,3})\b/i);
+  return m ? m[1] : '';
+}
+function isMediaUrlFromOtherDocumentary(
+  urlRaw: string | undefined | null,
+  doc?: { title?: string; downloadFolderName?: string; downloadFolderPath?: string } | null
+): boolean {
+  const url = String(urlRaw || '');
+  if (!url || !doc) return false;
+  let decoded = url;
+  try {
+    decoded = decodeURIComponent(url);
+  } catch {}
+  const m = decoded.match(/\/(?:Videos|Reels)\/([^/?&#]+)\//);
+  if (!m) return false;
+  const urlNum = getDocVideoNumberFromText(m[1]);
+  const docNum =
+    getDocVideoNumberFromText(doc.downloadFolderName) ||
+    getDocVideoNumberFromText(doc.title) ||
+    getDocVideoNumberFromText(doc.downloadFolderPath);
+  return Boolean(urlNum && docNum && urlNum !== docNum);
+}
+
 function extractEditorMediaUrlMeta(urlRaw?: string): { fileName: string; mtimeMs: number } {
   const url = String(urlRaw || '').trim();
   if (!url) return { fileName: '', mtimeMs: 0 };
@@ -2524,6 +2551,28 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         updatedAt: Date.now(),
       };
       if ('customTimelineClips' in patch && Array.isArray(nextPayload.customTimelineClips)) {
+        // Never save one documentary's timeline under another documentary's settings
+        const persistTargetId = targetDocId || activeDoc?.id;
+        const persistTargetDoc =
+          activeDoc?.id === persistTargetId
+            ? activeDoc
+            : documentaries.find((d) => d.id === persistTargetId) || null;
+        const foreignMediaCount = (nextPayload.customTimelineClips as TimelineClipItem[]).filter(
+          (c) =>
+            isMediaUrlFromOtherDocumentary(c?.videoUrl, persistTargetDoc) ||
+            isMediaUrlFromOtherDocumentary(c?.posterUrl, persistTargetDoc)
+        ).length;
+        if (foreignMediaCount > 0) {
+          console.warn(
+            `[DocGuard] Skipped saving a timeline with ${foreignMediaCount} clip(s) from another documentary into ${persistTargetId}`
+          );
+          if ('customTimelineClips' in existing) nextPayload.customTimelineClips = existing.customTimelineClips;
+          else delete nextPayload.customTimelineClips;
+          if (!('userEditedClips' in existing)) delete nextPayload.userEditedClips;
+          else nextPayload.userEditedClips = existing.userEditedClips;
+        }
+      }
+      if ('customTimelineClips' in nextPayload && Array.isArray(nextPayload.customTimelineClips)) {
         nextPayload.customTimelineClips = stripHeavyDataUrlsFromClips(
           nextPayload.customTimelineClips
         );
@@ -6012,6 +6061,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     const isDocSwitch = lastSyncedDocIdRef.current !== docId;
     lastSyncedDocIdRef.current = docId;
     const savedDocOverlays = readSavedDocOverlays(docId);
+    // Media of this documentary only: drops URLs that point into another documentary's folder
+    const ownMedia = (u?: string | null | false): string =>
+      u && !isMediaUrlFromOtherDocumentary(u, activeDoc) ? u : '';
 
     const FIXED_INTRO_SEC = 8;
     const FIXED_OUTRO_SEC = 8;
@@ -6161,7 +6213,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     for (const [kStr, rawSrvUrl] of Object.entries(localServerClipVideosMap)) {
       const kNum = Number(kStr);
       const srvUrl = rewriteMediaBridgeUrl(rawSrvUrl);
-      if (!srvUrl) continue;
+      if (!srvUrl || isMediaUrlFromOtherDocumentary(srvUrl, activeDoc)) continue;
       const srvMeta = extractEditorMediaUrlMeta(srvUrl);
       if (isEditorFolderItemDiscarded(docClipByNumForSync.get(kNum), srvMeta.fileName, srvMeta.mtimeMs, srvUrl)) {
         continue;
@@ -6171,7 +6223,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     for (const [kStr, rawCapUrl] of Object.entries(capturedClipVideosMap)) {
       const kNum = Number(kStr);
       const capUrl = rewriteMediaBridgeUrl(rawCapUrl);
-      if (!capUrl) continue;
+      if (!capUrl || isMediaUrlFromOtherDocumentary(capUrl, activeDoc)) continue;
       const capMeta = extractEditorMediaUrlMeta(capUrl);
       if (isEditorFolderItemDiscarded(docClipByNumForSync.get(kNum), capMeta.fileName, capMeta.mtimeMs, capUrl)) {
         continue;
@@ -6211,16 +6263,19 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           : isClip1
           ? clip1VisualDur
           : standardDur;
-      const existingItem = timelineClips.find(
-        (tc) =>
-          tc.clipNumber === c.clipNumber &&
-          tc.id !== 'fixed-doc-intro' &&
-          tc.id !== 'fixed-doc-outro' &&
-          !tc.id.endsWith('-slogan-partB')
-      );
+      // On a documentary switch the live timeline still belongs to the previous documentary: never inherit from it
+      const existingItem = isDocSwitch
+        ? undefined
+        : timelineClips.find(
+            (tc) =>
+              tc.clipNumber === c.clipNumber &&
+              tc.id !== 'fixed-doc-intro' &&
+              tc.id !== 'fixed-doc-outro' &&
+              !tc.id.endsWith('-slogan-partB')
+          );
       const isClipReviewed = Boolean(c.reviewedForEditor);
       const activeCombinedUrl = isClipReviewed ? combinedClipVideosMap[c.clipNumber] || '' : '';
-      const existingRewrittenUrl = isClipReviewed ? rewriteMediaBridgeUrl(existingItem?.videoUrl) : '';
+      const existingRewrittenUrl = isClipReviewed ? ownMedia(rewriteMediaBridgeUrl(existingItem?.videoUrl)) : '';
       const existingMeta = extractEditorMediaUrlMeta(existingRewrittenUrl);
       const canReuseExistingUrl =
         isClipReviewed &&
@@ -6236,10 +6291,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
       // Strictly use each clip's own first frame or initial image fallback (never repeat documentary thumbnail or shared @Reference across clips)
       const rawPosterCandidate =
-        firstFrameByClip[c.clipNumber] ||
-        capturedClipFramesMap?.[c.clipNumber] ||
-        (c.videoFrames && c.videoFrames[0]) ||
-        c.imagePreviewUrl ||
+        ownMedia(firstFrameByClip[c.clipNumber]) ||
+        ownMedia(capturedClipFramesMap?.[c.clipNumber]) ||
+        ownMedia(c.videoFrames && c.videoFrames[0]) ||
+        ownMedia(c.imagePreviewUrl) ||
         '';
       const safePosterCandidate =
         videoUrl && /_Descartados_Auditoria/i.test(String(rawPosterCandidate))
@@ -6418,7 +6473,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           audioMuted: isFolderBroll || undefined,
           transition: isClip1 ? 'dip_black' : defaultTransition,
           videoUrl: rawVidUrl,
-          posterUrl: rewriteMediaBridgeUrl(firstFrameByClip[num] || ''),
+          posterUrl: rewriteMediaBridgeUrl(ownMedia(firstFrameByClip[num])),
           reviewedForEditor: true,
         });
       });
@@ -6638,11 +6693,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           }
           const docClipMatch = activeDoc?.clips?.find((dc) => dc.clipNumber === tc.clipNumber);
           const activeCombinedUrl = combinedClipVideosMap[tc.clipNumber] || '';
-          const rewrittenTcVideoUrl = rewriteMediaBridgeUrl(tc.videoUrl);
-          const rewrittenOrigVideoUrl = rewriteMediaBridgeUrl(tc.originalVideoUrlBeforeSeparation);
-          const rewrittenOpticalFlowUrl = rewriteMediaBridgeUrl(tc.opticalFlowUrl);
-          const rewrittenOrigOpticalFlowUrl = rewriteMediaBridgeUrl(
-            tc.originalOpticalFlowUrlBeforeSeparation
+          const rewrittenTcVideoUrl = ownMedia(rewriteMediaBridgeUrl(tc.videoUrl));
+          const rewrittenOrigVideoUrl = ownMedia(rewriteMediaBridgeUrl(tc.originalVideoUrlBeforeSeparation));
+          const rewrittenOpticalFlowUrl = ownMedia(rewriteMediaBridgeUrl(tc.opticalFlowUrl));
+          const rewrittenOrigOpticalFlowUrl = ownMedia(
+            rewriteMediaBridgeUrl(tc.originalOpticalFlowUrlBeforeSeparation)
           );
           const tcMeta = extractEditorMediaUrlMeta(rewrittenTcVideoUrl);
           const canReuseSavedTcUrl =
@@ -6657,11 +6712,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           const freshVideoUrl =
             activeCombinedUrl || (canReuseSavedTcUrl ? rewrittenTcVideoUrl : '');
           const rawFreshPoster =
-            firstFrameByClip[tc.clipNumber] ||
-            capturedClipFramesMap?.[tc.clipNumber] ||
-            tc.posterUrl ||
-            (docClipMatch?.videoFrames && docClipMatch.videoFrames[0]) ||
-            docClipMatch?.imagePreviewUrl ||
+            ownMedia(firstFrameByClip[tc.clipNumber]) ||
+            ownMedia(capturedClipFramesMap?.[tc.clipNumber]) ||
+            ownMedia(tc.posterUrl) ||
+            ownMedia(docClipMatch?.videoFrames && docClipMatch.videoFrames[0]) ||
+            ownMedia(docClipMatch?.imagePreviewUrl) ||
             '';
           const freshPosterUrl = rewriteMediaBridgeUrl(
             freshVideoUrl && /_Descartados_Auditoria/i.test(String(rawFreshPoster))
