@@ -5775,7 +5775,8 @@
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
         "videoAuditReason": "",
-        "videoAuditIssues": []
+        "videoAuditIssues": [],
+        "videoDiscardedAt": 1794641982559
       },
       {
         "id": "clip-78-1794442731985-09h8",
@@ -5804,7 +5805,8 @@
         "reframeReason": "Enfoque inteligente IA en tercio izquierdo (41%)",
         "videoAuditStatus": "approved",
         "videoAuditReason": "",
-        "videoAuditIssues": []
+        "videoAuditIssues": [],
+        "videoDiscardedAt": 1794641982559
       },
       {
         "id": "clip-79-1794442731996-nr8s",
@@ -5833,7 +5835,8 @@
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
         "videoAuditReason": "",
-        "videoAuditIssues": []
+        "videoAuditIssues": [],
+        "videoDiscardedAt": 1794641982559
       },
       {
         "id": "clip-80-1794442732007-j5h7",
@@ -5862,7 +5865,8 @@
         "reframeReason": "Paneo dinámico IA (24% → 76%) desde escena izquierda hacia sujeto derecho (Izq → Der)",
         "videoAuditStatus": "approved",
         "videoAuditReason": "",
-        "videoAuditIssues": []
+        "videoAuditIssues": [],
+        "videoDiscardedAt": 1794641982559
       },
       {
         "id": "clip-81-1794442732018-m1iu",
@@ -5891,7 +5895,8 @@
         "reframeReason": "Paneo dinámico IA (39% → 21%) siguiendo acción/sujeto",
         "videoAuditStatus": "approved",
         "videoAuditReason": "",
-        "videoAuditIssues": []
+        "videoAuditIssues": [],
+        "videoDiscardedAt": 1794641982559
       },
       {
         "id": "clip-82-1794442732030-lb3b",
@@ -5920,7 +5925,8 @@
         "reframeReason": "Paneo dinámico IA (78% → 28%) desde sujeto derecho hacia escena izquierda (Der → Izq)",
         "videoAuditStatus": "approved",
         "videoAuditReason": "",
-        "videoAuditIssues": []
+        "videoAuditIssues": [],
+        "videoDiscardedAt": 1794641982559
       },
       {
         "id": "clip-83-1794442732041-uaqf",
@@ -5949,7 +5955,8 @@
         "reframeReason": "Paneo dinámico IA (84% → 67%) siguiendo acción/sujeto",
         "videoAuditStatus": "approved",
         "videoAuditReason": "",
-        "videoAuditIssues": []
+        "videoAuditIssues": [],
+        "videoDiscardedAt": 1794641982559
       },
       {
         "id": "clip-84-1794442732052-2jsf",
@@ -5978,7 +5985,8 @@
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
         "videoAuditReason": "",
-        "videoAuditIssues": []
+        "videoAuditIssues": [],
+        "videoDiscardedAt": 1794641982559
       },
       {
         "id": "clip-85-1794442732062-pu57",
@@ -6007,7 +6015,8 @@
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
         "videoAuditReason": "",
-        "videoAuditIssues": []
+        "videoAuditIssues": [],
+        "videoDiscardedAt": 1794641982559
       },
       {
         "id": "clip-86-1794442732073-4bhu",
@@ -6066,7 +6075,8 @@
         "videoSavedAt": 1794831222323,
         "videoAuditStatus": "approved",
         "videoAuditReason": "",
-        "videoAuditIssues": []
+        "videoAuditIssues": [],
+        "videoDiscardedAt": 1794641982559
       },
       {
         "id": "clip-88-1794442732096-cubd",
@@ -6473,7 +6483,8 @@
         "videoSavedAt": 1794830896464,
         "videoAuditStatus": "approved",
         "videoAuditReason": "",
-        "videoAuditIssues": []
+        "videoAuditIssues": [],
+        "videoDiscardedAt": 1794641982559
       },
       {
         "id": "clip-101-1794442732241-qds1",
@@ -7494,7 +7505,8 @@
         "videoSavedAt": 1794839803726,
         "videoAuditStatus": "approved",
         "videoAuditReason": "",
-        "videoAuditIssues": []
+        "videoAuditIssues": [],
+        "videoDiscardedAt": 1794641982559
       },
       {
         "id": "clip-134-1794442732620-cfsy",
@@ -7810,7 +7822,8 @@
         "videoSavedAt": 1794839561116,
         "videoAuditStatus": "approved",
         "videoAuditReason": "",
-        "videoAuditIssues": []
+        "videoAuditIssues": [],
+        "videoDiscardedAt": 1794641982559
       }
     ],
     "capcutRawSrt": "",
