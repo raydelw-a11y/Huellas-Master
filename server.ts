@@ -6548,6 +6548,21 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
   const startedAt = Date.now();
   let render8KRequested = false;
   const workDir = path.join(os.tmpdir(), `huellas_ffmpeg_render_${startedAt}`);
+  // One export at a time: the editor can be minimized while rendering, so a second request must be refused.
+  if (activeRenderJobState.running) {
+    return res.status(409).json({
+      ok: false,
+      error: 'Ya hay una exportación en curso. Espera a que termine antes de iniciar otra.',
+    });
+  }
+  activeRenderJobState = {
+    running: true,
+    progressPct: 1,
+    currentStep: 0,
+    totalSteps: 1,
+    stageLabel: 'Preparando exportación...',
+    startedAt,
+  };
   try {
     const {
       docId = '',

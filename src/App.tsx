@@ -199,7 +199,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '11:30 AM - 11/19/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '11:55 AM - 11/19/2026';
 
 // Etapa 8: nombre de archivo canónico de cada canción → "Canción_01_El_Muelle_de_la_Despedida"
 // (quita prefijos "Pista 1:" / "Canción 1:", comillas y rangos de tiempo "00:08 - 02:38" del título)
@@ -2225,6 +2225,60 @@ export default function App() {
   const [mediaBridgeGen, setMediaBridgeGen] = useState<number>(
     () => getMediaBridgeSnapshot().generation
   );
+  // Background export indicator: the FFmpeg export runs on the server, so its progress is shown on
+  // every view while the editor's export window is minimized.
+  const [bgExport, setBgExport] = useState<{
+    state: 'idle' | 'running' | 'done' | 'error';
+    pct: number;
+    label: string;
+    remainingSec: number;
+  }>({ state: 'idle', pct: 0, label: '', remainingSec: 0 });
+  const bgExportWasRunningRef = useRef(false);
+  useEffect(() => {
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const origin = getMediaBridgeSnapshot().activeOrigin || getOrderedMediaBridgeBases()[0] || '';
+        const r = await fetch(`${origin}/api/editor/render-status`);
+        if (!r.ok || cancelled) return;
+        const st = await r.json();
+        if (cancelled || !st) return;
+        if (st.running) {
+          bgExportWasRunningRef.current = true;
+          const elapsed = st.startedAt > 0 ? Math.max(1, (Date.now() - st.startedAt) / 1000) : 0;
+          const cur = Number(st.currentStep || 0);
+          const tot = Number(st.totalSteps || 0);
+          const remainingSec =
+            cur >= 2 && tot > 0 ? Math.round((Math.max(0, tot - (cur - 1)) * elapsed) / (cur - 1) + 10) : 0;
+          setBgExport({
+            state: 'running',
+            pct: Math.round(Number(st.progressPct) || 0),
+            label: String(st.stageLabel || ''),
+            remainingSec,
+          });
+        } else if (bgExportWasRunningRef.current) {
+          // Only announce the end of an export this tab saw running.
+          bgExportWasRunningRef.current = false;
+          if (st.error) {
+            setBgExport({ state: 'error', pct: 0, label: String(st.error), remainingSec: 0 });
+          } else {
+            setBgExport({
+              state: 'done',
+              pct: 100,
+              label: String(st.fileName || st.outputPath || ''),
+              remainingSec: 0,
+            });
+          }
+        }
+      } catch {}
+    };
+    tick();
+    const timer = window.setInterval(tick, 3000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, []);
   const [stage8VideoRetryMap, setStage8VideoRetryMap] = useState<Record<number, number>>({});
   const stage8VideoRetryTimersRef = useRef<Record<number, number>>({});
   const discoveredMacTunnelUrlRef = useRef<string>(getStoredMediaBridgeTunnel());
@@ -17703,6 +17757,68 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       {mainView === 'standalone_prompt' && (
         <div className="flex-1 py-4">
           <PromptGenerator />
+        </div>
+      )}
+
+      {/* Background export indicator (outside the editor view; inside it the Export button shows progress) */}
+      {bgExport.state !== 'idle' && mainView !== 'capcut_editor' && (
+        <div
+          className={`fixed bottom-3 left-3 z-[260] max-w-[min(22rem,calc(100vw-1.5rem))] rounded-xl border shadow-2xl backdrop-blur px-3 py-2 text-[11px] flex items-center gap-2 ${
+            bgExport.state === 'error'
+              ? 'bg-rose-950/95 border-rose-500/50 text-rose-100'
+              : bgExport.state === 'done'
+              ? 'bg-emerald-950/95 border-emerald-500/50 text-emerald-100'
+              : 'bg-slate-950/95 border-teal-500/50 text-teal-100'
+          }`}
+        >
+          <button
+            type="button"
+            onClick={() => setMainView('capcut_editor')}
+            title="Abrir el Editor de Video"
+            className="flex-1 min-w-0 text-left cursor-pointer"
+          >
+            {bgExport.state === 'running' ? (
+              <>
+                <div className="flex items-center justify-between gap-2 font-black">
+                  <span className="flex items-center gap-1.5 min-w-0">
+                    <span className="w-2.5 h-2.5 rounded-full border-2 border-teal-300 border-t-transparent animate-spin shrink-0" />
+                    <span className="truncate">Exportando video… {bgExport.pct}%</span>
+                  </span>
+                  {bgExport.remainingSec > 0 && (
+                    <span className="font-mono text-amber-300 shrink-0">
+                      ~{Math.floor(bgExport.remainingSec / 60)}:{String(bgExport.remainingSec % 60).padStart(2, '0')}
+                    </span>
+                  )}
+                </div>
+                <div className="mt-1 w-full h-1.5 rounded-full bg-slate-800 overflow-hidden">
+                  <div
+                    style={{ width: `${Math.max(2, Math.min(100, bgExport.pct))}%` }}
+                    className="h-full bg-gradient-to-r from-amber-400 via-emerald-400 to-teal-400 transition-all duration-300"
+                  />
+                </div>
+              </>
+            ) : bgExport.state === 'done' ? (
+              <>
+                <div className="font-black">✅ Exportación terminada</div>
+                <div className="truncate text-emerald-300/90 font-mono">{bgExport.label}</div>
+              </>
+            ) : (
+              <>
+                <div className="font-black">⚠️ La exportación falló</div>
+                <div className="line-clamp-2 text-rose-200/90">{bgExport.label}</div>
+              </>
+            )}
+          </button>
+          {bgExport.state !== 'running' && (
+            <button
+              type="button"
+              onClick={() => setBgExport({ state: 'idle', pct: 0, label: '', remainingSec: 0 })}
+              title="Cerrar aviso"
+              className="shrink-0 w-5 h-5 rounded-md bg-black/30 hover:bg-black/50 cursor-pointer font-bold"
+            >
+              ✕
+            </button>
+          )}
         </div>
       )}
 

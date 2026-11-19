@@ -15014,9 +15014,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       ===================================================================== */}
       {showExportModal && (
         <div
-          onClick={() => {
-            if (!isRenderingVideo) setShowExportModal(false);
-          }}
+          onClick={() => setShowExportModal(false)}
           className="fixed inset-0 z-[280] bg-black/75 backdrop-blur-sm flex items-center justify-center p-4"
         >
           <div
@@ -15039,15 +15037,15 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   </p>
                 </div>
               </div>
-              {!isRenderingVideo && (
-                <button
-                  type="button"
-                  onClick={() => setShowExportModal(false)}
-                  className="w-6 h-6 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-bold cursor-pointer flex items-center justify-center"
-                >
-                  ✕
-                </button>
-              )}
+              {/* The export runs on the server: the window can be minimized while it renders. */}
+              <button
+                type="button"
+                onClick={() => setShowExportModal(false)}
+                title={isRenderingVideo ? 'Minimizar: la exportación sigue en segundo plano' : 'Cerrar'}
+                className="w-6 h-6 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-bold cursor-pointer flex items-center justify-center"
+              >
+                {isRenderingVideo ? '—' : '✕'}
+              </button>
             </div>
 
             {/* Body */}
@@ -15328,11 +15326,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             <div className="px-4 py-3 bg-slate-950/90 border-t border-slate-800 flex items-center justify-end gap-2">
               <button
                 type="button"
-                disabled={isRenderingVideo}
                 onClick={() => setShowExportModal(false)}
                 className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-300 font-bold text-xs cursor-pointer transition"
               >
-                {lastExportedOutputPath && !isRenderingVideo ? 'Cerrar' : 'Cancelar'}
+                {isRenderingVideo
+                  ? 'Minimizar y seguir trabajando'
+                  : lastExportedOutputPath
+                  ? 'Cerrar'
+                  : 'Cancelar'}
               </button>
               <button
                 type="button"
