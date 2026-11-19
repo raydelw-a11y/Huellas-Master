@@ -2388,6 +2388,26 @@ app.put('/api/documentaries/:id', (req, res) => {
     };
   }
 
+  // NARRATION SCRIPT GUARD: when the script was matched to the recorded voice
+  // (promptConfig.VOICEOVER_SCRIPT_MATCHES_AUDIO === 'YES'), an automatic client-side trim must not
+  // shorten it. A deliberate rewrite sends VOICEOVER_SCRIPT_MATCHES_AUDIO: 'NO' in the same request.
+  if (
+    updated &&
+    currentDiskDoc?.promptConfig?.VOICEOVER_SCRIPT_MATCHES_AUDIO === 'YES' &&
+    incomingBody?.promptConfig?.VOICEOVER_SCRIPT_MATCHES_AUDIO !== 'NO' &&
+    typeof updated.voiceoverScript === 'string' &&
+    typeof currentDiskDoc.voiceoverScript === 'string'
+  ) {
+    const countWords = (t: string) => t.replace(/\[[^\]]*\]/g, ' ').trim().split(/\s+/).filter(Boolean).length;
+    if (countWords(updated.voiceoverScript) < countWords(currentDiskDoc.voiceoverScript) - 15) {
+      console.warn(`[NarrationScriptGuard] Blocked automatic trim of voiceoverScript on ${currentDiskDoc.id}`);
+      updated.voiceoverScript = currentDiskDoc.voiceoverScript;
+      for (const k of ['timelineSentences', 'timelineFormattedText', 'correctedSrt']) {
+        if (currentDiskDoc[k] !== undefined) updated[k] = currentDiskDoc[k];
+      }
+    }
+  }
+
   // MANUAL REFRAME GUARD: a client holding a stale copy of doc.clips must never roll back a newer
   // manual 9:16 reframe saved on disk (newest reframeUpdatedAt wins, per clip).
   if (Array.isArray(updated?.clips) && Array.isArray(currentDiskDoc?.clips)) {

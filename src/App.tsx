@@ -199,7 +199,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '01:10 AM - 11/19/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '01:28 AM - 11/19/2026';
 
 // Etapa 8: nombre de archivo canónico de cada canción → "Canción_01_El_Muelle_de_la_Despedida"
 // (quita prefijos "Pista 1:" / "Canción 1:", comillas y rangos de tiempo "00:08 - 02:38" del título)
@@ -5761,6 +5761,13 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       return;
     }
     const rawVo = activeDoc.voiceoverScript;
+    // Once the narration is recorded, the script must mirror the audio word for word: never trim it
+    // to the target duration, or the captions lose the passages that were cut (Video 30, 2026-11-19).
+    const recordedLeadTrack = activeDoc.audioTracks?.[0];
+    const hasRecordedNarration =
+      Number(recordedLeadTrack?.duration) > 2 &&
+      Boolean(recordedLeadTrack?.audioUrl && !String(recordedLeadTrack.audioUrl).startsWith('blob:'));
+    if (hasRecordedNarration) return;
     const fittedVo = autoFitVoiceoverScriptToDuration(rawVo, activeDoc);
     if (fittedVo && fittedVo !== rawVo.trim()) {
       const leadTrack = activeDoc.audioTracks?.[0];
