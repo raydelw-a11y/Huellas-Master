@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-10-27T02:05:48.997Z",
-    "updatedAt": "2026-11-19T17:46:40.894Z",
+    "updatedAt": "2026-11-19T17:50:40.521Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -20,7 +20,7 @@
       "TEMA_DEL_VIDEO": "Video 74 Castillo Louvre Parte II",
       "UBICACION_INTRO_MARCA": "INTRO_INICIO_00",
       "FIELD_CLEARED_AT_voiceoverScript": "0",
-      "PROMPTS_RESTORED_AT": "1795110400894",
+      "PROMPTS_RESTORED_AT": "1795110640521",
       "FIELD_CLEARED_AT_rawClipsText": "0",
       "FIELD_CLEARED_AT_pinnedComment": "1795091965654",
       "FIELD_CLEARED_AT_correctedSrt": "0",
@@ -1571,7 +1571,7 @@
         "imageReady": true,
         "videoReady": true,
         "pauseNotes": "Contiene [pausa: 2.2s] en la locución",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "auditStatus": "ok",
         "auditReason": "Sincronizado con el tramo de voz narrativa.",
@@ -1586,7 +1586,8 @@
         "reframeFocusXEnd": 76,
         "reframeFocusY": 50,
         "reframeConfidence": 0.82,
-        "reframeReason": "Paneo dinámico IA (18% → 76%) desde sujeto izquierdo hacia escena derecha (Izq → Der)"
+        "reframeReason": "Paneo dinámico IA (18% → 76%) desde sujeto izquierdo hacia escena derecha (Izq → Der)",
+        "reviewedUpdatedAt": 1795110411015
       },
       {
         "id": "clip-29-1794891908313-ze2f",
@@ -1600,7 +1601,7 @@
         "imageReady": true,
         "videoReady": true,
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "auditStatus": "ok",
         "auditReason": "Sincronizado con el tramo de voz narrativa.",
@@ -1615,7 +1616,8 @@
         "reframeFocusXEnd": 24,
         "reframeFocusY": 50,
         "reframeConfidence": 0.82,
-        "reframeReason": "Paneo dinámico IA (78% → 24%) desde sujeto derecho hacia escena izquierda (Der → Izq)"
+        "reframeReason": "Paneo dinámico IA (78% → 24%) desde sujeto derecho hacia escena izquierda (Der → Izq)",
+        "reviewedUpdatedAt": 1795110634991
       },
       {
         "id": "clip-30-1794891908315-sr49",
@@ -1629,7 +1631,7 @@
         "imageReady": true,
         "videoReady": true,
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "auditStatus": "ok",
         "auditReason": "Sincronizado con el tramo de voz narrativa.",
@@ -1644,7 +1646,8 @@
         "reframeFocusXEnd": 50,
         "reframeFocusY": 50,
         "reframeConfidence": 0.57,
-        "reframeReason": "Encuadre central simétrico IA (50%)"
+        "reframeReason": "Encuadre central simétrico IA (50%)",
+        "reviewedUpdatedAt": 1795110640521
       },
       {
         "id": "clip-31-1794891908317-2pl6",
