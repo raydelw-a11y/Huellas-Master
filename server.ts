@@ -6210,6 +6210,8 @@ let activeRenderJobState: {
   error?: string;
   errorAt?: number;
   error8K?: boolean;
+  cancelling?: boolean;
+  cancelledAt?: number;
 } = {
   running: false,
   progressPct: 0,
@@ -6221,6 +6223,35 @@ let activeRenderJobState: {
 
 app.get('/api/editor/render-status', (_req, res) => {
   res.json({ ok: true, ...activeRenderJobState });
+});
+
+// User-requested cancellation of the running export. The render handler checks the flag between steps;
+// tracked FFmpeg children (segment encoders, 9:16 trim) are killed right away, and the handler-owned hook
+// stops the worker pool / final muxer safely (the muxer is never killed while a FIFO writer may be blocked).
+const RENDER_CANCELLED_MESSAGE = 'Exportación cancelada por el usuario.';
+let renderCancelRequested = false;
+let renderCancelHook: (() => void) | null = null;
+const renderChildProcs = new Set<ChildProcess>();
+
+app.post('/api/editor/render-cancel', (_req, res) => {
+  if (!activeRenderJobState.running) {
+    return res.json({ ok: true, wasRunning: false });
+  }
+  renderCancelRequested = true;
+  activeRenderJobState = {
+    ...activeRenderJobState,
+    cancelling: true,
+    stageLabel: 'Cancelando exportación...',
+  };
+  try {
+    renderCancelHook?.();
+  } catch {}
+  for (const proc of Array.from(renderChildProcs)) {
+    try {
+      proc.kill('SIGKILL');
+    } catch {}
+  }
+  res.json({ ok: true, wasRunning: true });
 });
 
 const clipRoomToneAnalysisCache = new Map<
@@ -6563,6 +6594,9 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
     stageLabel: 'Preparando exportación...',
     startedAt,
   };
+  renderCancelRequested = false;
+  renderCancelHook = null;
+  renderChildProcs.clear();
   try {
     const {
       docId = '',
@@ -7991,7 +8025,18 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
 
       const runSegmentEncode = (args: string[]) =>
         new Promise<void>((resolve, reject) => {
-          execFile(ffmpegBin, args, { timeout: 600000 }, (err) => (err ? reject(err) : resolve()));
+          // A cancelled export must not fall through the hardware -> software retry chain.
+          if (renderCancelRequested) {
+            reject(new Error(RENDER_CANCELLED_MESSAGE));
+            return;
+          }
+          const segProc = execFile(ffmpegBin, args, { timeout: 600000 }, (err) => {
+            renderChildProcs.delete(segProc);
+            if (renderCancelRequested) reject(new Error(RENDER_CANCELLED_MESSAGE));
+            else if (err) reject(err);
+            else resolve();
+          });
+          renderChildProcs.add(segProc);
         });
 
       const segLabel = isIntroClip ? 'Intro' : isOutroClip ? 'Outro' : `Clip ${c.clipNumber || i}`;
@@ -8402,6 +8447,9 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       ];
     }
 
+    if (renderCancelRequested) {
+      throw new Error(RENDER_CANCELLED_MESSAGE);
+    }
     const muxerProc = spawn(ffmpegBin, muxerArgs, { stdio: ['ignore', 'ignore', 'pipe'] });
     let muxerStderr = '';
     muxerProc.stderr?.on('data', (d) => {
@@ -8422,6 +8470,19 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
     let nextFifoToFeed = 0;
     const segReadyFlags: boolean[] = new Array(totalSegTasks).fill(false);
     let workerError: any = null;
+    let segmentsPhaseDone = false;
+    // While segments are encoding, cancelling only flags the pool: the FIFO feeder then kills the muxer itself
+    // once it is not blocked on a FIFO. After that phase the muxer can be killed directly.
+    renderCancelHook = () => {
+      if (segmentsPhaseDone) {
+        try {
+          muxerProc.kill('SIGKILL');
+        } catch {}
+      } else if (!workerError) {
+        workerError = new Error(RENDER_CANCELLED_MESSAGE);
+      }
+    };
+    if (renderCancelRequested) renderCancelHook();
 
     const workerConcurrency = Math.min(is8K ? 2 : 4, Math.max(1, totalSegTasks));
 
@@ -8494,8 +8555,15 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       runFifoFeeder(),
     ]);
 
+    segmentsPhaseDone = true;
     if (workerError) {
       throw workerError;
+    }
+    if (renderCancelRequested) {
+      try {
+        muxerProc.kill('SIGKILL');
+      } catch {}
+      throw new Error(RENDER_CANCELLED_MESSAGE);
     }
 
     activeRenderJobState = {
@@ -8555,10 +8623,22 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       const vEnc = process.platform === 'darwin'
         ? ['-c:v', 'h264_videotoolbox', '-b:v', `${Math.max(8, Number(bitrateMbps) || 16)}M`]
         : ['-c:v', 'libx264', '-preset', 'veryfast', '-crf', '18'];
-      const trimOk = await new Promise<boolean>((resolveTrim) => execFile(getFfmpegPath(), [
-        '-y', '-i', finalOutputPath, '-filter_complex', filter, '-map', '[vo]', '-map', '[ao]',
-        ...vEnc, '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '320k', '-movflags', '+faststart', trimmedPath,
-      ], { maxBuffer: 64 * 1024 * 1024 }, (err) => resolveTrim(!err)));
+      const trimOk = await new Promise<boolean>((resolveTrim) => {
+        const trimProc = execFile(getFfmpegPath(), [
+          '-y', '-i', finalOutputPath, '-filter_complex', filter, '-map', '[vo]', '-map', '[ao]',
+          ...vEnc, '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '320k', '-movflags', '+faststart', trimmedPath,
+        ], { maxBuffer: 64 * 1024 * 1024 }, (err) => {
+          renderChildProcs.delete(trimProc);
+          resolveTrim(!err);
+        });
+        renderChildProcs.add(trimProc);
+      });
+      if (renderCancelRequested) {
+        // Cancelled while removing intro/outro: drop both the partial trim and the untrimmed render.
+        try { fs.unlinkSync(trimmedPath); } catch {}
+        try { fs.unlinkSync(finalOutputPath); } catch {}
+        throw new Error(RENDER_CANCELLED_MESSAGE);
+      }
       if (trimOk && fs.existsSync(trimmedPath)) {
         try { fs.unlinkSync(finalOutputPath); } catch {}
         fs.renameSync(trimmedPath, finalOutputPath);
@@ -8585,6 +8665,8 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
     const elapsedLabel = elapsedH > 0
       ? `${elapsedH} h ${elapsedM} min`
       : elapsedM > 0 ? `${elapsedM} min ${elapsedS} s` : `${elapsedS} s`;
+    renderCancelHook = null;
+    renderChildProcs.clear();
     activeRenderJobState = {
       running: false,
       progressPct: 100,
@@ -8607,6 +8689,24 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
     try {
       fs.rmSync(workDir, { recursive: true, force: true });
     } catch {}
+    renderCancelHook = null;
+    renderChildProcs.clear();
+    if (renderCancelRequested) {
+      // Cancelled by the user: not an error, so no error state and no 8K failure alert.
+      renderCancelRequested = false;
+      activeRenderJobState = {
+        running: false,
+        progressPct: 0,
+        currentStep: 0,
+        totalSteps: 0,
+        stageLabel: '',
+        startedAt: 0,
+        cancelledAt: Date.now(),
+      };
+      console.log('[render-ffmpeg] Exportación cancelada por el usuario.');
+      res.status(409).json({ ok: false, cancelled: true, error: RENDER_CANCELLED_MESSAGE });
+      return;
+    }
     activeRenderJobState = {
       running: false,
       progressPct: 0,

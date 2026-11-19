@@ -1251,6 +1251,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   });
   const [lastExportedOutputPath, setLastExportedOutputPath] = useState<string>('');
   const [isRenderingVideo, setIsRenderingVideo] = useState<boolean>(false);
+  const [isCancellingRender, setIsCancellingRender] = useState<boolean>(false);
+  const lastSeenRenderCancelledAtRef = useRef<number>(0);
   const [renderProgressPct, setRenderProgressPct] = useState<number>(0);
   const [statusMessage, setStatusMessage] = useState<string>('');
   const [defaultTransition, setDefaultTransition] = useState<ClipTransitionType>(
@@ -1318,6 +1320,16 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           setRenderRemainingSec(0);
           setLastExportedOutputPath(st.outputPath);
           if (st.stageLabel) setRenderStageLabel(st.stageLabel);
+        } else if (st && Number(st.cancelledAt) > Date.now() - 60 * 1000) {
+          // The export was cancelled (from this or another open editor): stop showing it as running everywhere.
+          setIsRenderingVideo(false);
+          setIsCancellingRender(false);
+          if (lastSeenRenderCancelledAtRef.current !== Number(st.cancelledAt)) {
+            lastSeenRenderCancelledAtRef.current = Number(st.cancelledAt);
+            setRenderProgressPct(0);
+            setRenderStageLabel('🛑 Exportación cancelada');
+            setStatusMessage('🛑 Exportación cancelada.');
+          }
         } else if (st && st.error && st.error8K && Number(st.errorAt) > Date.now() - 30 * 60 * 1000) {
           // A failed 8K export alerts every open editor (PC or phone), once per failure.
           const seenKey = 'huellas_editor_render_error_seen_at';
@@ -13170,6 +13182,31 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   };
 
   // Render & Download Final Master Video in HD / 2K / 4K / 8K and 16:9 or 9:16 (Single Unified Action)
+  const handleCancelExport = async () => {
+    if (!isRenderingVideo || isCancellingRender) return;
+    const sure = window.confirm(
+      '¿Seguro que quieres cancelar la exportación?\n\nSe perderá todo el progreso y tendrás que exportar de nuevo desde el principio.'
+    );
+    if (!sure) return;
+    setIsCancellingRender(true);
+    setRenderStageLabel('Cancelando exportación...');
+    try {
+      const resp = await fetch(`${getEditorPrimaryServerOrigin()}/api/editor/render-cancel`, { method: 'POST' });
+      const data = await resp.json().catch(() => null);
+      if (!resp.ok || !data?.ok) {
+        throw new Error(data?.error || `HTTP ${resp.status}`);
+      }
+      if (!data.wasRunning) {
+        // Nothing was running on the server any more.
+        setIsRenderingVideo(false);
+        setIsCancellingRender(false);
+      }
+    } catch (cancelErr: any) {
+      setIsCancellingRender(false);
+      setStatusMessage(`⚠️ No se pudo cancelar la exportación: ${cancelErr?.message || cancelErr}`);
+    }
+  };
+
   const handleExportMasterVideo = async () => {
     // Ask once (needs a user gesture) for permission to show the "8K export stopped" browser notification.
     try {
@@ -13975,7 +14012,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           } else {
             const errJson = await resp.json().catch(() => null);
             if (errJson?.error) {
-              throw new Error(errJson.error);
+              const renderErr: any = new Error(errJson.error);
+              renderErr.cancelled = Boolean(errJson.cancelled);
+              throw renderErr;
             }
           }
         } catch (ffErr: any) {
@@ -13986,6 +14025,15 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           if (secTimer) {
             window.clearInterval(secTimer);
             secTimer = null;
+          }
+          if (ffErr?.cancelled) {
+            // Cancelled by the user: not an error.
+            setRenderProgressPct(0);
+            setRenderStageLabel('🛑 Exportación cancelada');
+            setStatusMessage('🛑 Exportación cancelada.');
+            setIsRenderingVideo(false);
+            setIsCancellingRender(false);
+            return;
           }
           console.error('Error en renderizado nativo FFmpeg:', ffErr);
           setRenderStageLabel(`⚠️ ${ffErr?.message || 'Error en FFmpeg'}`);
@@ -15323,7 +15371,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             </div>
 
             {/* Footer Actions */}
-            <div className="px-4 py-3 bg-slate-950/90 border-t border-slate-800 flex items-center justify-end gap-2">
+            <div className="px-4 py-3 bg-slate-950/90 border-t border-slate-800 flex flex-wrap items-center justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setShowExportModal(false)}
@@ -15335,6 +15383,17 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   ? 'Cerrar'
                   : 'Cancelar'}
               </button>
+              {isRenderingVideo && (
+                <button
+                  type="button"
+                  disabled={isCancellingRender}
+                  onClick={handleCancelExport}
+                  className="px-3.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white font-black text-xs cursor-pointer transition"
+                  title="Detener la exportación en curso (pide confirmación)"
+                >
+                  {isCancellingRender ? 'Cancelando...' : '🛑 Cancelar exportación'}
+                </button>
+              )}
               <button
                 type="button"
                 disabled={isRenderingVideo}
