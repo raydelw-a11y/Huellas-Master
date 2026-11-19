@@ -5317,6 +5317,78 @@ export function buildAudioCaptionsFromSidecarWords(
   return result;
 }
 
+/**
+ * 16:9 safety pass over already-built caption items (one line per item): never leave a single word
+ * alone on a line unless it is a one-word sentence. Mirrors the rule inside reformatCaptionItems, for
+ * captions that were built or cached without it. Returns the same array when nothing changes.
+ */
+export function mergeOrphanSingleWordCaptions<
+  T extends { start: number; end: number; text: string; audioStartSec?: number; audioEndSec?: number; words?: any[] }
+>(items: T[]): T[] {
+  if (!Array.isArray(items) || items.length < 2) return items;
+  const wordsOf = (t: string) => String(t || '').replace(/\u00A0/g, ' ').trim().split(/\s+/).filter(Boolean);
+  const endsSentence = (w: string) => /[.?!…]["'»”)\]]*$/.test(String(w || '').trim());
+  const endsStrong = (w: string) => /[.?!…:]["'»”)\]]*$/.test(String(w || '').trim());
+  const out: any[] = items.map((it) => ({ ...it }));
+  let changed = false;
+  for (let k = 0; k < out.length; k++) {
+    const cur = out[k];
+    if (String(cur.text || '').includes('\n')) continue;
+    const curWords = wordsOf(cur.text);
+    if (curWords.length !== 1) continue;
+    const prev = k > 0 ? out[k - 1] : null;
+    const next = k + 1 < out.length ? out[k + 1] : null;
+    const prevWords = prev && !String(prev.text || '').includes('\n') ? wordsOf(prev.text) : [];
+    const prevLast = prevWords.length > 0 ? prevWords[prevWords.length - 1] : '';
+    // A genuine one-word sentence ("¡Silencio!") stays alone
+    if (endsSentence(curWords[0]) && (!prevLast || endsStrong(prevLast))) continue;
+    const gapPrev = prev ? Number(cur.start) - Number(prev.end) : 999;
+    const gapNext = next ? Number(next.start) - Number(cur.end) : 999;
+    if (prev && prevLast && !endsSentence(prevLast) && gapPrev < 0.6) {
+      const pw = Array.isArray(prev.words) && prev.words.length === prevWords.length ? prev.words : null;
+      const cw = Array.isArray(cur.words) && cur.words.length === 1 ? cur.words : null;
+      if (prevWords.length >= 3 && pw && cw) {
+        // Move the previous line's last word down so both lines keep at least two words
+        const moved = pw[pw.length - 1];
+        const keptLast = pw[pw.length - 2];
+        const prevDelta = Number(prev.start) - Number(prev.audioStartSec ?? prev.start);
+        const movedStartTl = Number(moved.audioStartSec) + prevDelta;
+        const keptEndTl = Number(keptLast.audioEndSec) + prevDelta;
+        if (Number.isFinite(movedStartTl) && Number.isFinite(keptEndTl) && movedStartTl > Number(prev.start)) {
+          prev.words = pw.slice(0, -1);
+          prev.text = prevWords.slice(0, -1).join(' ');
+          prev.end = Number(Math.max(Number(prev.start) + 0.2, Math.min(keptEndTl, movedStartTl)).toFixed(3));
+          if (typeof prev.audioEndSec === 'number') prev.audioEndSec = Number(Number(keptLast.audioEndSec).toFixed(3));
+          cur.words = [moved, ...cw];
+          cur.text = `${prevLast} ${curWords[0]}`;
+          cur.start = Number(movedStartTl.toFixed(3));
+          if (typeof cur.audioStartSec === 'number') cur.audioStartSec = Number(Number(moved.audioStartSec).toFixed(3));
+          changed = true;
+          continue;
+        }
+      }
+      // Otherwise join the lone word onto the previous line
+      prev.text = `${prevWords.join(' ')} ${curWords[0]}`;
+      prev.end = cur.end;
+      if (typeof cur.audioEndSec === 'number') prev.audioEndSec = cur.audioEndSec;
+      if (Array.isArray(prev.words) && Array.isArray(cur.words)) prev.words = [...prev.words, ...cur.words];
+      out.splice(k, 1);
+      k--;
+      changed = true;
+    } else if (next && !endsSentence(curWords[0]) && gapNext < 0.6 && !String(next.text || '').includes('\n')) {
+      next.text = `${curWords[0]} ${wordsOf(next.text).join(' ')}`;
+      next.start = cur.start;
+      if (typeof cur.audioStartSec === 'number') next.audioStartSec = cur.audioStartSec;
+      if (Array.isArray(next.words) && Array.isArray(cur.words)) next.words = [...cur.words, ...next.words];
+      out.splice(k, 1);
+      k--;
+      changed = true;
+    }
+  }
+  if (!changed) return items;
+  return out.map((it, i) => ('index' in it ? { ...it, index: i + 1 } : it)) as T[];
+}
+
 export function reformatCaptionItems<
   T extends { id?: string; index?: number; start: number; end: number; text: string }
 >(

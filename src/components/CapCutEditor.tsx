@@ -42,6 +42,7 @@ import {
   normalizeClip1Line1Format,
   splitWordsIntoShortLines,
   reformatCaptionItems,
+  mergeOrphanSingleWordCaptions,
   CaptionTimedWord,
   computeVoiceScriptAlignHash,
   spokenSpanishSyllableWeight,
@@ -2509,6 +2510,18 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       localStorage.setItem(docKey, JSON.stringify(nextPayload));
     } catch {}
   };
+
+  // 16:9 safety net: captions built or cached without the anti-orphan rule (e.g. while another
+  // format was active) are repaired here, so no line is ever left with a single word.
+  useEffect(() => {
+    if (aspectRatio !== '16:9' || captions.length < 2) return;
+    const orphanDocId = activeDoc?.id || 'default';
+    if (userEditedCaptionsDocIdRef.current === orphanDocId) return;
+    const repaired = mergeOrphanSingleWordCaptions(captions);
+    if (repaired === captions) return;
+    setCaptions(repaired);
+    persistDocOverlaysPatch({ captions: repaired }, orphanDocId);
+  }, [captions, aspectRatio, activeDoc?.id]);
 
   // Real-time persistence for all Hook Text, Captions, and Logo styles/positions/animations
   useEffect(() => {
