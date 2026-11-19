@@ -3,11 +3,11 @@
   "alg": "AES-256-GCM-PBKDF2-SHA256",
   "iter": 210000,
   "kdfSaltB64": "nwZDbawW3J53+Yf1xElFZw==",
-  "ivB64": "cGmyedxeJ7XY8g/M",
-  "ctB64": "+GhywYgo7yJvdi0pkSQmpB+dwo39hldytzVeQJaL7QkiNyvTsfICOLGRReqn5wrw0jA9kaSKuCC8bhCJXthzvzgt1JuXnw82kE4l2/mz3jx8tfQYw8fwrJ0OZpWXXNHZ0/5I1K1VcgA0raYiQVe754arc9G3CKtuVdNsgmSq7ybtNC7qsvgY2Nu1O39jgdVJwYORr+nr8IhYyps+xX7UcQdqcBF29sRIDgnD+J5ZnQ==",
+  "ivB64": "/052TdefsMJPf/Cr",
+  "ctB64": "qbOxlcRGSG8TfedjQfsRSm5nzPEpq8srNjkHNtkPkpF7s2m2RAylhL7r73bL1MtQDOqHSoSAK9L29e4UBVCwDKkTXgxgh2VHVgxRThlR+ZgxQVeJNIoI0RzKBHiRLOgFixGsU8fthI+zxKoLFX23BGjwD8mktGJMSScTyNzSklR5nqPJlxNQkDyaAEEhXHmGi5TJTsK6OZxw0zP5ofR71XpgsDuxOODH2gRO1O/eqPjc",
   "studioBridge": {
-    "ivB64": "rYYj3vL1Fh5UI/AQ",
-    "ctB64": "BDqGtR5p20y8OXvoDQHJOzzgfal82DV8xN0aa9ua6M7DMWWqskRrLAFGiNqGGUJ9Tv2Orhv7cD+C8Y6CBFUCHeeorNwrK4IKs3154l81r7Ls3yhGJxD4mnZ43L8T0PzYnrom9JK3gxOaxEw3BM7SuzZFPcfk+znvkeRligQRhj2MF9CO26RWuMdV+y8KQFRSRI4xCx0="
+    "ivB64": "2mu8kvTHGuC+M0oi",
+    "ctB64": "xGM3Lw/0mYuFuLscbSkZfTtFb60cAVd9Mep/XRb/PJzi8o2YPc7GX4bVU5Wvh5b9I+WKyqnICdy32Qm6BBy6mJCa6chzbaNu9bgr564n6xogi1pZV2UJxodTDS5r/gQZhl5xhqqmlG01/mLhCmb+24pCEuj0RGg/z9MQIdA2jZnh/+RbejCa+s0BzaV6/nw8b4UnViWymQ=="
   },
-  "updatedAt": 1795062510434
+  "updatedAt": 1795064366938
 }
