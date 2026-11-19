@@ -6410,6 +6410,8 @@ app.post('/api/editor/update-clip-reframe-9x16', (req, res) => {
   }
 });
 
+let intelHevc8KHardwareOk: boolean | null = null;
+
 app.post('/api/editor/render-ffmpeg', async (req, res) => {
   const startedAt = Date.now();
   const workDir = path.join(os.tmpdir(), `huellas_ffmpeg_render_${startedAt}`);
@@ -6504,8 +6506,31 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
     const rawOutW = aspectRatio === '9:16' ? preset.h169 : preset.w169;
     const rawOutH = aspectRatio === '9:16' ? preset.w169 : preset.h169;
     // On Intel QuickSync GPUs, hardware silicon maxes out at 3840x2160 (4K UHD); keep full ultra bitrate (up to 200 Mbps) on hardware GPU
-    const outW = isIntelMac && rawOutW > 3840 ? (aspectRatio === '9:16' ? 2160 : 3840) : rawOutW;
-    const outH = isIntelMac && rawOutH > 3840 ? (aspectRatio === '9:16' ? 3840 : 2160) : rawOutH;
+    // Intel Macs cannot encode H.264 above 3840x2160 in hardware, but recent Intel GPUs do encode
+    // 8K HEVC. Probe once: if hevc_videotoolbox accepts a 7680x4320 frame, export true 8K (HEVC);
+    // otherwise fall back to 4K and label the file with the real resolution.
+    const wants8K = rawOutW > 3840 || rawOutH > 3840;
+    let capTo4K = false;
+    if (isIntelMac && wants8K) {
+      if (intelHevc8KHardwareOk === null) {
+        try {
+          execFileSync(
+            getFfmpegPath(),
+            ['-v', 'error', '-f', 'lavfi', '-i', 'color=c=black:s=7680x4320:r=30', '-frames:v', '2',
+             '-c:v', 'hevc_videotoolbox', '-b:v', '50M', '-pix_fmt', 'yuv420p', '-f', 'null', '-'],
+            { stdio: 'ignore', timeout: 60000 }
+          );
+          intelHevc8KHardwareOk = true;
+        } catch {
+          intelHevc8KHardwareOk = false;
+        }
+        console.log(`[Render] Intel 8K HEVC hardware probe: ${intelHevc8KHardwareOk ? 'OK' : 'not supported'}`);
+      }
+      capTo4K = !intelHevc8KHardwareOk;
+    }
+    const outW = capTo4K ? (aspectRatio === '9:16' ? 2160 : 3840) : rawOutW;
+    const outH = capTo4K ? (aspectRatio === '9:16' ? 3840 : 2160) : rawOutH;
+    const effectiveResLabel = capTo4K ? resMap['4K_2160P'].label : preset.label;
     const safeFps = [24, 25, 30, 50, 60].includes(Number(fps)) ? Number(fps) : 30;
     const safeBitrateMbps = Math.max(
       4,
@@ -6520,7 +6545,7 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       progressPct: 2,
       currentStep: 0,
       totalSteps: Math.max(1, clips.length),
-      stageLabel: `Preparando capas visuales y ${clips.length} segmentos en ${preset.label} (${safeFps} FPS • ${safeBitrateMbps} Mbps)...`,
+      stageLabel: `Preparando capas visuales y ${clips.length} segmentos en ${effectiveResLabel} (${safeFps} FPS • ${safeBitrateMbps} Mbps)...`,
       startedAt,
     };
 
@@ -7999,7 +8024,7 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       .slice(0, 60);
     const platformSlug = aspectRatio === '9:16' || outH > outW ? 'Facebook' : 'YouTube';
     const ratioSlug = aspectRatio.replace(':', 'x');
-    const finalFileName = `${videoNumPrefix}_${platformSlug}_${ratioSlug}_${safeDocName}_${preset.label}_${safeFps}fps_${safeBitrateMbps}Mbps.mp4`;
+    const finalFileName = `${videoNumPrefix}_${platformSlug}_${ratioSlug}_${safeDocName}_${effectiveResLabel}_${safeFps}fps_${safeBitrateMbps}Mbps.mp4`;
     const videoFinalSubdir = path.join(targetRoot, '06_Video_Final');
     if (!fs.existsSync(videoFinalSubdir)) {
       try {
@@ -8254,7 +8279,7 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
             ),
             currentStep: completedSegCount,
             totalSteps: totalSegTasks,
-            stageLabel: `Renderizando y uniendo segmento ${completedSegCount}/${totalSegTasks} (${task.label}) en ${preset.label} • ${safeFps} FPS • ${safeBitrateMbps} Mbps...`,
+            stageLabel: `Renderizando y uniendo segmento ${completedSegCount}/${totalSegTasks} (${task.label}) en ${effectiveResLabel} • ${safeFps} FPS • ${safeBitrateMbps} Mbps...`,
           };
         } catch (err) {
           workerError = err;
