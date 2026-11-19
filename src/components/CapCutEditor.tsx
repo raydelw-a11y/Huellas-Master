@@ -2841,6 +2841,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   // (export render / 9:16 reframe analysis) stay visible until the job ends.
   useEffect(() => {
     if (!statusMessage || isRenderingVideo || isAnalyzingReframe9x16) return;
+    // A failed export must stay on screen until the user closes it.
+    if (statusMessage.startsWith('⚠️ Error en renderizado')) return;
     const hideTimer = window.setTimeout(() => setStatusMessage(''), 10000);
     return () => window.clearTimeout(hideTimer);
   }, [statusMessage, isRenderingVideo, isAnalyzingReframe9x16]);

@@ -6414,6 +6414,7 @@ let intelHevc8KHardwareOk: boolean | null = null;
 
 app.post('/api/editor/render-ffmpeg', async (req, res) => {
   const startedAt = Date.now();
+  let render8KRequested = false;
   const workDir = path.join(os.tmpdir(), `huellas_ffmpeg_render_${startedAt}`);
   try {
     const {
@@ -6526,8 +6527,13 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         }
         console.log(`[Render] Intel 8K HEVC hardware probe: ${intelHevc8KHardwareOk ? 'OK' : 'not supported'}`);
       }
-      capTo4K = !intelHevc8KHardwareOk;
+      if (!intelHevc8KHardwareOk) {
+        throw new Error(
+          'Exportación 8K detenida: esta Mac no puede codificar 8K (HEVC) por hardware. Elige 4K para exportar.'
+        );
+      }
     }
+    render8KRequested = wants8K;
     const outW = capTo4K ? (aspectRatio === '9:16' ? 2160 : 3840) : rawOutW;
     const outH = capTo4K ? (aspectRatio === '9:16' ? 3840 : 2160) : rawOutH;
     const effectiveResLabel = capTo4K ? resMap['4K_2160P'].label : preset.label;
@@ -7849,6 +7855,21 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         segOut,
         durationSec: effectiveClipDur,
         run: async () => {
+          if (is8K) {
+            // 8K: never fall back to software encoding (it would take many hours). Stop and alert instead.
+            try {
+              await runSegmentEncode(buildSegmentArgs(isClipMuted, hwEncoderArgs, true));
+            } catch (hwErr: any) {
+              try {
+                await runSegmentEncode(buildSegmentArgs(true, hwEncoderArgs, true));
+              } catch {
+                throw new Error(
+                  `Exportación 8K detenida: falló la codificación por hardware en ${segLabel}. ${String(hwErr?.message || '').slice(-180)}`
+                );
+              }
+            }
+            return;
+          }
           if (isClipMuted) {
             try {
               await runSegmentEncode(buildSegmentArgs(true, hwEncoderArgs, true));
@@ -8255,7 +8276,7 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
     const segReadyFlags: boolean[] = new Array(totalSegTasks).fill(false);
     let workerError: any = null;
 
-    const workerConcurrency = Math.min(4, Math.max(1, totalSegTasks));
+    const workerConcurrency = Math.min(is8K ? 2 : 4, Math.max(1, totalSegTasks));
 
     const runWorker = async () => {
       while (nextTaskCursor < totalSegTasks && !workerError) {
@@ -8449,6 +8470,15 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       error: err?.message || 'Error ejecutando FFmpeg para renderizar el documental.',
     };
     console.error('Error en renderizado nativo FFmpeg:', err);
+    if (render8KRequested) {
+      // 8K export failed: raise a macOS alert with sound so it is noticed even if the editor tab is hidden.
+      const alertText = String(err?.message || 'La exportación 8K falló.').replace(/["\\\n\r]/g, ' ').slice(0, 220);
+      execFile(
+        'osascript',
+        ['-e', `display notification "${alertText}" with title "Huellas Master — Exportación 8K detenida" sound name "Basso"`],
+        () => {}
+      );
+    }
     res.status(500).json({
       error: err.message || 'Error ejecutando FFmpeg para renderizar el documental.',
     });
