@@ -196,10 +196,11 @@ import {
   hasValidStoredStudioAccessKey,
   verifyAndStoreStudioAccessPassword,
 } from './utils/mediaBridge';
+import { useNoticeStack } from './utils/noticeStack';
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '02:03 PM - 11/19/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '02:17 PM - 11/19/2026';
 
 // PRODUCTION LOCK: while promptConfig.PRODUCTION_LOCKED === 'YES' these fields never change (the server
 // enforces the same list in protectLockedDocs). Metadata, thumbnails, review marks and reframes stay editable.
@@ -4715,6 +4716,86 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
 
   // Update active documentary in state + persist to local backend OR GitHub Cloud
   const localDocMutationSeqRef = useRef(0);
+  // A clip whose file is still being upscaled to 4K must not be approved yet: what you would review
+  // (the 1080p original) is not the file the editor and the export will end up using.
+  const isClipUpscalingTo4K = (clipNumber: number): boolean =>
+    pending4kClipNumbers.includes(clipNumber) ||
+    Boolean(
+      isProcessingClips4K &&
+        clipsPipelineProgress?.currentFileName &&
+        new RegExp(
+          `^(?:(?:clip|broll|b[\\-_]?roll|video|image|imagen)[_\\-\\s.]*)?0*${clipNumber}(?:[_\\-\\s.(]|$)`,
+          'i'
+        ).test(clipsPipelineProgress.currentFileName)
+    );
+
+  // NOTICE NAVIGATION: a page notice that names a clip, a stage or the export takes you there when clicked.
+  const getNoticeAction = (textRaw: string): (() => void) | null => {
+    const text = String(textRaw || '');
+    if (!text.trim() || !activeDoc) return null;
+    const goStage = (stage: number, after?: () => void) => () => {
+      setMainView('studio');
+      setActiveStage(stage);
+      if (after) window.setTimeout(after, 350);
+      else window.setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 80);
+    };
+    const clipMatch = text.match(/\b(?:Clip|B-Roll)\s*#?\s*0*(\d{1,3})\b/i);
+    if (clipMatch) {
+      const num = Number(clipMatch[1]);
+      if ((activeDoc.clips || []).some((c) => Number(c.clipNumber) === num)) {
+        return goStage(8, () => {
+          setClipBatchFilter(0);
+          setClipStatusFilter('ALL');
+          window.setTimeout(() => {
+            const card = document.getElementById(`prod-clip-card-${num}`);
+            if (card) {
+              card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              card.classList.add('ring-2', 'ring-amber-400');
+              window.setTimeout(() => card.classList.remove('ring-2', 'ring-amber-400'), 2500);
+            }
+          }, 250);
+        });
+      }
+    }
+    const stageMatch = text.match(/\bEtapa\s+(\d{1,2})\b/i);
+    if (stageMatch) {
+      // Stage numbers shown to the user are positions in the stage bar
+      const shown = Number(stageMatch[1]);
+      const byPosition = [1, 4, 5, 6, 7, 8, 9, 80, 11, 12][shown - 1];
+      if (byPosition) return goStage(byPosition);
+    }
+    if (/export|renderiz/i.test(text)) return () => setMainView('capcut_editor');
+    if (/miniatura|thumbnail/i.test(text)) return goStage(5);
+    if (/referencia|@Persona|@Lugar/i.test(text)) return goStage(6);
+    if (/\bSRT\b|subt[ií]tulo|caption/i.test(text)) return goStage(9);
+    if (/FlowMusic|canci[oó]n|pista\s+\d|m[uú]sica|suno/i.test(text)) return goStage(80);
+    if (/metadata|youtube|facebook|comentario fijado|\btags\b/i.test(text)) return goStage(11);
+    if (/locuci[oó]n|voz narrativa|voxflow|voiceover|guion/i.test(text)) return goStage(4);
+    return null;
+  };
+  // Page notices (Flow / Gemini bridge) also pile up top-right for 30 s each, wherever you are in the studio
+  const flowNoticeStack = useNoticeStack(flowStatusLog, 30000);
+  const bridgeNoticeStack = useNoticeStack(bridgeStatusMsg, 30000);
+  const pageNotices = [
+    ...flowNoticeStack.items.map((n) => ({ ...n, uid: `f${n.id}`, close: () => flowNoticeStack.dismiss(n.id) })),
+    ...bridgeNoticeStack.items.map((n) => ({ ...n, uid: `b${n.id}`, close: () => bridgeNoticeStack.dismiss(n.id) })),
+  ].sort((a, b) => a.at - b.at);
+  const renderNoticeText = (text: string) => {
+    const go = getNoticeAction(text);
+    return go ? (
+      <button
+        type="button"
+        onClick={go}
+        title="Ir a donde está esto"
+        className="text-left underline decoration-dotted underline-offset-2 hover:text-white cursor-pointer"
+      >
+        {text} →
+      </button>
+    ) : (
+      <span>{text}</span>
+    );
+  };
+
   // Lock / unlock a finished documentary (see PRODUCTION_LOCK_FROZEN_DOC_FIELDS). The newest PRODUCTION_LOCK_AT wins everywhere.
   const setDocProductionLock = async (docId: string, locked: boolean) => {
     const current = documentaries.find((d) => d.id === docId);
@@ -18087,6 +18168,47 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         </div>
       )}
 
+      {/* Stacked page notices (outside the editor, which shows its own stack) */}
+      {mainView !== 'capcut_editor' && pageNotices.length > 0 && (
+        <div className="fixed top-16 right-3 z-[240] w-[min(28rem,calc(100vw-1.5rem))] flex flex-col gap-1.5 pointer-events-none">
+          {pageNotices.map((notice) => {
+            const go = getNoticeAction(notice.text);
+            const isError = /^\s*(?:⚠️|❌)/.test(notice.text);
+            return (
+              <div
+                key={notice.uid}
+                className={`pointer-events-auto backdrop-blur border rounded-lg px-3 py-1.5 text-[11px] flex items-start justify-between gap-2 shadow-2xl ${
+                  isError
+                    ? 'bg-rose-950/95 border-rose-500/50 text-rose-100'
+                    : 'bg-emerald-950/95 border-emerald-500/40 text-emerald-200'
+                }`}
+              >
+                {go ? (
+                  <button
+                    type="button"
+                    onClick={go}
+                    title="Ir a donde está esto"
+                    className="flex-1 min-w-0 text-left leading-snug underline decoration-dotted underline-offset-2 hover:text-white cursor-pointer"
+                  >
+                    {notice.text} →
+                  </button>
+                ) : (
+                  <span className="flex-1 min-w-0 leading-snug">{notice.text}</span>
+                )}
+                <button
+                  type="button"
+                  onClick={notice.close}
+                  title="Cerrar aviso"
+                  className="shrink-0 opacity-70 hover:opacity-100 hover:text-white cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       {/* Editor view: iCloud-only files it needs (bottom-left) and the production lock (bottom-right) */}
       {mainView === 'capcut_editor' && renderCloudFilesNotice(CLOUD_CATEGORIES_EDITOR, 'floating')}
       {mainView === 'capcut_editor' && renderProductionLockNotice('floating')}
@@ -18169,6 +18291,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           documentaries={documentaries}
           onSelectDoc={(docId) => setActiveDocId(docId)}
           updateActiveDoc={updateActiveDoc}
+          onRequestEditorView={() => setMainView('capcut_editor')}
           capturedClipVideosMap={capturedClipVideosMap}
           capturedClipFramesMap={capturedClipFramesMap}
           capturedSunoAudioMap={capturedSunoAudioMap}
@@ -22348,7 +22471,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
 
                   {flowStatusLog && (
                     <div className="bg-emerald-950/30 border border-emerald-500/30 rounded-xl px-3.5 py-2 text-xs text-emerald-300">
-                      <span>{flowStatusLog}</span>
+                      {renderNoticeText(flowStatusLog)}
                     </div>
                   )}
 
@@ -23419,7 +23542,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                         </div>
                       )}
                       <div className="text-xs font-mono text-emerald-300 bg-slate-950/90 border border-emerald-500/30 rounded-lg px-3 py-1.5">
-                        {clipsPipelineProgress?.message || flowStatusLog}
+                        {renderNoticeText(clipsPipelineProgress?.message || flowStatusLog)}
                       </div>
                     </div>
                   )}
@@ -24107,6 +24230,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                     )}
                                     <button
                                       type="button"
+                                      disabled={!clip.reviewedForEditor && isClipUpscalingTo4K(clip.clipNumber)}
                                       onClick={() => {
                                         const nextRev = !clip.reviewedForEditor;
                                         const effDiscName = getEffectiveClipDiscardedFileName(clip);
@@ -24148,9 +24272,17 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                           ? 'bg-emerald-500 text-slate-950 border-emerald-300'
                                           : 'bg-slate-900 hover:bg-slate-800 text-emerald-300 border-emerald-500/30'
                                       }`}
-                                      title="Marcar o desmarcar este clip como Revisado"
+                                      title={
+                                        !clip.reviewedForEditor && isClipUpscalingTo4K(clip.clipNumber)
+                                          ? 'Este clip todavía se está mejorando a 4K. Podrás marcarlo como Revisado cuando termine.'
+                                          : 'Marcar o desmarcar este clip como Revisado'
+                                      }
                                     >
-                                      {clip.reviewedForEditor ? '☑️ Revisado ✓' : '☑️ Revisar'}
+                                      {clip.reviewedForEditor
+                                        ? '☑️ Revisado ✓'
+                                        : isClipUpscalingTo4K(clip.clipNumber)
+                                        ? '⏳ Mejorando a 4K…'
+                                        : '☑️ Revisar'}
                                     </button>
                                     <button
                                       type="button"
@@ -24614,6 +24746,12 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                   {/* ÚNICO Botón de Marcar Revisado */}
                                   <button
                                     type="button"
+                                    disabled={!clip.reviewedForEditor && isClipUpscalingTo4K(clip.clipNumber)}
+                                    title={
+                                      !clip.reviewedForEditor && isClipUpscalingTo4K(clip.clipNumber)
+                                        ? 'Este clip todavía se está mejorando a 4K. Podrás marcarlo como Revisado cuando termine.'
+                                        : undefined
+                                    }
                                     onClick={() => {
                                       const nextChecked = !clip.reviewedForEditor;
                                       const effDiscName = getEffectiveClipDiscardedFileName(clip);
@@ -24658,6 +24796,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                   >
                                     {clip.reviewedForEditor
                                       ? `✅ Clip ${paddedNum} Revisado`
+                                      : isClipUpscalingTo4K(clip.clipNumber)
+                                      ? `⏳ Clip ${paddedNum} mejorando a 4K…`
                                       : `☑️ Marcar Revisado Clip ${paddedNum}`}
                                   </button>
 
@@ -28741,6 +28881,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
               handleSendPromptToFlow(prompt, 'VIDEO', 'custom', tabId)
             }
             bridgeStatusMsg={bridgeStatusMsg}
+            getNoticeAction={getNoticeAction}
             bridgeStatusType={bridgeStatusType}
             geminiTabs={geminiTabs}
             flowTabs={flowTabs}

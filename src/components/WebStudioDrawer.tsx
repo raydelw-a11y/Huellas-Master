@@ -31,6 +31,8 @@ interface WebStudioDrawerProps {
   activeStage: number;
   stageTitle: string;
   bridgeStatusMsg: string;
+  /** Returns a handler when the notice points somewhere in the page (clip, stage, editor). */
+  getNoticeAction?: (text: string) => (() => void) | null;
   bridgeStatusType: 'IDLE' | 'WORKING' | 'SUCCESS' | 'ERROR';
   aiEngineMode: 'WEB_FREE' | 'API_KEY';
   onChangeAiEngineMode: (mode: 'WEB_FREE' | 'API_KEY') => void;
@@ -57,6 +59,7 @@ export const WebStudioDrawer: React.FC<WebStudioDrawerProps> = ({
   activeStage,
   stageTitle,
   bridgeStatusMsg,
+  getNoticeAction,
   bridgeStatusType,
   aiEngineMode,
   onChangeAiEngineMode,
@@ -291,7 +294,21 @@ export const WebStudioDrawer: React.FC<WebStudioDrawerProps> = ({
           ) : (
             <RefreshCw className="w-4 h-4 text-amber-400 animate-spin shrink-0" />
           )}
-          <span className="flex-1 leading-snug">{bridgeStatusMsg}</span>
+          {(() => {
+            const go = getNoticeAction ? getNoticeAction(bridgeStatusMsg) : null;
+            return go ? (
+              <button
+                type="button"
+                onClick={go}
+                title="Ir a donde está esto"
+                className="flex-1 leading-snug text-left underline decoration-dotted underline-offset-2 hover:text-white cursor-pointer"
+              >
+                {bridgeStatusMsg} →
+              </button>
+            ) : (
+              <span className="flex-1 leading-snug">{bridgeStatusMsg}</span>
+            );
+          })()}
         </div>
       )}
 

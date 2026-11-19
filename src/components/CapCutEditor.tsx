@@ -67,6 +67,7 @@ import {
   verifyMediaBridgeHealthOrRefresh,
   toCanonicalMediaBridgePath,
 } from '../utils/mediaBridge';
+import { useNoticeStack } from '../utils/noticeStack';
 
 export type ExportResolutionPreset = 'HD_1080P' | '2K_1440P' | '4K_2160P' | '8K_4320P';
 export type EditorAspectRatio = '16:9' | '9:16';
@@ -1100,6 +1101,8 @@ interface CapCutEditorProps {
   documentaries?: DocumentaryProject[];
   onSelectDoc?: (docId: string) => void;
   updateActiveDoc: (patch: Partial<DocumentaryProject>, options?: { docId?: string }) => void;
+  /** Brings the editor view to the front (used when the user clicks a browser notification). */
+  onRequestEditorView?: () => void;
   capturedClipVideosMap: Record<number, string>; // clipNumber -> blob/data URL of MP4
   capturedClipFramesMap?: Record<number, string>; // clipNumber -> initial image / frame preview URL
   capturedSunoAudioMap?: Record<number, string>; // trackNumber -> data URL of MP3
@@ -1124,6 +1127,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   documentaries = [],
   onSelectDoc,
   updateActiveDoc: updateActiveDocProp,
+  onRequestEditorView,
   capturedClipVideosMap,
   capturedClipFramesMap = {},
   capturedSunoAudioMap = {},
@@ -1393,7 +1397,18 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             setStatusMessage(`⚠️ Error en renderizado FFmpeg: ${st.error}`);
             try {
               if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-                new Notification('Huellas Master — Exportación 8K detenida', { body: String(st.error) });
+                const exportNotice = new Notification('Huellas Master — Exportación 8K detenida', {
+                  body: String(st.error),
+                });
+                exportNotice.onclick = () => {
+                  // Take the user to where the problem is: the editor's export window
+                  try {
+                    window.focus();
+                  } catch {}
+                  onRequestEditorView?.();
+                  setShowExportModal(true);
+                  exportNotice.close();
+                };
               }
             } catch {}
           }
@@ -2953,6 +2968,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
   // Editor notifications auto-hide after 10 s. Messages shown while a long job is running
   // (export render / 9:16 reframe analysis) stay visible until the job ends.
+  // Every notice stays 30 s in a stack (a failed export stays until it is closed)
+  const editorNotices = useNoticeStack(statusMessage, 30000, {
+    isSticky: (t) => t.startsWith('⚠️ Error en renderizado'),
+  });
   useEffect(() => {
     if (!statusMessage || isRenderingVideo || isAnalyzingReframe9x16) return;
     // A failed export must stay on screen until the user closes it.
@@ -4054,6 +4073,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   });
   const [voiceAudioError, setVoiceAudioError] = useState<boolean>(false);
   const [firstFrameByClip, setFirstFrameByClip] = useState<Record<number, string>>({});
+  // Clips whose file in 05_Clips_Video is still being upscaled to 4K (reported by the folder scan)
+  const [pending4kClipNums, setPending4kClipNums] = useState<number[]>([]);
   const [localServerClipVideosMap, setLocalServerClipVideosMap] = useState<Record<number, string>>({});
   const [localServerSunoMap, setLocalServerSunoMap] = useState<Record<number, string>>({});
   const [mediaBridgeGen, setMediaBridgeGen] = useState<number>(
@@ -4608,6 +4629,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     if (prevDocIdForMediaScanRef.current !== activeDoc?.id) {
       prevDocIdForMediaScanRef.current = activeDoc?.id;
       setFirstFrameByClip({});
+      setPending4kClipNums([]);
       setLocalServerClipVideosMap({});
       setLocalServerSunoMap({});
       extractedVideoUrlByClipRef.current = {};
@@ -4665,6 +4687,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             if (dc && typeof dc.clipNumber === 'number') {
               docClipByNum.set(dc.clipNumber, dc);
             }
+          }
+          {
+            const nextPending = Array.isArray(data.pending4kClipNumbers)
+              ? (data.pending4kClipNumbers as any[]).map(Number).filter((n) => n > 0)
+              : [];
+            setPending4kClipNums((prev) =>
+              prev.length === nextPending.length && prev.every((n, i) => n === nextPending[i]) ? prev : nextPending
+            );
           }
           const nextVids: Record<number, string> = {};
           if (Array.isArray(data.clipVideos)) {
@@ -13347,6 +13377,22 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         void Notification.requestPermission();
       }
     } catch {}
+    // Clips still being upscaled would go into the export at their original (lower) quality
+    const pendingInTimeline = Array.from(
+      new Set(
+        clipsWithTimelineBounds
+          .filter((c) => c.clipNumber > 0 && c.clipNumber !== 999 && pending4kClipNums.includes(c.clipNumber))
+          .map((c) => c.clipNumber)
+      )
+    ).sort((a, b) => a - b);
+    if (pendingInTimeline.length > 0) {
+      const proceed = window.confirm(
+        `⚠️ ${pendingInTimeline.length} clip(s) del timeline todavía se están mejorando a 4K: ${pendingInTimeline.join(', ')}.\n\n` +
+          'Si exportas ahora entrarán con su calidad original (1080p). Lo recomendable es esperar a que terminen.\n\n' +
+          '¿Exportar de todos modos?'
+      );
+      if (!proceed) return;
+    }
     const reviewedBodyInTimeline = clipsWithTimelineBounds.filter(
       (c) =>
         c.id !== 'fixed-doc-intro' &&
@@ -15544,16 +15590,62 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         </div>
       )}
 
-      {statusMessage && (
-        <div className="fixed top-10 right-3 z-[220] max-w-md bg-emerald-950/95 backdrop-blur border border-emerald-500/40 rounded-lg px-3 py-1 text-[11px] text-emerald-200 flex items-center justify-between shadow-2xl">
-          <span className="truncate">{statusMessage}</span>
-          <button
-            type="button"
-            onClick={() => setStatusMessage('')}
-            className="text-emerald-400 hover:text-white cursor-pointer ml-2"
-          >
-            ✕
-          </button>
+      {/* Editor notices: stacked one under another, 30 s each, clickable when they name a clip or the export */}
+      {editorNotices.items.length > 0 && (
+        <div className="fixed top-10 right-3 z-[220] w-[min(28rem,calc(100vw-1.5rem))] flex flex-col gap-1.5 pointer-events-none">
+          {editorNotices.items.map((notice) => {
+            const clipMatch = notice.text.match(/\b(?:Clip|B-Roll)\s*#?\s*0*(\d{1,3})\b/i);
+            const clipTarget = clipMatch
+              ? clipsWithTimelineBounds.find((c) => c.clipNumber === Number(clipMatch[1]) && c.clipNumber !== 999)
+              : undefined;
+            const isExportNotice = /export|renderiz/i.test(notice.text);
+            const isError = notice.text.startsWith('⚠️');
+            return (
+              <div
+                key={notice.id}
+                className={`pointer-events-auto backdrop-blur border rounded-lg px-3 py-1.5 text-[11px] flex items-start justify-between gap-2 shadow-2xl ${
+                  isError
+                    ? 'bg-rose-950/95 border-rose-500/50 text-rose-100'
+                    : 'bg-emerald-950/95 border-emerald-500/40 text-emerald-200'
+                }`}
+              >
+                {clipTarget || isExportNotice ? (
+                  <button
+                    type="button"
+                    title={
+                      clipTarget
+                        ? `Ir al Clip ${clipTarget.clipNumber} en el timeline`
+                        : 'Abrir la ventana de exportación'
+                    }
+                    onClick={() => {
+                      if (clipTarget) {
+                        setSelectedClipId(clipTarget.id);
+                        seekToTime(clipTarget.start || 0);
+                      } else {
+                        setShowExportModal(true);
+                      }
+                    }}
+                    className="flex-1 min-w-0 text-left leading-snug underline decoration-dotted underline-offset-2 hover:text-white cursor-pointer"
+                  >
+                    {notice.text} →
+                  </button>
+                ) : (
+                  <span className="flex-1 min-w-0 leading-snug">{notice.text}</span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    editorNotices.dismiss(notice.id);
+                    if (statusMessage === notice.text) setStatusMessage('');
+                  }}
+                  title="Cerrar aviso"
+                  className="shrink-0 opacity-70 hover:opacity-100 hover:text-white cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+            );
+          })}
         </div>
       )}
 
