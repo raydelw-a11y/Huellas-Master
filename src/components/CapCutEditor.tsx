@@ -1057,7 +1057,7 @@ interface CapCutEditorProps {
   activeDoc: DocumentaryProject | null;
   documentaries?: DocumentaryProject[];
   onSelectDoc?: (docId: string) => void;
-  updateActiveDoc: (patch: Partial<DocumentaryProject>) => void;
+  updateActiveDoc: (patch: Partial<DocumentaryProject>, options?: { docId?: string }) => void;
   capturedClipVideosMap: Record<number, string>; // clipNumber -> blob/data URL of MP4
   capturedClipFramesMap?: Record<number, string>; // clipNumber -> initial image / frame preview URL
   capturedSunoAudioMap?: Record<number, string>; // trackNumber -> data URL of MP3
@@ -1081,7 +1081,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   activeDoc,
   documentaries = [],
   onSelectDoc,
-  updateActiveDoc,
+  updateActiveDoc: updateActiveDocProp,
   capturedClipVideosMap,
   capturedClipFramesMap = {},
   capturedSunoAudioMap = {},
@@ -1098,6 +1098,13 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   isEditorActive = true,
   focusClipRequest = null,
 }) => {
+  // Every save made by this editor is bound to the documentary that was active when the calling code
+  // was created. A slow task (auto-reframe, folder scan, B-roll render) that finishes after the user
+  // switched documentary is then dropped by the app instead of landing in the newly opened one.
+  const updateActiveDoc = (patch: Partial<DocumentaryProject>) =>
+    updateActiveDocProp(patch, { docId: activeDoc?.id || undefined });
+  const liveActiveDocIdRef = useRef<string>('');
+  liveActiveDocIdRef.current = activeDoc?.id || '';
   const EDITOR_SESSION_STORAGE_KEY = 'huellas_editor_session_state_v1';
   const initialSessionState = useMemo(() => {
     try {
@@ -2954,6 +2961,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     }
     setIsAnalyzingReframe9x16(true);
     setStatusMessage('🤖 Analizando cada clip en 05_Clips_Video (rostros, luz, nitidez y movimiento) para Auto-Reframe 9:16...');
+    // The analysis belongs to the documentary open right now; it takes seconds and the user may switch meanwhile.
+    const runDocId = activeDoc?.id || '';
+    const runDocKey = activeDoc?.id || activeDoc?.title || 'default';
 
     const serverOrigin = getEditorPrimaryServerOrigin();
 
@@ -2969,6 +2979,12 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       const data = await resp.json();
       if (!resp.ok || !data?.ok || !Array.isArray(data.results)) {
         throw new Error(data?.error || 'No se pudo completar el análisis Auto-Reframe 9:16.');
+      }
+      if (runDocId !== liveActiveDocIdRef.current) {
+        // Another documentary is open now: these results are not for it. Let the analysis run again later.
+        autoReframedDocIdsRef.current.delete(runDocKey);
+        setStatusMessage('');
+        return;
       }
 
       const resultByClipNum = new Map<
@@ -2988,10 +3004,20 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       for (const item of data.results) {
         const cNum = Number(item.clipNumber);
         if (!Number.isFinite(cNum) || cNum <= 0) continue;
+        // Clip file not readable (only in iCloud): its result is a placeholder, never apply it
+        if (item.unreadable) continue;
         resultByClipNum.set(cNum, item);
         if (item.reframe9x16Mode === 'auto_pan') countPan++;
         else if (item.reframe9x16Mode === 'auto_focus') countFocus++;
         else countCenter++;
+      }
+
+      if (resultByClipNum.size === 0) {
+        autoReframedDocIdsRef.current.delete(runDocKey);
+        setStatusMessage(
+          '⚠️ Auto-Reframe 9:16: no se pudo leer ningún clip (¿archivos solo en iCloud?). No se cambió ningún encuadre.'
+        );
+        return;
       }
 
       const docId = activeDoc?.id || 'default';

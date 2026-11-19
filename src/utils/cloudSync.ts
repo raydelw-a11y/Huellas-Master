@@ -59,9 +59,20 @@ export const GITHUB_REPO = 'Huellas-Master';
 export const GITHUB_BRANCH = 'main';
 export const PUBLIC_GITHUB_PAGES_URL = `https://${GITHUB_OWNER}.github.io/${GITHUB_REPO}/`;
 
-const LOCAL_DOCS_CACHE_KEY = 'huellas_master_docs_cache_v1';
+// v2 (2026-11-19): the v1 caches could hold one documentary's clips saved under another documentary
+// (slow editor task finishing after a documentary switch). Every browser starts from the server copy again.
+const LOCAL_DOCS_CACHE_KEY = 'huellas_master_docs_cache_v2';
 const LOCAL_DELETED_IDS_KEY = 'huellas_master_deleted_ids_v1';
-const LOCAL_CLIP_REVIEW_STATE_KEY = 'huellas_master_clip_review_state_v1';
+const LOCAL_CLIP_REVIEW_STATE_KEY = 'huellas_master_clip_review_state_v2';
+try {
+  for (const staleKey of [
+    'huellas_master_docs_cache_v1',
+    'huellas_master_clip_review_state_v1',
+    'huellas_master_recent_docs_backup_v1',
+  ]) {
+    localStorage.removeItem(staleKey);
+  }
+} catch {}
 
 interface StoredClipStatusEntry {
   reviewedForEditor: boolean;
@@ -1626,7 +1637,7 @@ export function buildMobileSetupLink(geminiKey: string, ghToken: string): string
   return `${PUBLIC_GITHUB_PAGES_URL}#setup=${payload}`;
 }
 
-const LOCAL_RECENT_DOCS_BACKUP_KEY = 'huellas_master_recent_docs_backup_v1';
+const LOCAL_RECENT_DOCS_BACKUP_KEY = 'huellas_master_recent_docs_backup_v2';
 
 export function loadLocalCachedDocumentaries(): DocumentaryProject[] {
   let mainList: DocumentaryProject[] = [];

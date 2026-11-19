@@ -786,6 +786,71 @@ function protectPublishMetadata(list: any[]): any[] {
   });
 }
 
+// FOREIGN CLIPS GUARD (every write path: PUT, bulk save, GitHub merge). A documentary must never store
+// clips that belong to another documentary: a clip whose id or saved video file is owned by a different
+// documentary on disk (and not by this one) is foreign. A few foreign clips are swapped back for the
+// clips on disk; a mostly-foreign list is rejected whole, together with its rawClipsText.
+function protectAgainstForeignClips(list: any[]): any[] {
+  let disk: any[];
+  try {
+    const raw = fs.existsSync(DOCS_FILE) ? JSON.parse(fs.readFileSync(DOCS_FILE, 'utf8')) : [];
+    disk = Array.isArray(raw) ? raw : [];
+  } catch {
+    return list;
+  }
+  if (disk.length < 2) return list;
+  const AMBIGUOUS = '*';
+  const idOwner = new Map<string, string>();
+  const fileOwner = new Map<string, string>();
+  const claim = (m: Map<string, string>, key: string, docId: string) => {
+    if (!key) return;
+    const prev = m.get(key);
+    m.set(key, prev && prev !== docId ? AMBIGUOUS : docId);
+  };
+  const diskById = new Map<string, any>();
+  for (const d of disk) {
+    if (!d?.id) continue;
+    diskById.set(d.id, d);
+    for (const c of Array.isArray(d.clips) ? d.clips : []) {
+      claim(idOwner, String(c?.id || '').trim(), d.id);
+      claim(fileOwner, String(c?.videoSavedFileName || '').trim(), d.id);
+    }
+  }
+  const ownedByOther = (m: Map<string, string>, key: string, docId: string) => {
+    const owner = key ? m.get(key) : undefined;
+    return Boolean(owner && owner !== AMBIGUOUS && owner !== docId);
+  };
+  return list.map((doc: any) => {
+    const diskDoc = doc?.id ? diskById.get(doc.id) : null;
+    if (!diskDoc || !Array.isArray(doc.clips) || doc.clips.length === 0) return doc;
+    const diskClips: any[] = Array.isArray(diskDoc.clips) ? diskDoc.clips : [];
+    if (diskClips.length === 0) return doc;
+    const isForeign = (c: any) =>
+      ownedByOther(idOwner, String(c?.id || '').trim(), doc.id) ||
+      ownedByOther(fileOwner, String(c?.videoSavedFileName || '').trim(), doc.id);
+    const foreignCount = doc.clips.filter(isForeign).length;
+    if (foreignCount === 0) return doc;
+    if (foreignCount >= 5 || foreignCount / doc.clips.length >= 0.25) {
+      console.warn(
+        `[ForeignClipsGuard] Rejected clips of ${doc.id}: ${foreignCount}/${doc.clips.length} belong to another documentary`
+      );
+      return {
+        ...doc,
+        clips: diskClips,
+        ...(typeof diskDoc.rawClipsText === 'string' ? { rawClipsText: diskDoc.rawClipsText } : {}),
+      };
+    }
+    console.warn(`[ForeignClipsGuard] Swapped ${foreignCount} foreign clip(s) of ${doc.id} for the clips on disk`);
+    const diskByNum = new Map<number, any>(diskClips.map((c: any) => [Number(c?.clipNumber), c]));
+    return {
+      ...doc,
+      clips: doc.clips
+        .map((c: any) => (isForeign(c) ? diskByNum.get(Number(c?.clipNumber)) || null : c))
+        .filter(Boolean),
+    };
+  });
+}
+
 // NARRATION SCRIPT GUARD (every write path: PUT, bulk save, GitHub merge). When the script on disk was
 // matched to the recorded voice (VOICEOVER_SCRIPT_MATCHES_AUDIO === 'YES'), a stale copy from another
 // device must not bring back a shorter script. A deliberate rewrite carries the flag as 'NO'.
@@ -821,7 +886,9 @@ function protectRecordedNarrationScripts(list: any[]): any[] {
 
 function writeDocumentaries(list: any[], skipCloudPush = false) {
   const sanitizedList = Array.isArray(list)
-    ? protectRecordedNarrationScripts(protectPublishMetadata(list)).map(sanitizeServerDocAudioUrls)
+    ? protectAgainstForeignClips(protectRecordedNarrationScripts(protectPublishMetadata(list))).map(
+        sanitizeServerDocAudioUrls
+      )
     : list;
   const jsonStr = JSON.stringify(sanitizedList, null, 2);
   try {
@@ -8748,6 +8815,8 @@ interface SmartReframeClipResult {
   reason: string;
   mtimeMs?: number;
   sizeBytes?: number;
+  /** The clip file could not be decoded (e.g. it lives only in iCloud): the values are a placeholder. */
+  unreadable?: boolean;
 }
 
 async function analyzeClipSmartReframe9x16(
@@ -8802,6 +8871,7 @@ async function analyzeClipSmartReframe9x16(
       focusY: 50,
       confidence: 0.5,
       reason: 'Encuadre central estándar (50%)',
+      unreadable: true,
     };
   }
 
@@ -9560,6 +9630,11 @@ app.post('/api/editor/auto-reframe-9x16', async (req, res) => {
           info.fileName,
           promptHintByClipNum.get(clipNum) || ''
         );
+        if (analyzed.unreadable) {
+          // Unreadable file (not downloaded from iCloud yet): keep any earlier analysis, never cache the placeholder
+          results.push(existing || analyzed);
+          continue;
+        }
         analyzed.mtimeMs = statMtime;
         analyzed.sizeBytes = statSize;
         cachedMap[cacheKey] = analyzed;

@@ -199,7 +199,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '12:22 PM - 11/19/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '12:27 PM - 11/19/2026';
 
 // Etapa 8: nombre de archivo canónico de cada canción → "Canción_01_El_Muelle_de_la_Despedida"
 // (quita prefijos "Pista 1:" / "Canción 1:", comillas y rangos de tiempo "00:08 - 02:38" del título)
@@ -4171,6 +4171,10 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     return null;
   }, [documentaries, activeDocId, mainView]);
 
+  // Active documentary as of the latest render (activeDocRef is only refreshed in an effect, one step later)
+  const latestRenderActiveDocRef = React.useRef<DocumentaryProject | null>(null);
+  latestRenderActiveDocRef.current = activeDoc;
+
   // Release the single Stage 6 4K hardware decoder immediately when switching documentary, stage, view, or batch filter
   useEffect(() => {
     setActiveStage8VideoClipNum(null);
@@ -4660,9 +4664,22 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
   const localDocMutationSeqRef = useRef(0);
   const updateActiveDoc = async (
     patch: Partial<DocumentaryProject>,
-    options?: { allowClearFields?: string[]; source?: string }
+    options?: { allowClearFields?: string[]; source?: string; docId?: string }
   ) => {
-    const currentBaseDoc = activeDocRef.current || activeDoc;
+    let currentBaseDoc = activeDocRef.current || activeDoc;
+    // DOC BINDING: a caller that names its documentary (options.docId) only ever writes to that one.
+    // A slow task that finishes after the user opened another documentary is dropped here instead of
+    // saving one documentary's clips, timeline or settings into another.
+    if (options?.docId) {
+      const liveDoc = latestRenderActiveDocRef.current;
+      if (!liveDoc || liveDoc.id !== options.docId) {
+        console.warn(
+          `[DocGuard] Dropped update for ${options.docId}: the active documentary is now ${liveDoc?.id || 'none'} (${Object.keys(patch || {}).join(', ')})`
+        );
+        return;
+      }
+      if (!currentBaseDoc || currentBaseDoc.id !== options.docId) currentBaseDoc = liveDoc;
+    }
     if (!currentBaseDoc) return;
     if (Object.keys(patch || {}).length === 0) return;
 
@@ -4859,7 +4876,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
 
           // Apply full server response if no newer local mutation happened, OR self-heal Stage 6 prompts if server has a newer restoration floor
           if (mutationSeq === localDocMutationSeqRef.current) {
-            activeDocRef.current = serverSavedDoc;
+            // Never point the active reference back at a documentary the user already left
+            if (activeDocRef.current?.id === serverSavedDoc.id) activeDocRef.current = serverSavedDoc;
             setDocumentaries((prev) => {
               const nextList = prev.map((d) => (d.id === serverSavedDoc.id ? serverSavedDoc : d));
               saveLocalCachedDocumentaries(nextList);
