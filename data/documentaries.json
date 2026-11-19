@@ -1,12 +1,12 @@
 [
   {
     "id": "doc-1793066748998-7if4",
-    "title": "Video 75 Castillo Louvre Parte II",
+    "title": "Video 30 Castillo Louvre Parte II",
     "subtitle": "",
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-10-27T02:05:48.997Z",
-    "updatedAt": "2026-11-19T05:06:23.349Z",
+    "updatedAt": "2026-11-19T05:09:03.972Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -20,12 +20,12 @@
       "TEMA_DEL_VIDEO": "Video 74 Castillo Louvre Parte II",
       "UBICACION_INTRO_MARCA": "INTRO_INICIO_00",
       "FIELD_CLEARED_AT_voiceoverScript": "0",
-      "PROMPTS_RESTORED_AT": "1795064783349",
+      "PROMPTS_RESTORED_AT": "1795064943972",
       "FIELD_CLEARED_AT_rawClipsText": "0",
       "FIELD_CLEARED_AT_pinnedComment": "0"
     },
     "compiledMasterPrompt": "Actúa como un historiador, director de cine, y periodista profesional.\n\nPROTOCOLO SECUENCIAL DE EJECUCIÓN OBLIGATORIO: REELS (11 ETAPAS POR SEPARADO):\nEste formato corresponde a un video cinematográfi",
-    "topic": "Video 75 Castillo Louvre Parte II",
+    "topic": "Video 30 Castillo Louvre Parte II",
     "typology": "Un suceso histórico",
     "historicalTime": "año 1200",
     "historicalLocation": "Louvre, París",
@@ -1556,7 +1556,7 @@
     "pinnedComment": "Resulta conmovedor pensar que muchas de nuestras familias hoy existen porque, a mediados del siglo XX, aquel remedio largamente ignorado desde 1928 llegó por fin a las boticas de barrio cuando una simple infección significaba perder la vida. ¿Algún abuelo o familiar mayor te contó cómo se vivían las fiebres antes de 1945 o recuerdas algún relato en casa sobre la llegada de las primeras ampolletas de penicilina? Cuéntanos tu recuerdo familiar o tu reflexión aquí abajo, te leemos con atención en los comentarios.",
     "thumbnailOrientation": "VERTICAL_9X16",
     "flowVideoEngine": "HYBRID_PEOPLE_OMNI_REST_LOWER",
-    "downloadFolderName": "Video 75 Castillo Louvre Parte II",
+    "downloadFolderName": "Video 30 Castillo Louvre Parte II",
     "downloadFolderPath": ""
   },
   {
