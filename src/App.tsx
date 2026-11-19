@@ -199,7 +199,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '12:51 PM - 11/19/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '12:55 PM - 11/19/2026';
 
 // PRODUCTION LOCK: while promptConfig.PRODUCTION_LOCKED === 'YES' these fields never change (the server
 // enforces the same list in protectLockedDocs). Metadata, thumbnails, review marks and reframes stay editable.
@@ -4802,6 +4802,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     } catch {}
     cloudFilesQueryRef.current();
   };
+  // Floating notices (editor) can be collapsed to a small chip so they never cover the timeline
+  const [collapsedFloatingNotices, setCollapsedFloatingNotices] = useState<Record<string, boolean>>({});
   // One notice for a set of folders: what is only in iCloud, and a button to bring it to this Mac
   const renderCloudFilesNotice = (categories: string[], variant: 'inline' | 'floating') => {
     if (!activeDoc || cloudFiles.docId !== activeDoc.id) return null;
@@ -4812,6 +4814,20 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     const total = hits.reduce((n, h) => n + h.info.cloudOnly, 0);
     const gb = hits.reduce((n, h) => n + h.info.cloudOnlyBytes, 0) / 1024 ** 3;
     const sizeTxt = gb >= 1 ? `${gb.toFixed(1)} GB` : `${Math.max(1, Math.round(gb * 1024))} MB`;
+    const collapseKey = `cloud|${activeDoc.id}`;
+    if (variant === 'floating' && collapsedFloatingNotices[collapseKey]) {
+      return (
+        <button
+          type="button"
+          onClick={() => setCollapsedFloatingNotices((p) => ({ ...p, [collapseKey]: false }))}
+          title="Archivos de este video que están solo en iCloud"
+          className="fixed bottom-3 left-3 z-[250] rounded-full border border-sky-400/60 bg-slate-950/95 px-2.5 py-1 text-[11px] font-black text-sky-200 shadow-2xl cursor-pointer"
+        >
+          ☁️ {total}
+          {cloudFiles.downloading ? ' ⬇' : ''}
+        </button>
+      );
+    }
     return (
       <div
         className={
@@ -4820,8 +4836,20 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
             : 'rounded-xl border border-sky-400/50 bg-sky-950/40 px-4 py-3 text-xs text-sky-100'
         }
       >
-        <div className="font-black">
-          ☁️ {total} archivo{total === 1 ? '' : 's'} de este video {total === 1 ? 'está' : 'están'} solo en iCloud ({sizeTxt})
+        <div className="font-black flex items-start justify-between gap-2">
+          <span>
+            ☁️ {total} archivo{total === 1 ? '' : 's'} de este video {total === 1 ? 'está' : 'están'} solo en iCloud ({sizeTxt})
+          </span>
+          {variant === 'floating' && (
+            <button
+              type="button"
+              onClick={() => setCollapsedFloatingNotices((p) => ({ ...p, [collapseKey]: true }))}
+              title="Minimizar aviso"
+              className="shrink-0 w-5 h-5 rounded-md bg-black/30 hover:bg-black/50 cursor-pointer"
+            >
+              —
+            </button>
+          )}
         </div>
         <div className="mt-0.5 text-sky-200/90">
           {hits.map((h) => `${h.info.cloudOnly} de ${CLOUD_CATEGORY_LABELS[h.cat] || h.cat}`).join(' · ')}.
@@ -4845,6 +4873,20 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
   };
   const renderProductionLockNotice = (variant: 'inline' | 'floating') => {
     if (!activeDoc || !isDocProductionLocked(activeDoc)) return null;
+    const lockCollapseKey = `lock|${activeDoc.id}`;
+    if (variant === 'floating' && collapsedFloatingNotices[lockCollapseKey] !== false) {
+      // In the editor the lock starts as a small chip; click to see the explanation and the unlock button
+      return (
+        <button
+          type="button"
+          onClick={() => setCollapsedFloatingNotices((p) => ({ ...p, [lockCollapseKey]: false }))}
+          title="Documental bloqueado: clic para ver o desbloquear"
+          className="fixed bottom-3 right-3 z-[250] rounded-full border border-amber-400/60 bg-slate-950/95 px-2.5 py-1 text-[11px] font-black text-amber-200 shadow-2xl cursor-pointer"
+        >
+          🔒 Bloqueado
+        </button>
+      );
+    }
     return (
       <div
         className={
@@ -4866,6 +4908,16 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         >
           Desbloquear
         </button>
+        {variant === 'floating' && (
+          <button
+            type="button"
+            onClick={() => setCollapsedFloatingNotices((p) => ({ ...p, [lockCollapseKey]: true }))}
+            title="Minimizar aviso"
+            className="shrink-0 w-5 h-5 rounded-md bg-black/30 hover:bg-black/50 cursor-pointer"
+          >
+            —
+          </button>
+        )}
       </div>
     );
   };
