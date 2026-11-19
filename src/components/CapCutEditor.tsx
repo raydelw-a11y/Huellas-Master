@@ -244,6 +244,7 @@ export interface TimelineClipItem {
   reframe9x16Mode?: 'auto_center' | 'auto_focus' | 'auto_pan' | 'manual' | 'fit_blur';
   reframeFocusXStart?: number; // 0 to 100 (50 = center)
   reframeFocusXEnd?: number;   // 0 to 100 (50 = center)
+  reframeUpdatedAt?: number;   // ms epoch of the last manual reframe (newest wins between doc and timeline)
   reframeFocusY?: number;      // 0 to 100 (50 = center)
   reframeConfidence?: number;
   reframeReason?: string;
@@ -3022,6 +3023,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     const lockedPatch = {
       ...patch,
       userReframed9x16: true,
+      reframeUpdatedAt: Date.now(),
     };
     setTimelineClips((prev) => {
       const updated = prev.map((tc) => {
@@ -6769,6 +6771,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       fixedOutroClip
     );
 
+    // A manual reframe saved on the documentary (doc.clips) newer than the one cached in this
+    // browser's timeline must win, so edits made from another device/session are not ignored.
+    const docManualReframeByNum = new Map<number, any>();
+    for (const dc of (Array.isArray(activeDoc?.clips) ? activeDoc!.clips : []) as any[]) {
+      if (dc?.userReframed9x16 && Number(dc.reframeUpdatedAt) > 0) {
+        docManualReframeByNum.set(Number(dc.clipNumber), dc);
+      }
+    }
     const builtClips = alignedBuiltClips.map((bc) => {
       const liveMatch = !isDocSwitch
         ? timelineClips.find(
@@ -6828,6 +6838,20 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         reframeFocusY: liveMatch?.reframeFocusY ?? bc.reframeFocusY,
         reframeConfidence: liveMatch?.reframeConfidence ?? bc.reframeConfidence,
         reframeReason: liveMatch?.reframeReason || bc.reframeReason,
+        ...(() => {
+          const dc = docManualReframeByNum.get(Number(bc.clipNumber));
+          const localAt = Number((liveMatch as any)?.reframeUpdatedAt ?? (bc as any).reframeUpdatedAt ?? 0);
+          if (!dc || Number(dc.reframeUpdatedAt) <= localAt) return {};
+          return {
+            reframe9x16Mode: dc.reframe9x16Mode,
+            reframeFocusXStart: dc.reframeFocusXStart,
+            reframeFocusXEnd: dc.reframeFocusXEnd ?? dc.reframeFocusXStart,
+            reframeFocusY: dc.reframeFocusY ?? 50,
+            reframeReason: dc.reframeReason,
+            userReframed9x16: true,
+            reframeUpdatedAt: Number(dc.reframeUpdatedAt),
+          };
+        })(),
         userReframed9x16: liveMatch?.userReframed9x16 ?? bc.userReframed9x16,
       };
     });
