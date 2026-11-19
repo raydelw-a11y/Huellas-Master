@@ -6078,6 +6078,8 @@ let activeRenderJobState: {
   outputPath?: string;
   fileName?: string;
   error?: string;
+  errorAt?: number;
+  error8K?: boolean;
 } = {
   running: false,
   progressPct: 0,
@@ -8468,6 +8470,8 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       stageLabel: '',
       startedAt: 0,
       error: err?.message || 'Error ejecutando FFmpeg para renderizar el documental.',
+      errorAt: Date.now(),
+      error8K: render8KRequested,
     };
     console.error('Error en renderizado nativo FFmpeg:', err);
     if (render8KRequested) {

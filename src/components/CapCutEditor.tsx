@@ -1317,6 +1317,24 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           setRenderRemainingSec(0);
           setLastExportedOutputPath(st.outputPath);
           if (st.stageLabel) setRenderStageLabel(st.stageLabel);
+        } else if (st && st.error && st.error8K && Number(st.errorAt) > Date.now() - 30 * 60 * 1000) {
+          // A failed 8K export alerts every open editor (PC or phone), once per failure.
+          const seenKey = 'huellas_editor_render_error_seen_at';
+          let alreadySeen = false;
+          try {
+            alreadySeen = localStorage.getItem(seenKey) === String(st.errorAt);
+            if (!alreadySeen) localStorage.setItem(seenKey, String(st.errorAt));
+          } catch {}
+          if (!alreadySeen) {
+            setIsRenderingVideo(false);
+            setRenderStageLabel(`⚠️ ${st.error}`);
+            setStatusMessage(`⚠️ Error en renderizado FFmpeg: ${st.error}`);
+            try {
+              if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+                new Notification('Huellas Master — Exportación 8K detenida', { body: String(st.error) });
+              }
+            } catch {}
+          }
         }
       } catch {}
     };
@@ -13140,6 +13158,12 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
   // Render & Download Final Master Video in HD / 2K / 4K / 8K and 16:9 or 9:16 (Single Unified Action)
   const handleExportMasterVideo = async () => {
+    // Ask once (needs a user gesture) for permission to show the "8K export stopped" browser notification.
+    try {
+      if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+        void Notification.requestPermission();
+      }
+    } catch {}
     const reviewedBodyInTimeline = clipsWithTimelineBounds.filter(
       (c) =>
         c.id !== 'fixed-doc-intro' &&
