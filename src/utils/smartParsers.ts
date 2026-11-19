@@ -5375,11 +5375,25 @@ export function mergeOrphanSingleWordCaptions<
       out.splice(k, 1);
       k--;
       changed = true;
-    } else if (next && !endsSentence(curWords[0]) && gapNext < 0.6 && !String(next.text || '').includes('\n')) {
+    } else if (next && !endsSentence(curWords[0]) && !String(next.text || '').includes('\n')) {
+      // A word stranded before a long silence belongs to the sentence that follows: show it there
+      // (keeping the next line's start) instead of flashing it alone seconds earlier.
+      const closeToNext = gapNext < 0.6;
       next.text = `${curWords[0]} ${wordsOf(next.text).join(' ')}`;
-      next.start = cur.start;
-      if (typeof cur.audioStartSec === 'number') next.audioStartSec = cur.audioStartSec;
-      if (Array.isArray(next.words) && Array.isArray(cur.words)) next.words = [...cur.words, ...next.words];
+      if (closeToNext) {
+        next.start = cur.start;
+        if (typeof cur.audioStartSec === 'number') next.audioStartSec = cur.audioStartSec;
+      }
+      if (Array.isArray(next.words) && Array.isArray(cur.words)) {
+        const lead = closeToNext
+          ? cur.words
+          : cur.words.map((w: any) => ({
+              ...w,
+              audioStartSec: next.words[0]?.audioStartSec ?? w.audioStartSec,
+              audioEndSec: next.words[0]?.audioStartSec ?? w.audioEndSec,
+            }));
+        next.words = [...lead, ...next.words];
+      }
       out.splice(k, 1);
       k--;
       changed = true;
