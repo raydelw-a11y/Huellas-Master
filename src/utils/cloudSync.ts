@@ -546,9 +546,40 @@ export function applyDocumentaryRenumbering<T extends Record<string, any>>(doc: 
   return out as T;
 }
 
+// Junk that stale copies kept pushing into the publish fields (the Stage 4 narration script, an
+// unrelated chat, the thumbnail text). Dropped from every copy so a healthy one refills the field.
+export function isJunkPublishMetadata(field: string, value: unknown): boolean {
+  const v = String(value || '');
+  if (!v.trim()) return false;
+  const scriptLike =
+    /ETAPA\s*\d+\s*:|GUION\s+DE\s+LA\s+VOZ|\[pausa:|\(\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}\s*\|/i.test(v);
+  const codeLike = /```|Canvas\s*2D|\b60\s*FPS\b|function\s*\(|=>\s*\{/i.test(v);
+  if (field === 'rawYoutubeMetadata' || field === 'rawFacebookMetadata') {
+    return scriptLike || codeLike || v.length > 7000;
+  }
+  if (field === 'pinnedComment') {
+    const letters = v.replace(/[^A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/g, '');
+    const allCaps = letters.length > 0 && letters === letters.toUpperCase();
+    return scriptLike || codeLike || v.trim().length < 60 || allCaps;
+  }
+  return false;
+}
+
+export function stripJunkPublishMetadata<T extends Record<string, any>>(doc: T): T {
+  if (!doc || typeof doc !== 'object') return doc;
+  let out: any = doc;
+  for (const field of ['rawYoutubeMetadata', 'rawFacebookMetadata', 'pinnedComment']) {
+    if (isJunkPublishMetadata(field, (doc as any)[field])) {
+      if (out === doc) out = { ...doc };
+      out[field] = '';
+    }
+  }
+  return out as T;
+}
+
 export function normalizeDocumentaryVoiceoverAudio(docIn: DocumentaryProject): DocumentaryProject {
   if (!docIn) return docIn;
-  const doc = applyDocumentaryRenumbering(docIn);
+  const doc = stripJunkPublishMetadata(applyDocumentaryRenumbering(docIn));
   let masterAudioUrl = normalizeVoiceoverUrlString(doc.masterAudioUrl);
   let audioTracks = Array.isArray(doc.audioTracks)
     ? doc.audioTracks.map((t) => ({

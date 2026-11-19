@@ -638,9 +638,23 @@ function applyDocumentaryRenumbering(doc: any): any {
   return out;
 }
 
+function stripJunkPublishMetadata(doc: any): any {
+  if (!doc || typeof doc !== 'object') return doc;
+  let out = doc;
+  for (const field of ['rawYoutubeMetadata', 'rawFacebookMetadata', 'pinnedComment']) {
+    if (isJunkPublishMetadata(field, doc[field])) {
+      if (out === doc) out = { ...doc };
+      out[field] = '';
+    }
+  }
+  return out;
+}
+
 function sanitizeServerDocAudioUrls(docIn: any): any {
   if (!docIn || typeof docIn !== 'object') return docIn;
-  const doc = applyDocumentaryRenumbering(docIn);
+  // Junk publish metadata is dropped from every copy (disk, GitHub, client payload) before merging,
+  // so a healthy copy always refills the field instead of losing to the junk one.
+  const doc = stripJunkPublishMetadata(applyDocumentaryRenumbering(docIn));
   const rawTracks = Array.isArray(doc.audioTracks) ? doc.audioTracks : [];
   const folderDonor = rawTracks.find(
     (t: any) =>
@@ -773,7 +787,7 @@ function protectPublishMetadata(list: any[]): any[] {
 }
 
 function writeDocumentaries(list: any[], skipCloudPush = false) {
-  const sanitizedList = Array.isArray(list) ? protectPublishMetadata(list.map(sanitizeServerDocAudioUrls)) : list;
+  const sanitizedList = Array.isArray(list) ? protectPublishMetadata(list).map(sanitizeServerDocAudioUrls) : list;
   const jsonStr = JSON.stringify(sanitizedList, null, 2);
   try {
     const currentDisk = fs.existsSync(DOCS_FILE) ? fs.readFileSync(DOCS_FILE, 'utf8') : '';
