@@ -2837,7 +2837,31 @@ function mergeTwoDocumentaryObjects(
       ? { musicEngine: baseWinner.musicEngine || oNorm.musicEngine }
       : {}),
     rawClipsText: finalRawClipsText,
-    clips: mergedClips,
+    clips: (() => {
+      // Manual 9:16 reframe: the newest reframeUpdatedAt wins per clip, whichever copy holds it.
+      const newestReframeByNum = new Map<number, any>();
+      for (const rc of [...wClipsInit, ...oClipsInit] as any[]) {
+        const at = Number(rc?.reframeUpdatedAt || 0);
+        if (at <= 0) continue;
+        const prev = newestReframeByNum.get(Number(rc.clipNumber));
+        if (!prev || at > Number(prev.reframeUpdatedAt)) newestReframeByNum.set(Number(rc.clipNumber), rc);
+      }
+      if (newestReframeByNum.size === 0) return mergedClips;
+      return mergedClips.map((mc: any) => {
+        const rc = mc ? newestReframeByNum.get(Number(mc.clipNumber)) : undefined;
+        if (!rc || Number(mc.reframeUpdatedAt || 0) >= Number(rc.reframeUpdatedAt)) return mc;
+        return {
+          ...mc,
+          reframe9x16Mode: rc.reframe9x16Mode,
+          reframeFocusXStart: rc.reframeFocusXStart,
+          reframeFocusXEnd: rc.reframeFocusXEnd,
+          reframeFocusY: rc.reframeFocusY,
+          reframeReason: rc.reframeReason,
+          userReframed9x16: rc.userReframed9x16,
+          reframeUpdatedAt: rc.reframeUpdatedAt,
+        };
+      });
+    })(),
   };
 }
 

@@ -2371,6 +2371,30 @@ app.put('/api/documentaries/:id', (req, res) => {
     };
   }
 
+  // MANUAL REFRAME GUARD: a client holding a stale copy of doc.clips must never roll back a newer
+  // manual 9:16 reframe saved on disk (newest reframeUpdatedAt wins, per clip).
+  if (Array.isArray(updated?.clips) && Array.isArray(currentDiskDoc?.clips)) {
+    const diskReframeByNum = new Map<number, any>();
+    for (const dc of currentDiskDoc.clips as any[]) {
+      if (dc && Number(dc.reframeUpdatedAt) > 0) diskReframeByNum.set(Number(dc.clipNumber), dc);
+    }
+    if (diskReframeByNum.size > 0) {
+      updated.clips = (updated.clips as any[]).map((c: any) => {
+        const dc = c ? diskReframeByNum.get(Number(c.clipNumber)) : undefined;
+        if (!dc || Number(c.reframeUpdatedAt || 0) >= Number(dc.reframeUpdatedAt)) return c;
+        return {
+          ...c,
+          reframe9x16Mode: dc.reframe9x16Mode,
+          reframeFocusXStart: dc.reframeFocusXStart,
+          reframeFocusXEnd: dc.reframeFocusXEnd,
+          reframeFocusY: dc.reframeFocusY,
+          reframeReason: dc.reframeReason,
+          userReframed9x16: dc.userReframed9x16,
+          reframeUpdatedAt: dc.reframeUpdatedAt,
+        };
+      });
+    }
+  }
   list[idx] = updated;
   writeDocumentaries(list);
   if (updated?.rawClipsText && getServerRawClipsQualityTier(updated.rawClipsText) === 2) {
