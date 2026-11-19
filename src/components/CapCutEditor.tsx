@@ -14804,9 +14804,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       {/* =====================================================================
           TOP BAR: CAPCUT-STYLE ULTRA-COMPACT PROJECT BAR, RATIO, QUALITY & EXPORT
       ===================================================================== */}
-      <div className="bg-[#14110d] border-b border-amber-500/25 px-2.5 py-1 flex items-center justify-between gap-2 shrink-0 overflow-x-auto whitespace-nowrap">
-        <div className="flex items-center gap-1.5 shrink-0">
-          <div className="flex items-center gap-1.5">
+      <div className="bg-[#14110d] border-b border-amber-500/25 px-2.5 py-1 flex flex-wrap md:flex-nowrap items-center justify-between gap-x-2 gap-y-1 shrink-0 whitespace-nowrap">
+        <div className="flex flex-wrap md:flex-nowrap items-center gap-1.5 min-w-0 max-w-full md:flex-1 md:overflow-hidden">
+          <div className="flex items-center gap-1.5 min-w-0 max-w-full">
             <span className="px-2 py-0.5 rounded-md bg-amber-500 text-slate-950 font-black text-[11px] flex items-center gap-1">
               <Film className="w-3 h-3" />
               EDITOR
@@ -14819,7 +14819,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   setCurrentTime(0);
                   onSelectDoc(e.target.value);
                 }}
-                className="bg-slate-950 border border-amber-500/40 rounded-lg px-2 py-0.5 text-[11px] font-bold text-amber-200 max-w-[260px] cursor-pointer outline-none"
+                className="bg-slate-950 border border-amber-500/40 rounded-lg px-2 py-0.5 text-[11px] font-bold text-amber-200 max-w-[260px] min-w-0 shrink cursor-pointer outline-none"
                 title="Cambiar de documental directamente desde el Editor de Video"
               >
                 {documentaries.map((d) => (
@@ -14841,7 +14841,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             const reviewedCount = activeDoc!.clips.filter((c) => c.reviewedForEditor).length;
             const isAllReviewed = reviewedCount >= totalScriptCount;
             return (
-              <div className="flex items-center bg-slate-950 border border-emerald-500/40 rounded-lg p-0.5 text-[10px]">
+              <div className="flex items-center bg-slate-950 border border-emerald-500/40 rounded-lg p-0.5 text-[10px] min-w-0 shrink">
                 <button
                   type="button"
                   onClick={() => {
@@ -14849,7 +14849,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                       onOpenStage6Review();
                     }
                   }}
-                  className={`px-2 py-0.5 rounded font-black transition flex items-center gap-1 ${
+                  className={`px-2 py-0.5 rounded font-black transition flex items-center gap-1 min-w-0 ${
                     isAllReviewed
                       ? 'bg-emerald-500 text-slate-950 shadow cursor-default'
                       : reviewedCount === 0
@@ -14862,7 +14862,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                       : `Solo los clips marcados como Revisados en Etapa 6 (${reviewedCount}/${totalScriptCount}) pasan al Timeline. Haz clic para ir a Etapa 6.`
                   }
                 >
-                  <span>
+                  <span className="truncate">
                     {reviewedCount === 0 ? '🔒' : '✅'} Revisados en Timeline ({reviewedCount}/{totalScriptCount})
                   </span>
                   {!isAllReviewed && onOpenStage6Review && (
@@ -14875,7 +14875,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         </div>
 
         {/* Aspect Ratio (16:9 vs 9:16) + Export Quality (HD / 2K / 4K / 8K) + Folder & Download (with Render) */}
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex flex-wrap md:flex-nowrap items-center justify-end gap-1.5 min-w-0 max-w-full md:shrink-0">
           {/* Aspect Ratio Selector (Dual-Format 16:9 ⇄ 9:16 Persistent Memory) */}
           <div className="flex items-center bg-slate-950 border border-slate-800 rounded-lg p-0.5 gap-0.5">
             <button
