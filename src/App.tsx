@@ -199,7 +199,7 @@ import {
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '12:14 AM - 11/19/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '12:23 AM - 11/19/2026';
 
 // Etapa 8: nombre de archivo canónico de cada canción → "Canción_01_El_Muelle_de_la_Despedida"
 // (quita prefijos "Pista 1:" / "Canción 1:", comillas y rangos de tiempo "00:08 - 02:38" del título)
@@ -14695,6 +14695,10 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
 
   // Auto-generate the 3 video-specific Neuropsychological Click Triggers + Thumbnail Prompt upon entering Stage 3 (activeStage === 5)
   useEffect(() => {
+    // Manual only (user request 2026-11-19): the triggers are generated when the user presses the
+    // "Generar 3 Disparadores Ahora" / "Generar Prompt con Gemini" buttons, never on entering the stage.
+    const AUTO_GENERATE_STAGE5_TRIGGERS = false;
+    if (!AUTO_GENERATE_STAGE5_TRIGGERS) return;
     if (activeStage !== 5 || !activeDoc) return;
     if ((activeDoc.thumbnailPsychTriggers || []).length > 0) return;
     if (
@@ -21103,7 +21107,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                         <div className="rounded-xl border border-indigo-500/30 bg-slate-900/70 p-3.5 flex items-center gap-3">
                           <div className="w-5 h-5 rounded-full border-2 border-amber-400 border-t-transparent animate-spin shrink-0" />
                           <p className="text-[11px] text-amber-200 font-semibold leading-snug">
-                            Generando automáticamente en Gemini Web los 3 disparadores neuropsicológicos exclusivos para «{activeDoc.title || activeDoc.topic}» junto con el prompt...
+                            Generando en Gemini Web los 3 disparadores neuropsicológicos exclusivos para «{activeDoc.title || activeDoc.topic}» junto con el prompt...
                           </p>
                         </div>
                       ) : (
