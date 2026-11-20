@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-10-27T02:05:48.997Z",
-    "updatedAt": "2026-11-20T12:30:33.327Z",
+    "updatedAt": "2026-11-20T12:30:37.591Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -20,7 +20,7 @@
       "TEMA_DEL_VIDEO": "Video 74 Castillo Louvre Parte II",
       "UBICACION_INTRO_MARCA": "INTRO_INICIO_00",
       "FIELD_CLEARED_AT_voiceoverScript": "0",
-      "PROMPTS_RESTORED_AT": "1795177833327",
+      "PROMPTS_RESTORED_AT": "1795177837591",
       "FIELD_CLEARED_AT_rawClipsText": "0",
       "FIELD_CLEARED_AT_pinnedComment": "1795091965654",
       "FIELD_CLEARED_AT_correctedSrt": "0",
@@ -2423,7 +2423,7 @@
         "imageReady": true,
         "videoReady": true,
         "pauseNotes": "Contiene [pausa: 1.5s] en la locución",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "auditStatus": "ok",
         "auditReason": "Sincronizado con el tramo de voz narrativa.",
@@ -2438,7 +2438,8 @@
         "reframeFocusXEnd": 50,
         "reframeFocusY": 50,
         "reframeConfidence": 0.55,
-        "reframeReason": "Encuadre central simétrico IA (50%)"
+        "reframeReason": "Encuadre central simétrico IA (50%)",
+        "reviewedUpdatedAt": 1795177837591
       },
       {
         "id": "clip-58-1794891908510-p2lv",
@@ -2452,7 +2453,7 @@
         "imageReady": true,
         "videoReady": true,
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "auditStatus": "ok",
         "auditReason": "Sincronizado con el tramo de voz narrativa.",
@@ -2467,7 +2468,8 @@
         "reframeFocusXEnd": 36,
         "reframeFocusY": 50,
         "reframeConfidence": 0.77,
-        "reframeReason": "Paneo dinámico IA (71% → 36%) siguiendo acción/sujeto"
+        "reframeReason": "Paneo dinámico IA (71% → 36%) siguiendo acción/sujeto",
+        "reviewedUpdatedAt": 1795177841909
       },
       {
         "id": "clip-59-1794891908513-uj1h",
