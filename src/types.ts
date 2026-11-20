@@ -224,6 +224,7 @@ export interface DocumentaryClip {
   frameOffsetY16x9?: number;
   frameOffsetX9x16?: number;  // clip position in the 9:16 frame, percent of the frame
   frameOffsetY9x16?: number;
+  frameTransformAt?: number;  // when the size/position was last saved (ms)
   reframeConfidence?: number;
   reframeReason?: string;
   // Motor de video específico de este clip (Omni 1.1 Flash si hay personas, Veo 3.1 - Lite [Lower Priority] para el resto)

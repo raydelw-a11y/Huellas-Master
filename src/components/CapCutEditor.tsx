@@ -317,6 +317,7 @@ interface TimelineClipItem {
   frameOffsetY16x9?: number;
   frameOffsetX9x16?: number;   // clip position in the 9:16 frame, percent of the frame
   frameOffsetY9x16?: number;
+  frameTransformAt?: number;   // when the size/position was last saved (ms)
   reframeConfidence?: number;
   reframeReason?: string;
   userReframed9x16?: boolean;  // true when user manually set or adjusted reframe in the editor
@@ -3314,11 +3315,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const handleUpdateClipFrameZoom = (clipId: string, zoomPct: number, commit: boolean) => {
     const safeZoom = Math.max(FRAME_ZOOM_MIN_PCT, Math.min(FRAME_ZOOM_MAX_PCT, Math.round(zoomPct)));
     const zoomKey = aspectRatio === '9:16' ? 'frameZoom9x16' : 'frameZoom16x9';
+    const zoomSavedAt = Date.now();
     const docId = activeDoc?.id || 'default';
     const matchedClip = timelineClips.find((tc) => tc.id === clipId);
     const targetClipNum = matchedClip ? matchedClip.clipNumber : -1;
     setTimelineClips((prev) => {
-      const updated = prev.map((tc) => (tc.id === clipId ? { ...tc, [zoomKey]: safeZoom } : tc));
+      const updated = prev.map((tc) =>
+        tc.id === clipId ? { ...tc, [zoomKey]: safeZoom, ...(commit ? { frameTransformAt: zoomSavedAt } : {}) } : tc
+      );
       if (commit) {
         persistDocOverlaysPatch({ customTimelineClips: updated, userEditedClips: true }, docId);
       }
@@ -3327,7 +3331,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     if (commit && targetClipNum > 0 && targetClipNum < 999 && activeDoc && Array.isArray(activeDoc.clips)) {
       updateActiveDoc({
         clips: activeDoc.clips.map((c) =>
-          c.clipNumber === targetClipNum ? ({ ...c, [zoomKey]: safeZoom } as any) : c
+          c.clipNumber === targetClipNum ? ({ ...c, [zoomKey]: safeZoom, frameTransformAt: zoomSavedAt } as any) : c
         ),
       });
     }
@@ -3355,6 +3359,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     const maxOffset = 50 + zoomPct / 2 - 6;
     const lim = (v: number) => Math.max(-maxOffset, Math.min(maxOffset, Math.round(v * 10) / 10));
     const patch: Record<string, number> = {
+      ...(commit ? { frameTransformAt: Date.now() } : {}),
       [zoomKey]: zoomPct,
       [offXKey]: lim(typeof next.offsetX === 'number' ? next.offsetX : current.x),
       [offYKey]: lim(typeof next.offsetY === 'number' ? next.offsetY : current.y),
@@ -6709,12 +6714,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         reframeFocusXStart: existingItem?.reframeFocusXStart ?? c.reframeFocusXStart,
         reframeFocusXEnd: existingItem?.reframeFocusXEnd ?? c.reframeFocusXEnd,
         reframeFocusY: existingItem?.reframeFocusY ?? c.reframeFocusY,
-        frameZoom16x9: existingItem?.frameZoom16x9 ?? c.frameZoom16x9,
-        frameZoom9x16: existingItem?.frameZoom9x16 ?? c.frameZoom9x16,
-        frameOffsetX16x9: existingItem?.frameOffsetX16x9 ?? c.frameOffsetX16x9,
-        frameOffsetY16x9: existingItem?.frameOffsetY16x9 ?? c.frameOffsetY16x9,
-        frameOffsetX9x16: existingItem?.frameOffsetX9x16 ?? c.frameOffsetX9x16,
-        frameOffsetY9x16: existingItem?.frameOffsetY9x16 ?? c.frameOffsetY9x16,
+        frameZoom16x9: Number((c as any).frameTransformAt || 0) > Number((existingItem as any)?.frameTransformAt || 0) ? c.frameZoom16x9 : existingItem?.frameZoom16x9 ?? c.frameZoom16x9,
+        frameZoom9x16: Number((c as any).frameTransformAt || 0) > Number((existingItem as any)?.frameTransformAt || 0) ? c.frameZoom9x16 : existingItem?.frameZoom9x16 ?? c.frameZoom9x16,
+        frameOffsetX16x9: Number((c as any).frameTransformAt || 0) > Number((existingItem as any)?.frameTransformAt || 0) ? c.frameOffsetX16x9 : existingItem?.frameOffsetX16x9 ?? c.frameOffsetX16x9,
+        frameOffsetY16x9: Number((c as any).frameTransformAt || 0) > Number((existingItem as any)?.frameTransformAt || 0) ? c.frameOffsetY16x9 : existingItem?.frameOffsetY16x9 ?? c.frameOffsetY16x9,
+        frameOffsetX9x16: Number((c as any).frameTransformAt || 0) > Number((existingItem as any)?.frameTransformAt || 0) ? c.frameOffsetX9x16 : existingItem?.frameOffsetX9x16 ?? c.frameOffsetX9x16,
+        frameOffsetY9x16: Number((c as any).frameTransformAt || 0) > Number((existingItem as any)?.frameTransformAt || 0) ? c.frameOffsetY9x16 : existingItem?.frameOffsetY9x16 ?? c.frameOffsetY9x16,
+        // A size/position saved in the documentary later than this browser's copy wins (set on another device)
+        frameTransformAt: Math.max(Number((c as any).frameTransformAt || 0), Number((existingItem as any)?.frameTransformAt || 0)) || undefined,
         reframeConfidence: existingItem?.reframeConfidence ?? c.reframeConfidence,
         reframeReason: existingItem?.reframeReason || c.reframeReason,
       };
@@ -7303,12 +7310,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         reframeFocusXStart: liveMatch?.reframeFocusXStart ?? bc.reframeFocusXStart,
         reframeFocusXEnd: liveMatch?.reframeFocusXEnd ?? bc.reframeFocusXEnd,
         reframeFocusY: liveMatch?.reframeFocusY ?? bc.reframeFocusY,
-        frameZoom16x9: liveMatch?.frameZoom16x9 ?? bc.frameZoom16x9,
-        frameZoom9x16: liveMatch?.frameZoom9x16 ?? bc.frameZoom9x16,
-        frameOffsetX16x9: liveMatch?.frameOffsetX16x9 ?? bc.frameOffsetX16x9,
-        frameOffsetY16x9: liveMatch?.frameOffsetY16x9 ?? bc.frameOffsetY16x9,
-        frameOffsetX9x16: liveMatch?.frameOffsetX9x16 ?? bc.frameOffsetX9x16,
-        frameOffsetY9x16: liveMatch?.frameOffsetY9x16 ?? bc.frameOffsetY9x16,
+        frameZoom16x9: Number((bc as any).frameTransformAt || 0) > Number((liveMatch as any)?.frameTransformAt || 0) ? bc.frameZoom16x9 : liveMatch?.frameZoom16x9 ?? bc.frameZoom16x9,
+        frameZoom9x16: Number((bc as any).frameTransformAt || 0) > Number((liveMatch as any)?.frameTransformAt || 0) ? bc.frameZoom9x16 : liveMatch?.frameZoom9x16 ?? bc.frameZoom9x16,
+        frameOffsetX16x9: Number((bc as any).frameTransformAt || 0) > Number((liveMatch as any)?.frameTransformAt || 0) ? bc.frameOffsetX16x9 : liveMatch?.frameOffsetX16x9 ?? bc.frameOffsetX16x9,
+        frameOffsetY16x9: Number((bc as any).frameTransformAt || 0) > Number((liveMatch as any)?.frameTransformAt || 0) ? bc.frameOffsetY16x9 : liveMatch?.frameOffsetY16x9 ?? bc.frameOffsetY16x9,
+        frameOffsetX9x16: Number((bc as any).frameTransformAt || 0) > Number((liveMatch as any)?.frameTransformAt || 0) ? bc.frameOffsetX9x16 : liveMatch?.frameOffsetX9x16 ?? bc.frameOffsetX9x16,
+        frameOffsetY9x16: Number((bc as any).frameTransformAt || 0) > Number((liveMatch as any)?.frameTransformAt || 0) ? bc.frameOffsetY9x16 : liveMatch?.frameOffsetY9x16 ?? bc.frameOffsetY9x16,
+        // A size/position saved in the documentary later than this browser's copy wins (set on another device)
+        frameTransformAt: Math.max(Number((bc as any).frameTransformAt || 0), Number((liveMatch as any)?.frameTransformAt || 0)) || undefined,
         reframeConfidence: liveMatch?.reframeConfidence ?? bc.reframeConfidence,
         reframeReason: liveMatch?.reframeReason || bc.reframeReason,
         ...(() => {
