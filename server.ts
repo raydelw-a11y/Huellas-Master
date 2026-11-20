@@ -883,6 +883,49 @@ const LOCKED_CLIP_FROZEN_FIELDS = [
   'auditStatus',
   'auditReason',
 ];
+// Clip size/position set in the editor viewer. A copy of the documentary held by another open tab or
+// device (older, or from before these fields existed) must not undo it: the newest save wins.
+const CLIP_FRAME_TRANSFORM_FIELDS = [
+  'frameZoom16x9',
+  'frameZoom9x16',
+  'frameOffsetX16x9',
+  'frameOffsetY16x9',
+  'frameOffsetX9x16',
+  'frameOffsetY9x16',
+  'frameTransformAt',
+];
+function protectClipFrameTransforms(list: any[]): any[] {
+  let diskById: Map<string, any>;
+  try {
+    const raw = fs.existsSync(DOCS_FILE) ? JSON.parse(fs.readFileSync(DOCS_FILE, 'utf8')) : [];
+    diskById = new Map((Array.isArray(raw) ? raw : []).map((d: any) => [d?.id, d]));
+  } catch {
+    return list;
+  }
+  return list.map((docIn: any) => {
+    const disk = docIn?.id ? diskById.get(docIn.id) : null;
+    if (!disk || !Array.isArray(disk.clips) || !Array.isArray(docIn.clips)) return docIn;
+    const diskByNum = new Map<number, any>();
+    for (const dc of disk.clips) {
+      if (Number(dc?.frameTransformAt || 0) > 0) diskByNum.set(Number(dc.clipNumber), dc);
+    }
+    if (diskByNum.size === 0) return docIn;
+    let changed = false;
+    const clips = docIn.clips.map((c: any) => {
+      const dc = diskByNum.get(Number(c?.clipNumber));
+      if (!dc || Number(dc.frameTransformAt) <= Number(c?.frameTransformAt || 0)) return c;
+      const fixed: any = { ...c };
+      for (const k of CLIP_FRAME_TRANSFORM_FIELDS) {
+        if (dc[k] === undefined) delete fixed[k];
+        else fixed[k] = dc[k];
+      }
+      changed = true;
+      return fixed;
+    });
+    return changed ? { ...docIn, clips } : docIn;
+  });
+}
+
 function protectLockedDocs(list: any[]): any[] {
   let diskById: Map<string, any>;
   try {
@@ -968,7 +1011,9 @@ function protectRecordedNarrationScripts(list: any[]): any[] {
 function writeDocumentaries(list: any[], skipCloudPush = false) {
   const sanitizedList = Array.isArray(list)
     ? protectLockedDocs(
-        protectAgainstForeignClips(protectRecordedNarrationScripts(protectPublishMetadata(list)))
+        protectClipFrameTransforms(
+          protectAgainstForeignClips(protectRecordedNarrationScripts(protectPublishMetadata(list)))
+        )
       ).map(
         sanitizeServerDocAudioUrls
       )
