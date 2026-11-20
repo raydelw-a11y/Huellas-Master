@@ -6884,6 +6884,8 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       Math.min(350, Number(bitrateMbps) > 0 ? Number(bitrateMbps) : preset.defaultBitrateMbps)
     );
     const is8K = outW > 4096 || outH > 4096;
+    // 8K export: clips are 4K masters, so the 4K -> 8K enlargement uses Lanczos (sharper than fast_bilinear).
+    const clipScaleFlags = is8K ? 'lanczos' : 'fast_bilinear';
 
     const ffmpegBin = getFfmpegPath();
 
@@ -7936,17 +7938,17 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         if (isVertical916) {
           const outroVertH = Math.round(outH * 0.66);
           const outroVertW = Math.round(outroVertH * (16 / 9));
-          scaleAndCropVf = `colorlevels=rimin=0.04:gimin=0.04:bimin=0.04,scale=${outroVertW}:${outroVertH}:flags=fast_bilinear,${fpsInterpStage},crop=${outW}:${outroVertH}:(iw-${outW})/2:0,pad=${outW}:${outH}:0:(oh-ih)/2:black`;
+          scaleAndCropVf = `colorlevels=rimin=0.04:gimin=0.04:bimin=0.04,scale=${outroVertW}:${outroVertH}:flags=${clipScaleFlags},${fpsInterpStage},crop=${outW}:${outroVertH}:(iw-${outW})/2:0,pad=${outW}:${outH}:0:(oh-ih)/2:black`;
         } else {
           const innerW = Math.round(outW * 0.88);
           const innerH = Math.round(outH * 0.88);
-          scaleAndCropVf = `colorlevels=rimin=0.04:gimin=0.04:bimin=0.04,scale=${innerW}:${innerH}:force_original_aspect_ratio=decrease:flags=fast_bilinear,${fpsInterpStage},pad=${outW}:${outH}:(ow-iw)/2:round((oh-ih)*0.36):black`;
+          scaleAndCropVf = `colorlevels=rimin=0.04:gimin=0.04:bimin=0.04,scale=${innerW}:${innerH}:force_original_aspect_ratio=decrease:flags=${clipScaleFlags},${fpsInterpStage},pad=${outW}:${outH}:(ow-iw)/2:round((oh-ih)*0.36):black`;
         }
       } else if (isIntroClip) {
         if (isVertical916) {
-          scaleAndCropVf = `scale=${outW}:${outH}:force_original_aspect_ratio=increase:flags=fast_bilinear,${fpsInterpStage},crop=${outW}:${outH}:(iw-${outW})/2:(ih-${outH})/2`;
+          scaleAndCropVf = `scale=${outW}:${outH}:force_original_aspect_ratio=increase:flags=${clipScaleFlags},${fpsInterpStage},crop=${outW}:${outH}:(iw-${outW})/2:(ih-${outH})/2`;
         } else {
-          scaleAndCropVf = `scale=${outW}:${outH}:force_original_aspect_ratio=decrease:flags=fast_bilinear,${fpsInterpStage},pad=${outW}:${outH}:(ow-iw)/2:(oh-ih)/2:black`;
+          scaleAndCropVf = `scale=${outW}:${outH}:force_original_aspect_ratio=decrease:flags=${clipScaleFlags},${fpsInterpStage},pad=${outW}:${outH}:(ow-iw)/2:(oh-ih)/2:black`;
         }
       } else if (isVertical916 && effectiveReframeMode !== 'fit_blur') {
         const rawXStart = isUserReframed
@@ -7977,12 +7979,12 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
           : `'max(0,min(iw-ow,(iw-ow)*${fStart.toFixed(4)}))'`;
         const cropYExpr = `'max(0,min(ih-oh,(ih-oh)*${fY.toFixed(4)}))'`;
         scaleAndCropVf = hasFrameZoom
-          ? `scale=${zoomW}:${zoomH}:force_original_aspect_ratio=increase:force_divisible_by=2:flags=fast_bilinear,${fpsInterpStage},crop=${zoomCropSize}:${cropXExpr}:${cropYExpr},${zoomPad}`
-          : `scale=${outW}:${outH}:force_original_aspect_ratio=increase:flags=fast_bilinear,${fpsInterpStage},crop=${outW}:${outH}:${cropXExpr}:${cropYExpr}`;
+          ? `scale=${zoomW}:${zoomH}:force_original_aspect_ratio=increase:force_divisible_by=2:flags=${clipScaleFlags},${fpsInterpStage},crop=${zoomCropSize}:${cropXExpr}:${cropYExpr},${zoomPad}`
+          : `scale=${outW}:${outH}:force_original_aspect_ratio=increase:flags=${clipScaleFlags},${fpsInterpStage},crop=${outW}:${outH}:${cropXExpr}:${cropYExpr}`;
       } else {
         scaleAndCropVf = hasFrameZoom
-          ? `scale=${zoomW}:${zoomH}:force_original_aspect_ratio=decrease:force_divisible_by=2:flags=fast_bilinear,${fpsInterpStage},crop=${zoomCropSize},${zoomPad}`
-          : `scale=${outW}:${outH}:force_original_aspect_ratio=decrease:flags=fast_bilinear,${fpsInterpStage},pad=${outW}:${outH}:(ow-iw)/2:(oh-ih)/2:black`;
+          ? `scale=${zoomW}:${zoomH}:force_original_aspect_ratio=decrease:force_divisible_by=2:flags=${clipScaleFlags},${fpsInterpStage},crop=${zoomCropSize},${zoomPad}`
+          : `scale=${outW}:${outH}:force_original_aspect_ratio=decrease:flags=${clipScaleFlags},${fpsInterpStage},pad=${outW}:${outH}:(ow-iw)/2:(oh-ih)/2:black`;
       }
 
       const baseVfChain = `setpts=${ptsFactor}*(PTS-STARTPTS),${scaleAndCropVf},format=yuv420p${vfTrimSuffix}${vfFadeSuffix}${assFilterSuffix}`;
@@ -14333,7 +14335,7 @@ async function upscaleFileTo4KOnDisk(
   const isVertical = aspectRatio === '9:16';
   const targetW = isVertical ? 2160 : 3840;
   const targetH = isVertical ? 3840 : 2160;
-  const vfFilter = `scale=${targetW}:${targetH}:flags=bicubic,setsar=1,unsharp=3:3:0.5:3:3:0.0,format=yuv420p`;
+  const vfFilter = `scale=${targetW}:${targetH}:flags=lanczos+accurate_rnd+full_chroma_int,setsar=1,unsharp=5:5:0.85:3:3:0.35,format=yuv420p`;
 
   const runFfmpegCmd = (args: string[]) =>
     new Promise<void>((resolve, reject) => {
