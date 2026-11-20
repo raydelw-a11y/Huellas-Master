@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-10-27T02:05:48.997Z",
-    "updatedAt": "2026-11-20T12:59:34.625Z",
+    "updatedAt": "2026-11-20T14:58:42.505Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -20,7 +20,7 @@
       "TEMA_DEL_VIDEO": "Video 74 Castillo Louvre Parte II",
       "UBICACION_INTRO_MARCA": "INTRO_INICIO_00",
       "FIELD_CLEARED_AT_voiceoverScript": "0",
-      "PROMPTS_RESTORED_AT": "1795179574625",
+      "PROMPTS_RESTORED_AT": "1795186722505",
       "FIELD_CLEARED_AT_rawClipsText": "0",
       "FIELD_CLEARED_AT_pinnedComment": "1795091965654",
       "FIELD_CLEARED_AT_correctedSrt": "0",
@@ -1802,13 +1802,7 @@
         "videoSavedFileName": "34_create_an_image_in_16_9_c20c726a_4K.mp4",
         "videoSavedAt": 1795115217440,
         "videoDiscardOverriddenAt": 1795115194533,
-        "reviewedUpdatedAt": 1795115224234,
-        "reframe9x16Mode": "auto_pan",
-        "reframeFocusXStart": 19,
-        "reframeFocusXEnd": 82,
-        "reframeFocusY": 50,
-        "reframeConfidence": 0.78,
-        "reframeReason": "Paneo dinámico IA (19% → 82%) entre dos sujetos (Izq → Der)"
+        "reviewedUpdatedAt": 1795115224234
       },
       {
         "id": "clip-35-1794891908326-k036",
@@ -1833,12 +1827,6 @@
         "videoAuditIssues": [],
         "videoDiscardOverriddenAt": 1795114555292,
         "reviewedUpdatedAt": 1795115159295,
-        "reframe9x16Mode": "auto_center",
-        "reframeFocusXStart": 50,
-        "reframeFocusXEnd": 50,
-        "reframeFocusY": 50,
-        "reframeConfidence": 0.55,
-        "reframeReason": "Encuadre central simétrico IA (50%)",
         "promptUpdatedAt": 1795178010837
       },
       {
@@ -1864,12 +1852,6 @@
         "videoSavedAt": 1795115861446,
         "videoDiscardOverriddenAt": 1795115861446,
         "reviewedUpdatedAt": 1795176292874,
-        "reframe9x16Mode": "auto_focus",
-        "reframeFocusXStart": 38,
-        "reframeFocusXEnd": 38,
-        "reframeFocusY": 50,
-        "reframeConfidence": 0.57,
-        "reframeReason": "Enfoque inteligente IA en tercio izquierdo (38%)",
         "promptUpdatedAt": 1795178010837
       },
       {
@@ -1892,14 +1874,8 @@
         "videoDiscardOverriddenAt": 1795178028030,
         "videoSavedAt": 1795178028030,
         "reviewedUpdatedAt": 1795178326019,
-        "reframe9x16Mode": "auto_center",
-        "reframeFocusXStart": 50,
-        "reframeFocusXEnd": 50,
-        "reframeFocusY": 50,
-        "reframeConfidence": 0.55,
-        "reframeReason": "Encuadre central simétrico IA (50%)",
-        "promptUpdatedAt": 1795178010837,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "promptUpdatedAt": 1795178010837
       },
       {
         "id": "clip-38-1794891908338-7wuk",
@@ -1922,12 +1898,6 @@
         "videoSavedAt": 1795175481466,
         "videoAuditStatus": "approved",
         "reviewedUpdatedAt": 1795176304384,
-        "reframe9x16Mode": "auto_pan",
-        "reframeFocusXStart": 19,
-        "reframeFocusXEnd": 39,
-        "reframeFocusY": 50,
-        "reframeConfidence": 0.84,
-        "reframeReason": "Paneo dinámico IA (19% → 39%) siguiendo acción/sujeto",
         "promptUpdatedAt": 1795178010837
       },
       {
@@ -1953,12 +1923,6 @@
         "videoAuditReason": "",
         "videoAuditIssues": [],
         "reviewedUpdatedAt": 1795176323024,
-        "reframe9x16Mode": "auto_pan",
-        "reframeFocusXStart": 64,
-        "reframeFocusXEnd": 44,
-        "reframeFocusY": 50,
-        "reframeConfidence": 0.55,
-        "reframeReason": "Paneo dinámico IA (64% → 44%) siguiendo acción/sujeto",
         "promptUpdatedAt": 1795178010837
       },
       {
@@ -1983,14 +1947,8 @@
         "brollCameraMotion": "zoom_in",
         "videoDiscardOverriddenAt": 1795176504786,
         "videoSavedAt": 1795176513758,
-        "reframe9x16Mode": "auto_focus",
-        "reframeFocusXStart": 74,
-        "reframeFocusXEnd": 74,
-        "reframeFocusY": 50,
-        "reframeConfidence": 0.7,
-        "reframeReason": "Enfoque inteligente IA en tercio derecho (74%)",
-        "promptUpdatedAt": 1795178010837,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "promptUpdatedAt": 1795178010837
       },
       {
         "id": "clip-41-1794891908346-cev8",
@@ -2015,12 +1973,6 @@
         "videoAuditReason": "",
         "videoAuditIssues": [],
         "reviewedUpdatedAt": 1795176409985,
-        "reframe9x16Mode": "auto_pan",
-        "reframeFocusXStart": 37,
-        "reframeFocusXEnd": 49,
-        "reframeFocusY": 50,
-        "reframeConfidence": 0.74,
-        "reframeReason": "Paneo dinámico IA (37% → 49%) siguiendo acción/sujeto",
         "promptUpdatedAt": 1795178010837
       },
       {
@@ -2046,12 +1998,6 @@
         "videoAuditReason": "",
         "videoAuditIssues": [],
         "reviewedUpdatedAt": 1795176414131,
-        "reframe9x16Mode": "auto_pan",
-        "reframeFocusXStart": 22,
-        "reframeFocusXEnd": 78,
-        "reframeFocusY": 50,
-        "reframeConfidence": 0.92,
-        "reframeReason": "Paneo dinámico IA (22% → 78%) entre dos sujetos (Izq → Der)",
         "promptUpdatedAt": 1795178010837
       },
       {
@@ -2075,14 +2021,8 @@
         "brollCameraMotion": "zoom_in",
         "videoSavedAt": 1795177121334,
         "reviewedUpdatedAt": 1795177675538,
-        "reframe9x16Mode": "auto_pan",
-        "reframeFocusXStart": 82,
-        "reframeFocusXEnd": 24,
-        "reframeFocusY": 50,
-        "reframeConfidence": 0.99,
-        "reframeReason": "Paneo dinámico IA (82% → 24%) desde sujeto derecho hacia escena izquierda (Der → Izq)",
-        "promptUpdatedAt": 1795178010837,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "promptUpdatedAt": 1795178010837
       },
       {
         "id": "clip-44-1794891908477-09as",
@@ -2107,12 +2047,6 @@
         "videoAuditReason": "",
         "videoAuditIssues": [],
         "reviewedUpdatedAt": 1795177682615,
-        "reframe9x16Mode": "auto_focus",
-        "reframeFocusXStart": 25,
-        "reframeFocusXEnd": 25,
-        "reframeFocusY": 50,
-        "reframeConfidence": 0.68,
-        "reframeReason": "Enfoque inteligente IA en tercio izquierdo (25%)",
         "promptUpdatedAt": 1795178010837
       },
       {
@@ -2138,12 +2072,6 @@
         "videoAuditReason": "",
         "videoAuditIssues": [],
         "reviewedUpdatedAt": 1795177708360,
-        "reframe9x16Mode": "auto_center",
-        "reframeFocusXStart": 50,
-        "reframeFocusXEnd": 50,
-        "reframeFocusY": 50,
-        "reframeConfidence": 0.61,
-        "reframeReason": "Encuadre central simétrico IA (50%)",
         "promptUpdatedAt": 1795178010837
       },
       {
@@ -2169,12 +2097,6 @@
         "videoAuditReason": "",
         "videoAuditIssues": [],
         "reviewedUpdatedAt": 1795177716427,
-        "reframe9x16Mode": "auto_center",
-        "reframeFocusXStart": 50,
-        "reframeFocusXEnd": 50,
-        "reframeFocusY": 50,
-        "reframeConfidence": 0.6,
-        "reframeReason": "Encuadre central simétrico IA (50%)",
         "promptUpdatedAt": 1795178010837
       },
       {
@@ -2200,12 +2122,6 @@
         "videoAuditReason": "",
         "videoAuditIssues": [],
         "reviewedUpdatedAt": 1795177720395,
-        "reframe9x16Mode": "auto_focus",
-        "reframeFocusXStart": 16,
-        "reframeFocusXEnd": 16,
-        "reframeFocusY": 50,
-        "reframeConfidence": 0.58,
-        "reframeReason": "Enfoque inteligente IA en tercio izquierdo (16%)",
         "promptUpdatedAt": 1795178010837
       },
       {
@@ -2231,12 +2147,6 @@
         "videoAuditReason": "",
         "videoAuditIssues": [],
         "reviewedUpdatedAt": 1795177739073,
-        "reframe9x16Mode": "auto_focus",
-        "reframeFocusXStart": 16,
-        "reframeFocusXEnd": 16,
-        "reframeFocusY": 50,
-        "reframeConfidence": 0.84,
-        "reframeReason": "Enfoque inteligente IA en tercio izquierdo (16%)",
         "promptUpdatedAt": 1795178010837
       },
       {
@@ -2262,12 +2172,6 @@
         "videoAuditReason": "",
         "videoAuditIssues": [],
         "reviewedUpdatedAt": 1795177746955,
-        "reframe9x16Mode": "auto_pan",
-        "reframeFocusXStart": 78,
-        "reframeFocusXEnd": 24,
-        "reframeFocusY": 50,
-        "reframeConfidence": 0.93,
-        "reframeReason": "Paneo dinámico IA (78% → 24%) desde sujeto derecho hacia escena izquierda (Der → Izq)",
         "promptUpdatedAt": 1795178010837
       },
       {
@@ -2293,12 +2197,6 @@
         "videoAuditReason": "",
         "videoAuditIssues": [],
         "reviewedUpdatedAt": 1795177757813,
-        "reframe9x16Mode": "auto_pan",
-        "reframeFocusXStart": 22,
-        "reframeFocusXEnd": 76,
-        "reframeFocusY": 50,
-        "reframeConfidence": 0.82,
-        "reframeReason": "Paneo dinámico IA (22% → 76%) desde sujeto izquierdo hacia escena derecha (Izq → Der)",
         "promptUpdatedAt": 1795178010837
       },
       {
@@ -2323,14 +2221,8 @@
         "brollCameraMotion": "tilt_up",
         "videoDiscardOverriddenAt": 1795177968427,
         "videoSavedAt": 1795177968427,
-        "reframe9x16Mode": "auto_focus",
-        "reframeFocusXStart": 84,
-        "reframeFocusXEnd": 84,
-        "reframeFocusY": 50,
-        "reframeConfidence": 0.55,
-        "reframeReason": "Enfoque inteligente IA en tercio derecho (84%)",
-        "promptUpdatedAt": 1795178010837,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "promptUpdatedAt": 1795178010837
       },
       {
         "id": "clip-52-1794891908495-urdx",
@@ -2355,12 +2247,6 @@
         "videoAuditReason": "",
         "videoAuditIssues": [],
         "reviewedUpdatedAt": 1795177814687,
-        "reframe9x16Mode": "auto_pan",
-        "reframeFocusXStart": 24,
-        "reframeFocusXEnd": 39,
-        "reframeFocusY": 50,
-        "reframeConfidence": 0.67,
-        "reframeReason": "Paneo dinámico IA (24% → 39%) siguiendo acción/sujeto",
         "promptUpdatedAt": 1795178010837
       },
       {
@@ -2386,12 +2272,6 @@
         "videoAuditReason": "",
         "videoAuditIssues": [],
         "reviewedUpdatedAt": 1795177821041,
-        "reframe9x16Mode": "auto_focus",
-        "reframeFocusXStart": 84,
-        "reframeFocusXEnd": 84,
-        "reframeFocusY": 50,
-        "reframeConfidence": 0.78,
-        "reframeReason": "Enfoque inteligente IA en tercio derecho (84%)",
         "promptUpdatedAt": 1795178010837
       },
       {
@@ -2417,12 +2297,6 @@
         "videoAuditReason": "",
         "videoAuditIssues": [],
         "reviewedUpdatedAt": 1795177825573,
-        "reframe9x16Mode": "auto_pan",
-        "reframeFocusXStart": 81,
-        "reframeFocusXEnd": 55,
-        "reframeFocusY": 50,
-        "reframeConfidence": 0.58,
-        "reframeReason": "Paneo dinámico IA (81% → 55%) siguiendo acción/sujeto",
         "promptUpdatedAt": 1795178010837
       },
       {
@@ -2448,12 +2322,6 @@
         "videoAuditReason": "",
         "videoAuditIssues": [],
         "reviewedUpdatedAt": 1795177829856,
-        "reframe9x16Mode": "auto_pan",
-        "reframeFocusXStart": 51,
-        "reframeFocusXEnd": 19,
-        "reframeFocusY": 50,
-        "reframeConfidence": 0.68,
-        "reframeReason": "Paneo dinámico IA (51% → 19%) siguiendo acción/sujeto",
         "promptUpdatedAt": 1795178010837
       },
       {
@@ -2479,12 +2347,6 @@
         "videoAuditReason": "",
         "videoAuditIssues": [],
         "reviewedUpdatedAt": 1795177833326,
-        "reframe9x16Mode": "auto_focus",
-        "reframeFocusXStart": 69,
-        "reframeFocusXEnd": 69,
-        "reframeFocusY": 50,
-        "reframeConfidence": 0.6,
-        "reframeReason": "Enfoque inteligente IA en tercio derecho (69%)",
         "promptUpdatedAt": 1795178010837
       },
       {
@@ -2510,12 +2372,6 @@
         "videoSavedAt": 1795117811603,
         "videoDiscardOverriddenAt": 1795117786417,
         "reviewedUpdatedAt": 1795177837591,
-        "reframe9x16Mode": "auto_center",
-        "reframeFocusXStart": 50,
-        "reframeFocusXEnd": 50,
-        "reframeFocusY": 50,
-        "reframeConfidence": 0.55,
-        "reframeReason": "Encuadre central simétrico IA (50%)",
         "promptUpdatedAt": 1795178010837
       },
       {
@@ -2541,12 +2397,6 @@
         "videoAuditReason": "",
         "videoAuditIssues": [],
         "reviewedUpdatedAt": 1795177841909,
-        "reframe9x16Mode": "auto_pan",
-        "reframeFocusXStart": 71,
-        "reframeFocusXEnd": 36,
-        "reframeFocusY": 50,
-        "reframeConfidence": 0.77,
-        "reframeReason": "Paneo dinámico IA (71% → 36%) siguiendo acción/sujeto",
         "promptUpdatedAt": 1795178010837
       },
       {
@@ -2572,12 +2422,6 @@
         "videoAuditReason": "",
         "videoAuditIssues": [],
         "reviewedUpdatedAt": 1795177846592,
-        "reframe9x16Mode": "auto_focus",
-        "reframeFocusXStart": 66,
-        "reframeFocusXEnd": 66,
-        "reframeFocusY": 50,
-        "reframeConfidence": 0.58,
-        "reframeReason": "Enfoque inteligente IA en tercio derecho (66%)",
         "promptUpdatedAt": 1795178010837
       },
       {
@@ -2601,13 +2445,7 @@
         "videoDiscardOverriddenAt": 1795174833196,
         "videoSavedAt": 1795175481466,
         "videoAuditStatus": "approved",
-        "reviewedUpdatedAt": 1795177857176,
-        "reframe9x16Mode": "auto_focus",
-        "reframeFocusXStart": 63,
-        "reframeFocusXEnd": 63,
-        "reframeFocusY": 50,
-        "reframeConfidence": 0.55,
-        "reframeReason": "Enfoque inteligente IA en tercio derecho (63%)"
+        "reviewedUpdatedAt": 1795177857176
       },
       {
         "id": "clip-61-1795065216435-61",
@@ -2630,13 +2468,7 @@
         "videoDiscardOverriddenAt": 1795174833196,
         "videoSavedAt": 1795175481466,
         "videoAuditStatus": "approved",
-        "reviewedUpdatedAt": 1795177865522,
-        "reframe9x16Mode": "auto_focus",
-        "reframeFocusXStart": 39,
-        "reframeFocusXEnd": 39,
-        "reframeFocusY": 50,
-        "reframeConfidence": 0.79,
-        "reframeReason": "Enfoque inteligente IA en tercio izquierdo (39%)"
+        "reviewedUpdatedAt": 1795177865522
       },
       {
         "id": "clip-62-1795065216435-62",
@@ -2659,13 +2491,7 @@
         "videoDiscardOverriddenAt": 1795174833196,
         "videoSavedAt": 1795175481466,
         "videoAuditStatus": "approved",
-        "reviewedUpdatedAt": 1795177872972,
-        "reframe9x16Mode": "auto_focus",
-        "reframeFocusXStart": 72,
-        "reframeFocusXEnd": 72,
-        "reframeFocusY": 50,
-        "reframeConfidence": 0.68,
-        "reframeReason": "Enfoque inteligente IA en tercio derecho (72%)"
+        "reviewedUpdatedAt": 1795177872972
       }
     ],
     "capcutRawSrt": "",
