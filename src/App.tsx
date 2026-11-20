@@ -200,7 +200,7 @@ import { useNoticeStack } from './utils/noticeStack';
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '05:59 PM - 11/20/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '06:24 PM - 11/20/2026';
 
 // PRODUCTION LOCK: while promptConfig.PRODUCTION_LOCKED === 'YES' these fields never change (the server
 // enforces the same list in protectLockedDocs). Metadata, thumbnails, review marks and reframes stay editable.
@@ -12194,6 +12194,13 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           videoDiscardOverriddenAt: capSavedMs,
           discardedVideoFileName: undefined,
           videoDiscardedAt: undefined,
+          // A re-captured video replaces the one the editor reviewed: it must go back to "pendiente por revisar"
+          ...(videoDataUrl && c.reviewedForEditor
+            ? {
+                reviewedForEditor: false,
+                reviewedUpdatedAt: Math.max(capSavedMs, Number(c.reviewedUpdatedAt || 0) + 1),
+              }
+            : {}),
         };
       });
 
