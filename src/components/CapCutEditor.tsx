@@ -5032,8 +5032,19 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       return t;
     };
 
-    if (folderVoiceoverUrl) return norm(folderVoiceoverUrl);
     const master = norm(activeDoc?.masterAudioUrl);
+    if (folderVoiceoverUrl) {
+      const folderUrl = norm(folderVoiceoverUrl);
+      // A raw .wav in 02_Audio is several times heavier than the documentary's portable MP3 of the same voice and
+      // has to travel through the tunnel on a phone, where it may never start. Prefer the registered MP3 then.
+      let folderDecoded = folderUrl;
+      try {
+        folderDecoded = decodeURIComponent(folderUrl);
+      } catch {}
+      const folderIsRawWav = /\.wav(?:[?&#]|$)/i.test(folderDecoded);
+      const masterIsPortableMp3 = /^(?:https?:\/\/[^/]+\/)?(?:[^?#]*\/)?tts-files\/[^?#]+\.mp3/i.test(master);
+      if (!(folderIsRawWav && masterIsPortableMp3)) return folderUrl;
+    }
     if (master && !master.startsWith('blob:')) return master;
     const firstNonBlobTrack = activeDoc?.audioTracks?.find(
       (t) => t.audioUrl && !t.audioUrl.startsWith('blob:')
