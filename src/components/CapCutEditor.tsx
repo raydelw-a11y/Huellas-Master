@@ -4362,6 +4362,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
   // Playback & Rendering State
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
+  // Starting playback leaves the move / resize mode so the picture is seen clean
+  useEffect(() => {
+    if (isPlaying && selectedCanvasObject === 'clip') setSelectedCanvasObject(null);
+  }, [isPlaying]);
   const [currentTime, setCurrentTime] = useState<number>(() => {
     try {
       const targetId = activeDoc?.id || initialSessionState?.lastDocId || 'default';
@@ -16689,7 +16693,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                         ? 'bg-amber-500 text-slate-950 border-amber-400'
                         : 'bg-slate-900 hover:bg-slate-800 border-slate-700 text-slate-300'
                     }`}
-                    title="Selecciona el clip en el visor para moverlo y cambiarle el tamaño con las esquinas (también con doble clic sobre el visor)"
+                    title="Selecciona el clip en el visor para moverlo y cambiarle el tamaño con las esquinas (también con un clic sobre el visor)"
                   >
                     ✥ Mover en el visor
                   </button>
@@ -17032,15 +17036,23 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   }
                   if (selectedCanvasObject !== null) {
                     setSelectedCanvasObject(null);
+                    handleTogglePlay();
+                    return;
+                  }
+                  // One click on the picture selects the clip to move / resize it (it pauses if playing).
+                  // Intro, outro and fullscreen keep the plain play / pause click.
+                  const clickedClip = activeClipAtPlayhead;
+                  if (
+                    !isViewerFullscreen &&
+                    clickedClip &&
+                    clickedClip.clipNumber !== 0 &&
+                    clickedClip.clipNumber !== 999
+                  ) {
+                    if (isPlaying) handleTogglePlay();
+                    setSelectedCanvasObject('clip');
+                    return;
                   }
                   handleTogglePlay();
-                }}
-                onDoubleClick={() => {
-                  if (isViewerFullscreen) return;
-                  const c = activeClipAtPlayhead;
-                  if (!c || c.clipNumber === 0 || c.clipNumber === 999) return;
-                  if (isPlaying) handleTogglePlay();
-                  setSelectedCanvasObject('clip');
                 }}
                 className={`relative bg-black overflow-hidden flex items-center justify-center select-none shadow-2xl border border-slate-800/80 ${
                   isViewerFullscreen && !showFullscreenControls ? 'cursor-none' : 'cursor-pointer'
@@ -17582,7 +17594,6 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                       }}
                       title="Arrastra para mover el clip. Arrastra una esquina para agrandarlo o achicarlo."
                       onClick={(e) => e.stopPropagation()}
-                      onDoubleClick={(e) => e.stopPropagation()}
                       onMouseDown={(e) => e.stopPropagation()}
                       onPointerDown={(e) => beginClipTransformDrag(e, 'move', tClip, centerPct)}
                       onPointerMove={moveClipTransformDrag}
