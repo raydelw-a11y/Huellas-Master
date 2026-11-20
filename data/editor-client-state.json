@@ -44,7 +44,7 @@
     "_v6_16x9_captionOriginalDefault": true,
     "_v7_9x16_captions22": true
   },
-  "updatedAt": "2026-11-20T20:48:57.986Z",
+  "updatedAt": "2026-11-20T21:03:59.859Z",
   "overlayStyles": {
     "logoScalePct": 5,
     "logoOpacity": 95,
@@ -441,10 +441,10 @@
       "id": "clip-21-1794891908295-7515",
       "clipNumber": 21,
       "duration": 10.03,
-      "trimStart": 0,
-      "trimEnd": 10,
-      "speed": 1,
-      "smoothSlowMo": false,
+      "trimStart": 0.44,
+      "trimEnd": 9.94,
+      "speed": 0.95,
+      "smoothSlowMo": true,
       "foleyVolume": 20,
       "customVolumeSet": false,
       "audioMuted": false,
