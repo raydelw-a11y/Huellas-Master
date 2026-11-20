@@ -6884,8 +6884,8 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       Math.min(350, Number(bitrateMbps) > 0 ? Number(bitrateMbps) : preset.defaultBitrateMbps)
     );
     const is8K = outW > 4096 || outH > 4096;
-    // 8K export: clips are 4K masters, so the 4K -> 8K enlargement uses Lanczos (sharper than fast_bilinear).
-    const clipScaleFlags = is8K ? 'lanczos' : 'fast_bilinear';
+    // Clips are scaled to the export size with Lanczos (sharper than fast_bilinear) at every resolution.
+    const clipScaleFlags = 'lanczos';
 
     const ffmpegBin = getFfmpegPath();
 
