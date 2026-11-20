@@ -1880,7 +1880,9 @@
         "videoSavedAt": 1795178028030,
         "reviewedUpdatedAt": 1795178326019,
         "videoAuditStatus": "approved",
-        "promptUpdatedAt": 1795178010837
+        "promptUpdatedAt": 1795178010837,
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-38-1794891908338-7wuk",
@@ -1903,7 +1905,9 @@
         "videoSavedAt": 1795175481466,
         "videoAuditStatus": "approved",
         "reviewedUpdatedAt": 1795176304384,
-        "promptUpdatedAt": 1795178010837
+        "promptUpdatedAt": 1795178010837,
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-39-1794891908340-dtgs",
@@ -1953,7 +1957,9 @@
         "videoDiscardOverriddenAt": 1795176504786,
         "videoSavedAt": 1795176513758,
         "videoAuditStatus": "approved",
-        "promptUpdatedAt": 1795178010837
+        "promptUpdatedAt": 1795178010837,
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-41-1794891908346-cev8",
@@ -2027,7 +2033,9 @@
         "videoSavedAt": 1795177121334,
         "reviewedUpdatedAt": 1795177675538,
         "videoAuditStatus": "approved",
-        "promptUpdatedAt": 1795178010837
+        "promptUpdatedAt": 1795178010837,
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-44-1794891908477-09as",
@@ -2227,7 +2235,9 @@
         "videoDiscardOverriddenAt": 1795177968427,
         "videoSavedAt": 1795177968427,
         "videoAuditStatus": "approved",
-        "promptUpdatedAt": 1795178010837
+        "promptUpdatedAt": 1795178010837,
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-52-1794891908495-urdx",
@@ -2450,7 +2460,9 @@
         "videoDiscardOverriddenAt": 1795174833196,
         "videoSavedAt": 1795175481466,
         "videoAuditStatus": "approved",
-        "reviewedUpdatedAt": 1795177857176
+        "reviewedUpdatedAt": 1795177857176,
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-61-1795065216435-61",
@@ -2473,7 +2485,9 @@
         "videoDiscardOverriddenAt": 1795174833196,
         "videoSavedAt": 1795175481466,
         "videoAuditStatus": "approved",
-        "reviewedUpdatedAt": 1795177865522
+        "reviewedUpdatedAt": 1795177865522,
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-62-1795065216435-62",
@@ -2496,7 +2510,9 @@
         "videoDiscardOverriddenAt": 1795174833196,
         "videoSavedAt": 1795175481466,
         "videoAuditStatus": "approved",
-        "reviewedUpdatedAt": 1795177872972
+        "reviewedUpdatedAt": 1795177872972,
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       }
     ],
     "capcutRawSrt": "",
