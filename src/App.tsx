@@ -200,7 +200,7 @@ import { useNoticeStack } from './utils/noticeStack';
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '05:43 PM - 11/20/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '05:52 PM - 11/20/2026';
 
 // PRODUCTION LOCK: while promptConfig.PRODUCTION_LOCKED === 'YES' these fields never change (the server
 // enforces the same list in protectLockedDocs). Metadata, thumbnails, review marks and reframes stay editable.
@@ -23381,6 +23381,26 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                           </select>
                           <span className="px-2 py-0.5 rounded-md bg-sky-500/15 border border-sky-400/40 text-sky-200 text-[11px] font-black">
                             🖼️ {(activeDoc.clips || []).filter((c) => c.isStaticBroll).length} B-Roll Estáticos activos
+                          </span>
+                          <span
+                            className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-300"
+                            title="Formato en que se le pide a Flow que genere los clips nuevos. No cambia el formato del editor de video."
+                          >
+                            Clips de Flow:
+                            {(['16:9', '9:16'] as const).map((ratio) => (
+                              <button
+                                key={ratio}
+                                type="button"
+                                onClick={() => setFlowAspectRatio(ratio)}
+                                className={`px-2 py-0.5 rounded-md border font-black cursor-pointer ${
+                                  flowAspectRatio === ratio
+                                    ? 'bg-amber-500 text-slate-950 border-amber-400'
+                                    : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border-slate-700'
+                                }`}
+                              >
+                                {ratio}
+                              </button>
+                            ))}
                           </span>
                         </div>
                         <div className="flex items-center gap-1.5 flex-wrap">
