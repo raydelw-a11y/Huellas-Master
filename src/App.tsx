@@ -200,7 +200,7 @@ import { useNoticeStack } from './utils/noticeStack';
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '02:17 PM - 11/19/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '06:55 AM - 11/20/2026';
 
 // PRODUCTION LOCK: while promptConfig.PRODUCTION_LOCKED === 'YES' these fields never change (the server
 // enforces the same list in protectLockedDocs). Metadata, thumbnails, review marks and reframes stay editable.
@@ -2269,6 +2269,14 @@ export default function App() {
   const folderClipFileNamesMapRef = useRef<Record<number, string>>({});
   folderClipFileNamesMapRef.current = folderClipFileNamesMap;
   const [pending4kClipNumbers, setPending4kClipNumbers] = useState<number[]>([]);
+  // Videos saved into 05_Clips_Video without their clip number that the server could not identify on its own
+  const [orphanClips, setOrphanClips] = useState<{
+    files: Array<{ fileName: string; url: string; mtimeMs: number }>;
+    pending: number[];
+    recent: Array<{ from: string; to: string; clipNumber: number; method: string; at: number }>;
+  }>({ files: [], pending: [], recent: [] });
+  const orphanSeenRef = useRef<{ assignedAt: number; unresolvedSig: string }>({ assignedAt: Date.now(), unresolvedSig: '' });
+  const [orphanChoice, setOrphanChoice] = useState<Record<string, number>>({});
   const wasAuto4kRunningRef = useRef<boolean>(false);
   const prevStage6DocIdRef = useRef<string | null>(null);
   const stage6PollEpochRef = useRef<number>(0);
@@ -4793,6 +4801,128 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       </button>
     ) : (
       <span>{text}</span>
+    );
+  };
+
+  const submitOrphanClip = async (fileName: string, clipNumber: number | null, undo = false) => {
+    const doc = latestRenderActiveDocRef.current;
+    if (!doc) return;
+    try {
+      const origin = getMediaBridgeSnapshot().activeOrigin || getOrderedMediaBridgeBases()[0] || '';
+      const r = await fetch(`${origin}/api/flow/orphan-clip-assign`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          folderPath: doc.downloadFolderPath || '',
+          folderName: doc.downloadFolderName || '',
+          docTitle: doc.title || '',
+          fileName,
+          clipNumber,
+          undo,
+        }),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok || !data?.ok) {
+        setFlowStatusLog(`⚠️ ${data?.error || 'No se pudo cambiar la asignación del video.'}`);
+        return;
+      }
+      setFlowStatusLog(
+        undo
+          ? `↩️ Asignación deshecha: "${fileName}" quedó apartado como "${data.parkedAs}" en la carpeta de clips.`
+          : `📎 Clip ${String(clipNumber).padStart(2, '0')}: video "${fileName}" asignado y renombrado.`
+      );
+      setOrphanClips((prev) => ({
+        ...prev,
+        files: prev.files.filter((f) => f.fileName !== fileName),
+        recent: undo ? prev.recent.filter((x) => x.to !== fileName) : prev.recent,
+      }));
+    } catch {
+      setFlowStatusLog('⚠️ No se pudo contactar con la Mac para cambiar la asignación del video.');
+    }
+  };
+  // Stage 6 panel: videos without clip number that could not be identified, and recent automatic assignments
+  const renderOrphanClipsPanel = () => {
+    const autoRecent = orphanClips.recent.filter((r) => r.method !== 'manual' && r.at > Date.now() - 60 * 60 * 1000);
+    if (orphanClips.files.length === 0 && autoRecent.length === 0) return null;
+    const METHOD_LABEL: Record<string, string> = {
+      numero_en_nombre: 'número en el nombre',
+      unico_pendiente: 'único clip pendiente',
+      palabras_del_nombre: 'palabras del nombre',
+    };
+    return (
+      <div className="rounded-xl border border-amber-400/40 bg-amber-950/20 px-4 py-3 text-xs text-amber-100 space-y-3">
+        {orphanClips.files.length > 0 && (
+          <div className="space-y-2">
+            <div className="font-black">
+              ⚠️ {orphanClips.files.length} video(s) sin número de clip que no pude identificar
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              {orphanClips.files.map((f) => {
+                const chosen = orphanChoice[f.fileName] ?? orphanClips.pending[0] ?? 0;
+                return (
+                  <div key={f.fileName} className="rounded-lg border border-amber-500/30 bg-slate-950/70 p-2 space-y-1.5">
+                    <video
+                      src={`${resolveRemoteFolderMediaUrl(f.url)}#t=1`}
+                      muted
+                      playsInline
+                      controls
+                      preload="metadata"
+                      className="w-full rounded bg-black aspect-video"
+                    />
+                    <div className="truncate font-mono text-[10px] text-amber-200/80" title={f.fileName}>
+                      {f.fileName}
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <select
+                        value={chosen}
+                        onChange={(e) => setOrphanChoice((p) => ({ ...p, [f.fileName]: Number(e.target.value) }))}
+                        className="flex-1 min-w-0 rounded bg-slate-900 border border-slate-700 px-1.5 py-1 text-[11px]"
+                      >
+                        {(orphanClips.pending.length > 0
+                          ? orphanClips.pending
+                          : (activeDoc?.clips || []).map((c) => c.clipNumber)
+                        ).map((n) => (
+                          <option key={n} value={n}>
+                            Clip {String(n).padStart(2, '0')}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        disabled={!chosen}
+                        onClick={() => submitOrphanClip(f.fileName, chosen)}
+                        className="shrink-0 px-2 py-1 rounded bg-amber-400 hover:bg-amber-300 disabled:opacity-50 text-slate-950 font-black cursor-pointer"
+                      >
+                        Asignar
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+        {autoRecent.length > 0 && (
+          <div className="space-y-1">
+            <div className="font-black text-emerald-200">📎 Asignados automáticamente en la última hora</div>
+            {autoRecent.map((r) => (
+              <div key={`${r.to}-${r.at}`} className="flex items-center gap-2">
+                <span className="flex-1 min-w-0 truncate">
+                  Clip {String(r.clipNumber).padStart(2, '0')} ← <span className="font-mono">{r.from}</span> (
+                  {METHOD_LABEL[r.method] || r.method})
+                </span>
+                <button
+                  type="button"
+                  onClick={() => submitOrphanClip(r.to, null, true)}
+                  className="shrink-0 px-2 py-0.5 rounded border border-slate-600 hover:bg-slate-800 cursor-pointer"
+                >
+                  Deshacer
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     );
   };
 
@@ -10215,6 +10345,40 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
               }
               return nextFileNames;
             });
+          }
+
+          {
+            // Un-numbered clip videos: announce what the server assigned by itself and what it could not identify
+            const files = Array.isArray(data.orphanClipVideos) ? data.orphanClipVideos : [];
+            const recent = Array.isArray(data.orphanAssignments) ? data.orphanAssignments : [];
+            const pendingNums = Array.isArray(data.orphanPendingClipNumbers) ? data.orphanPendingClipNumbers : [];
+            setOrphanClips((prev) =>
+              JSON.stringify(prev) === JSON.stringify({ files, pending: pendingNums, recent })
+                ? prev
+                : { files, pending: pendingNums, recent }
+            );
+            const METHOD_LABEL: Record<string, string> = {
+              numero_en_nombre: 'por el número en su nombre',
+              unico_pendiente: 'porque era el único clip pendiente',
+              palabras_del_nombre: 'por las palabras de su nombre',
+            };
+            const fresh = recent
+              .filter((r: any) => Number(r?.at) > orphanSeenRef.current.assignedAt && r.method !== 'manual')
+              .sort((a: any, b: any) => a.at - b.at);
+            if (fresh.length > 0) {
+              orphanSeenRef.current.assignedAt = Number(fresh[fresh.length - 1].at);
+              const last = fresh[fresh.length - 1];
+              setFlowStatusLog(
+                `📎 Clip ${String(last.clipNumber).padStart(2, '0')}: asigné el video "${last.from}" ${METHOD_LABEL[last.method] || ''} y lo renombré.`
+              );
+            }
+            const sig = files.map((f: any) => f.fileName).sort().join('|');
+            if (sig && sig !== orphanSeenRef.current.unresolvedSig) {
+              setFlowStatusLog(
+                `⚠️ ${files.length} video(s) guardado(s) sin número de clip que no pude identificar. Están en la Etapa 6 para asignarlos.`
+              );
+            }
+            orphanSeenRef.current.unresolvedSig = sig;
           }
 
           const serverPendingNums: number[] = Array.isArray(data.pending4kClipNumbers)
@@ -18608,6 +18772,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
             {/* Production lock and iCloud-only files of the folders this stage needs */}
             {renderProductionLockNotice('inline')}
             {renderCloudFilesNotice(CLOUD_CATEGORIES_BY_STAGE[activeStage] || [], 'inline')}
+            {activeStage === 8 && renderOrphanClipsPanel()}
 
             {/* ===============================================================
                 ETAPA 1 UNIFICADA: PROMPT MAESTRO (CARPETA + TEMA Y DURACIÓN + VIDEOS ANALIZADOS + COMENTARIOS ×N + DEEP RESEARCH + PERGAMINO)

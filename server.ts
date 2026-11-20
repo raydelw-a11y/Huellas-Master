@@ -9896,6 +9896,56 @@ app.post('/api/flow/cloud-files-download', (req, res) => {
   }
 });
 
+// Assign an un-numbered clip video by hand, or undo an automatic assignment
+app.post('/api/flow/orphan-clip-assign', (req, res) => {
+  try {
+    const { folderPath, folderName, docTitle, fileName, clipNumber, undo } = req.body || {};
+    const targetRoot = resolveLocalDocumentaryFolder(
+      String(folderPath || ''),
+      String(folderName || ''),
+      String(docTitle || '')
+    );
+    const clipsDir = targetRoot ? path.join(targetRoot, '05_Clips_Video') : '';
+    const safeName = path.basename(String(fileName || ''));
+    if (!clipsDir || !safeName || !fs.existsSync(path.join(clipsDir, safeName))) {
+      res.status(404).json({ ok: false, error: 'No se encontró ese archivo en la carpeta de clips.' });
+      return;
+    }
+    if (undo) {
+      const log = readOrphanAssignmentsLog(clipsDir);
+      const rec = [...log].reverse().find((r: any) => r?.to === safeName);
+      if (!rec || fs.existsSync(path.join(clipsDir, String(rec.from)))) {
+        res.status(409).json({ ok: false, error: 'No se puede deshacer: no hay registro de esa asignación.' });
+        return;
+      }
+      // Leading underscore parks the file so it is not picked up again until the user decides
+      const parkedName = `_sin_clip_${String(rec.from).replace(/^_+/, '')}`;
+      fs.renameSync(path.join(clipsDir, safeName), path.join(clipsDir, parkedName));
+      fs.writeFileSync(
+        path.join(clipsDir, ORPHAN_ASSIGNMENTS_LOG),
+        JSON.stringify(log.filter((r: any) => r !== rec), null, 2),
+        'utf8'
+      );
+      invalidateDirScanCache(clipsDir);
+      res.json({ ok: true, undone: true, parkedAs: parkedName });
+      return;
+    }
+    const num = Number(clipNumber);
+    if (!Number.isInteger(num) || num <= 0 || num > 400) {
+      res.status(400).json({ ok: false, error: 'Número de clip no válido.' });
+      return;
+    }
+    const done = assignOrphanClipVideoOnDisk(clipsDir, safeName, num, 'manual');
+    if (!done) {
+      res.status(409).json({ ok: false, error: 'No se pudo renombrar (ya existe un archivo con ese nombre).' });
+      return;
+    }
+    res.json({ ok: true, ...done });
+  } catch (err: any) {
+    res.status(500).json({ ok: false, error: err?.message || 'No se pudo asignar el archivo.' });
+  }
+});
+
 // List exported master videos (16x9 and 9x16) inside 06_Video_Final so the user can access both at any time
 app.get('/api/editor/exported-videos', (req, res) => {
   try {
@@ -11777,6 +11827,9 @@ app.get('/api/flow/list-folder-media', async (req, res) => {
     const voiceoverFiles: Array<{ fileName: string; url: string }> = [];
     const sunoFiles: Array<{ trackNumber: number; fileName: string; url: string }> = [];
     const pending4kSet = new Set<number>();
+    let orphanClipVideos: Array<{ fileName: string; url: string; mtimeMs: number }> = [];
+    let orphanPendingClipNumbers: number[] = [];
+    let recentOrphanAssignments: any[] = [];
     let loadedPromptsTxt: string | null = null;
 
     if (resolvedRoot) {
@@ -11860,6 +11913,50 @@ app.get('/api/flow/list-folder-media', async (req, res) => {
         }
       }
 
+      // Videos saved without their clip number: identify them (name → single pending clip → words) and rename
+      try {
+        const stableVideoEntries = clipsEntriesMutable.filter(
+          (e) =>
+            /\.(mp4|webm|mov)$/i.test(e.name) &&
+            !isTransientStagingEntry(e.name) &&
+            isMaterializedLocalFile(e.stats) &&
+            Date.now() - e.stats.mtimeMs >= 4000
+        );
+        if (hydratedMeta.clips.length > 0 && stableVideoEntries.length > 0) {
+          const decision = decideOrphanClipAssignments(
+            stableVideoEntries.map((e) => e.name),
+            hydratedMeta.clips
+          );
+          for (const a of decision.assignments) {
+            if (isClipLifecycleLocked(resolvedRoot, a.clipNumber)) continue;
+            const done = assignOrphanClipVideoOnDisk(clipsDir, a.fileName, a.clipNumber, a.method);
+            if (!done) continue;
+            const entry = clipsEntriesMutable.find((e) => e.name === a.fileName);
+            if (entry) {
+              entry.name = done.to;
+              entry.fullPath = path.join(clipsDir, done.to);
+            }
+            console.log(`[OrphanClips] ${a.fileName} -> clip ${a.clipNumber} (${a.method})`);
+          }
+          orphanPendingClipNumbers = decision.pendingClipNumbers;
+          orphanClipVideos = decision.unresolved.map((name) => {
+            const e = clipsEntriesMutable.find((x) => x.name === name)!;
+            const mtimeMs = Math.floor(e.stats.mtimeMs);
+            return {
+              fileName: name,
+              url: `/api/flow/serve-folder-file?filePath=${encodeURIComponent(e.fullPath)}&v=${mtimeMs}`,
+              mtimeMs,
+            };
+          });
+        }
+      } catch (orphanErr: any) {
+        console.warn('[OrphanClips] ' + (orphanErr?.message || orphanErr));
+      }
+      const orphanNameSet = new Set(orphanClipVideos.map((o) => o.fileName));
+      recentOrphanAssignments = readOrphanAssignmentsLog(clipsDir).filter(
+        (r: any) => Number(r?.at) > Date.now() - 6 * 60 * 60 * 1000 && fs.existsSync(path.join(clipsDir, String(r?.to || '')))
+      );
+
       // Fast non-blocking scan over in-memory statted entries
       let needsBackground4k = false;
       const verified4kClipsInDir = new Set<number>();
@@ -11873,6 +11970,7 @@ app.get('/api/flow/list-folder-media', async (req, res) => {
           const st = item.stats;
           if (
             isTransientStagingEntry(entry) ||
+            orphanNameSet.has(entry) ||
             dirNameSet.has(`${entry}.crdownload`) ||
             dirNameSet.has(`${entry}.part`)
           ) {
@@ -11973,7 +12071,7 @@ app.get('/api/flow/list-folder-media', async (req, res) => {
         });
         for (const item of sortedItems) {
           const entry = item.name;
-          if (isTransientStagingEntry(entry)) {
+          if (isTransientStagingEntry(entry) || orphanNameSet.has(entry)) {
             continue;
           }
           const full = item.fullPath;
@@ -12314,6 +12412,9 @@ app.get('/api/flow/list-folder-media', async (req, res) => {
       localTtsFiles,
       clipPrompts,
       pending4kClipNumbers: Array.from(pending4kSet).sort((a, b) => a - b),
+      orphanClipVideos,
+      orphanPendingClipNumbers,
+      orphanAssignments: recentOrphanAssignments,
       pipelineStatus: activeClipsPipelineStatus,
       icloudDriveVerifiedReady: Boolean(icloudDriveVerifiedReady),
       icloudProbeInFlight: Boolean(icloudDriveProbeInFlight),
@@ -13681,6 +13782,163 @@ function buildBrollSixWordBaseName(clipNum: number, imagePrompt?: string, fallba
     if (capped) return `${padded}_${capped}`;
   }
   return `${padded}_Create_an_image_in_16_9`;
+}
+
+// ============================================================================
+// ORPHAN CLIP VIDEOS: videos saved into 05_Clips_Video without their clip number
+// ============================================================================
+const NUMBERED_CLIP_VIDEO_RE =
+  /^(?:(?:clip|broll|b[\-_]?roll|video|scene|escena)[_\-\s.]*)?0*(\d+)[_\-\s.(].*\.(mp4|webm|mov)$/i;
+type OrphanClipMethod = 'numero_en_nombre' | 'unico_pendiente' | 'palabras_del_nombre' | 'manual';
+
+/**
+ * Decides, without touching the disk, which clip each un-numbered video belongs to. Order of attempts:
+ * 1) the clip number written anywhere in the name ("..._Clip_38_...", "Inicial 38"), 2) it is the only
+ * orphan and only one clip is still waiting for its video, 3) the words of the name against the prompts
+ * of the clips still waiting. Anything not clearly resolved is returned as unresolved.
+ */
+function decideOrphanClipAssignments(
+  videoFileNames: string[],
+  clipsList: Array<{ clipNumber: number; imagePrompt?: string; videoPrompt?: string; narrationSegment?: string }>
+): {
+  assignments: Array<{ fileName: string; clipNumber: number; method: OrphanClipMethod }>;
+  unresolved: string[];
+  pendingClipNumbers: number[];
+} {
+  const validNums = new Set<number>();
+  for (const c of clipsList || []) {
+    const n = Number(c?.clipNumber);
+    if (n > 0) validNums.add(n);
+  }
+  const occupied = new Set<number>();
+  const orphans: string[] = [];
+  for (const name of videoFileNames) {
+    if (!name || isTransientStagingEntry(name) || !/\.(mp4|webm|mov)$/i.test(name)) continue;
+    if (/^(?:00_)?(?:intro|outro)[_\-\s.]/i.test(name) || /^Documental_|_Master|_Final/i.test(name)) continue;
+    const m = name.match(NUMBERED_CLIP_VIDEO_RE);
+    const lead = m ? parseInt(m[1], 10) : 0;
+    if (lead > 0 && validNums.has(lead)) occupied.add(lead);
+    else orphans.push(name);
+  }
+  const assignments: Array<{ fileName: string; clipNumber: number; method: OrphanClipMethod }> = [];
+  const unresolved: string[] = [];
+  const taken = new Set<number>();
+  const pendingNow = () =>
+    Array.from(validNums)
+      .filter((n) => !occupied.has(n) && !taken.has(n))
+      .sort((a, b) => a - b);
+  const stillOrphan: string[] = [];
+
+  // 1) clip number written in the name, next to a word that announces it
+  for (const name of orphans) {
+    const base = name.replace(/\.[^.]+$/, '');
+    const kw = base.match(
+      /(?:^|[^a-z0-9])(?:clip|inicial|initial|broll|b[\-_]?roll|scene|escena|toma|take)[_\-\s.#]*0*(\d{1,3})(?!\d)/i
+    );
+    const n = kw ? parseInt(kw[1], 10) : 0;
+    if (n > 0 && validNums.has(n) && !taken.has(n)) {
+      assignments.push({ fileName: name, clipNumber: n, method: 'numero_en_nombre' });
+      taken.add(n);
+    } else {
+      stillOrphan.push(name);
+    }
+  }
+
+  // 2) a single orphan and a single clip waiting
+  if (stillOrphan.length === 1 && pendingNow().length === 1) {
+    const n = pendingNow()[0];
+    assignments.push({ fileName: stillOrphan[0], clipNumber: n, method: 'unico_pendiente' });
+    taken.add(n);
+    stillOrphan.length = 0;
+  }
+
+  // 3) words of the name against the prompts of the clips still waiting (clear winner only)
+  const STOP = new Set(['create', 'video', 'image', 'clip', 'with', 'from', 'that', 'this', 'into', 'the', 'and']);
+  const tokensOfClip = new Map<number, Set<string>>();
+  for (const c of clipsList || []) {
+    const n = Number(c?.clipNumber);
+    if (!n) continue;
+    tokensOfClip.set(
+      n,
+      new Set(normalizeWordTokensForMatch(`${c.imagePrompt || ''} ${c.videoPrompt || ''} ${c.narrationSegment || ''}`))
+    );
+  }
+  for (const name of stillOrphan) {
+    const base = name
+      .replace(/\.[^.]+$/, '')
+      .replace(/[_\-](?:broll[_\-])?4k$/i, '')
+      .replace(/[_\-][0-9a-f]{8}$/i, '');
+    const fileTokens = Array.from(
+      new Set(normalizeWordTokensForMatch(base).filter((t) => t.length >= 4 && !/^\d+$/.test(t) && !STOP.has(t)))
+    );
+    let best = { n: 0, score: 0 };
+    let second = 0;
+    if (fileTokens.length >= 3) {
+      for (const n of pendingNow()) {
+        const set = tokensOfClip.get(n);
+        if (!set) continue;
+        const score = fileTokens.filter((t) => set.has(t)).length;
+        if (score > best.score) {
+          second = best.score;
+          best = { n, score };
+        } else if (score > second) {
+          second = score;
+        }
+      }
+    }
+    if (best.n > 0 && best.score >= 3 && best.score / fileTokens.length >= 0.6 && best.score - second >= 2) {
+      assignments.push({ fileName: name, clipNumber: best.n, method: 'palabras_del_nombre' });
+      taken.add(best.n);
+    } else {
+      unresolved.push(name);
+    }
+  }
+  return { assignments, unresolved, pendingClipNumbers: pendingNow() };
+}
+
+const ORPHAN_ASSIGNMENTS_LOG = '.orphan_clip_assignments.json';
+function readOrphanAssignmentsLog(clipsDir: string): any[] {
+  try {
+    const raw = JSON.parse(fs.readFileSync(path.join(clipsDir, ORPHAN_ASSIGNMENTS_LOG), 'utf8'));
+    return Array.isArray(raw) ? raw : [];
+  } catch {
+    return [];
+  }
+}
+/** Gives an un-numbered video its clip number ("NN_Clip_NN_<old name>") and records it so it can be undone. */
+function assignOrphanClipVideoOnDisk(
+  clipsDir: string,
+  fileName: string,
+  clipNumber: number,
+  method: OrphanClipMethod
+): { from: string; to: string; clipNumber: number; method: OrphanClipMethod; at: number } | null {
+  const src = path.join(clipsDir, fileName);
+  if (path.dirname(src) !== clipsDir || !fs.existsSync(src)) return null;
+  const padded = String(clipNumber).padStart(2, '0');
+  const ext = (path.extname(fileName) || '.mp4').toLowerCase();
+  const base = path.basename(fileName, path.extname(fileName)).replace(/^_+/, '');
+  const toName = `${padded}_Clip_${padded}_${base}${ext}`;
+  const dest = path.join(clipsDir, toName);
+  if (fs.existsSync(dest)) return null;
+  fs.renameSync(src, dest);
+  // The pipeline may already have written an un-numbered first frame for it
+  const strayFrame = path.join(clipsDir, `_Imagen_Inicial_${base.replace(/[_\-]4k$/i, '')}.jpg`);
+  if (fs.existsSync(strayFrame)) {
+    try {
+      fs.renameSync(
+        strayFrame,
+        path.join(clipsDir, `${padded}_Imagen_Inicial_Clip_${padded}_${base.replace(/[_\-]4k$/i, '')}.jpg`)
+      );
+    } catch {}
+  }
+  const record = { from: fileName, to: toName, clipNumber, method, at: Date.now() };
+  try {
+    const log = readOrphanAssignmentsLog(clipsDir).slice(-40);
+    log.push(record);
+    fs.writeFileSync(path.join(clipsDir, ORPHAN_ASSIGNMENTS_LOG), JSON.stringify(log, null, 2), 'utf8');
+  } catch {}
+  invalidateDirScanCache(clipsDir);
+  return record;
 }
 
 function inferClipNumberFromFileName(
