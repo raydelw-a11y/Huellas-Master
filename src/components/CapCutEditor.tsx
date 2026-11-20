@@ -1346,6 +1346,52 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     else setExportBitrateMbps(tiers.recommended);
   };
 
+  // Export choices made by the user are stored inside the documentary, per format, so they follow it
+  // to every device and never spill into other documentaries. Saved a moment after the last change
+  // (the bitrate slider fires continuously).
+  const latestActiveDocForExportRef = useRef<DocumentaryProject | null>(null);
+  latestActiveDocForExportRef.current = activeDoc || null;
+  const pendingDocExportChoiceRef = useRef<{ docId: string; timer: any; patch: Record<string, any> } | null>(null);
+  const saveDocExportChoice = (choice: {
+    res?: ExportResolutionPreset;
+    fps?: 24 | 30 | 60;
+    tier?: 'standard' | 'recommended' | 'ultra' | 'custom';
+    mbps?: number;
+  }) => {
+    const docId = activeDoc?.id;
+    if (!docId) return;
+    const sfx = aspectRatio === '9:16' ? '9X16' : '16X9';
+    const patch: Record<string, any> = {};
+    if (choice.res) patch[`EXPORT_RESOLUTION_${sfx}`] = choice.res;
+    if (choice.fps) patch[`EXPORT_FPS_${sfx}`] = choice.fps;
+    if (choice.tier) patch[`EXPORT_BITRATE_TIER_${sfx}`] = choice.tier;
+    if (typeof choice.mbps === 'number' && Number.isFinite(choice.mbps)) {
+      patch[`EXPORT_BITRATE_MBPS_${sfx}`] = choice.mbps;
+    }
+    const pending = pendingDocExportChoiceRef.current;
+    if (pending) clearTimeout(pending.timer);
+    const mergedPatch = pending && pending.docId === docId ? { ...pending.patch, ...patch } : patch;
+    const timer = setTimeout(() => {
+      pendingDocExportChoiceRef.current = null;
+      const liveDoc = latestActiveDocForExportRef.current;
+      if (!liveDoc || liveDoc.id !== docId) return;
+      updateActiveDocProp(
+        { promptConfig: { ...(liveDoc.promptConfig || {}), ...mergedPatch } } as Partial<DocumentaryProject>,
+        { docId }
+      );
+    }, 600);
+    pendingDocExportChoiceRef.current = { docId, timer, patch: mergedPatch };
+  };
+  const handleUserSelectExportResolution = (resKey: ExportResolutionPreset) => {
+    handleSelectExportResolution(resKey);
+    const tiers = getRecommendedBitratesForRes(resKey);
+    if (exportBitrateTier === 'custom') {
+      saveDocExportChoice({ res: resKey, tier: 'recommended', mbps: tiers.recommended });
+    } else {
+      saveDocExportChoice({ res: resKey });
+    }
+  };
+
   // Sync with any active server-side FFmpeg render job (e.g. if page reloaded during render)
   useEffect(() => {
     const serverOrigin = getEditorPrimaryServerOrigin();
@@ -4452,6 +4498,59 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       });
     } catch {}
   }, [activeDoc?.id]);
+
+  // 1b) Export quality (resolution, FPS, bitrate) belongs to each documentary and format. Whenever the
+  // documentary or the format changes, apply what that documentary has stored for that format; a
+  // documentary with nothing stored gets the standard defaults, never another documentary's choice.
+  useEffect(() => {
+    if (!activeDoc?.id) return;
+    const cfg: Record<string, any> = activeDoc.promptConfig || {};
+    const sfx = aspectRatio === '9:16' ? '9X16' : '16X9';
+    let local: any = null;
+    try {
+      local = JSON.parse(localStorage.getItem(`huellas_editor_doc_overlays_${activeDoc.id}`) || 'null');
+    } catch {}
+    // Values this browser saved for this documentary before export choices were stored in it
+    const legacy = local && local.aspectRatio === aspectRatio ? local : null;
+    const isRes = (v: any): v is ExportResolutionPreset =>
+      v === 'HD_1080P' || v === '2K_1440P' || v === '4K_2160P' || v === '8K_4320P';
+    const isFps = (v: any): v is 24 | 30 | 60 => v === 24 || v === 30 || v === 60;
+    const isTier = (v: any): v is 'standard' | 'recommended' | 'ultra' | 'custom' =>
+      v === 'standard' || v === 'recommended' || v === 'ultra' || v === 'custom';
+    const res: ExportResolutionPreset = isRes(cfg[`EXPORT_RESOLUTION_${sfx}`])
+      ? cfg[`EXPORT_RESOLUTION_${sfx}`]
+      : isRes(legacy?.exportResolution)
+      ? legacy.exportResolution
+      : aspectRatio === '9:16'
+      ? '2K_1440P'
+      : '8K_4320P';
+    const storedFps = Number(cfg[`EXPORT_FPS_${sfx}`]);
+    const fps: 24 | 30 | 60 = isFps(storedFps)
+      ? storedFps
+      : aspectRatio === '16:9' && isFps(legacy?.exportFps)
+      ? legacy.exportFps
+      : 30;
+    const hasStoredTier = isTier(cfg[`EXPORT_BITRATE_TIER_${sfx}`]);
+    const tier = hasStoredTier
+      ? cfg[`EXPORT_BITRATE_TIER_${sfx}`]
+      : isTier(legacy?.exportBitrateTier)
+      ? legacy.exportBitrateTier
+      : 'recommended';
+    const tiers = getRecommendedBitratesForRes(res);
+    const customMbps = Number(hasStoredTier ? cfg[`EXPORT_BITRATE_MBPS_${sfx}`] : legacy?.exportBitrateMbps);
+    const mbps =
+      tier === 'custom' && Number.isFinite(customMbps) && customMbps >= 4 && customMbps <= 400
+        ? customMbps
+        : tier === 'standard'
+        ? tiers.standard
+        : tier === 'ultra'
+        ? tiers.ultra
+        : tiers.recommended;
+    setExportResolution(res);
+    setExportFps(fps);
+    setExportBitrateTier(tier === 'custom' && mbps !== customMbps ? 'recommended' : tier);
+    setExportBitrateMbps(mbps);
+  }, [activeDoc?.id, aspectRatio]);
 
   // 2) Persist playhead position & full editor state per documentary in real time
   useEffect(() => {
@@ -15247,7 +15346,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   <button
                     key={resKey}
                     type="button"
-                    onClick={() => handleSelectExportResolution(resKey)}
+                    onClick={() => handleUserSelectExportResolution(resKey)}
                     className={`px-2 py-0.5 rounded text-[11px] font-black transition cursor-pointer ${
                       isSel
                         ? 'bg-emerald-500 text-slate-950 shadow'
@@ -15452,7 +15551,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                         key={resKey}
                         type="button"
                         disabled={isRenderingVideo}
-                        onClick={() => handleSelectExportResolution(resKey)}
+                        onClick={() => handleUserSelectExportResolution(resKey)}
                         className={`py-2 px-1.5 rounded-xl border text-center transition cursor-pointer disabled:opacity-50 ${
                           isSel
                             ? 'bg-emerald-500/20 border-emerald-400 text-emerald-200 shadow-lg shadow-emerald-500/10'
@@ -15497,7 +15596,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                         key={item.fps}
                         type="button"
                         disabled={isRenderingVideo}
-                        onClick={() => setExportFps(item.fps)}
+                        onClick={() => {
+                          setExportFps(item.fps);
+                          saveDocExportChoice({ fps: item.fps });
+                        }}
                         className={`py-1.5 px-2 rounded-xl border text-center transition cursor-pointer disabled:opacity-50 ${
                           isSel
                             ? 'bg-amber-500/20 border-amber-400 text-amber-200 shadow'
@@ -15551,6 +15653,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                             onClick={() => {
                               setExportBitrateTier(t.key);
                               setExportBitrateMbps(t.val);
+                              saveDocExportChoice({ tier: t.key, mbps: t.val });
                             }}
                             className={`py-1 px-2 rounded-lg border text-center transition cursor-pointer disabled:opacity-50 ${
                               isSel
@@ -15577,6 +15680,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     onChange={(e) => {
                       setExportBitrateTier('custom');
                       setExportBitrateMbps(Number(e.target.value));
+                      saveDocExportChoice({ tier: 'custom', mbps: Number(e.target.value) });
                     }}
                     className="flex-1 accent-teal-400 cursor-pointer"
                   />
@@ -15588,10 +15692,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                       disabled={isRenderingVideo}
                       value={exportBitrateMbps}
                       onChange={(e) => {
+                        const typedMbps = Math.max(4, Math.min(300, Number(e.target.value) || 18));
                         setExportBitrateTier('custom');
-                        setExportBitrateMbps(
-                          Math.max(4, Math.min(300, Number(e.target.value) || 18))
-                        );
+                        setExportBitrateMbps(typedMbps);
+                        saveDocExportChoice({ tier: 'custom', mbps: typedMbps });
                       }}
                       className="w-14 bg-slate-900 border border-slate-700 rounded px-1.5 py-0.5 text-right font-mono text-xs font-bold text-teal-300 outline-none"
                     />
