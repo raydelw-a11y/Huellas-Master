@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-10-27T02:05:48.997Z",
-    "updatedAt": "2026-11-20T12:27:55.539Z",
+    "updatedAt": "2026-11-20T12:28:28.360Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -20,7 +20,7 @@
       "TEMA_DEL_VIDEO": "Video 74 Castillo Louvre Parte II",
       "UBICACION_INTRO_MARCA": "INTRO_INICIO_00",
       "FIELD_CLEARED_AT_voiceoverScript": "0",
-      "PROMPTS_RESTORED_AT": "1795177675539",
+      "PROMPTS_RESTORED_AT": "1795177708360",
       "FIELD_CLEARED_AT_rawClipsText": "0",
       "FIELD_CLEARED_AT_pinnedComment": "1795091965654",
       "FIELD_CLEARED_AT_correctedSrt": "0",
@@ -2046,7 +2046,7 @@
         "imageReady": true,
         "videoReady": true,
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "auditStatus": "ok",
         "auditReason": "Sincronizado con el tramo de voz narrativa.",
@@ -2061,7 +2061,8 @@
         "reframeFocusXEnd": 25,
         "reframeFocusY": 50,
         "reframeConfidence": 0.68,
-        "reframeReason": "Enfoque inteligente IA en tercio izquierdo (25%)"
+        "reframeReason": "Enfoque inteligente IA en tercio izquierdo (25%)",
+        "reviewedUpdatedAt": 1795177682615
       },
       {
         "id": "clip-45-1794891908479-edsx",
@@ -2075,7 +2076,7 @@
         "imageReady": true,
         "videoReady": true,
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "auditStatus": "ok",
         "auditReason": "Sincronizado con el tramo de voz narrativa.",
@@ -2090,7 +2091,8 @@
         "reframeFocusXEnd": 50,
         "reframeFocusY": 50,
         "reframeConfidence": 0.61,
-        "reframeReason": "Encuadre central simétrico IA (50%)"
+        "reframeReason": "Encuadre central simétrico IA (50%)",
+        "reviewedUpdatedAt": 1795177708360
       },
       {
         "id": "clip-46-1794891908481-hhfl",
