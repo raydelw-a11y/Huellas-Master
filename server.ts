@@ -7933,6 +7933,25 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       const zoomCropSize = `'min(iw,${outW})':'min(ih,${outH})'`;
       const zoomPad = `pad=${outW}:${outH}:(ow-iw)/2:(oh-ih)/2:black`;
 
+      // Per-clip position chosen in the viewer, percent of the frame (0 = centred). The picture is first
+      // placed on a larger black canvas, off-centre by the requested amount, and then centre-cropped.
+      const readFrameOffsetPct = (axis: 'X' | 'Y') => {
+        const raw = Number(
+          (c as any)[`frameOffset${axis}`] ??
+            (savedClipMatch as any)?.[`frameOffset${axis}${isVertical916 ? '9x16' : '16x9'}`] ??
+            0
+        );
+        return Number.isFinite(raw) && !isIntroClip && !isOutroClip ? Math.max(-195, Math.min(195, raw)) : 0;
+      };
+      const frameShiftX = 2 * Math.round((outW * readFrameOffsetPct('X')) / 200);
+      const frameShiftY = 2 * Math.round((outH * readFrameOffsetPct('Y')) / 200);
+      const hasFrameShift = frameShiftX !== 0 || frameShiftY !== 0;
+      const frameShiftPad = hasFrameShift
+        ? `pad=iw+${2 * Math.abs(frameShiftX)}:ih+${2 * Math.abs(frameShiftY)}:${Math.abs(frameShiftX) + frameShiftX}:${
+            Math.abs(frameShiftY) + frameShiftY
+          }:black`
+        : '';
+
       let scaleAndCropVf: string;
       if (isOutroClip) {
         if (isVertical916) {
@@ -7981,8 +8000,11 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         scaleAndCropVf = hasFrameZoom
           ? `scale=${zoomW}:${zoomH}:force_original_aspect_ratio=increase:force_divisible_by=2:flags=${clipScaleFlags},${fpsInterpStage},crop=${zoomCropSize}:${cropXExpr}:${cropYExpr},${zoomPad}`
           : `scale=${outW}:${outH}:force_original_aspect_ratio=increase:flags=${clipScaleFlags},${fpsInterpStage},crop=${outW}:${outH}:${cropXExpr}:${cropYExpr}`;
+        if (hasFrameShift) scaleAndCropVf += `,${frameShiftPad},crop=${outW}:${outH}`;
       } else {
-        scaleAndCropVf = hasFrameZoom
+        scaleAndCropVf = hasFrameShift
+          ? `scale=${zoomW}:${zoomH}:force_original_aspect_ratio=decrease:force_divisible_by=2:flags=${clipScaleFlags},${fpsInterpStage},${frameShiftPad},crop=${zoomCropSize},${zoomPad}`
+          : hasFrameZoom
           ? `scale=${zoomW}:${zoomH}:force_original_aspect_ratio=decrease:force_divisible_by=2:flags=${clipScaleFlags},${fpsInterpStage},crop=${zoomCropSize},${zoomPad}`
           : `scale=${outW}:${outH}:force_original_aspect_ratio=decrease:flags=${clipScaleFlags},${fpsInterpStage},pad=${outW}:${outH}:(ow-iw)/2:(oh-ih)/2:black`;
       }

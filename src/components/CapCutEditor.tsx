@@ -252,6 +252,20 @@ function getClipFrameZoomPct(
   return Math.max(FRAME_ZOOM_MIN_PCT, Math.min(FRAME_ZOOM_MAX_PCT, Math.round(raw)));
 }
 
+/** Clip position inside the frame for the given format, percent of the frame (0 = centred). */
+function getClipFrameOffsetPct(
+  clip:
+    | { frameOffsetX16x9?: number; frameOffsetY16x9?: number; frameOffsetX9x16?: number; frameOffsetY9x16?: number }
+    | null
+    | undefined,
+  ratio: string
+): { x: number; y: number } {
+  const rawX = Number(ratio === '9:16' ? clip?.frameOffsetX9x16 : clip?.frameOffsetX16x9);
+  const rawY = Number(ratio === '9:16' ? clip?.frameOffsetY9x16 : clip?.frameOffsetY16x9);
+  const lim = (v: number) => (Number.isFinite(v) ? Math.max(-195, Math.min(195, Math.round(v * 10) / 10)) : 0);
+  return { x: lim(rawX), y: lim(rawY) };
+}
+
 interface TimelineClipItem {
   id: string;
   clipNumber: number;
@@ -299,6 +313,10 @@ interface TimelineClipItem {
   reframeFocusY?: number;      // 0 to 100 (50 = center)
   frameZoom16x9?: number;      // clip size in the 16:9 frame, percent (100 = normal)
   frameZoom9x16?: number;      // clip size in the 9:16 frame, percent (100 = normal)
+  frameOffsetX16x9?: number;   // clip position in the 16:9 frame, percent of the frame (0 = centred)
+  frameOffsetY16x9?: number;
+  frameOffsetX9x16?: number;   // clip position in the 9:16 frame, percent of the frame
+  frameOffsetY9x16?: number;
   reframeConfidence?: number;
   reframeReason?: string;
   userReframed9x16?: boolean;  // true when user manually set or adjusted reframe in the editor
@@ -1480,7 +1498,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
   // Interactive Selection of Objects inside the Video Viewer ('logo' | 'hook_text' | 'captions' | null)
   const [selectedCanvasObject, setSelectedCanvasObject] = useState<
-    'logo' | 'hook_text' | 'captions' | null
+    'logo' | 'hook_text' | 'captions' | 'clip' | null
   >(null);
 
   // 2. Permanent Official Logo (Uploaded ONCE, stored forever across all documentaries)
@@ -3313,6 +3331,121 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         ),
       });
     }
+  };
+
+  // Clip size and position inside the frame, set by dragging the clip or its corner handles in the viewer.
+  // Same saving rules as the size slider: `commit: false` while dragging, `commit: true` on release.
+  const handleUpdateClipFrameTransform = (
+    clipId: string,
+    next: { zoomPct?: number; offsetX?: number; offsetY?: number },
+    commit: boolean
+  ) => {
+    const is916 = aspectRatio === '9:16';
+    const zoomKey = is916 ? 'frameZoom9x16' : 'frameZoom16x9';
+    const offXKey = is916 ? 'frameOffsetX9x16' : 'frameOffsetX16x9';
+    const offYKey = is916 ? 'frameOffsetY9x16' : 'frameOffsetY16x9';
+    const matchedClip = timelineClips.find((tc) => tc.id === clipId);
+    if (!matchedClip) return;
+    const zoomPct =
+      typeof next.zoomPct === 'number'
+        ? Math.max(FRAME_ZOOM_MIN_PCT, Math.min(FRAME_ZOOM_MAX_PCT, Math.round(next.zoomPct)))
+        : getClipFrameZoomPct(matchedClip, aspectRatio);
+    const current = getClipFrameOffsetPct(matchedClip, aspectRatio);
+    // Keep at least a strip of the clip inside the frame so it can always be grabbed again
+    const maxOffset = 50 + zoomPct / 2 - 6;
+    const lim = (v: number) => Math.max(-maxOffset, Math.min(maxOffset, Math.round(v * 10) / 10));
+    const patch: Record<string, number> = {
+      [zoomKey]: zoomPct,
+      [offXKey]: lim(typeof next.offsetX === 'number' ? next.offsetX : current.x),
+      [offYKey]: lim(typeof next.offsetY === 'number' ? next.offsetY : current.y),
+    };
+    const docId = activeDoc?.id || 'default';
+    const targetClipNum = matchedClip.clipNumber;
+    setTimelineClips((prev) => {
+      const updated = prev.map((tc) => (tc.id === clipId ? { ...tc, ...patch } : tc));
+      if (commit) {
+        persistDocOverlaysPatch({ customTimelineClips: updated, userEditedClips: true }, docId);
+      }
+      return updated;
+    });
+    if (commit && targetClipNum > 0 && targetClipNum < 999 && activeDoc && Array.isArray(activeDoc.clips)) {
+      updateActiveDoc({
+        clips: activeDoc.clips.map((c) => (c.clipNumber === targetClipNum ? ({ ...c, ...patch } as any) : c)),
+      });
+    }
+  };
+  const clipTransformDragRef = useRef<{
+    mode: 'move' | 'resize';
+    clipId: string;
+    startX: number;
+    startY: number;
+    startZoom: number;
+    startOffX: number;
+    startOffY: number;
+    centerX: number;
+    centerY: number;
+    startDist: number;
+    last: { zoomPct?: number; offsetX?: number; offsetY?: number };
+  } | null>(null);
+  const beginClipTransformDrag = (
+    e: React.PointerEvent<HTMLElement>,
+    mode: 'move' | 'resize',
+    clip: TimelineClipItem,
+    boxCenterPct: { x: number; y: number }
+  ) => {
+    const canvasEl = viewerCanvasRef.current;
+    if (!canvasEl) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const rect = canvasEl.getBoundingClientRect();
+    const centerX = rect.left + (rect.width * boxCenterPct.x) / 100;
+    const centerY = rect.top + (rect.height * boxCenterPct.y) / 100;
+    const off = getClipFrameOffsetPct(clip, aspectRatio);
+    clipTransformDragRef.current = {
+      mode,
+      clipId: clip.id,
+      startX: e.clientX,
+      startY: e.clientY,
+      startZoom: getClipFrameZoomPct(clip, aspectRatio),
+      startOffX: off.x,
+      startOffY: off.y,
+      centerX,
+      centerY,
+      startDist: Math.max(8, Math.hypot(e.clientX - centerX, e.clientY - centerY)),
+      last: {},
+    };
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {}
+  };
+  const moveClipTransformDrag = (e: React.PointerEvent<HTMLElement>) => {
+    const drag = clipTransformDragRef.current;
+    const canvasEl = viewerCanvasRef.current;
+    if (!drag || !canvasEl) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const rect = canvasEl.getBoundingClientRect();
+    if (drag.mode === 'move') {
+      drag.last = {
+        offsetX: drag.startOffX + ((e.clientX - drag.startX) / Math.max(1, rect.width)) * 100,
+        offsetY: drag.startOffY + ((e.clientY - drag.startY) / Math.max(1, rect.height)) * 100,
+      };
+    } else {
+      const dist = Math.hypot(e.clientX - drag.centerX, e.clientY - drag.centerY);
+      drag.last = { zoomPct: drag.startZoom * (dist / drag.startDist) };
+    }
+    handleUpdateClipFrameTransform(drag.clipId, drag.last, false);
+  };
+  const endClipTransformDrag = (e: React.PointerEvent<HTMLElement>) => {
+    const drag = clipTransformDragRef.current;
+    if (!drag) return;
+    e.preventDefault();
+    e.stopPropagation();
+    clipTransformDragRef.current = null;
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {}
+    handleUpdateClipFrameTransform(drag.clipId, drag.last, true);
   };
 
   const handleSwitchAspectRatio = (nextRatio: EditorAspectRatio) => {
@@ -6578,6 +6711,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         reframeFocusY: existingItem?.reframeFocusY ?? c.reframeFocusY,
         frameZoom16x9: existingItem?.frameZoom16x9 ?? c.frameZoom16x9,
         frameZoom9x16: existingItem?.frameZoom9x16 ?? c.frameZoom9x16,
+        frameOffsetX16x9: existingItem?.frameOffsetX16x9 ?? c.frameOffsetX16x9,
+        frameOffsetY16x9: existingItem?.frameOffsetY16x9 ?? c.frameOffsetY16x9,
+        frameOffsetX9x16: existingItem?.frameOffsetX9x16 ?? c.frameOffsetX9x16,
+        frameOffsetY9x16: existingItem?.frameOffsetY9x16 ?? c.frameOffsetY9x16,
         reframeConfidence: existingItem?.reframeConfidence ?? c.reframeConfidence,
         reframeReason: existingItem?.reframeReason || c.reframeReason,
       };
@@ -7168,6 +7305,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         reframeFocusY: liveMatch?.reframeFocusY ?? bc.reframeFocusY,
         frameZoom16x9: liveMatch?.frameZoom16x9 ?? bc.frameZoom16x9,
         frameZoom9x16: liveMatch?.frameZoom9x16 ?? bc.frameZoom9x16,
+        frameOffsetX16x9: liveMatch?.frameOffsetX16x9 ?? bc.frameOffsetX16x9,
+        frameOffsetY16x9: liveMatch?.frameOffsetY16x9 ?? bc.frameOffsetY16x9,
+        frameOffsetX9x16: liveMatch?.frameOffsetX9x16 ?? bc.frameOffsetX9x16,
+        frameOffsetY9x16: liveMatch?.frameOffsetY9x16 ?? bc.frameOffsetY9x16,
         reframeConfidence: liveMatch?.reframeConfidence ?? bc.reframeConfidence,
         reframeReason: liveMatch?.reframeReason || bc.reframeReason,
         ...(() => {
@@ -10847,6 +10988,15 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             panVid.style.objectPosition = `${panX}% ${pY.toFixed(1)}%`;
             const zoomOriginY = panVid.dataset.zoomOriginY;
             if (zoomOriginY) panVid.style.transformOrigin = `${panX}% ${zoomOriginY}%`;
+            const trimK = Number(panVid.dataset.trimK);
+            if (zoomOriginY && trimK > 0) {
+              const oy = Number(zoomOriginY);
+              const px = Number(panX);
+              panVid.style.clipPath = `inset(${(oy * trimK).toFixed(2)}% ${((100 - px) * trimK).toFixed(2)}% ${(
+                (100 - oy) *
+                trimK
+              ).toFixed(2)}% ${(px * trimK).toFixed(2)}%)`;
+            }
           }
         }
       } catch {}
@@ -14246,6 +14396,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   reframeFocusY: typeof c.reframeFocusY === 'number' ? c.reframeFocusY : 50,
                   userReframed9x16: Boolean(c.userReframed9x16),
                   frameZoom: getClipFrameZoomPct(c, aspectRatio),
+                  frameOffsetX: getClipFrameOffsetPct(c, aspectRatio).x,
+                  frameOffsetY: getClipFrameOffsetPct(c, aspectRatio).y,
                   videoDataUrl: c.videoUrl && c.videoUrl.startsWith('data:') ? c.videoUrl : '',
                 };
               }),
@@ -16328,12 +16480,33 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   <span className="w-10 text-right font-mono font-bold text-amber-200">{zoomPct}%</span>
                   <button
                     type="button"
-                    onClick={() => handleUpdateClipFrameZoom(zoomClip.id, 100, true)}
-                    disabled={zoomPct === 100}
+                    onClick={() =>
+                      handleUpdateClipFrameTransform(zoomClip.id, { zoomPct: 100, offsetX: 0, offsetY: 0 }, true)
+                    }
+                    disabled={
+                      zoomPct === 100 &&
+                      getClipFrameOffsetPct(zoomClip, aspectRatio).x === 0 &&
+                      getClipFrameOffsetPct(zoomClip, aspectRatio).y === 0
+                    }
                     className="px-2 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 font-bold cursor-pointer disabled:opacity-40"
-                    title="Volver al tamaño normal (100%)"
+                    title="Volver al tamaño normal (100%) y al centro"
                   >
                     Restablecer
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (isPlaying) handleTogglePlay();
+                      setSelectedCanvasObject(selectedCanvasObject === 'clip' ? null : 'clip');
+                    }}
+                    className={`px-2 py-0.5 rounded border font-bold cursor-pointer ${
+                      selectedCanvasObject === 'clip'
+                        ? 'bg-amber-500 text-slate-950 border-amber-400'
+                        : 'bg-slate-900 hover:bg-slate-800 border-slate-700 text-slate-300'
+                    }`}
+                    title="Selecciona el clip en el visor para moverlo y cambiarle el tamaño con las esquinas (también con doble clic sobre el visor)"
+                  >
+                    ✥ Mover en el visor
                   </button>
                 </div>
               );
@@ -16617,10 +16790,22 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   }
                 }}
                 onClick={() => {
+                  if (selectedCanvasObject === 'clip') {
+                    // Clicking outside the clip box only leaves the move/resize mode
+                    setSelectedCanvasObject(null);
+                    return;
+                  }
                   if (selectedCanvasObject !== null) {
                     setSelectedCanvasObject(null);
                   }
                   handleTogglePlay();
+                }}
+                onDoubleClick={() => {
+                  if (isViewerFullscreen) return;
+                  const c = activeClipAtPlayhead;
+                  if (!c || c.clipNumber === 0 || c.clipNumber === 999) return;
+                  if (isPlaying) handleTogglePlay();
+                  setSelectedCanvasObject('clip');
                 }}
                 className={`relative bg-black overflow-hidden flex items-center justify-center select-none shadow-2xl border border-slate-800/80 ${
                   isViewerFullscreen && !showFullscreenControls ? 'cursor-none' : 'cursor-pointer'
@@ -16733,6 +16918,19 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     const zoomOrigin = zoomUsesFocus
                       ? `${liveFocusX.toFixed(2)}% ${zoomOriginY.toFixed(1)}%`
                       : '50% 50%';
+                    // Clip position (dragged in the viewer). In 9:16 crop mode the picture that moves is the
+                    // cropped frame, so an enlarged clip is first trimmed to the frame (same as the export).
+                    const slotOffset =
+                      isSlotIntro || isSlotOutro ? { x: 0, y: 0 } : getClipFrameOffsetPct(slotClip, aspectRatio);
+                    const hasSlotOffset = Math.abs(slotOffset.x) > 0.05 || Math.abs(slotOffset.y) > 0.05;
+                    const slotTrimToFrame = hasSlotOffset && zoomUsesFocus && slotZoom > 1.004;
+                    const slotTrimK = slotTrimToFrame ? 1 - 1 / slotZoom : 0;
+                    const slotClipPath = slotTrimToFrame
+                      ? `inset(${(zoomOriginY * slotTrimK).toFixed(2)}% ${((100 - liveFocusX) * slotTrimK).toFixed(2)}% ${(
+                          (100 - zoomOriginY) *
+                          slotTrimK
+                        ).toFixed(2)}% ${(liveFocusX * slotTrimK).toFixed(2)}%)`
+                      : undefined;
                     return (
                       <video
                         key={`dual-deck-${slotIdx}`}
@@ -16755,6 +16953,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                             : undefined
                         }
                         data-zoom-origin-y={hasSlotZoom && zoomUsesFocus ? zoomOriginY.toFixed(1) : undefined}
+                        data-trim-k={slotTrimToFrame ? slotTrimK.toFixed(4) : undefined}
                         className={`absolute inset-0 w-full h-full ${
                           isFitBlur ? 'object-contain' : 'object-cover'
                         } block bg-transparent`}
@@ -16767,10 +16966,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                             ? aspectRatio === '9:16'
                               ? 'scale(2.085)'
                               : 'scale(0.88) translateY(-2.5%)'
-                            : hasSlotZoom
-                            ? `scale(${slotZoom.toFixed(3)})`
+                            : hasSlotZoom || hasSlotOffset
+                            ? `translate(${slotOffset.x.toFixed(2)}%, ${slotOffset.y.toFixed(2)}%) scale(${slotZoom.toFixed(3)})`
                             : undefined,
                           transformOrigin: hasSlotZoom ? zoomOrigin : undefined,
+                          clipPath: slotClipPath,
                           filter:
                             isSlotOutro && previewQuality !== 'low'
                               ? 'contrast(1.12) brightness(0.92)'
@@ -17089,6 +17289,86 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   transformOrigin: 'top left',
                 }}
               >
+              {/* Clip move / resize box: drag inside to move the clip, drag a corner to enlarge or shrink it */}
+              {!isViewerFullscreen &&
+                selectedCanvasObject === 'clip' &&
+                activeClipAtPlayhead &&
+                activeClipAtPlayhead.clipNumber !== 0 &&
+                activeClipAtPlayhead.clipNumber !== 999 &&
+                (() => {
+                  const tClip = activeClipAtPlayhead;
+                  const z = getClipFrameZoomPct(tClip, aspectRatio) / 100;
+                  const off = getClipFrameOffsetPct(tClip, aspectRatio);
+                  const usesFocus = aspectRatio === '9:16' && tClip.reframe9x16Mode !== 'fit_blur';
+                  const originX = usesFocus
+                    ? typeof tClip.reframeFocusXStart === 'number'
+                      ? tClip.reframeFocusXStart
+                      : 50
+                    : 50;
+                  const originY =
+                    usesFocus && z > 1 ? (typeof tClip.reframeFocusY === 'number' ? tClip.reframeFocusY : 50) : 50;
+                  // Box of the clip in percent of the frame (an enlarged 9:16 crop is trimmed to the frame first)
+                  const trimmed = usesFocus && z > 1;
+                  const rawLeft = (trimmed ? 0 : originX * (1 - z)) + off.x;
+                  const rawTop = (trimmed ? 0 : originY * (1 - z)) + off.y;
+                  const rawSize = trimmed ? 100 : z * 100;
+                  const centerPct = { x: rawLeft + rawSize / 2, y: rawTop + rawSize / 2 };
+                  const left = Math.max(0, rawLeft);
+                  const top = Math.max(0, rawTop);
+                  const right = Math.min(100, rawLeft + rawSize);
+                  const bottom = Math.min(100, rawTop + rawSize);
+                  const corners: Array<{ key: string; style: React.CSSProperties; cursor: string }> = [
+                    { key: 'tl', style: { left: 0, top: 0 }, cursor: 'nwse-resize' },
+                    { key: 'tr', style: { left: '100%', top: 0 }, cursor: 'nesw-resize' },
+                    { key: 'bl', style: { left: 0, top: '100%' }, cursor: 'nesw-resize' },
+                    { key: 'br', style: { left: '100%', top: '100%' }, cursor: 'nwse-resize' },
+                  ];
+                  return (
+                    <div
+                      className="absolute z-40 border-2 border-amber-400 cursor-move"
+                      style={{
+                        left: `${left}%`,
+                        top: `${top}%`,
+                        width: `${Math.max(4, right - left)}%`,
+                        height: `${Math.max(4, bottom - top)}%`,
+                        touchAction: 'none',
+                        boxShadow: '0 0 0 1px rgba(0,0,0,0.6)',
+                      }}
+                      title="Arrastra para mover el clip. Arrastra una esquina para agrandarlo o achicarlo."
+                      onClick={(e) => e.stopPropagation()}
+                      onDoubleClick={(e) => e.stopPropagation()}
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onPointerDown={(e) => beginClipTransformDrag(e, 'move', tClip, centerPct)}
+                      onPointerMove={moveClipTransformDrag}
+                      onPointerUp={endClipTransformDrag}
+                      onPointerCancel={endClipTransformDrag}
+                    >
+                      {corners.map((corner) => (
+                        <span
+                          key={corner.key}
+                          className="absolute rounded-full bg-amber-400 border-2 border-slate-950 shadow"
+                          style={{
+                            ...corner.style,
+                            width: 26,
+                            height: 26,
+                            marginLeft: -13,
+                            marginTop: -13,
+                            cursor: corner.cursor,
+                            touchAction: 'none',
+                          }}
+                          onPointerDown={(e) => beginClipTransformDrag(e, 'resize', tClip, centerPct)}
+                          onPointerMove={moveClipTransformDrag}
+                          onPointerUp={endClipTransformDrag}
+                          onPointerCancel={endClipTransformDrag}
+                        />
+                      ))}
+                      <span className="absolute left-1 top-1 px-1.5 py-0.5 rounded bg-amber-500 text-slate-950 font-black text-[11px] whitespace-nowrap shadow pointer-events-none">
+                        Clip {String(tClip.clipNumber).padStart(2, '0')} • {Math.round(z * 100)}% • X {off.x.toFixed(0)} Y{' '}
+                        {off.y.toFixed(0)}
+                      </span>
+                    </div>
+                  );
+                })()}
               {/* Layer 2: Permanent Official Logo (Selectable directly on the Video Viewer, with End Fade-Out; non-selectable in fullscreen) */}
               <div
                 onMouseDown={(e) => {
