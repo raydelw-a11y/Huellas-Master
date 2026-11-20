@@ -9896,6 +9896,46 @@ app.post('/api/flow/cloud-files-download', (req, res) => {
   }
 });
 
+// Two frames (start and end, side by side) of an un-numbered clip video, for visual identification
+app.get('/api/flow/orphan-clip-frame', async (req, res) => {
+  const tmpOut = path.join(os.tmpdir(), `huellas_orphan_${process.pid}_${Date.now()}.jpg`);
+  try {
+    const targetRoot = resolveLocalDocumentaryFolder(
+      String(req.query.folderPath || ''),
+      String(req.query.folderName || ''),
+      String(req.query.docTitle || '')
+    );
+    const safeName = path.basename(String(req.query.fileName || ''));
+    const src = targetRoot && safeName ? path.join(targetRoot, '05_Clips_Video', safeName) : '';
+    if (!src || !fs.existsSync(src) || !/\.(mp4|webm|mov)$/i.test(safeName)) {
+      res.status(404).json({ ok: false, error: 'No se encontró ese video.' });
+      return;
+    }
+    await new Promise<void>((resolve, reject) => {
+      execFile(
+        getFfmpegPath(),
+        [
+          '-hide_banner', '-loglevel', 'error', '-y',
+          '-ss', '1', '-i', src,
+          '-sseof', '-1.5', '-i', src,
+          '-filter_complex', '[0:v]scale=640:-2[a];[1:v]scale=640:-2[b];[a][b]hstack=inputs=2[o]',
+          '-map', '[o]', '-frames:v', '1', '-q:v', '5', tmpOut,
+        ],
+        { timeout: 30000 },
+        (err) => (err ? reject(err) : resolve())
+      );
+    });
+    const dataUrl = `data:image/jpeg;base64,${fs.readFileSync(tmpOut).toString('base64')}`;
+    res.json({ ok: true, fileName: safeName, dataUrl });
+  } catch (err: any) {
+    res.status(500).json({ ok: false, error: err?.message || 'No se pudo extraer el fotograma.' });
+  } finally {
+    try {
+      fs.unlinkSync(tmpOut);
+    } catch {}
+  }
+});
+
 // Assign an un-numbered clip video by hand, or undo an automatic assignment
 app.post('/api/flow/orphan-clip-assign', (req, res) => {
   try {
@@ -9935,7 +9975,12 @@ app.post('/api/flow/orphan-clip-assign', (req, res) => {
       res.status(400).json({ ok: false, error: 'Número de clip no válido.' });
       return;
     }
-    const done = assignOrphanClipVideoOnDisk(clipsDir, safeName, num, 'manual');
+    const done = assignOrphanClipVideoOnDisk(
+      clipsDir,
+      safeName,
+      num,
+      req.body?.method === 'gemini_web' ? 'gemini_web' : 'manual'
+    );
     if (!done) {
       res.status(409).json({ ok: false, error: 'No se pudo renombrar (ya existe un archivo con ese nombre).' });
       return;
@@ -13789,7 +13834,7 @@ function buildBrollSixWordBaseName(clipNum: number, imagePrompt?: string, fallba
 // ============================================================================
 const NUMBERED_CLIP_VIDEO_RE =
   /^(?:(?:clip|broll|b[\-_]?roll|video|scene|escena)[_\-\s.]*)?0*(\d+)[_\-\s.(].*\.(mp4|webm|mov)$/i;
-type OrphanClipMethod = 'numero_en_nombre' | 'unico_pendiente' | 'palabras_del_nombre' | 'manual';
+type OrphanClipMethod = 'numero_en_nombre' | 'unico_pendiente' | 'palabras_del_nombre' | 'gemini_web' | 'manual';
 
 /**
  * Decides, without touching the disk, which clip each un-numbered video belongs to. Order of attempts:

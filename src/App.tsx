@@ -200,7 +200,7 @@ import { useNoticeStack } from './utils/noticeStack';
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '06:55 AM - 11/20/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '07:11 AM - 11/20/2026';
 
 // PRODUCTION LOCK: while promptConfig.PRODUCTION_LOCKED === 'YES' these fields never change (the server
 // enforces the same list in protectLockedDocs). Metadata, thumbnails, review marks and reframes stay editable.
@@ -4784,10 +4784,32 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
   // Page notices (Flow / Gemini bridge) also pile up top-right for 30 s each, wherever you are in the studio
   const flowNoticeStack = useNoticeStack(flowStatusLog, 30000);
   const bridgeNoticeStack = useNoticeStack(bridgeStatusMsg, 30000);
-  const pageNotices = [
-    ...flowNoticeStack.items.map((n) => ({ ...n, uid: `f${n.id}`, close: () => flowNoticeStack.dismiss(n.id) })),
-    ...bridgeNoticeStack.items.map((n) => ({ ...n, uid: `b${n.id}`, close: () => bridgeNoticeStack.dismiss(n.id) })),
-  ].sort((a, b) => a.at - b.at);
+  // Many messages are written to both channels at once: show each text a single time
+  const pageNotices = (() => {
+    const all = [
+      ...flowNoticeStack.items.map((n) => ({ ...n, uid: `f${n.id}`, close: () => flowNoticeStack.dismiss(n.id) })),
+      ...bridgeNoticeStack.items.map((n) => ({ ...n, uid: `b${n.id}`, close: () => bridgeNoticeStack.dismiss(n.id) })),
+    ].sort((a, b) => a.at - b.at);
+    const byKey = new Map<string, (typeof all)[number]>();
+    for (const n of all) {
+      const twin = byKey.get(n.key);
+      if (!twin) {
+        byKey.set(n.key, n);
+        continue;
+      }
+      const closeTwin = twin.close;
+      const closeThis = n.close;
+      byKey.set(n.key, {
+        ...(n.at >= twin.at ? n : twin),
+        uid: twin.uid,
+        close: () => {
+          closeTwin();
+          closeThis();
+        },
+      });
+    }
+    return Array.from(byKey.values()).sort((a, b) => a.at - b.at);
+  })();
   const renderNoticeText = (text: string) => {
     const go = getNoticeAction(text);
     return go ? (
@@ -4840,6 +4862,138 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       setFlowStatusLog('⚠️ No se pudo contactar con la Mac para cambiar la asignación del video.');
     }
   };
+  // GEMINI WEB VISUAL IDENTIFICATION: a video whose name gives no clue is shown to Gemini (two frames) together
+  // with the clips still waiting for a video. Runs by itself, one video at a time, in the standalone chat used for
+  // thumbnails, so the documentary's own Gemini chat is never touched. Nothing is assigned on a doubtful answer.
+  const CLIP_IDENTIFY_STAGE = 960;
+  const orphanIdentifyRef = useRef<{
+    inFlight: null | {
+      fileName: string;
+      docId: string;
+      folder: { folderPath: string; folderName: string; docTitle: string };
+      pending: number[];
+      startedAt: number;
+    };
+    attempted: Record<string, number>;
+  }>({ inFlight: null, attempted: {} });
+  const [orphanIdentifyTick, setOrphanIdentifyTick] = useState(0);
+  useEffect(() => {
+    if (orphanClips.files.length === 0) return;
+    const timer = window.setInterval(() => setOrphanIdentifyTick((t) => t + 1), 60000);
+    return () => window.clearInterval(timer);
+  }, [orphanClips.files.length]);
+  useEffect(() => {
+    const doc = activeDoc;
+    if (!doc || isCloudMode || !extensionInstalled || aiGenerating || sunoAutoPilotActive) return;
+    const st = orphanIdentifyRef.current;
+    if (st.inFlight) {
+      if (Date.now() - st.inFlight.startedAt < 5 * 60 * 1000) return;
+      st.inFlight = null;
+    }
+    if (orphanClips.pending.length === 0) return;
+    const keyOf = (f: { fileName: string; mtimeMs: number }) => `${doc.id}|${f.fileName}|${f.mtimeMs}`;
+    const next = orphanClips.files.find((f) => !st.attempted[keyOf(f)]);
+    if (!next) return;
+    st.attempted[keyOf(next)] = Date.now();
+    const folder = {
+      folderPath: doc.downloadFolderPath || '',
+      folderName: doc.downloadFolderName || '',
+      docTitle: doc.title || '',
+    };
+    const pending = [...orphanClips.pending];
+    st.inFlight = { fileName: next.fileName, docId: doc.id, folder, pending, startedAt: Date.now() };
+    (async () => {
+      try {
+        const origin = getMediaBridgeSnapshot().activeOrigin || getOrderedMediaBridgeBases()[0] || '';
+        const qs = new URLSearchParams({ ...folder, fileName: next.fileName });
+        const r = await fetch(`${origin}/api/flow/orphan-clip-frame?${qs.toString()}`);
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok || !data?.dataUrl) throw new Error(data?.error || 'sin fotograma');
+        const describe = (n: number) => {
+          const c = (doc.clips || []).find((x) => Number(x.clipNumber) === n);
+          const full = String(c?.imagePrompt || '');
+          const image = full
+            .replace(/^(?:Image|Imagen)\s*\d+\s*:\s*Create an image in [\w-]+ (?:horizontal|vertical) aspect ratio\s*/i, '')
+            .split(/,\s*horizontal 16-9|,\s*vertical 9-16|\s+Clip\s+\d+\s*\(/i)[0]
+            .slice(0, 280);
+          const videoPart = (full.match(/Create a video[^]*?(?=,\s*synchronized foley|$)/i) || [''])[0]
+            .replace(/^Create a video\s*/i, '')
+            .slice(0, 240);
+          return `[${n}] ${image}${videoPart ? ` | VIDEO: ${videoPart}` : ''}`;
+        };
+        const prompt = [
+          'La imagen adjunta son dos fotogramas del MISMO video (izquierda: inicio, derecha: final).',
+          'Dime a cuál de estos clips de un documental corresponde. Cada línea empieza con el número de clip entre corchetes, seguido de la descripción de su escena:',
+          ...pending.map(describe),
+          'Responde SOLO con una línea en este formato exacto, sin nada más: CLIP=<número> CONFIANZA=<alta|media|baja>',
+          'Si ninguna descripción corresponde claramente a la imagen, responde: CLIP=0 CONFIANZA=baja',
+        ].join('\n');
+        setFlowStatusLog(`🔎 Identificando con Gemini a qué clip pertenece el video "${next.fileName}"…`);
+        sendCommandToWebBridge('GEMINI', {
+          action: 'SEND_PROMPT',
+          docId: doc.id,
+          videoName: '',
+          deepResearchVideoName: '',
+          geminiChatUrl: '',
+          geminiDeepResearchChatUrl: '',
+          notebookName: '',
+          standaloneNewChat: true,
+          noNotebook: true,
+          prompt,
+          logoDataUrl: data.dataUrl,
+          stageNumber: CLIP_IDENTIFY_STAGE,
+          taskType: 'CLIP_IDENTIFY',
+          enableHighModel: false,
+          enableArgonLow: true,
+          enableCarbonLow: true,
+          preferredModel: 'CARBON_4_LOW',
+          thinkingLevel: 'LOW',
+          enableDeepResearch: false,
+          enableCreateImage: false,
+          autoSubmit: true,
+          focusTab: false,
+        });
+      } catch {
+        orphanIdentifyRef.current.inFlight = null;
+      }
+    })();
+  }, [orphanClips, orphanIdentifyTick, extensionInstalled, aiGenerating, sunoAutoPilotActive, isCloudMode, activeDoc?.id]);
+  const handleOrphanIdentifyResponseRef = useRef<(text: string, failed?: boolean) => void>(() => {});
+  handleOrphanIdentifyResponseRef.current = (text: string, failed = false) => {
+    const job = orphanIdentifyRef.current.inFlight;
+    orphanIdentifyRef.current.inFlight = null;
+    setOrphanIdentifyTick((t) => t + 1);
+    if (!job || failed) return;
+    const num = Number((text.match(/CLIP\s*[=:]\s*(\d{1,3})/i) || [])[1] || 0);
+    const conf = String((text.match(/CONFIANZA\s*[=:]\s*(alta|media|baja)/i) || [])[1] || '').toLowerCase();
+    if (!(num > 0 && job.pending.includes(num) && (conf === 'alta' || conf === 'media'))) {
+      setFlowStatusLog(
+        `⚠️ Gemini no pudo identificar con seguridad el video "${job.fileName}"${
+          num > 0 ? ` (propuso el clip ${num}, confianza ${conf || 'desconocida'})` : ''
+        }. Asígnalo en la Etapa 6.`
+      );
+      return;
+    }
+    (async () => {
+      try {
+        const origin = getMediaBridgeSnapshot().activeOrigin || getOrderedMediaBridgeBases()[0] || '';
+        const r = await fetch(`${origin}/api/flow/orphan-clip-assign`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...job.folder, fileName: job.fileName, clipNumber: num, method: 'gemini_web' }),
+        });
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok || !data?.ok) throw new Error(data?.error || 'no se pudo renombrar');
+        setFlowStatusLog(
+          `📎 Clip ${String(num).padStart(2, '0')}: Gemini identificó el video "${job.fileName}" por su imagen (confianza ${conf}) y lo renombré.`
+        );
+        setOrphanClips((prev) => ({ ...prev, files: prev.files.filter((f) => f.fileName !== job.fileName) }));
+      } catch (e: any) {
+        setFlowStatusLog(`⚠️ Gemini identificó el video "${job.fileName}" como clip ${num}, pero no se pudo renombrar: ${e?.message || e}`);
+      }
+    })();
+  };
+
   // Stage 6 panel: videos without clip number that could not be identified, and recent automatic assignments
   const renderOrphanClipsPanel = () => {
     const autoRecent = orphanClips.recent.filter((r) => r.method !== 'manual' && r.at > Date.now() - 60 * 60 * 1000);
@@ -4848,6 +5002,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       numero_en_nombre: 'número en el nombre',
       unico_pendiente: 'único clip pendiente',
       palabras_del_nombre: 'palabras del nombre',
+      gemini_web: 'identificado por Gemini',
     };
     return (
       <div className="rounded-xl border border-amber-400/40 bg-amber-950/20 px-4 py-3 text-xs text-amber-100 space-y-3">
@@ -10361,9 +10516,10 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
               numero_en_nombre: 'por el número en su nombre',
               unico_pendiente: 'porque era el único clip pendiente',
               palabras_del_nombre: 'por las palabras de su nombre',
+              gemini_web: 'porque Gemini lo identificó por su imagen',
             };
             const fresh = recent
-              .filter((r: any) => Number(r?.at) > orphanSeenRef.current.assignedAt && r.method !== 'manual')
+              .filter((r: any) => Number(r?.at) > orphanSeenRef.current.assignedAt && r.method !== 'manual' && r.method !== 'gemini_web')
               .sort((a: any, b: any) => a.at - b.at);
             if (fresh.length > 0) {
               orphanSeenRef.current.assignedAt = Number(fresh[fresh.length - 1].at);
@@ -13910,6 +14066,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       } else if (msg.type === 'BRIDGE_STATUS') {
         setExtensionInstalled(true);
         setBridgeStatusMsg(msg.message || '');
+        if (Number(msg.stageNumber) === 960 && msg.status === 'ERROR') {
+          handleOrphanIdentifyResponseRef.current('', true);
+        }
         if ((msg.service === 'FLOW' || msg.service === 'SUNO') && msg.message) {
           setFlowStatusLog(msg.message);
         }
@@ -13947,6 +14106,10 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         } else {
           setBridgeStatusType('WORKING');
         }
+      } else if (msg.type === 'GEMINI_RESPONSE_READY' && Number(msg.stageNumber) === 960) {
+        // Answer to a clip-identification order: never a stage result
+        setExtensionInstalled(true);
+        handleOrphanIdentifyResponseRef.current(String(msg.text || ''));
       } else if (msg.type === 'GEMINI_RESPONSE_READY') {
         setExtensionInstalled(true);
         try {
