@@ -44,7 +44,7 @@
     "_v6_16x9_captionOriginalDefault": true,
     "_v7_9x16_captions22": true
   },
-  "updatedAt": "2026-11-20T20:44:22.618Z",
+  "updatedAt": "2026-11-20T20:48:57.986Z",
   "overlayStyles": {
     "logoScalePct": 5,
     "logoOpacity": 95,
@@ -83,10 +83,10 @@
     "captionFontSize": 25,
     "captionFontSize16x9": 25,
     "captionFontSize9x16": 21,
-    "captionWordsPerLine16x9": 4,
-    "captionWordsPerLine9x16": 3,
+    "captionWordsPerLine16x9": 0,
+    "captionWordsPerLine9x16": 0,
     "captionMaxChars": 22,
-    "captionLineMode": "subdivide",
+    "captionLineMode": "original",
     "captionOriginal16x9V1": true,
     "captionFontSizeV25": true,
     "captionBottomPct": 10,
@@ -296,7 +296,7 @@
     {
       "id": "clip-12-1794891908279-49w3",
       "clipNumber": 12,
-      "duration": 10.03,
+      "duration": 10.02,
       "trimStart": 0,
       "trimEnd": 10,
       "speed": 1,
@@ -936,7 +936,7 @@
     {
       "id": "clip-52-1794891908495-urdx",
       "clipNumber": 52,
-      "duration": 10.03,
+      "duration": 10.02,
       "trimStart": 0,
       "trimEnd": 10,
       "speed": 1,
