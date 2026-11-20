@@ -133,6 +133,15 @@ function isMediaUrlFromOtherDocumentary(
   return Boolean(urlNum && docNum && urlNum !== docNum);
 }
 
+const IS_APPLE_TOUCH_DEVICE: boolean = (() => {
+  try {
+    const ua = navigator.userAgent || '';
+    return /iPad|iPhone|iPod/.test(ua) || (/Macintosh/.test(ua) && (navigator.maxTouchPoints || 0) > 1);
+  } catch {
+    return false;
+  }
+})();
+
 function extractEditorMediaUrlMeta(urlRaw?: string): { fileName: string; mtimeMs: number } {
   const url = String(urlRaw || '').trim();
   if (!url) return { fileName: '', mtimeMs: 0 };
@@ -9830,6 +9839,16 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     if (!vo) return;
     const baseLinear = Math.min(1, Math.max(0, volPct / 100));
     const dbMultiplier = Math.pow(10, gainDb / 20); // +5 dB => ~1.778x
+    // iPhone / iPad: an <audio> routed through Web Audio goes silent whenever the AudioContext is not running
+    // (created outside the Play tap, "interrupted" after switching apps, or muted by the ringer switch), while
+    // plain elements such as the music and the clips keep sounding. There the voice plays directly, like the
+    // music; the +5 dB boost is preview-only and the export applies it on the server anyway.
+    if (IS_APPLE_TOUCH_DEVICE) {
+      try {
+        vo.volume = 1;
+      } catch {}
+      return;
+    }
     try {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
       if (AudioCtx) {
@@ -9849,7 +9868,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           voiceWebAudioRef.current = { el: vo, ctx, source, gainNode };
         }
         const { ctx, gainNode } = voiceWebAudioRef.current;
-        if (ctx.state === 'suspended') {
+        // 'interrupted' (Safari after a call or an app switch) needs resuming just like 'suspended'
+        if (ctx.state !== 'running') {
           ctx.resume().catch(() => {});
         }
         if (vo.volume !== 1) vo.volume = 1;
@@ -9862,6 +9882,62 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     } catch {}
     vo.volume = baseLinear;
   };
+
+  // VOICE DIAGNOSTIC: the phone cannot be inspected from the Mac, so a few seconds into the narrated part the
+  // editor reports once (per page load and documentary) what the voice element is actually doing.
+  const voiceDiagSentRef = useRef<Record<string, boolean>>({});
+  useEffect(() => {
+    if (!isPlaying || !isEditorActive) return;
+    const docKey = activeDoc?.id || 'default';
+    if (voiceDiagSentRef.current[docKey]) return;
+    const timer = window.setInterval(() => {
+      const t = currentTimeRef.current;
+      if (t < voiceStartOffsetSec + 4 || voiceDiagSentRef.current[docKey]) return;
+      voiceDiagSentRef.current[docKey] = true;
+      window.clearInterval(timer);
+      const vo = voiceAudioRef.current;
+      const t0 = vo ? vo.currentTime : -1;
+      window.setTimeout(() => {
+        const mus = musicAudioRef.current;
+        const snapshot = {
+          docId: docKey,
+          title: activeDoc?.title || '',
+          appleTouch: IS_APPLE_TOUCH_DEVICE,
+          ua: (navigator.userAgent || '').slice(0, 160),
+          origin: window.location.origin,
+          timelineSec: Number(currentTimeRef.current.toFixed(1)),
+          voiceStartOffsetSec,
+          voiceVolume,
+          voiceGainDb,
+          voice: vo
+            ? {
+                src: String(vo.currentSrc || vo.src || '').split('?')[0].slice(-90),
+                paused: vo.paused,
+                muted: vo.muted,
+                volume: vo.volume,
+                readyState: vo.readyState,
+                networkState: vo.networkState,
+                error: vo.error ? vo.error.code : 0,
+                currentTime: Number(vo.currentTime.toFixed(2)),
+                advancedIn1s: Number((vo.currentTime - t0).toFixed(2)),
+                duration: Number.isFinite(vo.duration) ? Math.round(vo.duration) : -1,
+              }
+            : null,
+          webAudio: voiceWebAudioRef.current ? String(voiceWebAudioRef.current.ctx.state) : 'no usado',
+          music: mus ? { paused: mus.paused, muted: mus.muted, volume: mus.volume } : null,
+          voiceAudioError,
+        };
+        try {
+          void fetch(`${getEditorPrimaryServerOrigin()}/api/editor/voice-diagnostic`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(snapshot),
+          }).catch(() => {});
+        } catch {}
+      }, 1000);
+    }, 500);
+    return () => window.clearInterval(timer);
+  }, [isPlaying, isEditorActive, activeDoc?.id, voiceStartOffsetSec]);
 
   // Imperative DOM playhead synchronization: updates GPU transform on needle and time displays without React re-render
   const syncPlayheadDomImperatively = useCallback((t: number) => {

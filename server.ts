@@ -6371,6 +6371,16 @@ let activeRenderJobState: {
   startedAt: 0,
 };
 
+// One-line snapshots of what the editor's voice element is doing on a device (phones cannot be inspected from the Mac)
+const VOICE_DIAG_LOG = path.join(os.tmpdir(), 'huellas-voice-diagnostic.log');
+app.post('/api/editor/voice-diagnostic', (req, res) => {
+  try {
+    const line = JSON.stringify({ at: new Date().toISOString(), ...(req.body || {}) }).slice(0, 4000);
+    fs.appendFileSync(VOICE_DIAG_LOG, line + '\n', 'utf8');
+  } catch {}
+  res.json({ ok: true });
+});
+
 app.get('/api/editor/render-status', (_req, res) => {
   res.json({ ok: true, ...activeRenderJobState });
 });
