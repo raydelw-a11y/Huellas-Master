@@ -6651,33 +6651,11 @@ async function cleanupActiveExternalAskWindow(requestId, fallbackWinId, fallback
         if (/gemini\.google\.com/i.test(u0)) {
           const allGem = await chrome.tabs.query({ url: 'https://gemini.google.com/*' }).catch(() => []);
           if (allGem.length <= 1) canCloseSingleWin = false;
-        } else if (/chatgpt\.com|chat\.openai\.com/i.test(u0)) {
-          const allGpt = await chrome.tabs
-            .query({ url: ['https://chatgpt.com/*', 'https://chat.openai.com/*'] })
-            .catch(() => []);
-          if (allGpt.length <= 1) canCloseSingleWin = false;
-        } else if (/copilot\.microsoft\.com|(^|\/\/|\.)copilot\.com/i.test(u0)) {
-          const allCop = await chrome.tabs
-            .query({
-              url: [
-                'https://copilot.microsoft.com/*',
-                'https://*.copilot.microsoft.com/*',
-                'https://copilot.com/*',
-                'https://*.copilot.com/*',
-              ],
-            })
-            .catch(() => []);
-          if (allCop.length <= 1) canCloseSingleWin = false;
         } else if (/claude\.ai/i.test(u0)) {
           const allClaude = await chrome.tabs
             .query({ url: ['https://claude.ai/*', 'https://*.claude.ai/*'] })
             .catch(() => []);
           if (allClaude.length <= 1) canCloseSingleWin = false;
-        } else if (/grok\.com/i.test(u0)) {
-          const allGrok = await chrome.tabs
-            .query({ url: ['https://grok.com/*', 'https://*.grok.com/*'] })
-            .catch(() => []);
-          if (allGrok.length <= 1) canCloseSingleWin = false;
         }
       }
       if (canCloseSingleWin) {
@@ -6688,7 +6666,7 @@ async function cleanupActiveExternalAskWindow(requestId, fallbackWinId, fallback
       for (let attempt = 0; attempt < 4; attempt++) {
         const stillOpen = await chrome.tabs.get(tId).catch(() => null);
         if (!stillOpen) break;
-        // Never close the user's Huellas Master or Notebook tab, and NEVER close the last remaining Gemini, ChatGPT, Copilot, Claude, or Grok tab
+        // Never close the user's Huellas Master or Notebook tab, and NEVER close the last remaining Gemini or Claude tab (ChatGPT, Copilot and Grok temporary tabs are closed after use)
         const stillUrl = String(stillOpen.url || '');
         if (isHuellasUrl(stillUrl, stillOpen.title) || /\/notebook\//i.test(stillUrl)) {
           break;
@@ -6696,33 +6674,11 @@ async function cleanupActiveExternalAskWindow(requestId, fallbackWinId, fallback
         if (/gemini\.google\.com/i.test(stillUrl)) {
           const allGem = await chrome.tabs.query({ url: 'https://gemini.google.com/*' }).catch(() => []);
           if (allGem.length <= 1) break;
-        } else if (/chatgpt\.com|chat\.openai\.com/i.test(stillUrl)) {
-          const allGpt = await chrome.tabs
-            .query({ url: ['https://chatgpt.com/*', 'https://chat.openai.com/*'] })
-            .catch(() => []);
-          if (allGpt.length <= 1) break;
-        } else if (/copilot\.microsoft\.com|(^|\/\/|\.)copilot\.com/i.test(stillUrl)) {
-          const allCop = await chrome.tabs
-            .query({
-              url: [
-                'https://copilot.microsoft.com/*',
-                'https://*.copilot.microsoft.com/*',
-                'https://copilot.com/*',
-                'https://*.copilot.com/*',
-              ],
-            })
-            .catch(() => []);
-          if (allCop.length <= 1) break;
         } else if (/claude\.ai/i.test(stillUrl)) {
           const allClaude = await chrome.tabs
             .query({ url: ['https://claude.ai/*', 'https://*.claude.ai/*'] })
             .catch(() => []);
           if (allClaude.length <= 1) break;
-        } else if (/grok\.com/i.test(stillUrl)) {
-          const allGrok = await chrome.tabs
-            .query({ url: ['https://grok.com/*', 'https://*.grok.com/*'] })
-            .catch(() => []);
-          if (allGrok.length <= 1) break;
         }
         await chrome.tabs.remove(tId).catch(() => {});
         await sleep(180);
@@ -8545,28 +8501,7 @@ async function ensureResidentGeminiAndChatGptTabs(presence) {
       await chrome.tabs.update(geminiTabs[0].id, { autoDiscardable: false }).catch(() => {});
     }
 
-    // 2. Always keep at least 1 ChatGPT tab open and alive (autoDiscardable: false)
-    const chatGptTabs = await chrome.tabs
-      .query({ url: ['https://chatgpt.com/*', 'https://chat.openai.com/*'] })
-      .catch(() => []);
-    if (chatGptTabs.length === 0) {
-      const createdGpt = await chrome.tabs
-        .create({
-          url: 'https://chatgpt.com/',
-          active: false,
-          ...winOpt,
-        })
-        .catch(() => null);
-      if (createdGpt && createdGpt.id) {
-        reusedExternalTabIds.add(createdGpt.id);
-        await chrome.tabs.update(createdGpt.id, { autoDiscardable: false }).catch(() => {});
-      }
-    } else if (chatGptTabs[0] && chatGptTabs[0].id) {
-      reusedExternalTabIds.add(chatGptTabs[0].id);
-      if (chatGptTabs[0].autoDiscardable !== false) {
-        await chrome.tabs.update(chatGptTabs[0].id, { autoDiscardable: false }).catch(() => {});
-      }
-    }
+    // 2. ChatGPT is NOT kept resident: its tab is opened on demand by acquireChatGptTabForExternalAsk and closed when the call ends
 
     // 3. Always keep at least 1 Claude tab open and alive (autoDiscardable: false)
     const claudeTabs = await chrome.tabs
@@ -8591,51 +8526,7 @@ async function ensureResidentGeminiAndChatGptTabs(presence) {
       }
     }
 
-    // 4. Always keep at least 1 Grok tab open and alive (autoDiscardable: false)
-    const grokTabs = await chrome.tabs
-      .query({ url: ['https://grok.com/*', 'https://*.grok.com/*'] })
-      .catch(() => []);
-    if (grokTabs.length === 0) {
-      const createdGrok = await chrome.tabs
-        .create({
-          url: 'https://grok.com/',
-          active: false,
-          ...winOpt,
-        })
-        .catch(() => null);
-      if (createdGrok && createdGrok.id) {
-        reusedExternalTabIds.add(createdGrok.id);
-        await chrome.tabs.update(createdGrok.id, { autoDiscardable: false }).catch(() => {});
-      }
-    } else if (grokTabs[0] && grokTabs[0].id) {
-      reusedExternalTabIds.add(grokTabs[0].id);
-      if (grokTabs[0].autoDiscardable !== false) {
-        await chrome.tabs.update(grokTabs[0].id, { autoDiscardable: false }).catch(() => {});
-      }
-    }
-
-    // 5. Always keep at least 1 Copilot tab open and alive (autoDiscardable: false)
-    const copilotTabs = await chrome.tabs
-      .query({ url: COPILOT_TAB_URL_PATTERNS })
-      .catch(() => []);
-    if (copilotTabs.length === 0) {
-      const createdCopilot = await chrome.tabs
-        .create({
-          url: 'https://copilot.microsoft.com/',
-          active: false,
-          ...winOpt,
-        })
-        .catch(() => null);
-      if (createdCopilot && createdCopilot.id) {
-        reusedExternalTabIds.add(createdCopilot.id);
-        await chrome.tabs.update(createdCopilot.id, { autoDiscardable: false }).catch(() => {});
-      }
-    } else if (copilotTabs[0] && copilotTabs[0].id) {
-      reusedExternalTabIds.add(copilotTabs[0].id);
-      if (copilotTabs[0].autoDiscardable !== false) {
-        await chrome.tabs.update(copilotTabs[0].id, { autoDiscardable: false }).catch(() => {});
-      }
-    }
+    // 4-5. Grok and Copilot are NOT kept resident either: opened on demand by their acquire*TabForExternalAsk and closed when the call ends
 
     // 6. Ensure Flow Music tab is kept alive and not discarded if present
     const flowMusicTabs = await chrome.tabs
