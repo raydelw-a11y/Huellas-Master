@@ -264,11 +264,11 @@ export function applyAutomaticFlowPolicyShield(
 
   // 2. Reemplazar nombres propios históricos sueltos que disparan el detector de "prominent people"
   p = p.replace(
-    /\b(Ingeborg|Isambour|Blanche|Blanca|Eleanor|Leonor|Agnes|Inés|Cleopatra|Nefertiti|Boleyn|Elizabeth|Isabel|Mary Stuart|Marie Antoinette|Victoria|Catherine|Catalina|Juana|Eva Per[oó]n|Evita)\b/gi,
+    /\b(Ingeborg|Isambour|Blanche|Blanca|Eleanor|Leonor|Agnes|Inés|Cleopatra|Nefertiti|Boleyn|Elizabeth|Isabel|Mary Stuart|Marie Antoinette|Victoria|Catherine|Catalina|Juana|Eva Per[oó]n|Evita)\b/g,
     'the adult noblewoman in period attire'
   );
   p = p.replace(
-    /\b(Philip Augustus|Felipe Augusto|Philip II|Felipe II|Alfonso XIII|Alfonso XII|Primo de Rivera|Franco|Machado|Philip|Felipe|Augustus|Augusto|Innocent III|Inocencio III|Innocent|Inocencio|Louis VIII|Louis IX|King John|Canute|Knut|Valdemar|Napoleon|Bonaparte|Caesar|Nero|Caligula|Charlemagne|Carlomagno|Henry VIII|Enrique VIII|Richard|Ricardo|Medici|Borgia|Habsburg|Romanov|Tudor|Plantagenet|Capet|Capeto|Columbus|Colón|Cortés|Pizarro|Bolívar|Juan Per[oó]n|Per[oó]n|Edison|Henry Ford|Enzo Ferrari|Churchill|Roosevelt|Lincoln|Einstein|Pasteur|Fleming|Florey|Heatley|Mazza)\b/gi,
+    /\b(Philip Augustus|Felipe Augusto|Philip II|Felipe II|Alfonso XIII|Alfonso XII|Primo de Rivera|Franco|Machado|Philip|Felipe|Augustus|Augusto|Innocent III|Inocencio III|Innocent|Inocencio|Louis VIII|Louis IX|King John|Canute|Knut|Valdemar|Napoleon|Bonaparte|Caesar|Nero|Caligula|Charlemagne|Carlomagno|Henry VIII|Enrique VIII|Richard|Ricardo|Medici|Borgia|Habsburg|Romanov|Tudor|Plantagenet|Capet|Capeto|Columbus|Colón|Cortés|Pizarro|Bolívar|Juan Per[oó]n|Per[oó]n|Edison|Henry Ford|Enzo Ferrari|Churchill|Roosevelt|Lincoln|Einstein|Pasteur|Fleming|Florey|Heatley|Mazza)\b/g,
     'the adult historical figure in period attire'
   );
 
@@ -783,8 +783,14 @@ export function resolveLocationDescriptorFromTag(
       return /^(?:a|an|the)\b/i.test(firstClause) ? firstClause : `a ${firstClause}`;
     }
   }
-  return 'a 1940s historical documentary architectural setting';
+  // No curated description: the tag's own words are the place name ("@Gran_Salon_del_Louvre" → "the Gran Salon del Louvre")
+  const placeWords = atTag.slice(1).replace(/_/g, ' ').replace(/\s+/g, ' ').trim();
+  return placeWords ? `the ${placeWords}` : 'the historical period setting';
 }
+
+// A tag that contains a place noun anywhere ("@Gran_Salon_del_Louvre", "@Fortaleza_Real") names a location, not a person
+const AT_TAG_PLACE_WORD_RE =
+  /(?:^@|_)(?:Sal[oó]n|Sala|Torre|Fortaleza|Castillo|Jard[ií]n|Jardines|C[aá]mara|Catedral|Palacio|Plaza|Puerto|Muelle|Calle|Iglesia|Abad[ií]a|Monasterio|Museo|Teatro|Universidad|Biblioteca|Mercado|Taller|Bodega|Cocina|Patio|Capilla|Cripta|Puente|R[ií]o|Villa|Ciudad|Muralla|Foso|Hall|Tower|Castle|Fortress|Garden|Gardens|Chamber|Cathedral|Palace|Square|Harbor|Street|Church|Abbey|Kitchen|Courtyard|Chapel|Crypt|Bridge|River|Moat)(?:_|$)/i;
 
 interface CuratedPersonProfile {
   core: string;
@@ -1439,6 +1445,11 @@ function extractContextPersonNames(docContextText?: string): string[] {
     const candidate = m[1].trim();
     const parts = candidate.split(/\s+/);
     if (parts.length < 2 || parts.length > 4) continue;
+    // "Louvre y", "Museo del Louvre", "Gran Salón": a person's name has two capitalised words, does not end in a
+    // connector and contains no place noun
+    if (parts.filter((w) => /^[A-ZÁÉÍÓÚÑ]/.test(w)).length < 2) continue;
+    if (/^(?:de|del|la|y)$/i.test(parts[parts.length - 1])) continue;
+    if (parts.some((w) => AT_TAG_PLACE_WORD_RE.test(`@${w}`) || /^(?:Gran|Grande|Real|Reales|Santa|San|Nuestra|Notre|Dame)$/i.test(w))) continue;
     const allWhitelisted = parts.every((w) => {
       const clean = w.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
       return GEO_AND_CINEMA_SINGLE_WHITELIST.has(clean) || /^(de|del|la|y)$/i.test(clean);
@@ -1654,6 +1665,18 @@ export function sanitizePromptRemovePersonNames(
     }
   }
 
+  // 4-pre. A reference tag written with spaces ("@Gran Salon del Louvre") is the same tag: rejoin it so it is
+  // replaced as a whole instead of treating "@Gran" as a person and leaving "Salon del Louvre" behind
+  if (Array.isArray(references)) {
+    for (const r of references) {
+      const refTag = String(r?.tag || '').trim();
+      if (!refTag || !refTag.includes('_')) continue;
+      const fullTag = refTag.startsWith('@') ? refTag : `@${refTag}`;
+      const spaced = fullTag.replace(/_/g, ' ');
+      p = p.replace(new RegExp(`${escapeRegexLiteral(spaced)}(?![A-Za-z0-9_])`, 'gi'), fullTag);
+    }
+  }
+
   // 4. Replace ALL @Tags (both @Location and @Person, including anonymous roles) in BOTH image and video modes
   const matchedAtTags = Array.from(
     new Set(p.match(/@[A-Za-z0-9_ÁÉÍÓÚáéíóúÜüÑñ-]+/g) || [])
@@ -1668,6 +1691,7 @@ export function sanitizePromptRemovePersonNames(
     if (
       locationTagsLower.has(lowerAt) ||
       KNOWN_LOCATION_AT_TAG_PREFIX_RE.test(atTag) ||
+      (matchedRef?.category !== 'persona' && AT_TAG_PLACE_WORD_RE.test(atTag)) ||
       matchedRef?.category === 'lugar' ||
       (matchedRef as any)?.type === 'Lugar'
     ) {
@@ -1694,7 +1718,7 @@ export function sanitizePromptRemovePersonNames(
   // Universal anti-'@' fallback: ensure ZERO '@' tokens remain in either image or video mode
   p = p
     .replace(/@[A-Za-z0-9_ÁÉÍÓÚáéíóúÜüÑñ-]+/g, (residualTag) =>
-      KNOWN_LOCATION_AT_TAG_PREFIX_RE.test(residualTag)
+      KNOWN_LOCATION_AT_TAG_PREFIX_RE.test(residualTag) || AT_TAG_PLACE_WORD_RE.test(residualTag)
         ? resolveLocationDescriptorFromTag(residualTag)
         : 'the adult historical figure in authentic period attire'
     )
@@ -1707,7 +1731,7 @@ export function sanitizePromptRemovePersonNames(
     const key = term.toLowerCase();
     if (seenTerms.has(key)) continue;
     seenTerms.add(key);
-    const re = new RegExp(`(?<!@)\\b${escapeRegexLiteral(term)}(?:['’]s)?\\b`, 'gi');
+    const re = new RegExp(`(?<!@)\\b${escapeRegexLiteral(term)}(?:['’]s)?\\b`, /\s/.test(term) ? 'gi' : 'g');
     p = applyContextAwarePersonReplacement(p, re, profile, mode);
   }
 

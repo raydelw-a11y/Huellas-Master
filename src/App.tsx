@@ -200,7 +200,7 @@ import { useNoticeStack } from './utils/noticeStack';
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '07:11 AM - 11/20/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '07:31 AM - 11/20/2026';
 
 // PRODUCTION LOCK: while promptConfig.PRODUCTION_LOCKED === 'YES' these fields never change (the server
 // enforces the same list in protectLockedDocs). Metadata, thumbnails, review marks and reframes stay editable.
@@ -11626,22 +11626,12 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       normalizedBase.rawClipsText !== activeDoc.rawClipsText ||
       headerNeedsEngineSync;
 
+    // Stored prompts stay in the standard clean form; the anti-mutation shield is added when a prompt is SENT to
+    // Flow (handleSendClip…). Shielding them here as well made two automatic clean-ups undo each other on every
+    // open (one added "clean uncluttered composition…", the other removed it). Only a static B-roll that still
+    // carries a video prompt needs fixing here.
     const needsClipShield =
-      hasClips &&
-      baseClips.some(
-        (c) =>
-          (c.isStaticBroll && Boolean((c.videoPrompt || '').trim())) ||
-          (!c.isStaticBroll &&
-            (c.videoPrompt || '').trim() &&
-            (!/Fixed subject count from 0s to \d+s|Strictly zero people or human figures/i.test(
-              c.videoPrompt || ''
-            ) ||
-              /(?<!f\/1\.)8\s*bokeh/i.test(c.videoPrompt || '') ||
-              !/no real public figures/i.test(c.videoPrompt || ''))) ||
-          ((c.imagePrompt || '').trim() &&
-            (!/rigid architectural perspective/i.test(c.imagePrompt || '') ||
-              !/no real public figures/i.test(c.imagePrompt || '')))
-      );
+      hasClips && baseClips.some((c) => c.isStaticBroll && Boolean((c.videoPrompt || '').trim()));
 
     const needsRefShield =
       hasRefs &&
@@ -11662,17 +11652,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     if (normalizedChanged || needsClipShield) {
       const { clip1Sec: shieldClip1Sec, standardClipSec: shieldStdSec } =
         getStage1ClipDurations(activeDoc);
-      const nextClips = baseClips.map((c) => ({
-        ...c,
-        imagePrompt: (c.imagePrompt || '').trim()
-          ? applyAntiMutationShieldToPrompt(c.imagePrompt, 'ALL', true)
-          : c.imagePrompt,
-        videoPrompt: c.isStaticBroll
-          ? ''
-          : (c.videoPrompt || '').trim()
-            ? applyAntiMutationShieldToPrompt(c.videoPrompt, 'ALL', false)
-            : c.videoPrompt,
-      }));
+      const nextClips = baseClips.map((c) => (c.isStaticBroll && (c.videoPrompt || '').trim() ? { ...c, videoPrompt: '' } : c));
       const hasAnyAuthoredPrompt =
         getRawClipsQualityTier(activeDoc.rawClipsText) === 2 &&
         countRealAuthoredClips(nextClips) > 0;
