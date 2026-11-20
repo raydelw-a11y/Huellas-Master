@@ -7142,6 +7142,23 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             }
           }
 
+          // A clip size/position saved in the documentary later than this browser's timeline copy wins
+          // (it was set on another device or tab)
+          const docFrameAt = Number((docClipMatch as any)?.frameTransformAt || 0);
+          const docFrameTransformPatch: Partial<TimelineClipItem> =
+            docClipMatch && docFrameAt > Number(tc.frameTransformAt || 0)
+              ? {
+                  frameZoom16x9: docClipMatch.frameZoom16x9,
+                  frameZoom9x16: docClipMatch.frameZoom9x16,
+                  frameOffsetX16x9: docClipMatch.frameOffsetX16x9,
+                  frameOffsetY16x9: docClipMatch.frameOffsetY16x9,
+                  frameOffsetX9x16: docClipMatch.frameOffsetX9x16,
+                  frameOffsetY9x16: docClipMatch.frameOffsetY9x16,
+                  frameTransformAt: docFrameAt,
+                }
+              : {};
+          if (docFrameTransformPatch.frameTransformAt) anyRegeneratedOrUpdated = true;
+
           let repairedReframeMode = tc.reframe9x16Mode;
           let repairedFocusXStart = tc.reframeFocusXStart;
           let repairedFocusXEnd = tc.reframeFocusXEnd;
@@ -7225,6 +7242,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             reframeFocusXStart: repairedFocusXStart,
             reframeFocusXEnd: repairedFocusXEnd,
             reframeFocusY: repairedFocusY,
+            ...docFrameTransformPatch,
             reframeReason: repairedReframeReason,
             userReframed9x16: repairedUserReframed,
             reviewedForEditor: isClipReviewed,
