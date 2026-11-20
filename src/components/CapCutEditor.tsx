@@ -1241,7 +1241,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       const saved916Fps = Number(
         initialDocStateForInit?.exportFps9x16 ?? initialSessionState?.exportFps9x16
       );
-      return saved916Fps === 24 || saved916Fps === 30 || saved916Fps === 60 ? saved916Fps : 60;
+      return saved916Fps === 24 || saved916Fps === 30 || saved916Fps === 60 ? saved916Fps : 30;
     }
     const fps = Number(initialDocStateForInit?.exportFps ?? initialSessionState?.exportFps);
     return fps === 24 || fps === 30 || fps === 60 ? fps : 30;
@@ -3299,7 +3299,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     }
     const targetProfile = formatProfilesRef.current[nextRatio];
     setAspectRatio(nextRatio);
-    setExportFps(nextRatio === '9:16' ? 60 : 30);
+    setExportFps(30);
     const nextRes: ExportResolutionPreset =
       targetProfile?.exportResolution || (nextRatio === '9:16' ? '2K_1440P' : '8K_4320P');
     handleSelectExportResolution(nextRes);
@@ -4330,7 +4330,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           savedDoc?.exportFps === 60
             ? savedDoc.exportFps
             : nextRatio === '9:16'
-            ? 60
+            ? 30
             : 30;
         setExportFps(nextFps);
 
