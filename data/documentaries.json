@@ -1883,7 +1883,9 @@
         "reframeConfidence": 0.84,
         "reframeReason": "Paneo dinámico IA (19% → 39%) siguiendo acción/sujeto",
         "videoAuditStatus": "approved",
-        "reviewedUpdatedAt": 1795176304384
+        "reviewedUpdatedAt": 1795176304384,
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-39-1794891908340-dtgs",
@@ -1921,16 +1923,26 @@
         "timeRange": "06:36 - 06:46",
         "cameraSelection": "",
         "visualExplanation": "",
-        "imagePrompt": "Image 40: Create an image in 16-9 horizontal aspect ratio a royal falconer holding a pure white Icelandic gyrfalcon on a gold-embroidered leather gauntlet beside a minstrel holding a bowed vihuela in the adult historical figure in authentic period attire Salon del Louvre, Paris, France, 1200, horizontal 16-9, medium shot, warm firelight against dark stone walls, 35mm film grain, cinematic documentary realism, safe framing composition, no modern objects, no CGI look Clip 40 (06, 26 - 06, 36), Create a video in the adult historical figure in authentic period attire Salon del Louvre, Paris, France, 1200, horizontal 16-9, single continuous 10-second shot, slow lateral tracking shot gliding past a court minstrel holding a carved wooden bowed vihuela and a royal falconer proudly displaying a pure white Icelandic gyrfalcon perched on his thick leather gauntlet, synchronized foley of white falcon wings ruffling, leather jesses and silver bells jingling softly, and footsteps on rushes, strictly no music, no speech, cinematic documentary realism, safe framing composition, no modern objects, no CGI look Mientras los juglares tocaban la vihuela de arco y los halconeros reales exhibían aves blancas de Islandia, fuera de los muros del Louvre, portrayed by anonymous mature adult historical reenactment actors in authentic period costume, cinematic documentary realism, safe framing composition, 8k resolution, sharp focus, no modern objects, no CGI look, clean uncluttered composition with rigid architectural perspective, stationary period props, clear anatomical separation between subjects, portrayed by anonymous mature adult historical reenactment actors in authentic period costume (no real public figures or prominent people), no text, no spoken voice, no human speech, no music. fix the name to Inicial_40_create_an_image_in_16_9",
+        "imagePrompt": "Image 40 [B-Roll: STATIC_ZOOM_IN]: Create an image in 16-9 horizontal aspect ratio a royal falconer holding a pure white Icelandic gyrfalcon on a gold-embroidered leather gauntlet beside a minstrel holding a bowed vihuela in the adult historical figure in authentic period attire Salon del Louvre, Paris, France, 1200, horizontal 16-9, medium shot, warm firelight against dark stone walls, 35mm film grain, cinematic documentary realism, safe framing composition, no modern objects, no CGI look Clip 40 (06, 26 - 06, 36), Create a video in the adult historical figure in authentic period attire Salon del Louvre, Paris, France, 1200, horizontal 16-9, single continuous 10-second shot, slow lateral tracking shot gliding past a court minstrel holding a carved wooden bowed vihuela and a royal falconer proudly displaying a pure white Icelandic gyrfalcon perched on his thick leather gauntlet, synchronized foley of white falcon wings ruffling, leather jesses and silver bells jingling softly, and footsteps on rushes, strictly no music, no speech, cinematic documentary realism, safe framing composition, no modern objects, no CGI look Mientras los juglares tocaban la vihuela de arco y los halconeros reales exhibían aves blancas de Islandia, fuera de los muros del Louvre, portrayed by anonymous mature adult historical reenactment actors in authentic period costume, cinematic documentary realism, safe framing composition, 8k resolution, sharp focus, no modern objects, no CGI look, clean uncluttered composition with rigid architectural perspective, stationary period props, clear anatomical separation between subjects, portrayed by anonymous mature adult historical reenactment actors in authentic period costume (no real public figures or prominent people), no text, no spoken voice, no human speech, no music. fix the name to Inicial_40_create_an_image_in_16_9",
         "videoPrompt": "",
         "narrationSegment": "[pausa: 1s] Mientras los juglares tocaban la vihuela de arco y los halconeros reales exhibían aves blancas de Islandia, fuera de los muros del Louvre",
-        "imageReady": false,
-        "videoReady": false,
+        "imageReady": true,
+        "videoReady": true,
         "pauseNotes": "Contiene [pausa: 1s] en la locución",
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": "Sincronizado con el tramo de voz narrativa."
+        "auditReason": "🖼️ Escena B-Roll Solo Imagen lista (pendiente de revisión) — movimiento 4K 60fps local en Editor.",
+        "isStaticBroll": true,
+        "brollCameraMotion": "zoom_in",
+        "promptUpdatedAt": 1795176504786,
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": [],
+        "reviewedUpdatedAt": 1795176504786,
+        "videoSavedFileName": "40_Create_an_image_in_16_Broll_4K.mp4",
+        "videoSavedAt": 1795176504786,
+        "videoDiscardOverriddenAt": 1795176504786
       },
       {
         "id": "clip-41-1794891908346-cev8",
@@ -2487,7 +2499,9 @@
         "reframeFocusY": 50,
         "reframeConfidence": 0.55,
         "reframeReason": "Enfoque inteligente IA en tercio derecho (63%)",
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-61-1795065216435-61",
@@ -2515,7 +2529,9 @@
         "reframeFocusY": 50,
         "reframeConfidence": 0.79,
         "reframeReason": "Enfoque inteligente IA en tercio izquierdo (39%)",
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-62-1795065216435-62",
@@ -2543,7 +2559,9 @@
         "reframeFocusY": 50,
         "reframeConfidence": 0.68,
         "reframeReason": "Enfoque inteligente IA en tercio derecho (72%)",
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       }
     ],
     "capcutRawSrt": "",
@@ -12715,7 +12733,7 @@
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "Image 30: Create an image of a luxurious 13th-century royal bathing chamber, wooden tubs, white linens, bowls of saffron, herbs, and medical attendants observing closely, cinematic lighting, debunking the dirty middle ages myth, no text.",
-        "videoPrompt": "Clip 30: Generate a video in 16-9 horizontal aspect ratio across 8 seconds showing steam rising slowly from the wooden tub while attendants quietly arrange herbs on nearby tables, all background furniture, architectural fixtures, and tabletop props remain 100% gravity-locked and stationary while any held object moves smoothly under natural hand control, fixed subject count from 0s to 8s, single continuous shot, strictly no shot changes, with subtle ambient foley of dripping water, echoing stone room. cinematic documentary realism, safe framing composition, 8k resolution, sharp focus, no modern objects, no CGI look, no text, no spoken voice, no human speech, no music. fix the name to Clip_30_generate_a_video_in_16_9",
+        "videoPrompt": "Clip 30: Generate a video in 16-9 horizontal aspect ratio across 8 seconds showing steam rising slowly from the wooden tub while attendants quietly arrange herbs on nearby tables, with no people present and zero human figures, all background furniture, architectural fixtures, and tabletop props remain 100% gravity-locked and stationary, fixed subject count from 0s to 8s, single continuous shot, strictly no shot changes, with subtle ambient foley of dripping water, echoing stone room. cinematic documentary realism, safe framing composition, 8k resolution, sharp focus, no modern objects, no CGI look, no text, no spoken voice, no human speech, no music. fix the name to Clip_30_generate_a_video_in_16_9",
         "narrationSegment": "azafrán azafrán o semillas de beleño Contra el mito moderno de que la Edad Media ignoraba, la higiene el aseo regio. Era un privilegio médico vigilado de cerca",
         "pauseNotes": "",
         "imageReady": false,
@@ -12936,7 +12954,7 @@
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "Image 43: Create an image of shadows of medieval courtiers standing motionless just behind thick, heavy velvet bed curtains, waiting as legal witnesses in the dark, extremely creepy and invasive atmosphere, cinematic lighting, no text.",
-        "videoPrompt": "Clip 43: Generate a video in 16-9 horizontal aspect ratio across 8 seconds showing the fabric of the curtain shifting slightly as a courtier breathes behind it, a sliver of an eye visible in the gap, all background furniture, architectural fixtures, and tabletop props remain 100% gravity-locked and stationary while any held object moves smoothly under natural hand control, fixed subject count from 0s to 8s, single continuous shot, strictly no shot changes, with subtle ambient foley of fabric rustling softly, muffled cough in the background. cinematic documentary realism, safe framing composition, 8k resolution, sharp focus, no modern objects, no CGI look, no text, no spoken voice, no human speech, no music. fix the name to Clip_43_generate_a_video_in_16_9",
+        "videoPrompt": "Clip 43: Generate a video in 16-9 horizontal aspect ratio across 8 seconds showing the fabric of the curtain shifting slightly as a courtier breathes behind it, a sliver of an eye visible in the gap, with no people present and zero human figures, all background furniture, architectural fixtures, and tabletop props remain 100% gravity-locked and stationary, fixed subject count from 0s to 8s, single continuous shot, strictly no shot changes, with subtle ambient foley of fabric rustling softly, muffled cough in the background. cinematic documentary realism, safe framing composition, 8k resolution, sharp focus, no modern objects, no CGI look, no text, no spoken voice, no human speech, no music. fix the name to Clip_43_generate_a_video_in_16_9",
         "narrationSegment": "aguardaban Detrás de las cortinas como testigos legales la presión psicológica podía desatar catástrofes geopolíticas así ocurrió entre el 14 y el 15 de agosto de 1.193 en",
         "pauseNotes": "",
         "imageReady": false,
@@ -13361,7 +13379,7 @@
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "Image 68: Create an image of several menacing medieval barons in armor and dark cloaks, plotting in a shadowy, fire-lit tavern, conspiring against the regent queen, sinister atmosphere, cinematic lighting, no text.",
-        "videoPrompt": "Clip 68: Generate a video in 16-9 horizontal aspect ratio across 8 seconds showing the barons leaning in closely across a wooden table, one slamming a dagger into the wood angrily, all background furniture, architectural fixtures, and tabletop props remain 100% gravity-locked and stationary while any held object moves smoothly under natural hand control, fixed subject count from 0s to 8s, single continuous shot, strictly no shot changes, with subtle ambient foley of loud thud of a dagger, aggressive low murmurs, crackling fire. cinematic documentary realism, safe framing composition, 8k resolution, sharp focus, no modern objects, no CGI look, no text, no spoken voice, no human speech, no music. fix the name to Clip_68_generate_a_video_in_16_9",
+        "videoPrompt": "Clip 68: Generate a video in 16-9 horizontal aspect ratio across 8 seconds showing the barons leaning in closely across a wooden table, one slamming a dagger into the wood angrily, with no people present and zero human figures, all background furniture, architectural fixtures, and tabletop props remain 100% gravity-locked and stationary, fixed subject count from 0s to 8s, single continuous shot, strictly no shot changes, with subtle ambient foley of loud thud of a dagger, aggressive low murmurs, crackling fire. cinematic documentary realism, safe framing composition, 8k resolution, sharp focus, no modern objects, no CGI look, no text, no spoken voice, no human speech, no music. fix the name to Clip_68_generate_a_video_in_16_9",
         "narrationSegment": "Luis 9 en Reims y asumió la regencia de Francia frente a una rebelión de grandes señores que la llamaban con desprecio la loba en pleno invierno de enero de 1229",
         "pauseNotes": "",
         "imageReady": false,
