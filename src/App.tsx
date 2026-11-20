@@ -200,7 +200,7 @@ import { useNoticeStack } from './utils/noticeStack';
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '05:55 PM - 11/20/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '05:59 PM - 11/20/2026';
 
 // PRODUCTION LOCK: while promptConfig.PRODUCTION_LOCKED === 'YES' these fields never change (the server
 // enforces the same list in protectLockedDocs). Metadata, thumbnails, review marks and reframes stay editable.
@@ -2249,6 +2249,7 @@ export default function App() {
   const [flowDownloadResolution, setFlowDownloadResolution] =
     useState<ExportResolutionPreset>('8K_4320P');
   const [flowAspectRatio, setFlowAspectRatio] = useState<EditorAspectRatio>('16:9');
+  const [showAllPromptsBox, setShowAllPromptsBox] = useState<boolean>(false);
   const [capturedClipVideosMap, setCapturedClipVideosMap] = useState<Record<number, string>>({});
   const [capturedClipFramesMap, setCapturedClipFramesMap] = useState<Record<number, string>>({});
   const [discardedClipVideosMap, setDiscardedClipVideosMap] = useState<Record<number, string>>({});
@@ -23520,6 +23521,19 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                           </div>
                         )}
 
+                      <button
+                        type="button"
+                        onClick={() => setShowAllPromptsBox((v) => !v)}
+                        className="w-full flex items-center justify-between gap-2 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-[11px] font-bold text-slate-300 cursor-pointer"
+                        aria-expanded={showAllPromptsBox}
+                      >
+                        <span>
+                          {showAllPromptsBox ? "▼" : "▶"} Texto de todos los prompts (
+                          {(activeDoc.rawClipsText || "").length.toLocaleString()} caracteres)
+                        </span>
+                        <span className="text-slate-400">{showAllPromptsBox ? "Ocultar" : "Mostrar"}</span>
+                      </button>
+                      {showAllPromptsBox && (
                       <textarea
                         rows={13}
                         value={activeDoc.rawClipsText}
@@ -23560,6 +23574,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                         }
                         className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs font-mono text-slate-200 leading-relaxed"
                       />
+                      )}
                     </div>
                     <div className="flex items-center justify-between gap-2 pt-1 flex-wrap">
                       <button
