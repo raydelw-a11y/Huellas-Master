@@ -281,6 +281,68 @@ function getFrameZoomInProgress(elapsedSec: number, zoomInSec: number): number {
   return p * p * (3 - 2 * p);
 }
 
+/** A framing point: at `t` seconds into the clip it has size `z` (percent) and position `x`,`y` (percent of the frame). */
+export interface ClipFrameKey {
+  t: number;
+  z: number;
+  x: number;
+  y: number;
+}
+const MAX_CLIP_FRAME_KEYS = 8;
+type ClipFrameSource = {
+  frameZoom16x9?: number;
+  frameZoom9x16?: number;
+  frameOffsetX16x9?: number;
+  frameOffsetY16x9?: number;
+  frameOffsetX9x16?: number;
+  frameOffsetY9x16?: number;
+  frameZoomInSec16x9?: number;
+  frameZoomInSec9x16?: number;
+  frameKeys16x9?: ClipFrameKey[];
+} | null | undefined;
+/** Framing points of the clip (16:9 only), sorted by time. An old "gradual zoom" counts as two points. */
+function getClipFrameKeys(clip: ClipFrameSource, ratio: string): ClipFrameKey[] {
+  if (ratio !== '16:9' || !clip) return [];
+  const raw = Array.isArray(clip.frameKeys16x9) ? clip.frameKeys16x9 : [];
+  const clean = raw
+    .map((k) => ({ t: Number(k?.t), z: Number(k?.z), x: Number(k?.x), y: Number(k?.y) }))
+    .filter((k) => [k.t, k.z, k.x, k.y].every((v) => Number.isFinite(v)) && k.t >= 0 && k.z > 0)
+    .sort((a, b) => a.t - b.t)
+    .slice(0, MAX_CLIP_FRAME_KEYS);
+  if (clean.length > 0) return clean;
+  const zoomInSec = getClipFrameZoomInSec(clip, ratio);
+  if (zoomInSec > 0) {
+    const off = getClipFrameOffsetPct(clip, ratio);
+    return [
+      { t: 0, z: 100, x: 0, y: 0 },
+      { t: zoomInSec, z: getClipFrameZoomPct(clip, ratio), x: off.x, y: off.y },
+    ];
+  }
+  return [];
+}
+/** Framing at `elapsedSec` between points: holds the first point before it and the last point after it. */
+function interpolateClipFrameKeys(keys: ClipFrameKey[], elapsedSec: number): { z: number; x: number; y: number } {
+  if (elapsedSec <= keys[0].t) return keys[0];
+  const last = keys[keys.length - 1];
+  if (elapsedSec >= last.t) return last;
+  for (let i = 0; i < keys.length - 1; i++) {
+    const a = keys[i];
+    const b = keys[i + 1];
+    if (elapsedSec >= a.t && elapsedSec <= b.t) {
+      const e = getFrameZoomInProgress(elapsedSec - a.t, b.t - a.t);
+      return { z: a.z + (b.z - a.z) * e, x: a.x + (b.x - a.x) * e, y: a.y + (b.y - a.y) * e };
+    }
+  }
+  return last;
+}
+/** Size (percent) and position of the clip at `elapsedSec` seconds into it. */
+function getClipFrameAt(clip: ClipFrameSource, ratio: string, elapsedSec: number): { z: number; x: number; y: number } {
+  const keys = getClipFrameKeys(clip, ratio);
+  if (keys.length > 0) return interpolateClipFrameKeys(keys, elapsedSec);
+  const off = getClipFrameOffsetPct(clip, ratio);
+  return { z: getClipFrameZoomPct(clip, ratio), x: off.x, y: off.y };
+}
+
 interface TimelineClipItem {
   id: string;
   clipNumber: number;
@@ -335,6 +397,7 @@ interface TimelineClipItem {
   frameTransformAt?: number;   // when the size/position was last saved (ms)
   frameZoomInSec16x9?: number; // gradual zoom: seconds from 100% to the set size/position (0 = off)
   frameZoomInSec9x16?: number;
+  frameKeys16x9?: ClipFrameKey[]; // framing points (16:9): the clip pans/zooms from one to the next
   reframeConfidence?: number;
   reframeReason?: string;
   userReframed9x16?: boolean;  // true when user manually set or adjusted reframe in the editor
@@ -3329,75 +3392,124 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
   // Clip size inside the frame (per format). `commit: false` only updates the live preview while dragging the
   // slider; `commit: true` (on release / buttons) also saves it to the timeline overlays and the documentary.
-  const handleUpdateClipFrameZoom = (clipId: string, zoomPct: number, commit: boolean) => {
-    const safeZoom = Math.max(FRAME_ZOOM_MIN_PCT, Math.min(FRAME_ZOOM_MAX_PCT, Math.round(zoomPct)));
-    const zoomKey = aspectRatio === '9:16' ? 'frameZoom9x16' : 'frameZoom16x9';
-    const zoomSavedAt = Date.now();
+  const handleUpdateClipFrameZoom = (clipId: string, zoomPct: number, commit: boolean) =>
+    handleUpdateClipFrameTransform(clipId, { zoomPct }, commit);
+
+  // Seconds into the clip at the playhead (0 when the playhead is outside the clip)
+  const getClipElapsedAtPlayhead = (clip: TimelineClipItem) => {
+    const bounded = clipsWithTimelineBounds.find((c) => c.id === clip.id);
+    const clipStart = bounded ? bounded.start : currentTime;
+    return Math.max(0, Math.min(Math.max(0, clip.duration), Math.round((currentTime - clipStart) * 100) / 100));
+  };
+  const FRAME_KEY_SNAP_SEC = 0.15;
+
+  // Saves a patch of framing fields for one clip (timeline copy in this browser + the documentary)
+  const saveClipFramePatch = (clip: TimelineClipItem, patch: Record<string, any>, commit: boolean) => {
     const docId = activeDoc?.id || 'default';
-    const matchedClip = timelineClips.find((tc) => tc.id === clipId);
-    const targetClipNum = matchedClip ? matchedClip.clipNumber : -1;
+    const fullPatch = commit ? { ...patch, frameTransformAt: Date.now() } : patch;
     setTimelineClips((prev) => {
-      const updated = prev.map((tc) =>
-        tc.id === clipId ? { ...tc, [zoomKey]: safeZoom, ...(commit ? { frameTransformAt: zoomSavedAt } : {}) } : tc
-      );
+      const updated = prev.map((tc) => (tc.id === clip.id ? { ...tc, ...fullPatch } : tc));
       if (commit) {
         persistDocOverlaysPatch({ customTimelineClips: updated, userEditedClips: true }, docId);
       }
       return updated;
     });
-    if (commit && targetClipNum > 0 && targetClipNum < 999 && activeDoc && Array.isArray(activeDoc.clips)) {
+    if (commit && clip.clipNumber > 0 && clip.clipNumber < 999 && activeDoc && Array.isArray(activeDoc.clips)) {
       updateActiveDoc({
-        clips: activeDoc.clips.map((c) =>
-          c.clipNumber === targetClipNum ? ({ ...c, [zoomKey]: safeZoom, frameTransformAt: zoomSavedAt } as any) : c
-        ),
+        clips: activeDoc.clips.map((c) => (c.clipNumber === clip.clipNumber ? ({ ...c, ...fullPatch } as any) : c)),
       });
     }
   };
 
-  // Clip size and position inside the frame, set by dragging the clip or its corner handles in the viewer.
-  // Same saving rules as the size slider: `commit: false` while dragging, `commit: true` on release.
+  // Clip size and position inside the frame, set with the slider, by dragging the clip or its corner handles.
+  // `commit: false` only updates the live preview while dragging; `commit: true` (on release) also saves.
+  // A clip without framing points keeps one fixed framing. A clip with points gets the change written to the
+  // point at the playhead (a new point is created there if none is close).
   const handleUpdateClipFrameTransform = (
     clipId: string,
-    next: { zoomPct?: number; offsetX?: number; offsetY?: number; zoomInSec?: number },
+    next: { zoomPct?: number; offsetX?: number; offsetY?: number },
     commit: boolean
   ) => {
     const is916 = aspectRatio === '9:16';
-    const zoomKey = is916 ? 'frameZoom9x16' : 'frameZoom16x9';
-    const offXKey = is916 ? 'frameOffsetX9x16' : 'frameOffsetX16x9';
-    const offYKey = is916 ? 'frameOffsetY9x16' : 'frameOffsetY16x9';
     const matchedClip = timelineClips.find((tc) => tc.id === clipId);
     if (!matchedClip) return;
-    const zoomPct =
-      typeof next.zoomPct === 'number'
-        ? Math.max(FRAME_ZOOM_MIN_PCT, Math.min(FRAME_ZOOM_MAX_PCT, Math.round(next.zoomPct)))
-        : getClipFrameZoomPct(matchedClip, aspectRatio);
-    const current = getClipFrameOffsetPct(matchedClip, aspectRatio);
+    const elapsed = getClipElapsedAtPlayhead(matchedClip);
+    const current = getClipFrameAt(matchedClip, aspectRatio, elapsed);
+    const zoomPct = Math.max(
+      FRAME_ZOOM_MIN_PCT,
+      Math.min(FRAME_ZOOM_MAX_PCT, Math.round(typeof next.zoomPct === 'number' ? next.zoomPct : current.z))
+    );
     // Keep at least a strip of the clip inside the frame so it can always be grabbed again
     const maxOffset = 50 + zoomPct / 2 - 6;
     const lim = (v: number) => Math.max(-maxOffset, Math.min(maxOffset, Math.round(v * 10) / 10));
-    const patch: Record<string, number> = {
-      ...(commit ? { frameTransformAt: Date.now() } : {}),
-      [zoomKey]: zoomPct,
-      [offXKey]: lim(typeof next.offsetX === 'number' ? next.offsetX : current.x),
-      [offYKey]: lim(typeof next.offsetY === 'number' ? next.offsetY : current.y),
-      ...(typeof next.zoomInSec === 'number'
-        ? { [is916 ? 'frameZoomInSec9x16' : 'frameZoomInSec16x9']: Math.max(0, Math.min(20, next.zoomInSec)) }
-        : {}),
-    };
-    const docId = activeDoc?.id || 'default';
-    const targetClipNum = matchedClip.clipNumber;
-    setTimelineClips((prev) => {
-      const updated = prev.map((tc) => (tc.id === clipId ? { ...tc, ...patch } : tc));
-      if (commit) {
-        persistDocOverlaysPatch({ customTimelineClips: updated, userEditedClips: true }, docId);
-      }
-      return updated;
-    });
-    if (commit && targetClipNum > 0 && targetClipNum < 999 && activeDoc && Array.isArray(activeDoc.clips)) {
-      updateActiveDoc({
-        clips: activeDoc.clips.map((c) => (c.clipNumber === targetClipNum ? ({ ...c, ...patch } as any) : c)),
-      });
+    const x = lim(typeof next.offsetX === 'number' ? next.offsetX : current.x);
+    const y = lim(typeof next.offsetY === 'number' ? next.offsetY : current.y);
+    const keys = getClipFrameKeys(matchedClip, aspectRatio);
+    if (keys.length > 0) {
+      const nearIdx = keys.findIndex((k) => Math.abs(k.t - elapsed) <= FRAME_KEY_SNAP_SEC);
+      const nextKeys =
+        nearIdx >= 0
+          ? keys.map((k, i) => (i === nearIdx ? { ...k, z: zoomPct, x, y } : k))
+          : [...keys, { t: elapsed, z: zoomPct, x, y }].sort((a, b) => a.t - b.t).slice(0, MAX_CLIP_FRAME_KEYS);
+      saveClipFramePatch(matchedClip, { frameKeys16x9: nextKeys, frameZoomInSec16x9: 0 }, commit);
+      return;
     }
+    saveClipFramePatch(
+      matchedClip,
+      {
+        [is916 ? 'frameZoom9x16' : 'frameZoom16x9']: zoomPct,
+        [is916 ? 'frameOffsetX9x16' : 'frameOffsetX16x9']: x,
+        [is916 ? 'frameOffsetY9x16' : 'frameOffsetY16x9']: y,
+      },
+      commit
+    );
+  };
+  // Fixes a framing point at the playhead with the framing currently shown
+  const handleAddClipFrameKey = (clip: TimelineClipItem) => {
+    const elapsed = getClipElapsedAtPlayhead(clip);
+    const cur = getClipFrameAt(clip, aspectRatio, elapsed);
+    const keys = getClipFrameKeys(clip, aspectRatio);
+    const point = { t: elapsed, z: Math.round(cur.z), x: Math.round(cur.x * 10) / 10, y: Math.round(cur.y * 10) / 10 };
+    const nearIdx = keys.findIndex((k) => Math.abs(k.t - elapsed) <= FRAME_KEY_SNAP_SEC);
+    const nextKeys =
+      nearIdx >= 0
+        ? keys.map((k, i) => (i === nearIdx ? point : k))
+        : [...keys, point].sort((a, b) => a.t - b.t).slice(0, MAX_CLIP_FRAME_KEYS);
+    saveClipFramePatch(clip, { frameKeys16x9: nextKeys, frameZoomInSec16x9: 0 }, true);
+  };
+  // Removes one framing point; removing the last one leaves the clip fixed at that point's framing
+  const handleRemoveClipFrameKey = (clip: TimelineClipItem, keyIndex: number) => {
+    const keys = getClipFrameKeys(clip, aspectRatio);
+    const removed = keys[keyIndex];
+    if (!removed) return;
+    const nextKeys = keys.filter((_, i) => i !== keyIndex);
+    saveClipFramePatch(
+      clip,
+      nextKeys.length > 0
+        ? { frameKeys16x9: nextKeys, frameZoomInSec16x9: 0 }
+        : {
+            frameKeys16x9: [],
+            frameZoomInSec16x9: 0,
+            frameZoom16x9: Math.round(removed.z),
+            frameOffsetX16x9: removed.x,
+            frameOffsetY16x9: removed.y,
+          },
+      true
+    );
+  };
+  // Back to normal size, centred, with no framing points
+  const handleResetClipFrame = (clip: TimelineClipItem) => {
+    const is916 = aspectRatio === '9:16';
+    saveClipFramePatch(
+      clip,
+      {
+        [is916 ? 'frameZoom9x16' : 'frameZoom16x9']: 100,
+        [is916 ? 'frameOffsetX9x16' : 'frameOffsetX16x9']: 0,
+        [is916 ? 'frameOffsetY9x16' : 'frameOffsetY16x9']: 0,
+        ...(is916 ? {} : { frameKeys16x9: [], frameZoomInSec16x9: 0 }),
+      },
+      true
+    );
   };
   const clipTransformDragRef = useRef<{
     mode: 'move' | 'resize';
@@ -3425,13 +3537,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     const rect = canvasEl.getBoundingClientRect();
     const centerX = rect.left + (rect.width * boxCenterPct.x) / 100;
     const centerY = rect.top + (rect.height * boxCenterPct.y) / 100;
-    const off = getClipFrameOffsetPct(clip, aspectRatio);
+    const frameNow = getClipFrameAt(clip, aspectRatio, getClipElapsedAtPlayhead(clip));
+    const off = { x: frameNow.x, y: frameNow.y };
     clipTransformDragRef.current = {
       mode,
       clipId: clip.id,
       startX: e.clientX,
       startY: e.clientY,
-      startZoom: getClipFrameZoomPct(clip, aspectRatio),
+      startZoom: frameNow.z,
       startOffX: off.x,
       startOffY: off.y,
       centerX,
@@ -6742,6 +6855,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         frameOffsetY9x16: Number((c as any).frameTransformAt || 0) > Number((existingItem as any)?.frameTransformAt || 0) ? c.frameOffsetY9x16 : existingItem?.frameOffsetY9x16 ?? c.frameOffsetY9x16,
         frameZoomInSec16x9: Number((c as any).frameTransformAt || 0) > Number((existingItem as any)?.frameTransformAt || 0) ? c.frameZoomInSec16x9 : existingItem?.frameZoomInSec16x9 ?? c.frameZoomInSec16x9,
         frameZoomInSec9x16: Number((c as any).frameTransformAt || 0) > Number((existingItem as any)?.frameTransformAt || 0) ? c.frameZoomInSec9x16 : existingItem?.frameZoomInSec9x16 ?? c.frameZoomInSec9x16,
+        frameKeys16x9: Number((c as any).frameTransformAt || 0) > Number((existingItem as any)?.frameTransformAt || 0) ? c.frameKeys16x9 : existingItem?.frameKeys16x9 ?? c.frameKeys16x9,
         // A size/position saved in the documentary later than this browser's copy wins (set on another device)
         frameTransformAt: Math.max(Number((c as any).frameTransformAt || 0), Number((existingItem as any)?.frameTransformAt || 0)) || undefined,
         reframeConfidence: existingItem?.reframeConfidence ?? c.reframeConfidence,
@@ -7178,6 +7292,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   frameOffsetY9x16: docClipMatch.frameOffsetY9x16,
                   frameZoomInSec16x9: docClipMatch.frameZoomInSec16x9,
                   frameZoomInSec9x16: docClipMatch.frameZoomInSec9x16,
+                  frameKeys16x9: docClipMatch.frameKeys16x9,
                   frameTransformAt: docFrameAt,
                 }
               : {};
@@ -7360,6 +7475,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         frameOffsetY9x16: Number((bc as any).frameTransformAt || 0) > Number((liveMatch as any)?.frameTransformAt || 0) ? bc.frameOffsetY9x16 : liveMatch?.frameOffsetY9x16 ?? bc.frameOffsetY9x16,
         frameZoomInSec16x9: Number((bc as any).frameTransformAt || 0) > Number((liveMatch as any)?.frameTransformAt || 0) ? bc.frameZoomInSec16x9 : liveMatch?.frameZoomInSec16x9 ?? bc.frameZoomInSec16x9,
         frameZoomInSec9x16: Number((bc as any).frameTransformAt || 0) > Number((liveMatch as any)?.frameTransformAt || 0) ? bc.frameZoomInSec9x16 : liveMatch?.frameZoomInSec9x16 ?? bc.frameZoomInSec9x16,
+        frameKeys16x9: Number((bc as any).frameTransformAt || 0) > Number((liveMatch as any)?.frameTransformAt || 0) ? bc.frameKeys16x9 : liveMatch?.frameKeys16x9 ?? bc.frameKeys16x9,
         // A size/position saved in the documentary later than this browser's copy wins (set on another device)
         frameTransformAt: Math.max(Number((bc as any).frameTransformAt || 0), Number((liveMatch as any)?.frameTransformAt || 0)) || undefined,
         reframeConfidence: liveMatch?.reframeConfidence ?? bc.reframeConfidence,
@@ -11027,17 +11143,18 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         }
       }
 
-      // Gradual zoom: advance the clip size/position every animation frame
+      // Framing points: advance the clip size/position every animation frame
       try {
         const zoomVid = previewVideoRef.current;
         const zoomAnim = zoomVid?.dataset?.zoomAnim;
         if (zoomVid && zoomAnim) {
-          const [zEnd, oxEnd, oyEnd, cStart, zSec] = zoomAnim.split('|').map(Number);
-          const e = getFrameZoomInProgress(next - cStart, zSec);
-          zoomVid.style.transform = `translate(${(oxEnd * e).toFixed(3)}%, ${(oyEnd * e).toFixed(3)}%) scale(${(
-            1 +
-            (zEnd - 1) * e
-          ).toFixed(4)})`;
+          const [startStr, keysStr] = zoomAnim.split('#');
+          const animKeys = keysStr.split(';').map((part) => {
+            const [t, z, x, y] = part.split(',').map(Number);
+            return { t, z, x, y };
+          });
+          const f = interpolateClipFrameKeys(animKeys, next - Number(startStr));
+          zoomVid.style.transform = `translate(${f.x.toFixed(3)}%, ${f.y.toFixed(3)}%) scale(${(f.z / 100).toFixed(4)})`;
         }
       } catch {}
 
@@ -14462,10 +14579,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                       : 50,
                   reframeFocusY: typeof c.reframeFocusY === 'number' ? c.reframeFocusY : 50,
                   userReframed9x16: Boolean(c.userReframed9x16),
-                  frameZoom: getClipFrameZoomPct(c, aspectRatio),
-                  frameOffsetX: getClipFrameOffsetPct(c, aspectRatio).x,
-                  frameOffsetY: getClipFrameOffsetPct(c, aspectRatio).y,
-                  frameZoomInSec: aspectRatio === '16:9' ? getClipFrameZoomInSec(c, aspectRatio) : 0,
+                  // With framing points the fixed framing sent is the last point (used if the export cannot animate)
+                  frameZoom: getClipFrameAt(c, aspectRatio, Number.MAX_SAFE_INTEGER).z,
+                  frameOffsetX: getClipFrameAt(c, aspectRatio, Number.MAX_SAFE_INTEGER).x,
+                  frameOffsetY: getClipFrameAt(c, aspectRatio, Number.MAX_SAFE_INTEGER).y,
+                  frameKeys: getClipFrameKeys(c, aspectRatio),
                   videoDataUrl: c.videoUrl && c.videoUrl.startsWith('data:') ? c.videoUrl : '',
                 };
               }),
@@ -16505,7 +16623,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             activeClipAtPlayhead.id !== 'fixed-doc-outro' &&
             (() => {
               const zoomClip = activeClipAtPlayhead;
-              const zoomPct = getClipFrameZoomPct(zoomClip, aspectRatio);
+              const zoomElapsed = getClipElapsedAtPlayhead(zoomClip);
+              const zoomFrameNow = getClipFrameAt(zoomClip, aspectRatio, zoomElapsed);
+              const zoomPct = Math.round(zoomFrameNow.z);
+              const zoomKeys = getClipFrameKeys(zoomClip, aspectRatio);
               return (
                 <div className="w-full px-3 py-1 bg-[#100e0b] border-b border-slate-800 flex items-center gap-2 flex-wrap shrink-0 text-[10px]">
                   <span
@@ -16548,16 +16669,12 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   <span className="w-10 text-right font-mono font-bold text-amber-200">{zoomPct}%</span>
                   <button
                     type="button"
-                    onClick={() =>
-                      handleUpdateClipFrameTransform(zoomClip.id, { zoomPct: 100, offsetX: 0, offsetY: 0 }, true)
-                    }
+                    onClick={() => handleResetClipFrame(zoomClip)}
                     disabled={
-                      zoomPct === 100 &&
-                      getClipFrameOffsetPct(zoomClip, aspectRatio).x === 0 &&
-                      getClipFrameOffsetPct(zoomClip, aspectRatio).y === 0
+                      zoomKeys.length === 0 && zoomPct === 100 && zoomFrameNow.x === 0 && zoomFrameNow.y === 0
                     }
                     className="px-2 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 font-bold cursor-pointer disabled:opacity-40"
-                    title="Volver al tamaño normal (100%) y al centro"
+                    title="Volver al tamaño normal (100%), al centro y sin puntos"
                   >
                     Restablecer
                   </button>
@@ -16577,31 +16694,54 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     ✥ Mover en el visor
                   </button>
                   {aspectRatio === '16:9' && (
-                    <label
-                      className="flex items-center gap-1 text-slate-300 font-bold"
-                      title="Zoom gradual: el clip empieza a tamaño normal (100%, centrado) y llega al tamaño y posición elegidos en los segundos indicados. Solo 16:9 y solo al agrandar."
-                    >
-                      Zoom gradual
-                      <select
-                        value={getClipFrameZoomInSec(zoomClip, aspectRatio)}
-                        onChange={(e) =>
-                          handleUpdateClipFrameTransform(zoomClip.id, { zoomInSec: Number(e.target.value) }, true)
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => handleAddClipFrameKey(zoomClip)}
+                        disabled={
+                          zoomKeys.length >= MAX_CLIP_FRAME_KEYS &&
+                          !zoomKeys.some((k) => Math.abs(k.t - zoomElapsed) <= FRAME_KEY_SNAP_SEC)
                         }
-                        className="bg-slate-900 border border-slate-700 rounded px-1 py-0.5 text-amber-200 font-mono cursor-pointer"
+                        className="px-2 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-amber-500/50 text-amber-200 font-bold cursor-pointer disabled:opacity-40"
+                        title="Fija un punto en este instante del clip con el tamaño y la posición que se ven ahora. Con dos o más puntos, el clip hace el paneo o el zoom de un punto al siguiente; el último punto es el encuadre final."
                       >
-                        {[0, 1, 1.5, 2, 2.5, 3, 4, 5, 6, 8]
-                          .concat(
-                            [0, 1, 1.5, 2, 2.5, 3, 4, 5, 6, 8].includes(getClipFrameZoomInSec(zoomClip, aspectRatio))
-                              ? []
-                              : [getClipFrameZoomInSec(zoomClip, aspectRatio)]
-                          )
-                          .map((sec) => (
-                            <option key={sec} value={sec}>
-                              {sec === 0 ? 'No' : `${sec} s`}
-                            </option>
-                          ))}
-                      </select>
-                    </label>
+                        ◆ Fijar punto
+                      </button>
+                      {zoomKeys.map((k, keyIdx) => {
+                        const isAtKey = Math.abs(k.t - zoomElapsed) <= FRAME_KEY_SNAP_SEC;
+                        return (
+                          <span
+                            key={`${k.t}-${keyIdx}`}
+                            className={`inline-flex items-center rounded border font-mono font-bold ${
+                              isAtKey
+                                ? 'bg-amber-500 text-slate-950 border-amber-400'
+                                : 'bg-slate-900 text-amber-200 border-slate-700'
+                            }`}
+                          >
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (isPlaying) handleTogglePlay();
+                                seekToTime(zoomClip.start + k.t + 0.001);
+                              }}
+                              className="px-1.5 py-0.5 cursor-pointer"
+                              title={`Punto ${keyIdx + 1}: segundo ${k.t.toFixed(1)} del clip • ${Math.round(k.z)}% • X ${k.x.toFixed(0)} Y ${k.y.toFixed(0)}. Clic para ir a este punto y ajustarlo.`}
+                            >
+                              ◆ {k.t.toFixed(1)}s
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveClipFrameKey(zoomClip, keyIdx)}
+                              className="px-1 py-0.5 cursor-pointer opacity-70 hover:opacity-100"
+                              title="Quitar este punto"
+                              aria-label={`Quitar el punto ${keyIdx + 1}`}
+                            >
+                              ✕
+                            </button>
+                          </span>
+                        );
+                      })}
+                    </>
                   )}
                 </div>
               );
@@ -17005,19 +17145,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                         ? `${liveFocusX.toFixed(2)}% ${fY.toFixed(1)}%`
                         : '50% 50%';
                     // Clip size (matches the export crop: enlarging keeps the 9:16 focus point, shrinking centers vertically)
-                    // Gradual zoom (16:9): the clip starts at normal size and reaches its set size/position
-                    // after N seconds. While the clip is selected for moving, the final framing is shown.
-                    const slotZoomInSec =
-                      aspectRatio === '16:9' && !isSlotIntro && !isSlotOutro
-                        ? getClipFrameZoomInSec(slotClip, aspectRatio)
-                        : 0;
-                    const slotZoomInE =
-                      slotZoomInSec > 0 && slotClip && !(isDeckActive && selectedCanvasObject === 'clip')
-                        ? getFrameZoomInProgress(isDeckActive ? currentTime - slotClip.start : 0, slotZoomInSec)
-                        : 1;
-                    const slotZoomEnd =
-                      isSlotIntro || isSlotOutro ? 1 : getClipFrameZoomPct(slotClip, aspectRatio) / 100;
-                    const slotZoom = 1 + (slotZoomEnd - 1) * slotZoomInE;
+                    // Framing points: size and position follow the points over the clip's time
+                    const slotFrameKeys =
+                      isSlotIntro || isSlotOutro ? [] : getClipFrameKeys(slotClip, aspectRatio);
+                    const slotFrame =
+                      isSlotIntro || isSlotOutro || !slotClip
+                        ? { z: 100, x: 0, y: 0 }
+                        : getClipFrameAt(slotClip, aspectRatio, isDeckActive ? currentTime - slotClip.start : 0);
+                    const slotZoom = slotFrame.z / 100;
                     const hasSlotZoom = Math.abs(slotZoom - 1) > 0.004;
                     const zoomUsesFocus = aspectRatio === '9:16' && !isFitBlur;
                     const zoomOriginY = zoomUsesFocus && slotZoom > 1 ? fY : 50;
@@ -17026,13 +17161,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                       : '50% 50%';
                     // Clip position (dragged in the viewer). In 9:16 crop mode the picture that moves is the
                     // cropped frame, so an enlarged clip is first trimmed to the frame (same as the export).
-                    const slotOffsetEnd =
-                      isSlotIntro || isSlotOutro ? { x: 0, y: 0 } : getClipFrameOffsetPct(slotClip, aspectRatio);
-                    const slotOffset = { x: slotOffsetEnd.x * slotZoomInE, y: slotOffsetEnd.y * slotZoomInE };
+                    const slotOffset = { x: slotFrame.x, y: slotFrame.y };
                     const hasSlotOffset = Math.abs(slotOffset.x) > 0.05 || Math.abs(slotOffset.y) > 0.05;
                     const slotZoomAnimData =
-                      slotZoomInSec > 0 && isDeckActive && slotClip && selectedCanvasObject !== 'clip'
-                        ? `${slotZoomEnd}|${slotOffsetEnd.x}|${slotOffsetEnd.y}|${slotClip.start}|${slotZoomInSec}`
+                      slotFrameKeys.length > 1 && isDeckActive && slotClip
+                        ? `${slotClip.start}#${slotFrameKeys.map((k) => [k.t, k.z, k.x, k.y].join(',')).join(';')}`
                         : undefined;
                     const slotTrimToFrame = hasSlotOffset && zoomUsesFocus && slotZoom > 1.004;
                     const slotTrimK = slotTrimToFrame ? 1 - 1 / slotZoom : 0;
@@ -17409,8 +17542,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 activeClipAtPlayhead.clipNumber !== 999 &&
                 (() => {
                   const tClip = activeClipAtPlayhead;
-                  const z = getClipFrameZoomPct(tClip, aspectRatio) / 100;
-                  const off = getClipFrameOffsetPct(tClip, aspectRatio);
+                  const tFrame = getClipFrameAt(tClip, aspectRatio, getClipElapsedAtPlayhead(tClip));
+                  const z = tFrame.z / 100;
+                  const off = { x: tFrame.x, y: tFrame.y };
                   const usesFocus = aspectRatio === '9:16' && tClip.reframe9x16Mode !== 'fit_blur';
                   const originX = usesFocus
                     ? typeof tClip.reframeFocusXStart === 'number'

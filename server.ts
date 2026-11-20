@@ -895,6 +895,7 @@ const CLIP_FRAME_TRANSFORM_FIELDS = [
   'frameTransformAt',
   'frameZoomInSec16x9',
   'frameZoomInSec9x16',
+  'frameKeys16x9',
 ];
 function protectClipFrameTransforms(list: any[]): any[] {
   let diskById: Map<string, any>;
@@ -8049,25 +8050,42 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
           : `scale=${outW}:${outH}:force_original_aspect_ratio=increase:flags=${clipScaleFlags},${fpsInterpStage},crop=${outW}:${outH}:${cropXExpr}:${cropYExpr}`;
         if (hasFrameShift) scaleAndCropVf += `,${frameShiftPad},crop=${outW}:${outH}`;
       } else {
-        // Gradual zoom (16:9, enlarging, framing inside the picture): the clip is first laid out at normal
-        // size and then a moving window grows from the full frame to the chosen framing.
-        const rawZoomInSec = Number(
-          (c as any).frameZoomInSec ?? (isVertical916 ? 0 : (savedClipMatch as any)?.frameZoomInSec16x9) ?? 0
-        );
-        const zoomInSec = Number.isFinite(rawZoomInSec) ? Math.max(0, Math.min(20, rawZoomInSec)) : 0;
-        const zoomInOffX = readFrameOffsetPct('X') / 100;
-        const zoomInOffY = readFrameOffsetPct('Y') / 100;
-        const zoomInFits =
-          frameZoom > 1.004 &&
-          Math.abs(zoomInOffX) <= (frameZoom - 1) / 2 + 0.001 &&
-          Math.abs(zoomInOffY) <= (frameZoom - 1) / 2 + 0.001;
-        const useGradualZoom = !isVertical916 && zoomInSec > 0.05 && zoomInFits;
-        const zoomInFrames = Math.max(1, Math.round(zoomInSec * safeFps));
-        const zoomInE = `(min(1,on/${zoomInFrames})*min(1,on/${zoomInFrames})*(3-2*min(1,on/${zoomInFrames})))`;
-        scaleAndCropVf = useGradualZoom
-          ? `scale=${outW}:${outH}:force_original_aspect_ratio=decrease:flags=${clipScaleFlags},pad=${outW}:${outH}:(ow-iw)/2:(oh-ih)/2:black,${fpsInterpStage},zoompan=z='1+${(
-              frameZoom - 1
-            ).toFixed(4)}*${zoomInE}':x='max(0,min(iw-iw/zoom,iw/2-(iw/2+iw*${zoomInOffX.toFixed(5)}*${zoomInE})/zoom))':y='max(0,min(ih-ih/zoom,ih/2-(ih/2+ih*${zoomInOffY.toFixed(5)}*${zoomInE})/zoom))':d=1:s=${outW}x${outH}:fps=${safeFps}`
+        // Framing points (16:9): the clip is first laid out at normal size and then a moving window follows
+        // the points (size + position per instant), easing from each point to the next. Before the first
+        // point it holds the first framing; after the last one it holds the last. Only when every point
+        // enlarges the clip (a window inside the picture); otherwise the fixed framing above is used.
+        const rawFrameKeys: any[] = Array.isArray((c as any).frameKeys)
+          ? (c as any).frameKeys
+          : !isVertical916 && Array.isArray((savedClipMatch as any)?.frameKeys16x9)
+          ? (savedClipMatch as any).frameKeys16x9
+          : [];
+        const frameKeys = rawFrameKeys
+          .map((fk) => ({ t: Number(fk?.t), z: Number(fk?.z) / 100, x: Number(fk?.x) / 100, y: Number(fk?.y) / 100 }))
+          .filter((fk) => [fk.t, fk.z, fk.x, fk.y].every((n) => Number.isFinite(n)) && fk.t >= 0)
+          .sort((a, b) => a.t - b.t)
+          .slice(0, 8);
+        const useFrameKeys =
+          !isVertical916 && frameKeys.length >= 2 && frameKeys.every((fk) => fk.z >= 0.999 && fk.z <= 3.001);
+        // Piecewise eased value over the output frame number `on`
+        const buildKeyExpr = (pick: (fk: { z: number; x: number; y: number }) => number) => {
+          let expr = pick(frameKeys[frameKeys.length - 1]).toFixed(5);
+          for (let ki = frameKeys.length - 2; ki >= 0; ki--) {
+            const a = frameKeys[ki];
+            const b = frameKeys[ki + 1];
+            const fa = Math.round(a.t * safeFps);
+            const fb = Math.max(fa + 1, Math.round(b.t * safeFps));
+            const p = `((on-${fa})/${fb - fa})`;
+            const seg = `(${pick(a).toFixed(5)}+(${(pick(b) - pick(a)).toFixed(5)})*${p}*${p}*(3-2*${p}))`;
+            expr = `if(lt(on,${fb}),${seg},${expr})`;
+          }
+          const first = frameKeys[0];
+          return `if(lt(on,${Math.round(first.t * safeFps)}),${pick(first).toFixed(5)},${expr})`;
+        };
+        const keyZ = useFrameKeys ? buildKeyExpr((fk) => fk.z) : '1';
+        const keyX = useFrameKeys ? buildKeyExpr((fk) => fk.x) : '0';
+        const keyY = useFrameKeys ? buildKeyExpr((fk) => fk.y) : '0';
+        scaleAndCropVf = useFrameKeys
+          ? `scale=${outW}:${outH}:force_original_aspect_ratio=decrease:flags=${clipScaleFlags},pad=${outW}:${outH}:(ow-iw)/2:(oh-ih)/2:black,${fpsInterpStage},zoompan=z='${keyZ}':x='max(0,min(iw-iw/zoom,iw/2-(iw/2+iw*(${keyX}))/zoom))':y='max(0,min(ih-ih/zoom,ih/2-(ih/2+ih*(${keyY}))/zoom))':d=1:s=${outW}x${outH}:fps=${safeFps}`
           : hasFrameShift
           ? `scale=${zoomW}:${zoomH}:force_original_aspect_ratio=decrease:force_divisible_by=2:flags=${clipScaleFlags},${fpsInterpStage},${frameShiftPad},crop=${zoomCropSize},${zoomPad}`
           : hasFrameZoom
