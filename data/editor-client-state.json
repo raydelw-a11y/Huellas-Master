@@ -15,7 +15,7 @@
       "hookTopPct": 48,
       "hookBoxWidthPct": 88,
       "captionFontSize": 25,
-      "captionWordsPerLine": 4,
+      "captionWordsPerLine": 0,
       "captionBottomPct": 10,
       "captionLineMode": "subdivide",
       "captionMaxChars": 22
@@ -32,7 +32,7 @@
       "hookTopPct": 48,
       "hookBoxWidthPct": 88,
       "captionFontSize": 21,
-      "captionWordsPerLine": 3,
+      "captionWordsPerLine": 4,
       "captionBottomPct": 10,
       "captionLineMode": "subdivide",
       "captionMaxChars": 22
@@ -44,7 +44,7 @@
     "_v6_16x9_captionOriginalDefault": true,
     "_v7_9x16_captions22": true
   },
-  "updatedAt": "2026-11-20T12:43:00.979Z",
+  "updatedAt": "2026-11-20T12:47:58.823Z",
   "overlayStyles": {
     "logoScalePct": 12,
     "logoOpacity": 95,
@@ -78,13 +78,13 @@
     "hookLine2AnimInDur": 1,
     "hookLine2AnimOut": "fade",
     "hookLine2AnimOutDur": 1,
-    "clip1OverlayEndSec": 14,
+    "clip1OverlayEndSec": 16,
     "captionFontFamily": "'Cinzel', Georgia, 'Times New Roman', serif",
     "captionFontSize": 25,
     "captionFontSize16x9": 25,
     "captionFontSize9x16": 21,
-    "captionWordsPerLine16x9": 4,
-    "captionWordsPerLine9x16": 3,
+    "captionWordsPerLine16x9": 0,
+    "captionWordsPerLine9x16": 4,
     "captionMaxChars": 22,
     "captionLineMode": "subdivide",
     "captionOriginal16x9V1": true,
@@ -128,9 +128,9 @@
       "foleyVolume": 80,
       "customVolumeSet": false,
       "audioMuted": false,
-      "reframe9x16Mode": "auto_pan",
-      "reframeFocusXStart": 78,
-      "reframeFocusXEnd": 28,
+      "reframe9x16Mode": "auto_focus",
+      "reframeFocusXStart": 73,
+      "reframeFocusXEnd": 73,
       "reframeFocusY": 50
     },
     {
@@ -145,8 +145,8 @@
       "customVolumeSet": false,
       "audioMuted": false,
       "reframe9x16Mode": "auto_pan",
-      "reframeFocusXStart": 22,
-      "reframeFocusXEnd": 67,
+      "reframeFocusXStart": 82,
+      "reframeFocusXEnd": 28,
       "reframeFocusY": 50
     },
     {
@@ -160,9 +160,9 @@
       "foleyVolume": 20,
       "customVolumeSet": false,
       "audioMuted": false,
-      "reframe9x16Mode": "auto_focus",
-      "reframeFocusXStart": 80,
-      "reframeFocusXEnd": 80,
+      "reframe9x16Mode": "auto_pan",
+      "reframeFocusXStart": 25,
+      "reframeFocusXEnd": 57,
       "reframeFocusY": 50
     },
     {
@@ -177,8 +177,8 @@
       "customVolumeSet": false,
       "audioMuted": false,
       "reframe9x16Mode": "auto_pan",
-      "reframeFocusXStart": 36,
-      "reframeFocusXEnd": 17,
+      "reframeFocusXStart": 84,
+      "reframeFocusXEnd": 45,
       "reframeFocusY": 50
     },
     {
@@ -193,8 +193,8 @@
       "customVolumeSet": false,
       "audioMuted": false,
       "reframe9x16Mode": "auto_pan",
-      "reframeFocusXStart": 60,
-      "reframeFocusXEnd": 44,
+      "reframeFocusXStart": 50,
+      "reframeFocusXEnd": 16,
       "reframeFocusY": 50
     },
     {
@@ -208,9 +208,9 @@
       "foleyVolume": 20,
       "customVolumeSet": false,
       "audioMuted": false,
-      "reframe9x16Mode": "auto_center",
-      "reframeFocusXStart": 50,
-      "reframeFocusXEnd": 50,
+      "reframe9x16Mode": "auto_pan",
+      "reframeFocusXStart": 25,
+      "reframeFocusXEnd": 47,
       "reframeFocusY": 50
     },
     {
@@ -225,8 +225,8 @@
       "customVolumeSet": false,
       "audioMuted": false,
       "reframe9x16Mode": "auto_pan",
-      "reframeFocusXStart": 27,
-      "reframeFocusXEnd": 84,
+      "reframeFocusXStart": 81,
+      "reframeFocusXEnd": 51,
       "reframeFocusY": 50
     },
     {
@@ -240,9 +240,9 @@
       "foleyVolume": 20,
       "customVolumeSet": false,
       "audioMuted": false,
-      "reframe9x16Mode": "auto_pan",
-      "reframeFocusXStart": 59,
-      "reframeFocusXEnd": 83,
+      "reframe9x16Mode": "auto_focus",
+      "reframeFocusXStart": 16,
+      "reframeFocusXEnd": 16,
       "reframeFocusY": 50
     },
     {
@@ -257,8 +257,8 @@
       "customVolumeSet": false,
       "audioMuted": false,
       "reframe9x16Mode": "auto_pan",
-      "reframeFocusXStart": 19,
-      "reframeFocusXEnd": 78,
+      "reframeFocusXStart": 16,
+      "reframeFocusXEnd": 52,
       "reframeFocusY": 50
     },
     {
@@ -273,8 +273,8 @@
       "customVolumeSet": false,
       "audioMuted": false,
       "reframe9x16Mode": "auto_pan",
-      "reframeFocusXStart": 72,
-      "reframeFocusXEnd": 22,
+      "reframeFocusXStart": 27,
+      "reframeFocusXEnd": 41,
       "reframeFocusY": 50
     },
     {
@@ -289,14 +289,14 @@
       "customVolumeSet": false,
       "audioMuted": false,
       "reframe9x16Mode": "auto_pan",
-      "reframeFocusXStart": 22,
-      "reframeFocusXEnd": 78,
+      "reframeFocusXStart": 84,
+      "reframeFocusXEnd": 46,
       "reframeFocusY": 50
     },
     {
       "id": "clip-12-1794891908279-49w3",
       "clipNumber": 12,
-      "duration": 10.02,
+      "duration": 10.04,
       "trimStart": 0,
       "trimEnd": 10,
       "speed": 1,
@@ -305,8 +305,8 @@
       "customVolumeSet": false,
       "audioMuted": false,
       "reframe9x16Mode": "auto_pan",
-      "reframeFocusXStart": 78,
-      "reframeFocusXEnd": 24,
+      "reframeFocusXStart": 69,
+      "reframeFocusXEnd": 47,
       "reframeFocusY": 50
     },
     {
@@ -320,9 +320,9 @@
       "foleyVolume": 20,
       "customVolumeSet": false,
       "audioMuted": false,
-      "reframe9x16Mode": "auto_focus",
-      "reframeFocusXStart": 67,
-      "reframeFocusXEnd": 67,
+      "reframe9x16Mode": "auto_pan",
+      "reframeFocusXStart": 17,
+      "reframeFocusXEnd": 57,
       "reframeFocusY": 50
     },
     {
@@ -336,9 +336,9 @@
       "foleyVolume": 20,
       "customVolumeSet": false,
       "audioMuted": false,
-      "reframe9x16Mode": "auto_focus",
-      "reframeFocusXStart": 84,
-      "reframeFocusXEnd": 84,
+      "reframe9x16Mode": "auto_center",
+      "reframeFocusXStart": 50,
+      "reframeFocusXEnd": 50,
       "reframeFocusY": 50
     },
     {
@@ -353,8 +353,8 @@
       "customVolumeSet": false,
       "audioMuted": false,
       "reframe9x16Mode": "auto_pan",
-      "reframeFocusXStart": 48,
-      "reframeFocusXEnd": 71,
+      "reframeFocusXStart": 16,
+      "reframeFocusXEnd": 42,
       "reframeFocusY": 50
     },
     {
@@ -369,157 +369,13 @@
       "customVolumeSet": false,
       "audioMuted": false,
       "reframe9x16Mode": "auto_pan",
-      "reframeFocusXStart": 18,
-      "reframeFocusXEnd": 76,
+      "reframeFocusXStart": 16,
+      "reframeFocusXEnd": 52,
       "reframeFocusY": 50
     },
     {
       "id": "clip-17-1794891908289-k8bn",
       "clipNumber": 17,
-      "duration": 10.03,
-      "trimStart": 0,
-      "trimEnd": 10,
-      "speed": 1,
-      "smoothSlowMo": false,
-      "foleyVolume": 20,
-      "customVolumeSet": false,
-      "audioMuted": false,
-      "reframe9x16Mode": "auto_pan",
-      "reframeFocusXStart": 65,
-      "reframeFocusXEnd": 44,
-      "reframeFocusY": 50
-    },
-    {
-      "id": "clip-18-1794891908290-iq3m",
-      "clipNumber": 18,
-      "duration": 10.03,
-      "trimStart": 0,
-      "trimEnd": 10,
-      "speed": 1,
-      "smoothSlowMo": false,
-      "foleyVolume": 20,
-      "customVolumeSet": false,
-      "audioMuted": false,
-      "reframe9x16Mode": "auto_pan",
-      "reframeFocusXStart": 35,
-      "reframeFocusXEnd": 21,
-      "reframeFocusY": 50
-    },
-    {
-      "id": "clip-19-1794891908292-6aig",
-      "clipNumber": 19,
-      "duration": 10.03,
-      "trimStart": 0,
-      "trimEnd": 10,
-      "speed": 1,
-      "smoothSlowMo": false,
-      "foleyVolume": 20,
-      "customVolumeSet": false,
-      "audioMuted": false,
-      "reframe9x16Mode": "auto_focus",
-      "reframeFocusXStart": 84,
-      "reframeFocusXEnd": 84,
-      "reframeFocusY": 50
-    },
-    {
-      "id": "clip-20-1794891908293-g15z",
-      "clipNumber": 20,
-      "duration": 10.03,
-      "trimStart": 0,
-      "trimEnd": 10,
-      "speed": 1,
-      "smoothSlowMo": false,
-      "foleyVolume": 0,
-      "customVolumeSet": true,
-      "audioMuted": true,
-      "reframe9x16Mode": "auto_focus",
-      "reframeFocusXStart": 16,
-      "reframeFocusXEnd": 16,
-      "reframeFocusY": 50
-    },
-    {
-      "id": "clip-21-1794891908295-7515",
-      "clipNumber": 21,
-      "duration": 10.03,
-      "trimStart": 0,
-      "trimEnd": 10,
-      "speed": 1,
-      "smoothSlowMo": false,
-      "foleyVolume": 20,
-      "customVolumeSet": false,
-      "audioMuted": false,
-      "reframe9x16Mode": "auto_focus",
-      "reframeFocusXStart": 84,
-      "reframeFocusXEnd": 84,
-      "reframeFocusY": 50
-    },
-    {
-      "id": "clip-22-1794891908297-g7d0",
-      "clipNumber": 22,
-      "duration": 10.03,
-      "trimStart": 0,
-      "trimEnd": 10,
-      "speed": 1,
-      "smoothSlowMo": false,
-      "foleyVolume": 20,
-      "customVolumeSet": false,
-      "audioMuted": false,
-      "reframe9x16Mode": "auto_pan",
-      "reframeFocusXStart": 22,
-      "reframeFocusXEnd": 66,
-      "reframeFocusY": 50
-    },
-    {
-      "id": "clip-23-1794891908299-vkgu",
-      "clipNumber": 23,
-      "duration": 10.03,
-      "trimStart": 0,
-      "trimEnd": 10,
-      "speed": 1,
-      "smoothSlowMo": false,
-      "foleyVolume": 20,
-      "customVolumeSet": false,
-      "audioMuted": false,
-      "reframe9x16Mode": "auto_focus",
-      "reframeFocusXStart": 27,
-      "reframeFocusXEnd": 27,
-      "reframeFocusY": 50
-    },
-    {
-      "id": "clip-24-1794891908301-eb9m",
-      "clipNumber": 24,
-      "duration": 10.03,
-      "trimStart": 0,
-      "trimEnd": 10,
-      "speed": 1,
-      "smoothSlowMo": false,
-      "foleyVolume": 20,
-      "customVolumeSet": false,
-      "audioMuted": false,
-      "reframe9x16Mode": "auto_pan",
-      "reframeFocusXStart": 22,
-      "reframeFocusXEnd": 78,
-      "reframeFocusY": 50
-    },
-    {
-      "id": "clip-25-1794891908303-d72h",
-      "clipNumber": 25,
-      "duration": 10.03,
-      "trimStart": 0,
-      "trimEnd": 10,
-      "speed": 1,
-      "smoothSlowMo": false,
-      "foleyVolume": 20,
-      "customVolumeSet": false,
-      "audioMuted": false,
-      "reframe9x16Mode": "auto_focus",
-      "reframeFocusXStart": 42,
-      "reframeFocusXEnd": 42,
-      "reframeFocusY": 50
-    },
-    {
-      "id": "clip-26-1794891908307-bruh",
-      "clipNumber": 26,
       "duration": 10.03,
       "trimStart": 0,
       "trimEnd": 10,
@@ -534,6 +390,150 @@
       "reframeFocusY": 50
     },
     {
+      "id": "clip-18-1794891908290-iq3m",
+      "clipNumber": 18,
+      "duration": 10.03,
+      "trimStart": 0,
+      "trimEnd": 10,
+      "speed": 1,
+      "smoothSlowMo": false,
+      "foleyVolume": 20,
+      "customVolumeSet": false,
+      "audioMuted": false,
+      "reframe9x16Mode": "auto_focus",
+      "reframeFocusXStart": 69,
+      "reframeFocusXEnd": 69,
+      "reframeFocusY": 50
+    },
+    {
+      "id": "clip-19-1794891908292-6aig",
+      "clipNumber": 19,
+      "duration": 10.03,
+      "trimStart": 0,
+      "trimEnd": 10,
+      "speed": 1,
+      "smoothSlowMo": false,
+      "foleyVolume": 20,
+      "customVolumeSet": false,
+      "audioMuted": false,
+      "reframe9x16Mode": "auto_pan",
+      "reframeFocusXStart": 38,
+      "reframeFocusXEnd": 50,
+      "reframeFocusY": 50
+    },
+    {
+      "id": "clip-20-1794891908293-g15z",
+      "clipNumber": 20,
+      "duration": 10.03,
+      "trimStart": 0,
+      "trimEnd": 10,
+      "speed": 1,
+      "smoothSlowMo": false,
+      "foleyVolume": 0,
+      "customVolumeSet": true,
+      "audioMuted": true,
+      "reframe9x16Mode": "auto_center",
+      "reframeFocusXStart": 50,
+      "reframeFocusXEnd": 50,
+      "reframeFocusY": 50
+    },
+    {
+      "id": "clip-21-1794891908295-7515",
+      "clipNumber": 21,
+      "duration": 10.03,
+      "trimStart": 0,
+      "trimEnd": 10,
+      "speed": 1,
+      "smoothSlowMo": false,
+      "foleyVolume": 20,
+      "customVolumeSet": false,
+      "audioMuted": false,
+      "reframe9x16Mode": "auto_pan",
+      "reframeFocusXStart": 84,
+      "reframeFocusXEnd": 66,
+      "reframeFocusY": 50
+    },
+    {
+      "id": "clip-22-1794891908297-g7d0",
+      "clipNumber": 22,
+      "duration": 10.03,
+      "trimStart": 0,
+      "trimEnd": 10,
+      "speed": 1,
+      "smoothSlowMo": false,
+      "foleyVolume": 20,
+      "customVolumeSet": false,
+      "audioMuted": false,
+      "reframe9x16Mode": "auto_focus",
+      "reframeFocusXStart": 63,
+      "reframeFocusXEnd": 63,
+      "reframeFocusY": 50
+    },
+    {
+      "id": "clip-23-1794891908299-vkgu",
+      "clipNumber": 23,
+      "duration": 10.03,
+      "trimStart": 0,
+      "trimEnd": 10,
+      "speed": 1,
+      "smoothSlowMo": false,
+      "foleyVolume": 20,
+      "customVolumeSet": false,
+      "audioMuted": false,
+      "reframe9x16Mode": "auto_pan",
+      "reframeFocusXStart": 54,
+      "reframeFocusXEnd": 16,
+      "reframeFocusY": 50
+    },
+    {
+      "id": "clip-24-1794891908301-eb9m",
+      "clipNumber": 24,
+      "duration": 10.03,
+      "trimStart": 0,
+      "trimEnd": 10,
+      "speed": 1,
+      "smoothSlowMo": false,
+      "foleyVolume": 20,
+      "customVolumeSet": false,
+      "audioMuted": false,
+      "reframe9x16Mode": "auto_center",
+      "reframeFocusXStart": 50,
+      "reframeFocusXEnd": 50,
+      "reframeFocusY": 50
+    },
+    {
+      "id": "clip-25-1794891908303-d72h",
+      "clipNumber": 25,
+      "duration": 10.03,
+      "trimStart": 0,
+      "trimEnd": 10,
+      "speed": 1,
+      "smoothSlowMo": false,
+      "foleyVolume": 20,
+      "customVolumeSet": false,
+      "audioMuted": false,
+      "reframe9x16Mode": "auto_pan",
+      "reframeFocusXStart": 61,
+      "reframeFocusXEnd": 25,
+      "reframeFocusY": 50
+    },
+    {
+      "id": "clip-26-1794891908307-bruh",
+      "clipNumber": 26,
+      "duration": 10.03,
+      "trimStart": 0,
+      "trimEnd": 10,
+      "speed": 1,
+      "smoothSlowMo": false,
+      "foleyVolume": 20,
+      "customVolumeSet": false,
+      "audioMuted": false,
+      "reframe9x16Mode": "auto_focus",
+      "reframeFocusXStart": 84,
+      "reframeFocusXEnd": 84,
+      "reframeFocusY": 50
+    },
+    {
       "id": "clip-27-1794891908309-oefl",
       "clipNumber": 27,
       "duration": 10.03,
@@ -544,9 +544,9 @@
       "foleyVolume": 20,
       "customVolumeSet": false,
       "audioMuted": false,
-      "reframe9x16Mode": "auto_focus",
-      "reframeFocusXStart": 21,
-      "reframeFocusXEnd": 21,
+      "reframe9x16Mode": "auto_center",
+      "reframeFocusXStart": 50,
+      "reframeFocusXEnd": 50,
       "reframeFocusY": 50
     },
     {
@@ -560,9 +560,9 @@
       "foleyVolume": 20,
       "customVolumeSet": false,
       "audioMuted": false,
-      "reframe9x16Mode": "auto_focus",
-      "reframeFocusXStart": 16,
-      "reframeFocusXEnd": 16,
+      "reframe9x16Mode": "auto_pan",
+      "reframeFocusXStart": 18,
+      "reframeFocusXEnd": 76,
       "reframeFocusY": 50
     },
     {
@@ -577,8 +577,8 @@
       "customVolumeSet": false,
       "audioMuted": false,
       "reframe9x16Mode": "auto_pan",
-      "reframeFocusXStart": 72,
-      "reframeFocusXEnd": 53,
+      "reframeFocusXStart": 78,
+      "reframeFocusXEnd": 24,
       "reframeFocusY": 50
     },
     {
@@ -592,9 +592,9 @@
       "foleyVolume": 20,
       "customVolumeSet": false,
       "audioMuted": false,
-      "reframe9x16Mode": "auto_pan",
-      "reframeFocusXStart": 22,
-      "reframeFocusXEnd": 82,
+      "reframe9x16Mode": "auto_center",
+      "reframeFocusXStart": 50,
+      "reframeFocusXEnd": 50,
       "reframeFocusY": 50
     },
     {
@@ -608,15 +608,15 @@
       "foleyVolume": 20,
       "customVolumeSet": false,
       "audioMuted": false,
-      "reframe9x16Mode": "auto_focus",
-      "reframeFocusXStart": 16,
-      "reframeFocusXEnd": 16,
+      "reframe9x16Mode": "auto_pan",
+      "reframeFocusXStart": 49,
+      "reframeFocusXEnd": 65,
       "reframeFocusY": 50
     },
     {
       "id": "clip-32-1794891908320-hlhj",
       "clipNumber": 32,
-      "duration": 10.02,
+      "duration": 10.04,
       "trimStart": 0,
       "trimEnd": 10,
       "speed": 1,
@@ -624,9 +624,9 @@
       "foleyVolume": 0,
       "customVolumeSet": true,
       "audioMuted": true,
-      "reframe9x16Mode": "auto_focus",
-      "reframeFocusXStart": 16,
-      "reframeFocusXEnd": 16,
+      "reframe9x16Mode": "auto_pan",
+      "reframeFocusXStart": 22,
+      "reframeFocusXEnd": 78,
       "reframeFocusY": 50
     },
     {
@@ -640,9 +640,9 @@
       "foleyVolume": 20,
       "customVolumeSet": false,
       "audioMuted": false,
-      "reframe9x16Mode": "auto_center",
-      "reframeFocusXStart": 50,
-      "reframeFocusXEnd": 50,
+      "reframe9x16Mode": "auto_pan",
+      "reframeFocusXStart": 82,
+      "reframeFocusXEnd": 28,
       "reframeFocusY": 50
     },
     {
@@ -657,30 +657,13 @@
       "customVolumeSet": false,
       "audioMuted": false,
       "reframe9x16Mode": "auto_pan",
-      "reframeFocusXStart": 77,
-      "reframeFocusXEnd": 35,
+      "reframeFocusXStart": 19,
+      "reframeFocusXEnd": 82,
       "reframeFocusY": 50
     },
     {
       "id": "clip-35-1794891908326-k036",
       "clipNumber": 35,
-      "duration": 10.03,
-      "trimStart": 0,
-      "trimEnd": 10,
-      "speed": 1,
-      "smoothSlowMo": false,
-      "foleyVolume": 20,
-      "customVolumeSet": false,
-      "audioMuted": false,
-      "reframe9x16Mode": "auto_pan",
-      "reframeFocusXStart": 35,
-      "reframeFocusXEnd": 100,
-      "reframeFocusY": 50,
-      "userReframed9x16": true
-    },
-    {
-      "id": "clip-36-1794891908329-jl3c",
-      "clipNumber": 36,
       "duration": 10.03,
       "trimStart": 0,
       "trimEnd": 10,
@@ -695,6 +678,22 @@
       "reframeFocusY": 50
     },
     {
+      "id": "clip-36-1794891908329-jl3c",
+      "clipNumber": 36,
+      "duration": 10.03,
+      "trimStart": 0,
+      "trimEnd": 10,
+      "speed": 1,
+      "smoothSlowMo": false,
+      "foleyVolume": 20,
+      "customVolumeSet": false,
+      "audioMuted": false,
+      "reframe9x16Mode": "auto_focus",
+      "reframeFocusXStart": 38,
+      "reframeFocusXEnd": 38,
+      "reframeFocusY": 50
+    },
+    {
       "id": "clip-37-1794891908334-oxv3",
       "clipNumber": 37,
       "duration": 10.03,
@@ -705,9 +704,9 @@
       "foleyVolume": 20,
       "customVolumeSet": false,
       "audioMuted": false,
-      "reframe9x16Mode": "auto_pan",
-      "reframeFocusXStart": 24,
-      "reframeFocusXEnd": 68,
+      "reframe9x16Mode": "auto_center",
+      "reframeFocusXStart": 50,
+      "reframeFocusXEnd": 50,
       "reframeFocusY": 50
     },
     {
@@ -722,8 +721,8 @@
       "customVolumeSet": false,
       "audioMuted": false,
       "reframe9x16Mode": "auto_pan",
-      "reframeFocusXStart": 22,
-      "reframeFocusXEnd": 76,
+      "reframeFocusXStart": 19,
+      "reframeFocusXEnd": 39,
       "reframeFocusY": 50
     },
     {
@@ -737,9 +736,9 @@
       "foleyVolume": 20,
       "customVolumeSet": false,
       "audioMuted": false,
-      "reframe9x16Mode": "auto_center",
-      "reframeFocusXStart": 50,
-      "reframeFocusXEnd": 50,
+      "reframe9x16Mode": "auto_pan",
+      "reframeFocusXStart": 64,
+      "reframeFocusXEnd": 44,
       "reframeFocusY": 50
     },
     {
@@ -753,9 +752,9 @@
       "foleyVolume": 0,
       "customVolumeSet": true,
       "audioMuted": true,
-      "reframe9x16Mode": "auto_pan",
-      "reframeFocusXStart": 28,
-      "reframeFocusXEnd": 47,
+      "reframe9x16Mode": "auto_focus",
+      "reframeFocusXStart": 74,
+      "reframeFocusXEnd": 74,
       "reframeFocusY": 50
     },
     {
@@ -770,8 +769,8 @@
       "customVolumeSet": false,
       "audioMuted": false,
       "reframe9x16Mode": "auto_pan",
-      "reframeFocusXStart": 18,
-      "reframeFocusXEnd": 76,
+      "reframeFocusXStart": 37,
+      "reframeFocusXEnd": 49,
       "reframeFocusY": 50
     },
     {
@@ -786,8 +785,8 @@
       "customVolumeSet": false,
       "audioMuted": false,
       "reframe9x16Mode": "auto_pan",
-      "reframeFocusXStart": 60,
-      "reframeFocusXEnd": 39,
+      "reframeFocusXStart": 22,
+      "reframeFocusXEnd": 78,
       "reframeFocusY": 50
     },
     {
@@ -801,9 +800,9 @@
       "foleyVolume": 0,
       "customVolumeSet": true,
       "audioMuted": true,
-      "reframe9x16Mode": "auto_center",
-      "reframeFocusXStart": 50,
-      "reframeFocusXEnd": 50,
+      "reframe9x16Mode": "auto_pan",
+      "reframeFocusXStart": 82,
+      "reframeFocusXEnd": 24,
       "reframeFocusY": 50
     },
     {
@@ -817,9 +816,9 @@
       "foleyVolume": 20,
       "customVolumeSet": false,
       "audioMuted": false,
-      "reframe9x16Mode": "auto_center",
-      "reframeFocusXStart": 50,
-      "reframeFocusXEnd": 50,
+      "reframe9x16Mode": "auto_focus",
+      "reframeFocusXStart": 25,
+      "reframeFocusXEnd": 25,
       "reframeFocusY": 50
     },
     {
@@ -833,9 +832,9 @@
       "foleyVolume": 20,
       "customVolumeSet": false,
       "audioMuted": false,
-      "reframe9x16Mode": "auto_pan",
-      "reframeFocusXStart": 16,
-      "reframeFocusXEnd": 35,
+      "reframe9x16Mode": "auto_center",
+      "reframeFocusXStart": 50,
+      "reframeFocusXEnd": 50,
       "reframeFocusY": 50
     },
     {
@@ -849,9 +848,9 @@
       "foleyVolume": 20,
       "customVolumeSet": false,
       "audioMuted": false,
-      "reframe9x16Mode": "auto_pan",
-      "reframeFocusXStart": 52,
-      "reframeFocusXEnd": 16,
+      "reframe9x16Mode": "auto_center",
+      "reframeFocusXStart": 50,
+      "reframeFocusXEnd": 50,
       "reframeFocusY": 50
     },
     {
@@ -865,9 +864,9 @@
       "foleyVolume": 20,
       "customVolumeSet": false,
       "audioMuted": false,
-      "reframe9x16Mode": "auto_center",
-      "reframeFocusXStart": 50,
-      "reframeFocusXEnd": 50,
+      "reframe9x16Mode": "auto_focus",
+      "reframeFocusXStart": 16,
+      "reframeFocusXEnd": 16,
       "reframeFocusY": 50
     },
     {
@@ -882,8 +881,8 @@
       "customVolumeSet": false,
       "audioMuted": false,
       "reframe9x16Mode": "auto_focus",
-      "reframeFocusXStart": 84,
-      "reframeFocusXEnd": 84,
+      "reframeFocusXStart": 16,
+      "reframeFocusXEnd": 16,
       "reframeFocusY": 50
     },
     {
@@ -898,8 +897,8 @@
       "customVolumeSet": false,
       "audioMuted": false,
       "reframe9x16Mode": "auto_pan",
-      "reframeFocusXStart": 22,
-      "reframeFocusXEnd": 78,
+      "reframeFocusXStart": 78,
+      "reframeFocusXEnd": 24,
       "reframeFocusY": 50
     },
     {
@@ -913,9 +912,9 @@
       "foleyVolume": 20,
       "customVolumeSet": false,
       "audioMuted": false,
-      "reframe9x16Mode": "auto_center",
-      "reframeFocusXStart": 50,
-      "reframeFocusXEnd": 50,
+      "reframe9x16Mode": "auto_pan",
+      "reframeFocusXStart": 22,
+      "reframeFocusXEnd": 76,
       "reframeFocusY": 50
     },
     {
@@ -929,15 +928,15 @@
       "foleyVolume": 0,
       "customVolumeSet": true,
       "audioMuted": true,
-      "reframe9x16Mode": "auto_center",
-      "reframeFocusXStart": 50,
-      "reframeFocusXEnd": 50,
+      "reframe9x16Mode": "auto_focus",
+      "reframeFocusXStart": 84,
+      "reframeFocusXEnd": 84,
       "reframeFocusY": 50
     },
     {
       "id": "clip-52-1794891908495-urdx",
       "clipNumber": 52,
-      "duration": 10.02,
+      "duration": 10.04,
       "trimStart": 0,
       "trimEnd": 10,
       "speed": 1,
@@ -946,8 +945,8 @@
       "customVolumeSet": false,
       "audioMuted": false,
       "reframe9x16Mode": "auto_pan",
-      "reframeFocusXStart": 78,
-      "reframeFocusXEnd": 24,
+      "reframeFocusXStart": 24,
+      "reframeFocusXEnd": 39,
       "reframeFocusY": 50
     },
     {
@@ -961,9 +960,9 @@
       "foleyVolume": 20,
       "customVolumeSet": false,
       "audioMuted": false,
-      "reframe9x16Mode": "auto_pan",
-      "reframeFocusXStart": 63,
-      "reframeFocusXEnd": 34,
+      "reframe9x16Mode": "auto_focus",
+      "reframeFocusXStart": 84,
+      "reframeFocusXEnd": 84,
       "reframeFocusY": 50
     },
     {
@@ -977,9 +976,9 @@
       "foleyVolume": 20,
       "customVolumeSet": false,
       "audioMuted": false,
-      "reframe9x16Mode": "auto_center",
-      "reframeFocusXStart": 50,
-      "reframeFocusXEnd": 50,
+      "reframe9x16Mode": "auto_pan",
+      "reframeFocusXStart": 81,
+      "reframeFocusXEnd": 55,
       "reframeFocusY": 50
     },
     {
@@ -994,8 +993,8 @@
       "customVolumeSet": false,
       "audioMuted": false,
       "reframe9x16Mode": "auto_pan",
-      "reframeFocusXStart": 27,
-      "reframeFocusXEnd": 64,
+      "reframeFocusXStart": 51,
+      "reframeFocusXEnd": 19,
       "reframeFocusY": 50
     },
     {
@@ -1010,8 +1009,8 @@
       "customVolumeSet": false,
       "audioMuted": false,
       "reframe9x16Mode": "auto_focus",
-      "reframeFocusXStart": 73,
-      "reframeFocusXEnd": 73,
+      "reframeFocusXStart": 69,
+      "reframeFocusXEnd": 69,
       "reframeFocusY": 50
     },
     {
@@ -1041,9 +1040,9 @@
       "foleyVolume": 20,
       "customVolumeSet": false,
       "audioMuted": false,
-      "reframe9x16Mode": "auto_center",
-      "reframeFocusXStart": 50,
-      "reframeFocusXEnd": 50,
+      "reframe9x16Mode": "auto_pan",
+      "reframeFocusXStart": 71,
+      "reframeFocusXEnd": 36,
       "reframeFocusY": 50
     },
     {
@@ -1058,8 +1057,8 @@
       "customVolumeSet": false,
       "audioMuted": false,
       "reframe9x16Mode": "auto_focus",
-      "reframeFocusXStart": 16,
-      "reframeFocusXEnd": 16,
+      "reframeFocusXStart": 66,
+      "reframeFocusXEnd": 66,
       "reframeFocusY": 50
     },
     {
@@ -1073,9 +1072,9 @@
       "foleyVolume": 20,
       "customVolumeSet": false,
       "audioMuted": false,
-      "reframe9x16Mode": "auto_center",
-      "reframeFocusXStart": 50,
-      "reframeFocusXEnd": 50,
+      "reframe9x16Mode": "auto_focus",
+      "reframeFocusXStart": 63,
+      "reframeFocusXEnd": 63,
       "reframeFocusY": 50
     },
     {
@@ -1089,9 +1088,9 @@
       "foleyVolume": 20,
       "customVolumeSet": false,
       "audioMuted": false,
-      "reframe9x16Mode": "auto_pan",
-      "reframeFocusXStart": 22,
-      "reframeFocusXEnd": 76,
+      "reframe9x16Mode": "auto_focus",
+      "reframeFocusXStart": 39,
+      "reframeFocusXEnd": 39,
       "reframeFocusY": 50
     },
     {
@@ -1106,8 +1105,8 @@
       "customVolumeSet": false,
       "audioMuted": false,
       "reframe9x16Mode": "auto_focus",
-      "reframeFocusXStart": 69,
-      "reframeFocusXEnd": 69,
+      "reframeFocusXStart": 72,
+      "reframeFocusXEnd": 72,
       "reframeFocusY": 50
     },
     {
