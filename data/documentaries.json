@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-10-27T02:05:48.997Z",
-    "updatedAt": "2026-11-20T12:04:52.875Z",
+    "updatedAt": "2026-11-20T12:06:49.988Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -20,7 +20,7 @@
       "TEMA_DEL_VIDEO": "Video 74 Castillo Louvre Parte II",
       "UBICACION_INTRO_MARCA": "INTRO_INICIO_00",
       "FIELD_CLEARED_AT_voiceoverScript": "0",
-      "PROMPTS_RESTORED_AT": "1795176292875",
+      "PROMPTS_RESTORED_AT": "1795176409988",
       "FIELD_CLEARED_AT_rawClipsText": "0",
       "FIELD_CLEARED_AT_pinnedComment": "1795091965654",
       "FIELD_CLEARED_AT_correctedSrt": "0",
@@ -1869,7 +1869,7 @@
         "imageReady": true,
         "videoReady": true,
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "auditStatus": "ok",
         "auditReason": "Sincronizado con el tramo de voz narrativa.",
@@ -1882,7 +1882,8 @@
         "reframeFocusY": 50,
         "reframeConfidence": 0.84,
         "reframeReason": "Paneo dinámico IA (19% → 39%) siguiendo acción/sujeto",
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "reviewedUpdatedAt": 1795176304384
       },
       {
         "id": "clip-39-1794891908340-dtgs",
@@ -1896,7 +1897,7 @@
         "imageReady": true,
         "videoReady": true,
         "pauseNotes": "",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "auditStatus": "ok",
         "auditReason": "Sincronizado con el tramo de voz narrativa.",
@@ -1911,7 +1912,8 @@
         "reframeFocusXEnd": 44,
         "reframeFocusY": 50,
         "reframeConfidence": 0.55,
-        "reframeReason": "Paneo dinámico IA (64% → 44%) siguiendo acción/sujeto"
+        "reframeReason": "Paneo dinámico IA (64% → 44%) siguiendo acción/sujeto",
+        "reviewedUpdatedAt": 1795176323024
       },
       {
         "id": "clip-40-1794891908344-pgc8",
@@ -1942,7 +1944,7 @@
         "imageReady": true,
         "videoReady": true,
         "pauseNotes": "Contiene [pausa: 2s] en la locución",
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "auditStatus": "ok",
         "auditReason": "Sincronizado con el tramo de voz narrativa.",
@@ -1957,7 +1959,8 @@
         "reframeFocusXEnd": 49,
         "reframeFocusY": 50,
         "reframeConfidence": 0.74,
-        "reframeReason": "Paneo dinámico IA (37% → 49%) siguiendo acción/sujeto"
+        "reframeReason": "Paneo dinámico IA (37% → 49%) siguiendo acción/sujeto",
+        "reviewedUpdatedAt": 1795176409985
       },
       {
         "id": "clip-42-1794891908348-iaa2",
