@@ -893,6 +893,8 @@ const CLIP_FRAME_TRANSFORM_FIELDS = [
   'frameOffsetX9x16',
   'frameOffsetY9x16',
   'frameTransformAt',
+  'frameZoomInSec16x9',
+  'frameZoomInSec9x16',
 ];
 function protectClipFrameTransforms(list: any[]): any[] {
   let diskById: Map<string, any>;
@@ -8047,7 +8049,26 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
           : `scale=${outW}:${outH}:force_original_aspect_ratio=increase:flags=${clipScaleFlags},${fpsInterpStage},crop=${outW}:${outH}:${cropXExpr}:${cropYExpr}`;
         if (hasFrameShift) scaleAndCropVf += `,${frameShiftPad},crop=${outW}:${outH}`;
       } else {
-        scaleAndCropVf = hasFrameShift
+        // Gradual zoom (16:9, enlarging, framing inside the picture): the clip is first laid out at normal
+        // size and then a moving window grows from the full frame to the chosen framing.
+        const rawZoomInSec = Number(
+          (c as any).frameZoomInSec ?? (isVertical916 ? 0 : (savedClipMatch as any)?.frameZoomInSec16x9) ?? 0
+        );
+        const zoomInSec = Number.isFinite(rawZoomInSec) ? Math.max(0, Math.min(20, rawZoomInSec)) : 0;
+        const zoomInOffX = readFrameOffsetPct('X') / 100;
+        const zoomInOffY = readFrameOffsetPct('Y') / 100;
+        const zoomInFits =
+          frameZoom > 1.004 &&
+          Math.abs(zoomInOffX) <= (frameZoom - 1) / 2 + 0.001 &&
+          Math.abs(zoomInOffY) <= (frameZoom - 1) / 2 + 0.001;
+        const useGradualZoom = !isVertical916 && zoomInSec > 0.05 && zoomInFits;
+        const zoomInFrames = Math.max(1, Math.round(zoomInSec * safeFps));
+        const zoomInE = `(min(1,on/${zoomInFrames})*min(1,on/${zoomInFrames})*(3-2*min(1,on/${zoomInFrames})))`;
+        scaleAndCropVf = useGradualZoom
+          ? `scale=${outW}:${outH}:force_original_aspect_ratio=decrease:flags=${clipScaleFlags},pad=${outW}:${outH}:(ow-iw)/2:(oh-ih)/2:black,${fpsInterpStage},zoompan=z='1+${(
+              frameZoom - 1
+            ).toFixed(4)}*${zoomInE}':x='max(0,min(iw-iw/zoom,iw/2-(iw/2+iw*${zoomInOffX.toFixed(5)}*${zoomInE})/zoom))':y='max(0,min(ih-ih/zoom,ih/2-(ih/2+ih*${zoomInOffY.toFixed(5)}*${zoomInE})/zoom))':d=1:s=${outW}x${outH}:fps=${safeFps}`
+          : hasFrameShift
           ? `scale=${zoomW}:${zoomH}:force_original_aspect_ratio=decrease:force_divisible_by=2:flags=${clipScaleFlags},${fpsInterpStage},${frameShiftPad},crop=${zoomCropSize},${zoomPad}`
           : hasFrameZoom
           ? `scale=${zoomW}:${zoomH}:force_original_aspect_ratio=decrease:force_divisible_by=2:flags=${clipScaleFlags},${fpsInterpStage},crop=${zoomCropSize},${zoomPad}`

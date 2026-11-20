@@ -266,6 +266,21 @@ function getClipFrameOffsetPct(
   return { x: lim(rawX), y: lim(rawY) };
 }
 
+/** Seconds the clip takes to go from normal size (100%, centred) to its set size/position. 0 = no gradual zoom. */
+function getClipFrameZoomInSec(
+  clip: { frameZoomInSec16x9?: number; frameZoomInSec9x16?: number } | null | undefined,
+  ratio: string
+): number {
+  const raw = Number(ratio === '9:16' ? clip?.frameZoomInSec9x16 : clip?.frameZoomInSec16x9);
+  return Number.isFinite(raw) && raw > 0 ? Math.min(20, Math.round(raw * 10) / 10) : 0;
+}
+/** Smooth 0..1 progress of the gradual zoom at `elapsedSec` into the clip. */
+function getFrameZoomInProgress(elapsedSec: number, zoomInSec: number): number {
+  if (!(zoomInSec > 0)) return 1;
+  const p = Math.max(0, Math.min(1, elapsedSec / zoomInSec));
+  return p * p * (3 - 2 * p);
+}
+
 interface TimelineClipItem {
   id: string;
   clipNumber: number;
@@ -318,6 +333,8 @@ interface TimelineClipItem {
   frameOffsetX9x16?: number;   // clip position in the 9:16 frame, percent of the frame
   frameOffsetY9x16?: number;
   frameTransformAt?: number;   // when the size/position was last saved (ms)
+  frameZoomInSec16x9?: number; // gradual zoom: seconds from 100% to the set size/position (0 = off)
+  frameZoomInSec9x16?: number;
   reframeConfidence?: number;
   reframeReason?: string;
   userReframed9x16?: boolean;  // true when user manually set or adjusted reframe in the editor
@@ -3341,7 +3358,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   // Same saving rules as the size slider: `commit: false` while dragging, `commit: true` on release.
   const handleUpdateClipFrameTransform = (
     clipId: string,
-    next: { zoomPct?: number; offsetX?: number; offsetY?: number },
+    next: { zoomPct?: number; offsetX?: number; offsetY?: number; zoomInSec?: number },
     commit: boolean
   ) => {
     const is916 = aspectRatio === '9:16';
@@ -3363,6 +3380,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       [zoomKey]: zoomPct,
       [offXKey]: lim(typeof next.offsetX === 'number' ? next.offsetX : current.x),
       [offYKey]: lim(typeof next.offsetY === 'number' ? next.offsetY : current.y),
+      ...(typeof next.zoomInSec === 'number'
+        ? { [is916 ? 'frameZoomInSec9x16' : 'frameZoomInSec16x9']: Math.max(0, Math.min(20, next.zoomInSec)) }
+        : {}),
     };
     const docId = activeDoc?.id || 'default';
     const targetClipNum = matchedClip.clipNumber;
@@ -6720,6 +6740,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         frameOffsetY16x9: Number((c as any).frameTransformAt || 0) > Number((existingItem as any)?.frameTransformAt || 0) ? c.frameOffsetY16x9 : existingItem?.frameOffsetY16x9 ?? c.frameOffsetY16x9,
         frameOffsetX9x16: Number((c as any).frameTransformAt || 0) > Number((existingItem as any)?.frameTransformAt || 0) ? c.frameOffsetX9x16 : existingItem?.frameOffsetX9x16 ?? c.frameOffsetX9x16,
         frameOffsetY9x16: Number((c as any).frameTransformAt || 0) > Number((existingItem as any)?.frameTransformAt || 0) ? c.frameOffsetY9x16 : existingItem?.frameOffsetY9x16 ?? c.frameOffsetY9x16,
+        frameZoomInSec16x9: Number((c as any).frameTransformAt || 0) > Number((existingItem as any)?.frameTransformAt || 0) ? c.frameZoomInSec16x9 : existingItem?.frameZoomInSec16x9 ?? c.frameZoomInSec16x9,
+        frameZoomInSec9x16: Number((c as any).frameTransformAt || 0) > Number((existingItem as any)?.frameTransformAt || 0) ? c.frameZoomInSec9x16 : existingItem?.frameZoomInSec9x16 ?? c.frameZoomInSec9x16,
         // A size/position saved in the documentary later than this browser's copy wins (set on another device)
         frameTransformAt: Math.max(Number((c as any).frameTransformAt || 0), Number((existingItem as any)?.frameTransformAt || 0)) || undefined,
         reframeConfidence: existingItem?.reframeConfidence ?? c.reframeConfidence,
@@ -7154,6 +7176,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   frameOffsetY16x9: docClipMatch.frameOffsetY16x9,
                   frameOffsetX9x16: docClipMatch.frameOffsetX9x16,
                   frameOffsetY9x16: docClipMatch.frameOffsetY9x16,
+                  frameZoomInSec16x9: docClipMatch.frameZoomInSec16x9,
+                  frameZoomInSec9x16: docClipMatch.frameZoomInSec9x16,
                   frameTransformAt: docFrameAt,
                 }
               : {};
@@ -7334,6 +7358,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         frameOffsetY16x9: Number((bc as any).frameTransformAt || 0) > Number((liveMatch as any)?.frameTransformAt || 0) ? bc.frameOffsetY16x9 : liveMatch?.frameOffsetY16x9 ?? bc.frameOffsetY16x9,
         frameOffsetX9x16: Number((bc as any).frameTransformAt || 0) > Number((liveMatch as any)?.frameTransformAt || 0) ? bc.frameOffsetX9x16 : liveMatch?.frameOffsetX9x16 ?? bc.frameOffsetX9x16,
         frameOffsetY9x16: Number((bc as any).frameTransformAt || 0) > Number((liveMatch as any)?.frameTransformAt || 0) ? bc.frameOffsetY9x16 : liveMatch?.frameOffsetY9x16 ?? bc.frameOffsetY9x16,
+        frameZoomInSec16x9: Number((bc as any).frameTransformAt || 0) > Number((liveMatch as any)?.frameTransformAt || 0) ? bc.frameZoomInSec16x9 : liveMatch?.frameZoomInSec16x9 ?? bc.frameZoomInSec16x9,
+        frameZoomInSec9x16: Number((bc as any).frameTransformAt || 0) > Number((liveMatch as any)?.frameTransformAt || 0) ? bc.frameZoomInSec9x16 : liveMatch?.frameZoomInSec9x16 ?? bc.frameZoomInSec9x16,
         // A size/position saved in the documentary later than this browser's copy wins (set on another device)
         frameTransformAt: Math.max(Number((bc as any).frameTransformAt || 0), Number((liveMatch as any)?.frameTransformAt || 0)) || undefined,
         reframeConfidence: liveMatch?.reframeConfidence ?? bc.reframeConfidence,
@@ -11001,6 +11027,20 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         }
       }
 
+      // Gradual zoom: advance the clip size/position every animation frame
+      try {
+        const zoomVid = previewVideoRef.current;
+        const zoomAnim = zoomVid?.dataset?.zoomAnim;
+        if (zoomVid && zoomAnim) {
+          const [zEnd, oxEnd, oyEnd, cStart, zSec] = zoomAnim.split('|').map(Number);
+          const e = getFrameZoomInProgress(next - cStart, zSec);
+          zoomVid.style.transform = `translate(${(oxEnd * e).toFixed(3)}%, ${(oyEnd * e).toFixed(3)}%) scale(${(
+            1 +
+            (zEnd - 1) * e
+          ).toFixed(4)})`;
+        }
+      } catch {}
+
       // 9:16 auto-pan: move the crop every animation frame (React only re-renders ~5 times/s, which made
       // the pan advance in visible jumps)
       try {
@@ -14425,6 +14465,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   frameZoom: getClipFrameZoomPct(c, aspectRatio),
                   frameOffsetX: getClipFrameOffsetPct(c, aspectRatio).x,
                   frameOffsetY: getClipFrameOffsetPct(c, aspectRatio).y,
+                  frameZoomInSec: aspectRatio === '16:9' ? getClipFrameZoomInSec(c, aspectRatio) : 0,
                   videoDataUrl: c.videoUrl && c.videoUrl.startsWith('data:') ? c.videoUrl : '',
                 };
               }),
@@ -16535,6 +16576,33 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   >
                     ✥ Mover en el visor
                   </button>
+                  {aspectRatio === '16:9' && (
+                    <label
+                      className="flex items-center gap-1 text-slate-300 font-bold"
+                      title="Zoom gradual: el clip empieza a tamaño normal (100%, centrado) y llega al tamaño y posición elegidos en los segundos indicados. Solo 16:9 y solo al agrandar."
+                    >
+                      Zoom gradual
+                      <select
+                        value={getClipFrameZoomInSec(zoomClip, aspectRatio)}
+                        onChange={(e) =>
+                          handleUpdateClipFrameTransform(zoomClip.id, { zoomInSec: Number(e.target.value) }, true)
+                        }
+                        className="bg-slate-900 border border-slate-700 rounded px-1 py-0.5 text-amber-200 font-mono cursor-pointer"
+                      >
+                        {[0, 1, 1.5, 2, 2.5, 3, 4, 5, 6, 8]
+                          .concat(
+                            [0, 1, 1.5, 2, 2.5, 3, 4, 5, 6, 8].includes(getClipFrameZoomInSec(zoomClip, aspectRatio))
+                              ? []
+                              : [getClipFrameZoomInSec(zoomClip, aspectRatio)]
+                          )
+                          .map((sec) => (
+                            <option key={sec} value={sec}>
+                              {sec === 0 ? 'No' : `${sec} s`}
+                            </option>
+                          ))}
+                      </select>
+                    </label>
+                  )}
                 </div>
               );
             })()}
@@ -16937,8 +17005,19 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                         ? `${liveFocusX.toFixed(2)}% ${fY.toFixed(1)}%`
                         : '50% 50%';
                     // Clip size (matches the export crop: enlarging keeps the 9:16 focus point, shrinking centers vertically)
-                    const slotZoom =
+                    // Gradual zoom (16:9): the clip starts at normal size and reaches its set size/position
+                    // after N seconds. While the clip is selected for moving, the final framing is shown.
+                    const slotZoomInSec =
+                      aspectRatio === '16:9' && !isSlotIntro && !isSlotOutro
+                        ? getClipFrameZoomInSec(slotClip, aspectRatio)
+                        : 0;
+                    const slotZoomInE =
+                      slotZoomInSec > 0 && slotClip && !(isDeckActive && selectedCanvasObject === 'clip')
+                        ? getFrameZoomInProgress(isDeckActive ? currentTime - slotClip.start : 0, slotZoomInSec)
+                        : 1;
+                    const slotZoomEnd =
                       isSlotIntro || isSlotOutro ? 1 : getClipFrameZoomPct(slotClip, aspectRatio) / 100;
+                    const slotZoom = 1 + (slotZoomEnd - 1) * slotZoomInE;
                     const hasSlotZoom = Math.abs(slotZoom - 1) > 0.004;
                     const zoomUsesFocus = aspectRatio === '9:16' && !isFitBlur;
                     const zoomOriginY = zoomUsesFocus && slotZoom > 1 ? fY : 50;
@@ -16947,9 +17026,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                       : '50% 50%';
                     // Clip position (dragged in the viewer). In 9:16 crop mode the picture that moves is the
                     // cropped frame, so an enlarged clip is first trimmed to the frame (same as the export).
-                    const slotOffset =
+                    const slotOffsetEnd =
                       isSlotIntro || isSlotOutro ? { x: 0, y: 0 } : getClipFrameOffsetPct(slotClip, aspectRatio);
+                    const slotOffset = { x: slotOffsetEnd.x * slotZoomInE, y: slotOffsetEnd.y * slotZoomInE };
                     const hasSlotOffset = Math.abs(slotOffset.x) > 0.05 || Math.abs(slotOffset.y) > 0.05;
+                    const slotZoomAnimData =
+                      slotZoomInSec > 0 && isDeckActive && slotClip && selectedCanvasObject !== 'clip'
+                        ? `${slotZoomEnd}|${slotOffsetEnd.x}|${slotOffsetEnd.y}|${slotClip.start}|${slotZoomInSec}`
+                        : undefined;
                     const slotTrimToFrame = hasSlotOffset && zoomUsesFocus && slotZoom > 1.004;
                     const slotTrimK = slotTrimToFrame ? 1 - 1 / slotZoom : 0;
                     const slotClipPath = slotTrimToFrame
@@ -16981,6 +17065,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                         }
                         data-zoom-origin-y={hasSlotZoom && zoomUsesFocus ? zoomOriginY.toFixed(1) : undefined}
                         data-trim-k={slotTrimToFrame ? slotTrimK.toFixed(4) : undefined}
+                        data-zoom-anim={slotZoomAnimData}
                         className={`absolute inset-0 w-full h-full ${
                           isFitBlur ? 'object-contain' : 'object-cover'
                         } block bg-transparent`}
@@ -16993,10 +17078,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                             ? aspectRatio === '9:16'
                               ? 'scale(2.085)'
                               : 'scale(0.88) translateY(-2.5%)'
-                            : hasSlotZoom || hasSlotOffset
+                            : hasSlotZoom || hasSlotOffset || slotZoomAnimData
                             ? `translate(${slotOffset.x.toFixed(2)}%, ${slotOffset.y.toFixed(2)}%) scale(${slotZoom.toFixed(3)})`
                             : undefined,
-                          transformOrigin: hasSlotZoom ? zoomOrigin : undefined,
+                          transformOrigin: hasSlotZoom || slotZoomAnimData ? zoomOrigin : undefined,
                           clipPath: slotClipPath,
                           filter:
                             isSlotOutro && previewQuality !== 'low'
