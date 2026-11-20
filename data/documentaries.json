@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-10-27T02:05:48.997Z",
-    "updatedAt": "2026-11-20T12:30:46.593Z",
+    "updatedAt": "2026-11-20T12:30:57.177Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -20,7 +20,7 @@
       "TEMA_DEL_VIDEO": "Video 74 Castillo Louvre Parte II",
       "UBICACION_INTRO_MARCA": "INTRO_INICIO_00",
       "FIELD_CLEARED_AT_voiceoverScript": "0",
-      "PROMPTS_RESTORED_AT": "1795177846593",
+      "PROMPTS_RESTORED_AT": "1795177857177",
       "FIELD_CLEARED_AT_rawClipsText": "0",
       "FIELD_CLEARED_AT_pinnedComment": "1795091965654",
       "FIELD_CLEARED_AT_correctedSrt": "0",
@@ -2513,7 +2513,7 @@
         "pauseNotes": "",
         "imageReady": true,
         "videoReady": true,
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "auditStatus": "ok",
         "auditReason": "Sincronizado con el tramo de voz narrativa.",
@@ -2527,7 +2527,8 @@
         "reframeFocusXEnd": 63,
         "reframeFocusY": 50,
         "reframeConfidence": 0.55,
-        "reframeReason": "Enfoque inteligente IA en tercio derecho (63%)"
+        "reframeReason": "Enfoque inteligente IA en tercio derecho (63%)",
+        "reviewedUpdatedAt": 1795177857176
       },
       {
         "id": "clip-61-1795065216435-61",
