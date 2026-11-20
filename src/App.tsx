@@ -200,7 +200,7 @@ import { useNoticeStack } from './utils/noticeStack';
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '07:56 AM - 11/20/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '03:45 PM - 11/20/2026';
 
 // PRODUCTION LOCK: while promptConfig.PRODUCTION_LOCKED === 'YES' these fields never change (the server
 // enforces the same list in protectLockedDocs). Metadata, thumbnails, review marks and reframes stay editable.
@@ -2205,7 +2205,7 @@ export default function App() {
   }, []);
   const [srtStatsMsg, setSrtStatsMsg] = useState<string>('');
   const [srtMaxChars, setSrtMaxChars] = useState<number>(32);
-  const [srtLineMode, setSrtLineMode] = useState<'subdivide' | 'wrap' | 'original'>('subdivide');
+  const [srtLineMode, setSrtLineMode] = useState<'subdivide' | 'wrap' | 'original'>('original');
   const [auditingClips, setAuditingClips] = useState(false);
   const [auditSummary, setAuditSummary] = useState<string>('');
   const [showOpHeaderInProd, setShowOpHeaderInProd] = useState<boolean>(false);
