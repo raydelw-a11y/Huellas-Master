@@ -36,6 +36,7 @@ import {
   sanitizeVideoClipPromptForFlowSafety,
   balanceCaptionsFor16x9,
 } from './src/utils/smartParsers';
+import { buildShotDirectionClause } from './src/utils/shotCatalogue';
 import {
   extractCleanPcmFromGeminiAudio,
   polishCleanTtsPcmBlock,
@@ -4923,6 +4924,8 @@ Immediately after the 9-line header paragraph, output every Clip (starting with 
 - UNBREAKABLE VISUAL NON-DUPLICATION BETWEEN CONSECUTIVE CLIPS (Clip [N] vs Clip [N+1]): Whenever the narrator stays on the same topic or scene across consecutive clips, Clip [N+1] MUST NEVER visually duplicate Clip [N] (strictly forbidden to chain two consecutive offices, two wooden desks/counters with documents/coins, or the same staging twice in a row). Each subsequent clip must shift radically in environment, lighting, scale, and camera perspective while remaining faithful to the narration (e.g., if Clip N is a dim interior desk, Clip N+1 must cut to a bright exterior harbor dock facing a steamship, an open street, or a distinct visual angle).
 - Image [N]: Concise, direct, and clear (~20 to 35 English words), describing only the primary subject/scene (using anonymous role + wardrobe descriptions for any person, with zero proper person names), historical era and location (${doc.historicalTime}, ${doc.historicalLocation}), and lighting, closing with "cinematic lighting, historical accuracy, no text."
 - Clip [N] ([MM:SS - MM:SS]): Because Google Flow already uses Image [N] as the starting keyframe, DO NOT repeat wardrobe or architectural descriptions and NEVER include any @Tag or person proper name. Write ONE SINGLE SIMPLE, DIRECT ENGLISH SENTENCE (~12 to 22 words) specifying ONLY ONE smooth camera movement (e.g., slow zoom-in, panning slowly, gliding slowly, slow tilt-up) and ONE natural physical micro-action on the starting image (referring to any human subject solely by anonymous role, e.g., "the young British physician", "the silver-haired scientist"), followed by "Ambient Foley: [2-3 specific period sounds], single continuous shot, strictly no shot changes, no music, no speech, no text." followed by the corresponding [Model: ...] tag and closing with "fix the name".
+
+${buildShotDirectionClause({ totalDocSec: Number(doc.targetDurationSeconds) || 120, expectedTotalClips: 0, brollSceneNumbers: [] }).trim()}
 
 Exact output format example:
 Image [N]: Create an image of [clear English scene with historical era and location and ZERO person proper names], cinematic lighting, historical accuracy, no text.

@@ -1,3 +1,4 @@
+import { buildShotDirectionClause } from './shotCatalogue';
 import {
   DocumentaryProject,
   DEFAULT_OPERATIONAL_HEADER,
@@ -3976,6 +3977,24 @@ UNBREAKABLE STAGE 7 RULES:
       brollIntervalMin > 0
         ? `\n- PERIODIC IMAGE-ONLY STATIC B-ROLL PLATES (~EVERY ${brollIntervalMin} MINUTES — ZERO VIDEO CLIP IN FLOW): Roughly every ${brollIntervalMin} minutes (and on every row marked ★ [MANDATORY IMAGE-ONLY STATIC B-ROLL PLATE] above), design ONLY "Image NN: Create an image ..." as a 100% still archival/documentary B-roll plate (historical artifact, specimen, apparatus, architecture, scientific plate, map, or document with strictly zero live people and zero readable text/proper names) ending with "[Time: MM:SS - MM:SS] [Duration: ${standardClipSec}s] [Model: Nano Banana 2.1] [IMAGE ONLY — DO NOT GENERATE VIDEO CLIP] [B-Roll: STATIC_<MOTION>] fix the name" (choosing STATIC_ZOOM_IN, STATIC_ZOOM_OUT, STATIC_PAN_RIGHT, STATIC_PAN_LEFT, STATIC_TILT_UP, or STATIC_TILT_DOWN), and STRICTLY OMIT "Clip NN:" for that scene number so Google Flow generates ONLY the still image while our Mac video editor applies the 4K 60fps camera movement locally.`
         : '';
+    // Cinematography catalogue + historical support shots + one period archival image (quotas fixed here,
+    // placement chosen by Gemini, result checked by the page when the prompts come back)
+    const stage8TotalDocSec =
+      tlSentences.length > 0
+        ? Math.max(
+            tlSentences[tlSentences.length - 1].end +
+              (tlSentences[0].start < 2.0 && !clip1Marker ? clip2StartSec : 0),
+            expectedTotalClips * standardClipSec
+          )
+        : 0;
+    const shotDirectionClause =
+      tlSentences.length > 0
+        ? buildShotDirectionClause({
+            totalDocSec: stage8TotalDocSec,
+            expectedTotalClips,
+            brollSceneNumbers: Array.from(periodicBrollTargets.keys()).sort((a, b) => a - b),
+          })
+        : '';
     const expectedClipsClause =
       expectedTotalClips > 1
         ? `\nMANDATORY 1:1 EXACT SCENE COUNT & TIMESTAMPS: The pre-numbered Timeline table below omits fixed Brand Intro/Outro MP4s and contains EXACTLY ${expectedTotalClips} production scenes (Clip 01 = ${c1RangeLabel} silent visual Hook of ${c1Dur}s in Flow; Scenes 02..${expectedTotalClips} = ${tlSentences.length} spoken segments starting at ${c2StartLabel} of ${standardClipSec}s each). Output 1 Image+Clip pair for every regular scene and ONLY 1 standalone "Image NN:" line (with [Time: MM:SS - MM:SS] and [IMAGE ONLY — DO NOT GENERATE VIDEO CLIP]) for Static B-Roll scenes, covering scene numbers 01 through ${expectedTotalClips} with zero skipped numbers, copying each row's exact (MM:SS - MM:SS) range verbatim without ever recalculating a 10s grid, grouping lines, or stopping early.`
@@ -4011,7 +4030,7 @@ CRITICAL LANGUAGE, DURATION, OMNI 1.1 FLASH ZERO-PERSON-NAMES & SAFETY LAWS FOR 
 - STRICTLY ZERO PERSON PROPER NAMES, SURNAMES, ALIASES, OR PERSON POSSESSIVES IN BOTH Image N AND Clip N (UNBREAKABLE OMNI 1.1 FLASH RULE): Omni 1.1 Flash strictly blocks any prompt or batch containing real or fictional person names. NEVER write first names, surnames, full names, royal/political/medical titles + names (e.g., forbidden: "Alexander Fleming", "Florey", "Dr. Menocal", "Thomas Edison", "@Alexander_Fleming"), or person possessives (write "the scientist's laboratory" or "the inventor's workbench", NEVER "Fleming's" or "Edison's") anywhere in Image N or Clip N.
 - @REFERENCE HANDLE RULES: In Image N, use @Location_Name tags and ONLY anonymous role @Tags that contain ZERO proper person names (e.g., @Scottish_Bacteriologist_1928, @Young_Clinical_Physician); if a character has no anonymous @Role_Tag, describe them solely by adult age, physical features, historical profession, and period attire without '@'. In Clip N (video prompts), STRICTLY NEVER include ANY @Reference tags (zero @Person and zero @Location tags) — describe people solely by their anonymous role and attire from Image N (e.g., "the 47-year-old silver-haired Scottish bacteriologist in the white lab coat").
 - STRICTLY ZERO SPANISH INSIDE PROMPTS: Never embed, quote, or append the Spanish voiceover sentence or Spanish UI labels inside Image N or Clip N.
-- PRESERVE LITERAL FIRST 6 WORDS OF EVERY CLIP PROMPT: Every video prompt MUST start with "Clip NN (MM:SS - MM:SS): Create a cinematic {D}-second video showing ..." (words 1..6 = Clip NN (MM:SS - MM:SS): Create) and end with "[Duration: {D}s] [Model: Omni 1.1 Flash] fix the name" (when any person/hands/crowd/human role appear) or "[Duration: {D}s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name" (when zero people appear, even if a @Location tag was used in Image NN; explicitly write "with no people present" on empty scenes).${periodicBrollClause}
+- PRESERVE LITERAL FIRST 6 WORDS OF EVERY CLIP PROMPT: Every video prompt MUST start with "Clip NN (MM:SS - MM:SS): Create a cinematic {D}-second video showing ..." (words 1..6 = Clip NN (MM:SS - MM:SS): Create) and end with "[Duration: {D}s] [Model: Omni 1.1 Flash] fix the name" (when any person/hands/crowd/human role appear) or "[Duration: {D}s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name" (when zero people appear, even if a @Location tag was used in Image NN; explicitly write "with no people present" on empty scenes).${periodicBrollClause}${shotDirectionClause}
 - Apply Anti-"Prominent People" Filter Shield (describe historical characters solely by adult physical traits, role, and period attire as anonymous historical reenactment actors, zero proper names) + Anti-Mutation Physics + UNBREAKABLE NON-DUPLICATION RULE ACROSS CONSECUTIVE CLIPS (never repeat the same room, desk, or camera framing back-to-back; alternate angles, focal lengths, and interior/exterior spaces):
 Image 01: Create an image of [clear ~25-40 word English visual scene matching Clip 01's visual Hook in ${cleanStage8Loc}, ${cleanStage8Time}, invoking matching @Location / anonymous @Role tags with ZERO person proper names], clean uncluttered composition with rigid architectural perspective, stationary period props, clear anatomical separation between subjects, portrayed by anonymous historical reenactment actors in authentic period costume (no real public figures or prominent people), cinematic lighting, historical accuracy, no text.
 

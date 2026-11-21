@@ -35,6 +35,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import PromptGenerator from './components/PromptGenerator';
+import { auditShotPlan } from './utils/shotCatalogue';
 import { WebStudioDrawer } from './components/WebStudioDrawer';
 import {
   CapCutEditor,
@@ -200,7 +201,7 @@ import { useNoticeStack } from './utils/noticeStack';
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '06:24 PM - 11/20/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '07:40 PM - 11/20/2026';
 
 // PRODUCTION LOCK: while promptConfig.PRODUCTION_LOCKED === 'YES' these fields never change (the server
 // enforces the same list in protectLockedDocs). Metadata, thumbnails, review marks and reframes stay editable.
@@ -6249,11 +6250,23 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         activeDoc.audioTracks,
         activeDoc.confirmedFinalDuration || '02:00'
       );
+      // Check what Gemini delivered against the quotas the page asked for (support shots, period archival
+      // image, eras). The tags are read from Gemini's raw answer because the parser drops them.
+      const shotPlanAudit = auditShotPlan(syncedClips, {
+        totalDocSec: syncedClips.length * standardClipSec,
+        rawText: text,
+      });
+      const shotPlanSummary =
+        shotPlanAudit.warnings.length > 0
+          ? `⚠️ Reparto de tomas (Etapa 6): ${shotPlanAudit.warnings.join(' • ')}`
+          : `✅ Reparto de tomas: ${shotPlanAudit.supportCount} de ${shotPlanAudit.quota} tomas de apoyo y ${shotPlanAudit.archiveCount} imagen de archivo de época.`;
+      setFlowStatusLog(shotPlanSummary);
       updateActiveDoc({
         operationalHeader: cleanOpHeader,
         rawClipsText: rebuiltRaw,
         clips: syncedClips.length > 0 ? syncedClips : activeDoc.clips,
         confirmedFinalDuration: autoFinalDuration,
+        promptConfig: { ...(activeDoc.promptConfig || {}), SHOT_PLAN_AUDIT: shotPlanSummary },
       });
 
       // Only auto-chain Stage 80 (Flow Music) when Gemini genuinely completed the full clip list
@@ -23396,6 +23409,19 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                           <span className="px-2 py-0.5 rounded-md bg-sky-500/15 border border-sky-400/40 text-sky-200 text-[11px] font-black">
                             🖼️ {(activeDoc.clips || []).filter((c) => c.isStaticBroll).length} B-Roll Estáticos activos
                           </span>
+                          {typeof activeDoc.promptConfig?.SHOT_PLAN_AUDIT === 'string' &&
+                            activeDoc.promptConfig.SHOT_PLAN_AUDIT && (
+                              <span
+                                className={`px-2 py-0.5 rounded-md border text-[11px] font-bold ${
+                                  activeDoc.promptConfig.SHOT_PLAN_AUDIT.startsWith('⚠️')
+                                    ? 'bg-amber-500/15 border-amber-400/40 text-amber-200'
+                                    : 'bg-emerald-500/15 border-emerald-400/40 text-emerald-200'
+                                }`}
+                                title="Comprobación automática del último pedido de prompts: tomas de apoyo, imagen de archivo de época y años."
+                              >
+                                {activeDoc.promptConfig.SHOT_PLAN_AUDIT}
+                              </span>
+                            )}
                           <span
                             className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-300"
                             title="Formato en que se le pide a Flow que genere los clips nuevos. Se guarda en este documental. No cambia el formato del editor de video."
