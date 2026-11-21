@@ -201,7 +201,7 @@ import { useNoticeStack } from './utils/noticeStack';
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '01:14 AM - 11/21/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '09:42 AM - 11/21/2026';
 
 // PRODUCTION LOCK: while promptConfig.PRODUCTION_LOCKED === 'YES' these fields never change (the server
 // enforces the same list in protectLockedDocs). Metadata, thumbnails, review marks and reframes stay editable.
@@ -14124,6 +14124,10 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         } else {
           setBridgeStatusType('WORKING');
         }
+      } else if (msg.type === 'GEMINI_RESPONSE_READY' && Number(msg.stageNumber) === 970) {
+        // Respuesta al botón "Gemini Web (Gratis)" de Viral Clips: la recoge esa pantalla, nunca es una etapa
+        setExtensionInstalled(true);
+        setAiGenerating(false);
       } else if (msg.type === 'GEMINI_RESPONSE_READY' && Number(msg.stageNumber) === 960) {
         // Answer to a clip-identification order: never a stage result
         setExtensionInstalled(true);

@@ -22,6 +22,32 @@ import {
 } from 'lucide-react';
 import { DocumentaryProject } from '../types';
 import { sendCommandToWebBridge } from '../utils/webStudioBridge';
+import {
+  getMediaBridgeSnapshot,
+  getOrderedMediaBridgeBases,
+  isLocalMediaRuntimeOrigin,
+  withTunnelAccessParam,
+} from '../utils/mediaBridge';
+
+/** Número de "etapa" con el que viaja el pedido de Viral Clips a Gemini Web: nunca es el resultado de una etapa. */
+export const VIRAL_CLIPS_GEMINI_STAGE = 970;
+
+/** Origen del servidor de la Mac cuando la página no se sirve desde ella (iPhone / GitHub Pages); '' en la Mac. */
+function getViralServerOrigin(): string {
+  if (typeof window === 'undefined' || isLocalMediaRuntimeOrigin()) return '';
+  const origin = String(getMediaBridgeSnapshot().activeOrigin || getOrderedMediaBridgeBases()[0] || '').replace(/\/+$/, '');
+  return origin && origin !== window.location.origin ? origin : '';
+}
+/** Dirección de una ruta /api del servidor de la Mac, válida también desde el iPhone. */
+function viralApi(pathname: string): string {
+  return `${getViralServerOrigin()}${pathname}`;
+}
+/** Dirección de un video o archivo servido por la Mac, válida también desde el iPhone. */
+function viralMedia(url: string | undefined | null): string {
+  const clean = String(url || '');
+  if (!clean || !clean.startsWith('/')) return clean;
+  return withTunnelAccessParam(`${getViralServerOrigin()}${clean}`);
+}
 
 export interface WordTimestamp {
   word: string;
@@ -168,6 +194,10 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
   const [transcriptSegments, setTranscriptSegments] = useState<TranscriptSegmentItem[]>([]);
   const [isLoadingSource, setIsLoadingSource] = useState<boolean>(false);
   const [sourceStatusMsg, setSourceStatusMsg] = useState<string>('');
+  // Video maestro que está solo en iCloud (sin descargar en la Mac): no se puede ver ni renderizar hasta bajarlo
+  const [cloudOnlyMaster, setCloudOnlyMaster] = useState<{ path: string; sizeMB: number } | null>(null);
+  const [isRequestingCloudMaster, setIsRequestingCloudMaster] = useState<boolean>(false);
+  const [isWaitingGeminiClips, setIsWaitingGeminiClips] = useState<boolean>(false);
 
   // YouTube input
   const [youtubeUrlInput, setYoutubeUrlInput] = useState<string>('');
@@ -241,7 +271,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
 
   // Load Instagram config on mount
   useEffect(() => {
-    fetch('/api/viral-clips/instagram-config')
+    fetch(viralApi('/api/viral-clips/instagram-config'))
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (data?.ok && data.config) {
@@ -264,7 +294,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
     setIsLoadingSource(true);
     setSourceStatusMsg('Cargando video master y transcripción del documental...');
     try {
-      const resp = await fetch('/api/viral-clips/resolve-doc-source', {
+      const resp = await fetch(viralApi('/api/viral-clips/resolve-doc-source'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -284,8 +314,17 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
           setTranscriptSegments(
             Array.isArray(data.transcriptSegments) ? data.transcriptSegments : []
           );
+          setCloudOnlyMaster(
+            data.masterVideoCloudOnly && data.masterVideoPath
+              ? { path: String(data.masterVideoPath), sizeMB: Number(data.masterVideoSizeMB) || 0 }
+              : null
+          );
           setSourceStatusMsg(
-            data.masterVideoPath
+            data.masterVideoCloudOnly
+              ? `☁️ El video maestro está solo en iCloud (no descargado en la Mac) • ${
+                  (data.transcriptSegments || []).length
+                } segmentos de voz listos. Puedes elegir clips; para verlos y renderizar, descárgalo.`
+              : data.masterVideoPath
               ? `✅ Video Master detectado (${formatMMSS(data.durationSec)}) • ${
                   (data.transcriptSegments || []).length
                 } segmentos de voz listos.`
@@ -300,6 +339,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
     } catch {}
 
     // Client-side fallback if backend is offline
+    setCloudOnlyMaster(null);
     const doc = documentaries.find((d) => d.id === docIdToLoad);
     if (doc) {
       setSourceTitle(doc.title);
@@ -346,6 +386,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
   };
 
   useEffect(() => {
+    if (sourceMode !== 'doc') setCloudOnlyMaster(null);
     if (sourceMode === 'doc' && selectedDocId) {
       handleLoadDocumentarySource(selectedDocId);
     }
@@ -358,7 +399,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
     try {
       const form = new FormData();
       form.append('video', file);
-      const resp = await fetch('/api/viral-clips/upload-video', {
+      const resp = await fetch(viralApi('/api/viral-clips/upload-video'), {
         method: 'POST',
         body: form,
       });
@@ -395,7 +436,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
       'Descargando video de YouTube en alta definición y extrayendo transcripción con marcas de tiempo...'
     );
     try {
-      const resp = await fetch('/api/viral-clips/ingest-youtube', {
+      const resp = await fetch(viralApi('/api/viral-clips/ingest-youtube'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ youtubeUrl: youtubeUrlInput.trim() }),
@@ -428,6 +469,121 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
     }
   };
 
+  const buildViralClipsFromList = (list: any[]): ViralClipSuggestion[] =>
+    list.map((c: any, idx: number) => {
+      const st = Math.max(0, Number(c.startSec) || 0);
+      const en = Math.max(st + 15, Number(c.endSec) || st + 40);
+      const overlapping = transcriptSegments.filter((s) => s.end > st && s.start < en);
+      const words: WordTimestamp[] = [];
+      for (const seg of overlapping) {
+        const wList = seg.words || buildWordsFromSegmentClient(seg.text, seg.start, seg.end);
+        for (const w of wList) {
+          if (w.end > st && w.start < en) words.push(w);
+        }
+      }
+      return {
+        id: `vc-${Date.now()}-${idx}`,
+        rank: idx + 1,
+        title: c.title || `Clip Viral #${idx + 1}`,
+        viralityScore: Number(c.viralityScore) || 94 - idx * 2,
+        scoreBreakdown: { hook: 95, retention: 92, emotion: 94, completeness: 91 },
+        viralityReason: c.viralityReason || 'Alto potencial de retención.',
+        structureMode: c.structureMode === 'hook_teaser' ? 'hook_teaser' : 'continuous',
+        startSec: st,
+        endSec: en,
+        durationSec: Number((en - st).toFixed(1)),
+        hookTeaserStartSec: Number(c.hookTeaserStartSec) || st,
+        hookTeaserEndSec: Number(c.hookTeaserEndSec) || st + 3.5,
+        hookBannerText: String(c.hookBannerText || c.title || '').toUpperCase(),
+        storyTeaserDurationSec: 20,
+        socialCaption: c.socialCaption || '',
+        hashtags: c.hashtags || '#Historia #Documental #Reels',
+        transcriptExcerpt: overlapping.map((o) => o.text).join(' '),
+        words,
+        reframeMode: 'center_fill',
+        focusX: 50,
+        captionStyle: 'yellow_white',
+      };
+    });
+
+  // Respuesta de Gemini Web al botón "Gemini Web (Gratis)": se convierte en la lista de clips, igual que
+  // el análisis local. Llega marcada con VIRAL_CLIPS_GEMINI_STAGE y nunca se guarda como resultado de una etapa.
+  const transcriptSegmentsRef = useRef<TranscriptSegmentItem[]>([]);
+  transcriptSegmentsRef.current = transcriptSegments;
+  const applyGeminiViralResponseRef = useRef<(text: string) => void>(() => {});
+  applyGeminiViralResponseRef.current = (text: string) => {
+    setIsWaitingGeminiClips(false);
+    let parsedList: any[] = [];
+    try {
+      const raw = String(text || '');
+      const startIdx = raw.indexOf('{');
+      const endIdx = raw.lastIndexOf('}');
+      const parsed = startIdx >= 0 && endIdx > startIdx ? JSON.parse(raw.slice(startIdx, endIdx + 1)) : null;
+      parsedList = Array.isArray(parsed?.clips) ? parsed.clips : [];
+    } catch {
+      parsedList = [];
+    }
+    const segs = transcriptSegmentsRef.current;
+    const spanEnd = segs.length > 0 ? segs[segs.length - 1].end : 0;
+    const valid = parsedList.filter((c) => {
+      const st = Number(c?.startSec);
+      const en = Number(c?.endSec);
+      return Number.isFinite(st) && Number.isFinite(en) && en > st + 5 && st >= 0 && st < spanEnd;
+    });
+    if (valid.length === 0) {
+      setActionToast('⚠️ Gemini respondió, pero sin una lista de clips que se pueda leer. Vuelve a pulsar "Gemini Web (Gratis)".');
+      return;
+    }
+    const built = buildViralClipsFromList(
+      valid.sort((a, b) => (Number(b.viralityScore) || 0) - (Number(a.viralityScore) || 0))
+    );
+    setViralClips(built);
+    setSelectedClipId(built[0].id);
+    setPlayheadSec(built[0].startSec);
+    setActionToast(`✅ Gemini eligió ${built.length} clips. Ya están en la lista.`);
+  };
+  useEffect(() => {
+    const onExtensionMessage = (event: MessageEvent) => {
+      const msg = event.data;
+      if (!msg || msg.source !== 'HUELLAS_EXTENSION') return;
+      if (Number(msg.stageNumber) !== VIRAL_CLIPS_GEMINI_STAGE) return;
+      if (msg.type === 'GEMINI_RESPONSE_READY') {
+        applyGeminiViralResponseRef.current(String(msg.text || ''));
+      } else if (msg.status === 'ERROR') {
+        setIsWaitingGeminiClips(false);
+        setActionToast(`⚠️ ${msg.message || 'Gemini Web no pudo completar el pedido.'}`);
+      }
+    };
+    window.addEventListener('message', onExtensionMessage);
+    return () => window.removeEventListener('message', onExtensionMessage);
+  }, []);
+
+  const handleRequestCloudMaster = async () => {
+    if (!cloudOnlyMaster) return;
+    setIsRequestingCloudMaster(true);
+    try {
+      const resp = await fetch(viralApi('/api/viral-clips/download-master'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filePath: cloudOnlyMaster.path }),
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (resp.ok && data.ok) {
+        setActionToast(
+          data.alreadyLocal
+            ? '✅ El video maestro ya está en la Mac. Pulsa "Recargar".'
+            : `☁️ Descarga pedida a iCloud (${(cloudOnlyMaster.sizeMB / 1024).toFixed(1)} GB). Tarda varios minutos; pulsa "Recargar" cuando termine.`
+        );
+      } else {
+        setActionToast(`⚠️ ${data.error || 'No se pudo pedir la descarga a iCloud.'}`);
+      }
+    } catch {
+      setActionToast('⚠️ No se pudo conectar con la Mac para pedir la descarga.');
+    } finally {
+      setIsRequestingCloudMaster(false);
+    }
+  };
+
   // Analyze & Generate OpusClip Viral Clips
   const handleAnalyzeViralClips = async () => {
     if (transcriptSegments.length === 0) {
@@ -438,7 +594,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
     }
     setIsAnalyzingViral(true);
     try {
-      const resp = await fetch('/api/viral-clips/analyze', {
+      const resp = await fetch(viralApi('/api/viral-clips/analyze'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -508,41 +664,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
           hashtags: '#Historia #Documental #Reels #Viral #HuellasDeLaHumanidad',
         });
       }
-      const built: ViralClipSuggestion[] = list.map((c: any, idx: number) => {
-        const st = Math.max(0, Number(c.startSec) || 0);
-        const en = Math.max(st + 15, Number(c.endSec) || st + 40);
-        const overlapping = transcriptSegments.filter((s) => s.end > st && s.start < en);
-        const words: WordTimestamp[] = [];
-        for (const seg of overlapping) {
-          const wList = seg.words || buildWordsFromSegmentClient(seg.text, seg.start, seg.end);
-          for (const w of wList) {
-            if (w.end > st && w.start < en) words.push(w);
-          }
-        }
-        return {
-          id: `vc-${Date.now()}-${idx}`,
-          rank: idx + 1,
-          title: c.title || `Clip Viral #${idx + 1}`,
-          viralityScore: Number(c.viralityScore) || 94 - idx * 2,
-          scoreBreakdown: { hook: 95, retention: 92, emotion: 94, completeness: 91 },
-          viralityReason: c.viralityReason || 'Alto potencial de retención.',
-          structureMode: c.structureMode === 'hook_teaser' ? 'hook_teaser' : 'continuous',
-          startSec: st,
-          endSec: en,
-          durationSec: Number((en - st).toFixed(1)),
-          hookTeaserStartSec: Number(c.hookTeaserStartSec) || st,
-          hookTeaserEndSec: Number(c.hookTeaserEndSec) || st + 3.5,
-          hookBannerText: String(c.hookBannerText || c.title || '').toUpperCase(),
-          storyTeaserDurationSec: 20,
-          socialCaption: c.socialCaption || '',
-          hashtags: c.hashtags || '#Historia #Documental #Reels',
-          transcriptExcerpt: overlapping.map((o) => o.text).join(' '),
-          words,
-          reframeMode: 'center_fill',
-          focusX: 50,
-          captionStyle: 'yellow_white',
-        };
-      });
+      const built = buildViralClipsFromList(list);
       setViralClips(built);
       if (built[0]) {
         setSelectedClipId(built[0].id);
@@ -665,7 +787,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
         ? `💬 Responde "${igConfig.autoDm.keyword || 'HUELLAS'}" y te envio el link directo por DM`
         : '🔥 Mira el Reel completo en nuestro perfil';
 
-      const resp = await fetch('/api/viral-clips/render', {
+      const resp = await fetch(viralApi('/api/viral-clips/render'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -747,7 +869,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
     );
 
     try {
-      const resp = await fetch('/api/viral-clips/publish-instagram', {
+      const resp = await fetch(viralApi('/api/viral-clips/publish-instagram'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -793,7 +915,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
       );
 
       // Refresh Instagram history
-      const cfgResp = await fetch('/api/viral-clips/instagram-config');
+      const cfgResp = await fetch(viralApi('/api/viral-clips/instagram-config'));
       if (cfgResp.ok) {
         const cfgData = await cfgResp.json();
         if (cfgData?.ok && cfgData.config) setIgConfig(cfgData.config);
@@ -809,7 +931,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
   const handleSaveInstagramSettings = async () => {
     setIsSavingIgConfig(true);
     try {
-      const resp = await fetch('/api/viral-clips/instagram-config', {
+      const resp = await fetch(viralApi('/api/viral-clips/instagram-config'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -840,7 +962,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
   const handleCheckAutoDmNow = async () => {
     setIsCheckingAutoDm(true);
     try {
-      const resp = await fetch('/api/viral-clips/instagram-check-autodm', {
+      const resp = await fetch(viralApi('/api/viral-clips/instagram-check-autodm'), {
         method: 'POST',
       });
       const data = await resp.json();
@@ -1050,6 +1172,20 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
               </div>
             )}
 
+            {cloudOnlyMaster && (
+              <button
+                type="button"
+                onClick={handleRequestCloudMaster}
+                disabled={isRequestingCloudMaster}
+                className="w-full py-2 px-3 rounded-xl bg-sky-950/80 hover:bg-sky-900 border border-sky-500/40 text-sky-200 font-bold text-xs cursor-pointer disabled:opacity-50"
+                title="Pide a iCloud que descargue el video maestro en la Mac. Sin él no se puede ver ni renderizar el clip."
+              >
+                {isRequestingCloudMaster
+                  ? 'Pidiendo la descarga…'
+                  : `☁️ Descargar de iCloud el video maestro (${(cloudOnlyMaster.sizeMB / 1024).toFixed(1)} GB)`}
+              </button>
+            )}
+
             {/* Source Status Banner */}
             <div className="bg-slate-950/90 border border-slate-800 rounded-xl px-3 py-2 flex items-center justify-between gap-2 text-xs">
               <span className="text-slate-300 truncate">
@@ -1184,22 +1320,36 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                   sendCommandToWebBridge('GEMINI', {
                     action: 'SEND_PROMPT',
                     prompt: webPrompt,
+                    // Pedido suelto en un chat nuevo: su respuesta vuelve a esta pantalla, no a una etapa
+                    stageNumber: VIRAL_CLIPS_GEMINI_STAGE,
+                    taskType: 'VIRAL_CLIPS',
+                    videoName: '',
+                    deepResearchVideoName: '',
+                    geminiChatUrl: '',
+                    geminiDeepResearchChatUrl: '',
+                    notebookName: '',
+                    standaloneNewChat: true,
+                    noNotebook: true,
                     enableHighModel: false,
+                    enableArgonLow: true,
                     enableCarbonLow: true,
                     preferredModel: 'CARBON_4_LOW',
                     thinkingLevel: 'LOW',
+                    enableDeepResearch: false,
+                    enableCreateImage: false,
                     autoSubmit: true,
-                    preferDockedWindow: true,
-                  });
+                    focusTab: false,
+                  } as any);
+                  setIsWaitingGeminiClips(true);
                   setActionToast(
-                    '🌐 Enviado a tu pestaña de Gemini Web (Gratis) sin gastar API Key.'
+                    '🌐 Enviado a Gemini Web. Cuando responda, los clips aparecerán aquí solos.'
                   );
                 }}
                 className="py-2.5 px-3 rounded-xl bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-500/40 text-emerald-300 font-bold text-xs cursor-pointer flex items-center justify-center gap-1.5 shrink-0 disabled:opacity-50 transition"
                 title="Enviar la transcripción a tu pestaña abierta de Gemini Web (100% Gratis vía Extensión)"
               >
-                <Globe className="w-3.5 h-3.5" />
-                <span>Gemini Web (Gratis)</span>
+                <Globe className={`w-3.5 h-3.5 ${isWaitingGeminiClips ? 'animate-spin' : ''}`} />
+                <span>{isWaitingGeminiClips ? 'Esperando a Gemini…' : 'Gemini Web (Gratis)'}</span>
               </button>
             </div>
           </div>
@@ -1290,7 +1440,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                   <>
                     {selectedClip.reframeMode === 'fit_blur' && (
                       <video
-                        src={sourceVideoUrl}
+                        src={viralMedia(sourceVideoUrl)}
                         muted
                         playsInline
                         className="absolute inset-0 w-full h-full object-cover blur-xl brightness-50 scale-110 pointer-events-none"
@@ -1298,7 +1448,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                     )}
                     <video
                       ref={videoRef}
-                      src={sourceVideoUrl}
+                      src={viralMedia(sourceVideoUrl)}
                       onTimeUpdate={handleTimeUpdate}
                       onPlay={() => setIsPlaying(true)}
                       onPause={() => setIsPlaying(false)}
@@ -1766,7 +1916,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                   <div className="flex flex-wrap items-center gap-2 pt-1">
                     {selectedClip.renderedReelUrl && (
                       <a
-                        href={selectedClip.renderedReelUrl}
+                        href={viralMedia(selectedClip.renderedReelUrl)}
                         download
                         className="px-3 py-1 rounded-lg bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-[11px] font-bold"
                       >
@@ -1775,7 +1925,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                     )}
                     {selectedClip.renderedStoryUrl && (
                       <a
-                        href={selectedClip.renderedStoryUrl}
+                        href={viralMedia(selectedClip.renderedStoryUrl)}
                         download
                         className="px-3 py-1 rounded-lg bg-pink-500/20 border border-pink-500/40 text-pink-300 text-[11px] font-bold"
                       >

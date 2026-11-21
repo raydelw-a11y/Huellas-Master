@@ -22058,10 +22058,9 @@ app.post('/api/viral-clips/resolve-doc-source', async (req, res) => {
       return res.status(404).json({ ok: false, error: 'Documental no encontrado.' });
     }
 
+    // La carpeta guardada en el propio documental va primero: la que manda la página es la del documental
+    // activo en la pantalla, que puede no ser el que se eligió en el selector de Viral Clips.
     const folderCandidates: string[] = [];
-    if (downloadFolderPath && fs.existsSync(downloadFolderPath)) {
-      folderCandidates.push(downloadFolderPath);
-    }
     if (doc.downloadFolderPath && fs.existsSync(doc.downloadFolderPath)) {
       folderCandidates.push(doc.downloadFolderPath);
     }
@@ -22074,11 +22073,15 @@ app.post('/api/viral-clips/resolve-doc-source', async (req, res) => {
       'Huellas de la Humanidad',
       'Videos'
     );
-    if (downloadFolderName && fs.existsSync(path.join(icloudVideosBase, downloadFolderName))) {
-      folderCandidates.push(path.join(icloudVideosBase, downloadFolderName));
-    }
     if (doc.downloadFolderName && fs.existsSync(path.join(icloudVideosBase, doc.downloadFolderName))) {
       folderCandidates.push(path.join(icloudVideosBase, doc.downloadFolderName));
+    }
+    const docHasOwnFolder = folderCandidates.length > 0;
+    if (!docHasOwnFolder && downloadFolderPath && fs.existsSync(downloadFolderPath)) {
+      folderCandidates.push(downloadFolderPath);
+    }
+    if (!docHasOwnFolder && downloadFolderName && fs.existsSync(path.join(icloudVideosBase, downloadFolderName))) {
+      folderCandidates.push(path.join(icloudVideosBase, downloadFolderName));
     }
 
     let rootFolder = folderCandidates[0] || '';
@@ -22173,7 +22176,21 @@ app.post('/api/viral-clips/resolve-doc-source', async (req, res) => {
     let durationSec = Number(doc.targetDurationSeconds) || 180;
     let width = 1920;
     let height = 1080;
-    if (masterVideoPath && fs.existsSync(masterVideoPath)) {
+    // Un video maestro que está solo en iCloud (sin descargar en esta Mac) no se puede medir ni reproducir:
+    // se avisa a la página en vez de esperar a que falle la lectura.
+    const statOrNull = (f: string) => {
+      try {
+        return fs.statSync(f);
+      } catch {
+        return null;
+      }
+    };
+    const masterStat = masterVideoPath ? statOrNull(masterVideoPath) : null;
+    const masterVideoCloudOnly = Boolean(
+      masterVideoPath && isDatalessIcloudStub(path.basename(masterVideoPath), masterStat)
+    );
+    const masterVideoSizeMB = masterStat ? Math.round(masterStat.size / (1024 * 1024)) : 0;
+    if (masterVideoPath && fs.existsSync(masterVideoPath) && !masterVideoCloudOnly) {
       const probed = await probeVideoDurationAndDims(masterVideoPath);
       durationSec = probed.durationSec;
       width = probed.width;
@@ -22192,9 +22209,12 @@ app.post('/api/viral-clips/resolve-doc-source', async (req, res) => {
       title: doc.title,
       rootFolder,
       masterVideoPath,
-      masterVideoUrl: masterVideoPath
-        ? `/api/flow/serve-folder-file?filePath=${encodeURIComponent(masterVideoPath)}`
-        : '',
+      masterVideoCloudOnly,
+      masterVideoSizeMB,
+      masterVideoUrl:
+        masterVideoPath && !masterVideoCloudOnly
+          ? `/api/flow/serve-folder-file?filePath=${encodeURIComponent(masterVideoPath)}`
+          : '',
       masterVideo9x16Path,
       masterVideo9x16Url: masterVideo9x16Path
         ? `/api/flow/serve-folder-file?filePath=${encodeURIComponent(masterVideo9x16Path)}`
@@ -22207,6 +22227,40 @@ app.post('/api/viral-clips/resolve-doc-source', async (req, res) => {
   } catch (err: any) {
     console.error('[ViralClips] resolve-doc-source error:', err);
     res.status(500).json({ ok: false, error: err?.message || 'Error al cargar documental.' });
+  }
+});
+
+// 3b. Pide a iCloud que descargue en esta Mac el video maestro de un documental (para Viral Clips)
+app.post('/api/viral-clips/download-master', (req, res) => {
+  try {
+    if (process.platform !== 'darwin') {
+      return res.status(400).json({ ok: false, error: 'La descarga de iCloud solo funciona en la Mac.' });
+    }
+    const filePath = path.resolve(String(req.body?.filePath || ''));
+    const icloudVideosBase = path.join(
+      os.homedir(),
+      'Library',
+      'Mobile Documents',
+      'com~apple~CloudDocs',
+      '0YouTube',
+      'Huellas de la Humanidad'
+    );
+    if (
+      !filePath.startsWith(icloudVideosBase + path.sep) ||
+      !/[\\/]06_Video_Final[\\/][^\\/]+\.mp4$/i.test(filePath) ||
+      !fs.existsSync(filePath)
+    ) {
+      return res.status(400).json({ ok: false, error: 'Ese archivo no es un video maestro del canal.' });
+    }
+    const st = fs.statSync(filePath);
+    if (!isDatalessIcloudStub(path.basename(filePath), st)) {
+      return res.json({ ok: true, alreadyLocal: true });
+    }
+    // "brctl download" solo le pide el archivo a iCloud; macOS lo descarga en segundo plano.
+    execFile('brctl', ['download', filePath], { timeout: 20000 }, () => {});
+    res.json({ ok: true, requested: true, sizeMB: Math.round(st.size / (1024 * 1024)) });
+  } catch (err: any) {
+    res.status(500).json({ ok: false, error: err?.message || 'No se pudo pedir la descarga a iCloud.' });
   }
 });
 
@@ -22735,6 +22789,15 @@ async function renderViralClipMp4Internal(params: {
     throw new Error(
       'No se encontró el archivo de video origen. Si es un documental, asegúrate de haber exportado el video en 06_Video_Final o sube un archivo MP4.'
     );
+  }
+  try {
+    if (isDatalessIcloudStub(path.basename(sourceVideoPath), fs.statSync(sourceVideoPath))) {
+      throw new Error(
+        'El video maestro está solo en iCloud y no en esta Mac. Pulsa "Descargar de iCloud" en Viral Clips, espera a que termine y vuelve a renderizar.'
+      );
+    }
+  } catch (e: any) {
+    if (/solo en iCloud/.test(String(e?.message || ''))) throw e;
   }
 
   const ffmpegBin = getFfmpegPath();
