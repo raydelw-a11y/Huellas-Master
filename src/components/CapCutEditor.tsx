@@ -2108,6 +2108,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       ) {
         return;
       }
+      // Moving the playhead (timeline or player bar) keeps the clip selected, so framing points can be
+      // fixed one after another without re-selecting the clip each time.
+      if (selectedCanvasObject === 'clip' && target.closest('[data-keep-clip-selection="true"]')) {
+        return;
+      }
       setSelectedCanvasObject(null);
       setIsDraggingOrResizingHook(false);
     };
@@ -16780,7 +16785,12 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               const zoomPct = Math.round(zoomFrameNow.z);
               const zoomKeys = getClipFrameKeys(zoomClip, aspectRatio);
               return (
-                <div className="w-full px-3 py-1 bg-[#100e0b] border-b border-slate-800 flex items-center gap-2 flex-wrap shrink-0 text-[10px]">
+                <div
+                  // Using this bar must not deselect the clip in the viewer: when the bar is shown only because
+                  // the clip is selected, deselecting on mouse-down removed the bar before the click landed.
+                  data-keep-canvas-selection="true"
+                  className="w-full px-3 py-1 bg-[#100e0b] border-b border-slate-800 flex items-center gap-2 flex-wrap shrink-0 text-[10px]"
+                >
                   <span
                     className="px-2 py-0.5 rounded bg-slate-900 border border-slate-700 text-slate-200 font-black"
                     title="Agranda el clip para mostrar menos (más cerca) o achícalo para mostrar más. Se guarda por clip y por formato (16:9 / 9:16) y se aplica al exportar."
@@ -16901,7 +16911,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
           {/* Smart Auto-Reframe 9:16 Control Bar (Visible when editing in 9:16 Vertical mode) */}
           {aspectRatio === '9:16' && showFramingBars && (
-            <div className="w-full px-3 py-1 bg-[#14100b] border-b border-amber-500/30 flex items-center justify-between gap-2 flex-wrap shrink-0 text-[10px]">
+            <div
+              data-keep-canvas-selection="true"
+              className="w-full px-3 py-1 bg-[#14100b] border-b border-amber-500/30 flex items-center justify-between gap-2 flex-wrap shrink-0 text-[10px]"
+            >
               <div className="flex items-center gap-1.5 flex-wrap">
                 <button
                   type="button"
@@ -18157,6 +18170,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
             {/* CapCut-Style Compact Bottom Player Bar: Timecode (Left), Transport & Scrubber (Center), Ratio & Fullscreen (Right) */}
             <div
+              data-keep-clip-selection="true"
               className={`w-full bg-[#110e0b] border-t border-slate-800/90 px-3 py-1.5 flex flex-wrap sm:flex-nowrap items-center gap-x-2 gap-y-1 transition-all duration-300 shrink-0 ${
                 isViewerFullscreen
                   ? `absolute inset-x-0 bottom-0 z-30 bg-[#110e0b]/95 backdrop-blur-md ${
@@ -21146,6 +21160,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           LOWER WORKSPACE: FULL-WIDTH MULTI-TRACK TIMELINE DOCK (LEFT TO RIGHT)
       ===================================================================== */}
       <div
+        data-keep-clip-selection="true"
         className={`w-full shrink-0 bg-[#0b0907] border-t border-slate-800/90 flex flex-col overflow-hidden transition-all ${
           isTimelineDockExpanded ? 'h-[280px]' : 'h-[195px] xl:h-[210px]'
         }`}

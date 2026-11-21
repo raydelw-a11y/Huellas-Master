@@ -118,6 +118,7 @@ import {
   applyAutomaticFlowPolicyShield,
   sanitizePromptRemovePersonNames,
   sanitizeImagePromptForFlowSafety,
+  isImageOnlyBrollPrompt,
   sanitizeVideoClipPromptForFlowSafety,
   normalizeClip1Line1Format,
   reformatSrtText,
@@ -201,7 +202,7 @@ import { useNoticeStack } from './utils/noticeStack';
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '06:29 PM - 11/21/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '06:50 PM - 11/21/2026';
 
 // PRODUCTION LOCK: while promptConfig.PRODUCTION_LOCKED === 'YES' these fields never change (the server
 // enforces the same list in protectLockedDocs). Metadata, thumbnails, review marks and reframes stay editable.
@@ -6231,11 +6232,38 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       }
       const docRefs = activeDoc.references || [];
       const docCtxText = `${activeDoc.topic || ''} ${activeDoc.voiceoverScript || ''}`;
+      // A fresh generation decides which rows are static B-roll: when Gemini wrote a full "Clip NN" for a
+      // row that only carried an old B-roll mark (the request never asked for a still plate there), the old
+      // mark is dropped. Otherwise the new clip prompt was silently discarded and the row stayed image-only.
+      const freshClipNums = new Set<number>();
+      const freshImageOnlyNums = new Set<number>();
+      for (const line of String(text || '').split(/\r?\n/)) {
+        const mClip = line.match(/^\s*(?:\*\*)?Clip\s+\[?0*(\d{1,3})\b/i);
+        if (mClip) freshClipNums.add(Number(mClip[1]));
+        const mImg = line.match(/^\s*(?:\*\*)?(?:Image|Imagen)\s+\[?0*(\d{1,3})\b/i);
+        if (mImg && isImageOnlyBrollPrompt(line)) freshImageOnlyNums.add(Number(mImg[1]));
+      }
+      const staleBrollNums = (activeDoc.clips || [])
+        .filter(
+          (c) =>
+            c.isStaticBroll &&
+            freshClipNums.has(Number(c.clipNumber)) &&
+            !freshImageOnlyNums.has(Number(c.clipNumber))
+        )
+        .map((c) => Number(c.clipNumber));
+      const existingClipsForSync =
+        staleBrollNums.length > 0
+          ? (activeDoc.clips || []).map((c) =>
+              staleBrollNums.includes(Number(c.clipNumber))
+                ? { ...c, isStaticBroll: false, brollCameraMotion: undefined }
+                : c
+            )
+          : activeDoc.clips || [];
       const rawSyncedClips = syncAndAuditProductionClips({
         rawVoiceoverWithPauses: activeDoc.voiceoverScript || '',
         timelineText: activeDoc.timelineFormattedText || '',
         rawClipsText: textWithHeader,
-        existingClips: activeDoc.clips || [],
+        existingClips: existingClipsForSync,
         clip1Duration: clip1Sec,
         clipDuration: standardClipSec,
         clip1SyncMode: activeDoc.clip1SyncMode || 'VOZ_EN_CLIP_2',
@@ -6278,6 +6306,13 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         totalDocSec: syncedClips.length * standardClipSec,
         rawText: text,
       });
+      if (staleBrollNums.length > 0) {
+        shotPlanAudit.warnings.push(
+          `Se quitó la marca de B-roll antigua de ${staleBrollNums.length === 1 ? 'el clip' : 'los clips'} ${staleBrollNums.join(
+            ', '
+          )}: en esta generación Gemini escribió clip de video para ${staleBrollNums.length === 1 ? 'él' : 'ellos'}.`
+        );
+      }
       const shotPlanSummary =
         shotPlanAudit.warnings.length > 0
           ? `⚠️ Reparto de tomas (Etapa 6): ${shotPlanAudit.warnings.join(' • ')}`
