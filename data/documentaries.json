@@ -6,40 +6,181 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-11-21T00:57:53.241Z",
-    "updatedAt": "2026-11-21T00:57:53.241Z",
+    "updatedAt": "2026-11-21T01:00:59.611Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
       "SUB_OPCION_REELS": "16X9",
       "SINCRONIZACION_CLIP_1": "VOZ_EN_CLIP_2",
       "TEXTO_PANTALLA_CLIP_1": "CAPCUT_MANUAL",
-      "DURACION_CLIP_1": "6",
+      "DURACION_CLIP_1": "8",
       "DURACION_CLIPS": "10_SEGUNDOS",
       "BROLL_ESTATICO_INTERVALO_MIN": "2",
       "VOZ_NARRATIVA_EN_CLIPS": "INCLUIR",
       "UBICACION_INTRO_MARCA": "INTRO_INICIO_00"
     },
     "compiledMasterPrompt": "",
-    "topic": "Prueba",
-    "typology": "",
-    "historicalTime": "",
-    "historicalLocation": "",
-    "targetDurationSeconds": 900,
+    "topic": "El Puente de Londres: la calle que flotó 600 años sobre el Támesis",
+    "typology": "Un suceso histórico",
+    "historicalTime": "años 1209 a 1831",
+    "historicalLocation": "Puente de Londres, Londres, Inglaterra",
+    "targetDurationSeconds": 274,
     "clipDurationMode": "10_SEGUNDOS",
     "clip1SyncMode": "VOZ_EN_CLIP_2",
-    "clip1DurationSeconds": 6,
+    "clip1DurationSeconds": 8,
     "sectionsStructure": "",
     "deepResearchPrompt": "",
     "deepResearchResult": "",
-    "voiceoverScript": "",
+    "voiceoverScript": "Año 1209, Puente de Londres, Inglaterra. Tras 33 años de obras, la ciudad inaugura el primer puente de piedra sobre el Támesis, una calle habitada que flotará sobre el río durante más de 600 años. [pausa: 1.5s]\n\nEn los próximos minutos descubrirás cómo un puente medieval se convirtió en barrio, mercado, fortaleza y patíbulo, y por qué Londres terminó derribando su monumento más famoso. Cada historia deja una huella. Aquí seguimos sus rastros. [pausa: 2s]\n\nTodo comienza en 1176, cuando el sacerdote Peter de Colechurch recibe el encargo de sustituir el viejo puente de madera, quemado y reconstruido una y otra vez. Durante tres décadas, cientos de obreros hincan estacas de olmo en el lecho del río y levantan sobre ellas 19 arcos de piedra desiguales. [pausa: 1.5s]\n\nLos pilares son tan anchos que estrechan el cauce a la mitad. El agua se acelera entre ellos como en una presa, y cruzar bajo los arcos en bote se vuelve una apuesta mortal que los barqueros llaman disparar el puente. [pausa: 1.5s]\n\nEn el centro se alza una capilla dedicada a Tomás Becket, donde los peregrinos rezan antes de partir hacia Canterbury. Y muy pronto, sobre la calzada de apenas 4 metros de ancho, empiezan a levantarse casas. [pausa: 2s]\n\nHacia 1358 el puente sostiene 138 tiendas. Merceros, guanteros, libreros y fabricantes de agujas pagan alquileres que financian las reparaciones. Los edificios crecen hasta cinco pisos y se unen por arriba con vigas, de modo que quien cruza camina por un túnel oscuro de madera y voces. [pausa: 1.5s]\n\nEn la puerta sur aparece la costumbre más siniestra. Desde 1305, la cabeza del rebelde escocés William Wallace, hervida y bañada en alquitrán, queda clavada en una pica sobre la entrada. Durante 350 años, traidores y condenados compartirán ese lugar frente a los viajeros. [pausa: 2s]\n\nEn 1450 los rebeldes de Jack Cade toman el puente y combaten de noche entre las casas. Muchos vecinos caen al río con sus armaduras. Poco después, en 1577, se levanta la casa de Nonsuch, un palacio de madera traído en piezas desde Holanda y ensamblado sin un solo clavo de hierro. [pausa: 1.5s]\n\nEl fuego es la amenaza constante. En 1633 un incendio destruye un tercio de las viviendas del extremo norte. Ese hueco vacío salvará al resto en 1666, cuando el Gran Incendio de Londres devora la ciudad y las llamas se detienen justo donde ya no quedaba nada que quemar. [pausa: 2s]\n\nEn el siglo XVIII el puente es un estorbo. Los carruajes tardan una hora en cruzarlo y en 1722 el alcalde ordena, por primera vez en Inglaterra, que el tráfico circule por la izquierda. Entre 1758 y 1762 se derriban todas las casas y se ensancha el arco central. [pausa: 1.5s]\n\nPero la estructura medieval ya no resiste. En 1799 se convoca un concurso para reemplazarla y el ingeniero John Rennie diseña cinco arcos de granito. Su hijo dirige las obras desde 1824, a 30 metros río arriba del viejo puente, que sigue en uso mientras tanto. [pausa: 1.5s]\n\nEl primero de agosto de 1831, el rey Guillermo IV inaugura el nuevo Puente de Londres con un banquete bajo una carpa. Semanas después comienzan a desmontar piedra por piedra los arcos de 1209, tras 622 años de servicio. [pausa: 2s]\n\nEl puente de Rennie tampoco será eterno. En 1968 se vende a un empresario estadounidense, que lo traslada bloque a bloque hasta el desierto de Arizona, donde todavía cruza un lago artificial. [pausa: 1.5s]\n\nDel puente habitado solo quedan algunos sillares en un patio de iglesia y los grabados de quienes lo dibujaron. Déjanos saber en los comentarios si te habrías atrevido a vivir en una casa suspendida sobre el río. [pausa: 1.5s] Cada historia deja una huella. Aquí seguimos sus rastros.",
     "selectedVoice": "Charon",
     "selectedStyle": "dramatic",
     "selectedSpeed": "medium",
     "selectedLanguage": "es-la",
     "audioTracks": [],
     "masterAudioUrl": "",
-    "timelineSentences": [],
-    "timelineFormattedText": "",
+    "timelineSentences": [
+      {
+        "text": "[SIN VOZ NARRATIVA — Intro Oficial de Marca (8s)]",
+        "start": 0,
+        "end": 8
+      },
+      {
+        "text": "[SIN VOZ NARRATIVA — Clip 1: Hook Visual Inicial y Texto en Pantalla (8s)]",
+        "start": 8,
+        "end": 16
+      },
+      {
+        "text": "Año 1209, Puente de Londres, Inglaterra. Tras 33 años de obras, la ciudad inaugura el primer puente de piedra sobre el Támesis, una calle",
+        "start": 16,
+        "end": 26
+      },
+      {
+        "text": "habitada que flotará sobre el río durante más de 600 años. [pausa: 1.5s] En los próximos minutos descubrirás cómo un puente medieval se convirtió en barrio,",
+        "start": 26,
+        "end": 36
+      },
+      {
+        "text": "mercado, fortaleza y patíbulo, y por qué Londres terminó derribando su monumento más famoso. Cada historia deja una huella. Aquí seguimos sus rastros. [pausa: 2s] Todo",
+        "start": 36,
+        "end": 46
+      },
+      {
+        "text": "comienza en 1176, cuando el sacerdote Peter de Colechurch recibe el encargo de sustituir el viejo puente de madera, quemado y reconstruido una y",
+        "start": 46,
+        "end": 56
+      },
+      {
+        "text": "otra vez. Durante tres décadas, cientos de obreros hincan estacas de olmo en el lecho del río y levantan sobre ellas 19 arcos de",
+        "start": 56,
+        "end": 66
+      },
+      {
+        "text": "piedra desiguales. [pausa: 1.5s] Los pilares son tan anchos que estrechan el cauce a la mitad. El agua se acelera entre ellos como en una presa,",
+        "start": 66,
+        "end": 76
+      },
+      {
+        "text": "y cruzar bajo los arcos en bote se vuelve una apuesta mortal que los barqueros llaman disparar el puente. [pausa: 1.5s] En el centro se alza",
+        "start": 76,
+        "end": 86
+      },
+      {
+        "text": "una capilla dedicada a Tomás Becket, donde los peregrinos rezan antes de partir hacia Canterbury. Y muy pronto, sobre la calzada de apenas 4",
+        "start": 86,
+        "end": 96
+      },
+      {
+        "text": "metros de ancho, empiezan a levantarse casas. [pausa: 2s] Hacia 1358 el puente sostiene 138 tiendas. Merceros, guanteros, libreros y fabricantes de agujas pagan alquileres que",
+        "start": 96,
+        "end": 106
+      },
+      {
+        "text": "financian las reparaciones. Los edificios crecen hasta cinco pisos y se unen por arriba con vigas, de modo que quien cruza camina por un",
+        "start": 106,
+        "end": 116
+      },
+      {
+        "text": "túnel oscuro de madera y voces. [pausa: 1.5s] En la puerta sur aparece la costumbre más siniestra. Desde 1305, la cabeza del rebelde escocés William Wallace,",
+        "start": 116,
+        "end": 126
+      },
+      {
+        "text": "hervida y bañada en alquitrán, queda clavada en una pica sobre la entrada. Durante 350 años, traidores y condenados compartirán ese lugar frente a",
+        "start": 126,
+        "end": 136
+      },
+      {
+        "text": "los viajeros. [pausa: 2s] En 1450 los rebeldes de Jack Cade toman el puente y combaten de noche entre las casas. Muchos vecinos caen al río",
+        "start": 136,
+        "end": 146
+      },
+      {
+        "text": "con sus armaduras. Poco después, en 1577, se levanta la casa de Nonsuch, un palacio de madera traído en piezas desde Holanda y ensamblado",
+        "start": 146,
+        "end": 156
+      },
+      {
+        "text": "sin un solo clavo de hierro. [pausa: 1.5s] El fuego es la amenaza constante. En 1633 un incendio destruye un tercio de las viviendas del extremo",
+        "start": 156,
+        "end": 166
+      },
+      {
+        "text": "norte. Ese hueco vacío salvará al resto en 1666, cuando el Gran Incendio de Londres devora la ciudad y las llamas se detienen justo",
+        "start": 166,
+        "end": 176
+      },
+      {
+        "text": "donde ya no quedaba nada que quemar. [pausa: 2s] En el siglo XVIII el puente es un estorbo. Los carruajes tardan una hora en cruzarlo y",
+        "start": 176,
+        "end": 186
+      },
+      {
+        "text": "en 1722 el alcalde ordena, por primera vez en Inglaterra, que el tráfico circule por la izquierda. Entre 1758 y 1762 se derriban todas",
+        "start": 186,
+        "end": 196
+      },
+      {
+        "text": "las casas y se ensancha el arco central. [pausa: 1.5s] Pero la estructura medieval ya no resiste. En 1799 se convoca un concurso para reemplazarla y",
+        "start": 196,
+        "end": 206
+      },
+      {
+        "text": "el ingeniero John Rennie diseña cinco arcos de granito. Su hijo dirige las obras desde 1824, a 30 metros río arriba del viejo puente,",
+        "start": 206,
+        "end": 216
+      },
+      {
+        "text": "que sigue en uso mientras tanto. [pausa: 1.5s] El primero de agosto de 1831, el rey Guillermo IV inaugura el nuevo Puente de Londres con un",
+        "start": 216,
+        "end": 226
+      },
+      {
+        "text": "banquete bajo una carpa. Semanas después comienzan a desmontar piedra por piedra los arcos de 1209, tras 622 años de servicio. [pausa: 2s] El puente de",
+        "start": 226,
+        "end": 236
+      },
+      {
+        "text": "Rennie tampoco será eterno. En 1968 se vende a un empresario estadounidense, que lo traslada bloque a bloque hasta el desierto de Arizona, donde",
+        "start": 236,
+        "end": 246
+      },
+      {
+        "text": "todavía cruza un lago artificial. [pausa: 1.5s] Del puente habitado solo quedan algunos sillares en un patio de iglesia y los grabados de quienes lo dibujaron.",
+        "start": 246,
+        "end": 256
+      },
+      {
+        "text": "Déjanos saber en los comentarios si te habrías atrevido a vivir en una casa suspendida sobre el río. [pausa: 1.5s] Cada historia deja una huella. Aquí seguimos sus rastros.",
+        "start": 256,
+        "end": 266
+      },
+      {
+        "text": "[SIN VOZ NARRATIVA — Outro Oficial de Marca (8s)]",
+        "start": 266,
+        "end": 274
+      }
+    ],
+    "timelineFormattedText": "===================================\nCANTIDAD DE PALABRAS: 603\nPALABRAS POR MINUTO (WPM): 147.0\nDURACIÓN VOZ NARRATIVA: 04:10\nBLOQUES SIN VOZ (Intro + Hook + Outro): +24s\nDURACIÓN VIDEO TOTAL: 04:34\n===================================\n\n1 00:00 - 00:08 [SIN VOZ NARRATIVA — Intro Oficial de Marca (8s)]\n2 00:08 - 00:16 [SIN VOZ NARRATIVA — Clip 1: Hook Visual Inicial y Texto en Pantalla (8s)]\n3 00:16 - 00:26 Año 1209, Puente de Londres, Inglaterra. Tras 33 años de obras, la ciudad inaugura el primer puente de piedra sobre el Támesis, una calle\n4 00:26 - 00:36 habitada que flotará sobre el río durante más de 600 años. [pausa: 1.5s] En los próximos minutos descubrirás cómo un puente medieval se convirtió en barrio,\n5 00:36 - 00:46 mercado, fortaleza y patíbulo, y por qué Londres terminó derribando su monumento más famoso. Cada historia deja una huella. Aquí seguimos sus rastros. [pausa: 2s] Todo\n6 00:46 - 00:56 comienza en 1176, cuando el sacerdote Peter de Colechurch recibe el encargo de sustituir el viejo puente de madera, quemado y reconstruido una y\n7 00:56 - 01:06 otra vez. Durante tres décadas, cientos de obreros hincan estacas de olmo en el lecho del río y levantan sobre ellas 19 arcos de\n8 01:06 - 01:16 piedra desiguales. [pausa: 1.5s] Los pilares son tan anchos que estrechan el cauce a la mitad. El agua se acelera entre ellos como en una presa,\n9 01:16 - 01:26 y cruzar bajo los arcos en bote se vuelve una apuesta mortal que los barqueros llaman disparar el puente. [pausa: 1.5s] En el centro se alza\n10 01:26 - 01:36 una capilla dedicada a Tomás Becket, donde los peregrinos rezan antes de partir hacia Canterbury. Y muy pronto, sobre la calzada de apenas 4\n11 01:36 - 01:46 metros de ancho, empiezan a levantarse casas. [pausa: 2s] Hacia 1358 el puente sostiene 138 tiendas. Merceros, guanteros, libreros y fabricantes de agujas pagan alquileres que\n12 01:46 - 01:56 financian las reparaciones. Los edificios crecen hasta cinco pisos y se unen por arriba con vigas, de modo que quien cruza camina por un\n13 01:56 - 02:06 túnel oscuro de madera y voces. [pausa: 1.5s] En la puerta sur aparece la costumbre más siniestra. Desde 1305, la cabeza del rebelde escocés William Wallace,\n14 02:06 - 02:16 hervida y bañada en alquitrán, queda clavada en una pica sobre la entrada. Durante 350 años, traidores y condenados compartirán ese lugar frente a\n15 02:16 - 02:26 los viajeros. [pausa: 2s] En 1450 los rebeldes de Jack Cade toman el puente y combaten de noche entre las casas. Muchos vecinos caen al río\n16 02:26 - 02:36 con sus armaduras. Poco después, en 1577, se levanta la casa de Nonsuch, un palacio de madera traído en piezas desde Holanda y ensamblado\n17 02:36 - 02:46 sin un solo clavo de hierro. [pausa: 1.5s] El fuego es la amenaza constante. En 1633 un incendio destruye un tercio de las viviendas del extremo\n18 02:46 - 02:56 norte. Ese hueco vacío salvará al resto en 1666, cuando el Gran Incendio de Londres devora la ciudad y las llamas se detienen justo\n19 02:56 - 03:06 donde ya no quedaba nada que quemar. [pausa: 2s] En el siglo XVIII el puente es un estorbo. Los carruajes tardan una hora en cruzarlo y\n20 03:06 - 03:16 en 1722 el alcalde ordena, por primera vez en Inglaterra, que el tráfico circule por la izquierda. Entre 1758 y 1762 se derriban todas\n21 03:16 - 03:26 las casas y se ensancha el arco central. [pausa: 1.5s] Pero la estructura medieval ya no resiste. En 1799 se convoca un concurso para reemplazarla y\n22 03:26 - 03:36 el ingeniero John Rennie diseña cinco arcos de granito. Su hijo dirige las obras desde 1824, a 30 metros río arriba del viejo puente,\n23 03:36 - 03:46 que sigue en uso mientras tanto. [pausa: 1.5s] El primero de agosto de 1831, el rey Guillermo IV inaugura el nuevo Puente de Londres con un\n24 03:46 - 03:56 banquete bajo una carpa. Semanas después comienzan a desmontar piedra por piedra los arcos de 1209, tras 622 años de servicio. [pausa: 2s] El puente de\n25 03:56 - 04:06 Rennie tampoco será eterno. En 1968 se vende a un empresario estadounidense, que lo traslada bloque a bloque hasta el desierto de Arizona, donde\n26 04:06 - 04:16 todavía cruza un lago artificial. [pausa: 1.5s] Del puente habitado solo quedan algunos sillares en un patio de iglesia y los grabados de quienes lo dibujaron.\n27 04:16 - 04:26 Déjanos saber en los comentarios si te habrías atrevido a vivir en una casa suspendida sobre el río. [pausa: 1.5s] Cada historia deja una huella. Aquí seguimos sus rastros.\n28 04:26 - 04:34 [SIN VOZ NARRATIVA — Outro Oficial de Marca (8s)]",
     "timelineSettings": {
       "language": "es",
       "customLanguage": "",
@@ -57,8 +198,8 @@
     "rawReferencePrompts": "",
     "references": [],
     "clip1TextMode": "CAPCUT_MANUAL",
-    "clip1Line1LocationTime": "",
-    "clip1Line2Hook": "",
+    "clip1Line1LocationTime": "Londres, Inglaterra, 1209",
+    "clip1Line2Hook": "El puente donde vivía una ciudad entera",
     "clip1OptionsRaw": "",
     "operationalHeader": "",
     "rawClipsText": "",
@@ -66,7 +207,7 @@
     "capcutRawSrt": "",
     "correctedSrt": "",
     "srtFileName": "captions_corregidos",
-    "confirmedFinalDuration": "02:00",
+    "confirmedFinalDuration": "04:26",
     "rawSunoText": "",
     "sunoTracks": [],
     "thumbnailOrientation": "HORIZONTAL_16X9",
