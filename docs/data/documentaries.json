@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-11-21T00:57:53.241Z",
-    "updatedAt": "2026-11-21T01:57:47.579Z",
+    "updatedAt": "2026-11-21T01:57:58.509Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -23,7 +23,8 @@
       "FIELD_CLEARED_AT_rawClipsText": "1795224193908",
       "GEMINI_CHAT_URL": "https://gemini.google.com/app/bdee564ddf4bf54b",
       "SHOT_PLAN_AUDIT": "",
-      "REMOTE_GEMINI_STAGE_STATUS": "failed"
+      "REMOTE_GEMINI_STAGE_STATUS": "failed",
+      "FIELD_CLEARED_AT_correctedSrt": "0"
     },
     "compiledMasterPrompt": "",
     "topic": "El Puente de Londres: la calle que flotó 600 años sobre el Támesis",
@@ -42,8 +43,334 @@
     "selectedStyle": "dramatic",
     "selectedSpeed": "medium",
     "selectedLanguage": "es-la",
-    "audioTracks": [],
-    "masterAudioUrl": "",
+    "audioTracks": [
+      {
+        "id": "tts-portable-doc-1795222673241-r5vg",
+        "text": "Año 1209, Puente de Londres, Inglaterra. Tras 33 años de obras, la ciudad inaugura el primer puente de piedra sobre el Támesis, una calle habitada que flotará sobre el río durante más de 600 años. [pausa: 1.5s]\n\nEn los próximos minutos descubrirás cómo un puente medieval se convirtió en barrio, mercado, fortaleza y patíbulo, y por qué Londres terminó derribando su monumento más famoso. Cada historia deja una huella. Aquí seguimos sus rastros. [pausa: 2s]\n\nTodo comienza en 1176, cuando el sacerdote Peter de Colechurch recibe el encargo de sustituir el viejo puente de madera, quemado y reconstruido una y otra vez. Durante tres décadas, cientos de obreros hincan estacas de olmo en el lecho del río y levantan sobre ellas 19 arcos de piedra desiguales. [pausa: 1.5s]\n\nLos pilares son tan anchos que estrechan el cauce a la mitad. El agua se acelera entre ellos como en una presa, y cruzar bajo los arcos en bote se vuelve una apuesta mortal que los barqueros llaman disparar el puente. [pausa: 1.5s]\n\nEn el centro se alza una capilla dedicada a Tomás Becket, donde los peregrinos rezan antes de partir hacia Canterbury. Y muy pronto, sobre la calzada de apenas 4 metros de ancho, empiezan a levantarse casas. [pausa: 2s]\n\nMantenerlo cuesta una fortuna. En 1281 el hielo del invierno arranca cinco arcos de golpe, y la reina Leonor es acusada de gastar los fondos en sus propios asuntos. [pausa: 1.5s]\n\nCada pilar descansa sobre una isla artificial de estacas y escombros con forma de barca, llamada tajamar. Bajo dos de los arcos giran enormes ruedas de madera que muelen grano y, desde 1581, bombean agua del río hacia las casas de la ciudad. [pausa: 2s]\n\nHacia 1358 el puente sostiene 138 tiendas. Merceros, guanteros, libreros y fabricantes de agujas pagan alquileres que financian las reparaciones. Los edificios crecen hasta cinco pisos y se unen por arriba con vigas, de modo que quien cruza camina por un túnel oscuro de madera y voces. [pausa: 1.5s]\n\nLa vida ahí arriba tiene ventajas inesperadas. El río se lleva la basura, el viento barre el humo, y durante la gran peste de 1665 los vecinos del puente mueren mucho menos que los de las calles vecinas. Las letrinas cuelgan directamente sobre el agua, y los barqueros aprenden pronto a no pasar por debajo sin mirar. [pausa: 1.5s]\n\nA mitad del recorrido, un puente levadizo permite el paso de los barcos de mástil alto y corta el acceso en caso de ataque. En 1381, durante la revuelta campesina, alguien lo baja desde dentro y miles de rebeldes entran en Londres sin encontrar resistencia. [pausa: 2s]\n\nEn la puerta sur aparece la costumbre más siniestra. Desde 1305, la cabeza del rebelde escocés William Wallace, hervida y bañada en alquitrán, queda clavada en una pica sobre la entrada. Durante 350 años, traidores y condenados compartirán ese lugar frente a los viajeros. [pausa: 2s]\n\nEn 1450 los rebeldes de Jack Cade toman el puente y combaten de noche entre las casas. Muchos vecinos caen al río con sus armaduras. Poco después, en 1577, se levanta la casa de Nonsuch, un palacio de madera traído en piezas desde Holanda y ensamblado sin un solo clavo de hierro. [pausa: 1.5s]\n\nEn 1212 ocurre la primera gran tragedia. Un incendio estalla en la orilla sur y la multitud corre al puente para ayudar o para mirar. Las crónicas hablan de 3 mil muertos, una cifra que hoy los historiadores consideran exagerada. [pausa: 1.5s]\n\nUn siglo y medio después, en 1390, el puente es escenario de un torneo. Un caballero escocés y un lord inglés se enfrentan a lanza sobre la calzada ante el rey Ricardo II. Y en 1536, la hija pequeña de un mercader cae por una ventana al río y es rescatada por un aprendiz que años más tarde se casará con ella y llegará a ser alcalde de Londres. [pausa: 2s]\n\nEl fuego es la amenaza constante. En 1633 un incendio destruye un tercio de las viviendas del extremo norte. Ese hueco vacío salvará al resto en 1666, cuando el Gran Incendio de Londres devora la ciudad y las llamas se detienen justo donde ya no quedaba nada que quemar. [pausa: 2s]\n\nLos inviernos traen otro espectáculo. Los pilares frenan tanto la corriente que, aguas arriba, el Támesis llega a congelarse por completo. Las llaman ferias de la escarcha. [pausa: 1.5s]\n\nLa última se celebra en febrero de 1814. Un elefante cruza el río helado junto al puente de Blackfriars mientras los impresores venden recuerdos estampados sobre el hielo. Cuando el viejo puente desaparezca, la corriente volverá a correr libre y el Támesis no se congelará nunca más en Londres. [pausa: 2s]\n\nEn el siglo XVIII el puente es un estorbo. Los carruajes tardan una hora en cruzarlo y en 1722 el alcalde ordena, por primera vez en Inglaterra, que el tráfico circule por la izquierda. Entre 1758 y 1762 se derriban todas las casas y se ensancha el arco central. [pausa: 1.5s]\n\nPero la estructura medieval ya no resiste. En 1799 se convoca un concurso para reemplazarla y el ingeniero John Rennie diseña cinco arcos de granito. Su hijo dirige las obras desde 1824, a 30 metros río arriba del viejo puente, que sigue en uso mientras tanto. [pausa: 1.5s]\n\nLa construcción dura siete años y cuesta la vida a unos 40 obreros. Cada bloque de granito llega por mar desde Dartmoor y Escocia. Para abrir los accesos se derriban calles enteras y la iglesia de San Miguel, y el coste final supera los 2 millones de libras, una suma descomunal para la época. [pausa: 1.5s]\n\nEl primero de agosto de 1831, el rey Guillermo IV inaugura el nuevo Puente de Londres con un banquete bajo una carpa. Semanas después comienzan a desmontar piedra por piedra los arcos de 1209, tras 622 años de servicio. [pausa: 2s]\n\nEl puente de Rennie tampoco será eterno. En 1968 se vende a un empresario estadounidense, que lo traslada bloque a bloque hasta el desierto de Arizona, donde todavía cruza un lago artificial. [pausa: 1.5s]\n\nDel puente habitado solo quedan algunos sillares en un patio de iglesia y los grabados de quienes lo dibujaron. Déjanos saber en los comentarios si te habrías atrevido a vivir en una casa suspendida sobre el río. [pausa: 1.5s] Cada historia deja una huella. Aquí seguimos sus rastros.",
+        "voice": "Charon",
+        "style": "dramatic",
+        "speed": "medium",
+        "language": "es-la",
+        "consistencyMode": true,
+        "filename": "tts-video-30-louvre.mp3",
+        "audioUrl": "tts-files/tts-video-30-louvre.mp3",
+        "duration": 609.8,
+        "wordCount": 1016,
+        "pauseCount": 23,
+        "createdAt": "2026-11-21T01:57:56.882Z",
+        "label": "Voz Narrativa Video",
+        "providerUsed": "Carpeta 02_Audio",
+        "segmentTimings": [
+          {
+            "type": "text",
+            "text": "Año 1209, Puente de Londres, Inglaterra. Tras 33 años de obras, la ciudad inaugura el primer puente de piedra sobre el Támesis, una calle habitada que flotará sobre el río durante más de 600 años.",
+            "startSec": 0,
+            "endSec": 25.76,
+            "durationSec": 25.76
+          },
+          {
+            "type": "pause",
+            "startSec": 25.76,
+            "endSec": 27.84,
+            "durationSec": 2.08
+          },
+          {
+            "type": "text",
+            "text": "En los próximos minutos descubrirás cómo un puente medieval se convirtió en barrio, mercado, fortaleza y patíbulo, y por qué Londres terminó derribando su monumento más famoso. Cada historia deja una huella. Aquí seguimos sus rastros.",
+            "startSec": 27.84,
+            "endSec": 49.66,
+            "durationSec": 21.82
+          },
+          {
+            "type": "pause",
+            "startSec": 49.66,
+            "endSec": 51.72,
+            "durationSec": 2.06
+          },
+          {
+            "type": "text",
+            "text": "Todo comienza en 1176, cuando el sacerdote Peter de Colechurch recibe el encargo de sustituir el viejo puente de madera, quemado y reconstruido una y otra vez. Durante tres décadas, cientos de obreros hincan estacas de olmo en el lecho del río y levantan sobre ellas 19 arcos de piedra desiguales.",
+            "startSec": 51.72,
+            "endSec": 79.64,
+            "durationSec": 27.92
+          },
+          {
+            "type": "pause",
+            "startSec": 79.64,
+            "endSec": 80.5,
+            "durationSec": 0.86
+          },
+          {
+            "type": "text",
+            "text": "Los pilares son tan anchos que estrechan el cauce a la mitad. El agua se acelera entre ellos como en una presa, y cruzar bajo los arcos en bote se vuelve una apuesta mortal que los barqueros llaman disparar el puente.",
+            "startSec": 80.5,
+            "endSec": 105.62,
+            "durationSec": 25.12
+          },
+          {
+            "type": "pause",
+            "startSec": 105.62,
+            "endSec": 106.64,
+            "durationSec": 1.02
+          },
+          {
+            "type": "text",
+            "text": "En el centro se alza una capilla dedicada a Tomás Becket, donde los peregrinos rezan antes de partir hacia Canterbury. Y muy pronto, sobre la calzada de apenas 4 metros de ancho, empiezan a levantarse casas.",
+            "startSec": 106.64,
+            "endSec": 129.62,
+            "durationSec": 22.98
+          },
+          {
+            "type": "pause",
+            "startSec": 129.62,
+            "endSec": 130.52,
+            "durationSec": 0.9
+          },
+          {
+            "type": "text",
+            "text": "Mantenerlo cuesta una fortuna. En 1281 el hielo del invierno arranca cinco arcos de golpe, y la reina Leonor es acusada de gastar los fondos en sus propios asuntos.",
+            "startSec": 130.52,
+            "endSec": 135.66,
+            "durationSec": 5.14
+          },
+          {
+            "type": "pause",
+            "startSec": 135.66,
+            "endSec": 137.24,
+            "durationSec": 1.58
+          },
+          {
+            "type": "text",
+            "text": "Cada pilar descansa sobre una isla artificial de estacas y escombros con forma de barca, llamada tajamar. Bajo dos de los arcos giran enormes ruedas de madera que muelen grano y, desde 1581, bombean agua del río hacia las casas de la ciudad.",
+            "startSec": 137.24,
+            "endSec": 152.88,
+            "durationSec": 15.64
+          },
+          {
+            "type": "pause",
+            "startSec": 152.88,
+            "endSec": 154.94,
+            "durationSec": 2.06
+          },
+          {
+            "type": "text",
+            "text": "Hacia 1358 el puente sostiene 138 tiendas. Merceros, guanteros, libreros y fabricantes de agujas pagan alquileres que financian las reparaciones. Los edificios crecen hasta cinco pisos y se unen por arriba con vigas, de modo que quien cruza camina por un túnel oscuro de madera y voces.",
+            "startSec": 154.94,
+            "endSec": 190.78,
+            "durationSec": 35.84
+          },
+          {
+            "type": "pause",
+            "startSec": 190.78,
+            "endSec": 193.14,
+            "durationSec": 2.36
+          },
+          {
+            "type": "text",
+            "text": "La vida ahí arriba tiene ventajas inesperadas. El río se lleva la basura, el viento barre el humo, y durante la gran peste de 1665 los vecinos del puente mueren mucho menos que los de las calles vecinas. Las letrinas cuelgan directamente sobre el agua, y los barqueros aprenden pronto a no pasar por debajo sin mirar.",
+            "startSec": 193.14,
+            "endSec": 208.74,
+            "durationSec": 15.6
+          },
+          {
+            "type": "pause",
+            "startSec": 208.74,
+            "endSec": 211.36,
+            "durationSec": 2.62
+          },
+          {
+            "type": "text",
+            "text": "A mitad del recorrido, un puente levadizo permite el paso de los barcos de mástil alto y corta el acceso en caso de ataque. En 1381, durante la revuelta campesina, alguien lo baja desde dentro y miles de rebeldes entran en Londres sin encontrar resistencia.",
+            "startSec": 211.36,
+            "endSec": 250.64,
+            "durationSec": 39.28
+          },
+          {
+            "type": "pause",
+            "startSec": 250.64,
+            "endSec": 251.52,
+            "durationSec": 0.88
+          },
+          {
+            "type": "text",
+            "text": "En la puerta sur aparece la costumbre más siniestra. Desde 1305, la cabeza del rebelde escocés William Wallace, hervida y bañada en alquitrán, queda clavada en una pica sobre la entrada. Durante 350 años, traidores y condenados compartirán ese lugar frente a los viajeros.",
+            "startSec": 251.52,
+            "endSec": 276.52,
+            "durationSec": 25
+          },
+          {
+            "type": "pause",
+            "startSec": 276.52,
+            "endSec": 278.76,
+            "durationSec": 2.24
+          },
+          {
+            "type": "text",
+            "text": "En 1450 los rebeldes de Jack Cade toman el puente y combaten de noche entre las casas. Muchos vecinos caen al río con sus armaduras. Poco después, en 1577, se levanta la casa de Nonsuch, un palacio de madera traído en piezas desde Holanda y ensamblado sin un solo clavo de hierro.",
+            "startSec": 278.76,
+            "endSec": 308.46,
+            "durationSec": 29.7
+          },
+          {
+            "type": "pause",
+            "startSec": 308.46,
+            "endSec": 309.52,
+            "durationSec": 1.06
+          },
+          {
+            "type": "text",
+            "text": "En 1212 ocurre la primera gran tragedia. Un incendio estalla en la orilla sur y la multitud corre al puente para ayudar o para mirar. Las crónicas hablan de 3 mil muertos, una cifra que hoy los historiadores consideran exagerada.",
+            "startSec": 309.52,
+            "endSec": 329.22,
+            "durationSec": 19.7
+          },
+          {
+            "type": "pause",
+            "startSec": 329.22,
+            "endSec": 331.38,
+            "durationSec": 2.16
+          },
+          {
+            "type": "text",
+            "text": "Un siglo y medio después, en 1390, el puente es escenario de un torneo. Un caballero escocés y un lord inglés se enfrentan a lanza sobre la calzada ante el rey Ricardo II. Y en 1536, la hija pequeña de un mercader cae por una ventana al río y es rescatada por un aprendiz que años más tarde se casará con ella y llegará a ser alcalde de Londres.",
+            "startSec": 331.38,
+            "endSec": 379.24,
+            "durationSec": 47.86
+          },
+          {
+            "type": "pause",
+            "startSec": 379.24,
+            "endSec": 380.98,
+            "durationSec": 1.74
+          },
+          {
+            "type": "text",
+            "text": "El fuego es la amenaza constante. En 1633 un incendio destruye un tercio de las viviendas del extremo norte. Ese hueco vacío salvará al resto en 1666, cuando el Gran Incendio de Londres devora la ciudad y las llamas se detienen justo donde ya no quedaba nada que quemar.",
+            "startSec": 380.98,
+            "endSec": 396.76,
+            "durationSec": 15.78
+          },
+          {
+            "type": "pause",
+            "startSec": 396.76,
+            "endSec": 399.3,
+            "durationSec": 2.54
+          },
+          {
+            "type": "text",
+            "text": "Los inviernos traen otro espectáculo. Los pilares frenan tanto la corriente que, aguas arriba, el Támesis llega a congelarse por completo. Las llaman ferias de la escarcha.",
+            "startSec": 399.3,
+            "endSec": 447.94,
+            "durationSec": 48.64
+          },
+          {
+            "type": "pause",
+            "startSec": 447.94,
+            "endSec": 450.14,
+            "durationSec": 2.2
+          },
+          {
+            "type": "text",
+            "text": "La última se celebra en febrero de 1814. Un elefante cruza el río helado junto al puente de Blackfriars mientras los impresores venden recuerdos estampados sobre el hielo. Cuando el viejo puente desaparezca, la corriente volverá a correr libre y el Támesis no se congelará nunca más en Londres.",
+            "startSec": 450.14,
+            "endSec": 465.8,
+            "durationSec": 15.66
+          },
+          {
+            "type": "pause",
+            "startSec": 465.8,
+            "endSec": 467.34,
+            "durationSec": 1.54
+          },
+          {
+            "type": "text",
+            "text": "En el siglo XVIII el puente es un estorbo. Los carruajes tardan una hora en cruzarlo y en 1722 el alcalde ordena, por primera vez en Inglaterra, que el tráfico circule por la izquierda. Entre 1758 y 1762 se derriban todas las casas y se ensancha el arco central.",
+            "startSec": 467.34,
+            "endSec": 481.32,
+            "durationSec": 13.98
+          },
+          {
+            "type": "pause",
+            "startSec": 481.32,
+            "endSec": 483.46,
+            "durationSec": 2.14
+          },
+          {
+            "type": "text",
+            "text": "Pero la estructura medieval ya no resiste. En 1799 se convoca un concurso para reemplazarla y el ingeniero John Rennie diseña cinco arcos de granito. Su hijo dirige las obras desde 1824, a 30 metros río arriba del viejo puente, que sigue en uso mientras tanto.",
+            "startSec": 483.46,
+            "endSec": 519.76,
+            "durationSec": 36.3
+          },
+          {
+            "type": "pause",
+            "startSec": 519.76,
+            "endSec": 522.06,
+            "durationSec": 2.3
+          },
+          {
+            "type": "text",
+            "text": "La construcción dura siete años y cuesta la vida a unos 40 obreros. Cada bloque de granito llega por mar desde Dartmoor y Escocia. Para abrir los accesos se derriban calles enteras y la iglesia de San Miguel, y el coste final supera los 2 millones de libras, una suma descomunal para la época.",
+            "startSec": 522.06,
+            "endSec": 549.34,
+            "durationSec": 27.28
+          },
+          {
+            "type": "pause",
+            "startSec": 549.34,
+            "endSec": 551.36,
+            "durationSec": 2.02
+          },
+          {
+            "type": "text",
+            "text": "El primero de agosto de 1831, el rey Guillermo IV inaugura el nuevo Puente de Londres con un banquete bajo una carpa. Semanas después comienzan a desmontar piedra por piedra los arcos de 1209, tras 622 años de servicio.",
+            "startSec": 551.36,
+            "endSec": 570.02,
+            "durationSec": 18.66
+          },
+          {
+            "type": "pause",
+            "startSec": 570.02,
+            "endSec": 572.72,
+            "durationSec": 2.7
+          },
+          {
+            "type": "text",
+            "text": "El puente de Rennie tampoco será eterno. En 1968 se vende a un empresario estadounidense, que lo traslada bloque a bloque hasta el desierto de Arizona, donde todavía cruza un lago artificial.",
+            "startSec": 572.72,
+            "endSec": 594.3,
+            "durationSec": 21.58
+          },
+          {
+            "type": "pause",
+            "startSec": 594.3,
+            "endSec": 597.28,
+            "durationSec": 2.98
+          },
+          {
+            "type": "text",
+            "text": "Del puente habitado solo quedan algunos sillares en un patio de iglesia y los grabados de quienes lo dibujaron. Déjanos saber en los comentarios si te habrías atrevido a vivir en una casa suspendida sobre el río.",
+            "startSec": 597.28,
+            "endSec": 603.48,
+            "durationSec": 6.2
+          },
+          {
+            "type": "pause",
+            "startSec": 603.48,
+            "endSec": 605.54,
+            "durationSec": 2.06
+          },
+          {
+            "type": "text",
+            "text": "Cada historia deja una huella. Aquí seguimos sus rastros.",
+            "startSec": 605.54,
+            "endSec": 609.8,
+            "durationSec": 4.26
+          }
+        ]
+      }
+    ],
+    "masterAudioUrl": "tts-files/tts-video-30-louvre.mp3",
     "timelineSentences": [
       {
         "text": "[SIN VOZ NARRATIVA — Intro Oficial de Marca (8s)]",
@@ -56,242 +383,317 @@
         "end": 16
       },
       {
-        "text": "Año 1209, Puente de Londres, Inglaterra. Tras 33 años de obras, la ciudad inaugura el primer puente de piedra sobre el Támesis, una calle",
+        "text": "Año 1209, Puente de Londres, Inglaterra. Tras 33 años de obras, la ciudad",
         "start": 16,
         "end": 26
       },
       {
-        "text": "habitada que flotará sobre el río durante más de 600 años. [pausa: 1.5s] En los próximos minutos descubrirás cómo un puente medieval se",
+        "text": "inaugura el primer puente de piedra sobre el Támesis, una calle habitada que",
         "start": 26,
         "end": 36
       },
       {
-        "text": "convirtió en barrio, mercado, fortaleza y patíbulo, y por qué Londres terminó derribando su monumento más famoso. Cada historia deja una",
+        "text": "flotará sobre el río durante más de 600 años. [pausa: 2.1s] En los próximos minutos",
         "start": 36,
         "end": 46
       },
       {
-        "text": "huella. Aquí seguimos sus rastros. [pausa: 2s] Todo comienza en 1176, cuando el sacerdote Peter de Colechurch recibe el",
+        "text": "descubrirás cómo un puente medieval se convirtió en barrio, mercado, fortaleza y patíbulo, y por qué Londres",
         "start": 46,
         "end": 56
       },
       {
-        "text": "encargo de sustituir el viejo puente de madera, quemado y reconstruido una y otra vez. Durante tres décadas, cientos de obreros hincan estacas",
+        "text": "terminó derribando su monumento más famoso. Cada historia deja una huella. Aquí seguimos sus rastros.",
         "start": 56,
         "end": 66
       },
       {
-        "text": "de olmo en el lecho del río y levantan sobre ellas 19 arcos de piedra desiguales. [pausa: 1.5s] Los pilares son tan anchos que estrechan",
+        "text": "[pausa: 2.1s] Todo comienza en 1176, cuando el sacerdote Peter de Colechurch recibe el encargo de sustituir",
         "start": 66,
         "end": 76
       },
       {
-        "text": "el cauce a la mitad. El agua se acelera entre ellos como en una presa, y cruzar bajo los arcos en bote se vuelve una apuesta mortal que los",
+        "text": "el viejo puente de madera, quemado y reconstruido una y otra vez. Durante tres décadas, cientos de",
         "start": 76,
         "end": 86
       },
       {
-        "text": "barqueros llaman disparar el puente. [pausa: 1.5s] En el centro se alza una capilla dedicada a Tomás Becket, donde los peregrinos",
+        "text": "obreros hincan estacas de olmo en el lecho del río y levantan sobre ellas 19 arcos de piedra desiguales.",
         "start": 86,
         "end": 96
       },
       {
-        "text": "rezan antes de partir hacia Canterbury. Y muy pronto, sobre la calzada de apenas 4 metros de ancho, empiezan a levantarse casas.",
+        "text": "[pausa: 0.9s] Los pilares son tan anchos que estrechan el cauce a la mitad. El agua se acelera",
         "start": 96,
         "end": 106
       },
       {
-        "text": "[pausa: 2s] Mantenerlo cuesta una fortuna. En 1281 el hielo del invierno arranca cinco arcos de golpe, y la reina Leonor es acusada",
+        "text": "entre ellos como en una presa, y cruzar bajo los arcos en bote se vuelve una apuesta mortal",
         "start": 106,
         "end": 116
       },
       {
-        "text": "de gastar los fondos en sus propios asuntos. [pausa: 1.5s] Cada pilar descansa sobre una isla artificial de estacas y escombros con",
+        "text": "que los barqueros llaman disparar el puente. [pausa: 1s] En el centro se alza una capilla",
         "start": 116,
         "end": 126
       },
       {
-        "text": "forma de barca, llamada tajamar. Bajo dos de los arcos giran enormes ruedas de madera que muelen grano y, desde 1581, bombean agua del río hacia",
+        "text": "dedicada a Tomás Becket, donde los peregrinos rezan antes de partir hacia Canterbury. Y",
         "start": 126,
         "end": 136
       },
       {
-        "text": "las casas de la ciudad. [pausa: 2s] Hacia 1358 el puente sostiene 138 tiendas. Merceros, guanteros, libreros y fabricantes",
+        "text": "muy pronto, sobre la calzada de apenas 4 metros de ancho, empiezan a levantarse casas.",
         "start": 136,
         "end": 146
       },
       {
-        "text": "de agujas pagan alquileres que financian las reparaciones. Los edificios crecen hasta cinco pisos y se unen por arriba con vigas, de",
+        "text": "[pausa: 0.9s] Mantenerlo cuesta una fortuna. En 1281 el hielo del invierno arranca cinco arcos de golpe, y la reina Leonor es acusada de gastar los fondos en sus propios asuntos. [pausa: 1.6s] Cada pilar descansa sobre una isla artificial",
         "start": 146,
         "end": 156
       },
       {
-        "text": "modo que quien cruza camina por un túnel oscuro de madera y voces. [pausa: 1.5s] La vida ahí arriba tiene ventajas inesperadas. El río",
+        "text": "de estacas y escombros con forma de barca, llamada tajamar. Bajo dos de los arcos giran enormes ruedas de madera que muelen grano y, desde 1581, bombean",
         "start": 156,
         "end": 166
       },
       {
-        "text": "se lleva la basura, el viento barre el humo, y durante la gran peste de 1665 los vecinos del puente mueren mucho menos que los de las calles",
+        "text": "agua del río hacia las casas de la ciudad. [pausa: 2.1s] Hacia 1358 el puente sostiene 138 tiendas.",
         "start": 166,
         "end": 176
       },
       {
-        "text": "vecinas. Las letrinas cuelgan directamente sobre el agua, y los barqueros aprenden pronto a no pasar por debajo sin mirar. [pausa: 1.5s]",
+        "text": "Merceros, guanteros, libreros y fabricantes de agujas pagan alquileres que",
         "start": 176,
         "end": 186
       },
       {
-        "text": "A mitad del recorrido, un puente levadizo permite el paso de los barcos de mástil alto y corta el acceso en caso de ataque. En 1381, durante",
+        "text": "financian las reparaciones. Los edificios crecen hasta cinco pisos y se unen por",
         "start": 186,
         "end": 196
       },
       {
-        "text": "la revuelta campesina, alguien lo baja desde dentro y miles de rebeldes entran en Londres sin encontrar resistencia. [pausa: 2s]",
+        "text": "arriba con vigas, de modo que quien cruza camina por un túnel oscuro de madera y",
         "start": 196,
         "end": 206
       },
       {
-        "text": "En la puerta sur aparece la costumbre más siniestra. Desde 1305, la cabeza del rebelde escocés William Wallace, hervida y bañada",
+        "text": "voces. [pausa: 2.4s] La vida ahí arriba tiene ventajas inesperadas. El río se lleva la basura, el viento barre el humo, y durante la gran peste de 1665 los vecinos",
         "start": 206,
         "end": 216
       },
       {
-        "text": "en alquitrán, queda clavada en una pica sobre la entrada. Durante 350 años, traidores y condenados compartirán ese lugar frente a los",
+        "text": "del puente mueren mucho menos que los de las calles vecinas. Las letrinas cuelgan directamente sobre el agua, y los barqueros aprenden pronto a no pasar por debajo sin mirar.",
         "start": 216,
         "end": 226
       },
       {
-        "text": "viajeros. [pausa: 2s] En 1450 los rebeldes de Jack Cade toman el puente y combaten de noche entre las casas. Muchos vecinos caen",
+        "text": "[pausa: 2.6s] A mitad del recorrido, un puente levadizo permite el paso",
         "start": 226,
         "end": 236
       },
       {
-        "text": "al río con sus armaduras. Poco después, en 1577, se levanta la casa de Nonsuch, un palacio de madera traído en piezas desde Holanda y ensamblado",
+        "text": "de los barcos de mástil alto y corta el acceso en caso de ataque.",
         "start": 236,
         "end": 246
       },
       {
-        "text": "sin un solo clavo de hierro. [pausa: 1.5s] En 1212 ocurre la primera gran tragedia. Un incendio estalla en la orilla sur y la",
+        "text": "En 1381, durante la revuelta campesina, alguien lo baja desde dentro",
         "start": 246,
         "end": 256
       },
       {
-        "text": "multitud corre al puente para ayudar o para mirar. Las crónicas hablan de 3 mil muertos, una cifra que hoy los historiadores consideran",
+        "text": "y miles de rebeldes entran en Londres sin encontrar resistencia.",
         "start": 256,
         "end": 266
       },
       {
-        "text": "exagerada. [pausa: 1.5s] Un siglo y medio después, en 1390, el puente es escenario de un torneo. Un caballero escocés y un lord inglés se",
+        "text": "[pausa: 0.9s] En la puerta sur aparece la costumbre más siniestra. Desde 1305, la cabeza del rebelde escocés",
         "start": 266,
         "end": 276
       },
       {
-        "text": "enfrentan a lanza sobre la calzada ante el rey Ricardo II. Y en 1536, la hija pequeña de un mercader cae por una ventana al río y es rescatada",
+        "text": "William Wallace, hervida y bañada en alquitrán, queda clavada en una pica sobre la entrada. Durante 350 años,",
         "start": 276,
         "end": 286
       },
       {
-        "text": "por un aprendiz que años más tarde se casará con ella y llegará a ser alcalde de Londres. [pausa: 2s] El fuego es la amenaza",
+        "text": "traidores y condenados compartirán ese lugar frente a los viajeros. [pausa: 2.2s] En 1450 los",
         "start": 286,
         "end": 296
       },
       {
-        "text": "constante. En 1633 un incendio destruye un tercio de las viviendas del extremo norte. Ese hueco vacío salvará al resto en 1666, cuando el Gran",
+        "text": "rebeldes de Jack Cade toman el puente y combaten de noche entre las casas. Muchos vecinos caen",
         "start": 296,
         "end": 306
       },
       {
-        "text": "Incendio de Londres devora la ciudad y las llamas se detienen justo donde ya no quedaba nada que quemar. [pausa: 2s] Los",
+        "text": "al río con sus armaduras. Poco después, en 1577, se levanta la casa de Nonsuch, un palacio de",
         "start": 306,
         "end": 316
       },
       {
-        "text": "inviernos traen otro espectáculo. Los pilares frenan tanto la corriente que, aguas arriba, el Támesis llega a congelarse por completo. Las",
+        "text": "madera traído en piezas desde Holanda y ensamblado sin un solo clavo de hierro. [pausa: 1.1s] En 1212",
         "start": 316,
         "end": 326
       },
       {
-        "text": "llaman ferias de la escarcha. [pausa: 1.5s] La última se celebra en febrero de 1814. Un elefante cruza el río helado junto al puente de",
+        "text": "ocurre la primera gran tragedia. Un incendio estalla en la orilla sur y la multitud corre al puente para ayudar o para",
         "start": 326,
         "end": 336
       },
       {
-        "text": "Blackfriars mientras los impresores venden recuerdos estampados sobre el hielo. Cuando el viejo puente desaparezca, la corriente volverá",
+        "text": "mirar. Las crónicas hablan de 3 mil muertos, una cifra que hoy los historiadores consideran exagerada.",
         "start": 336,
         "end": 346
       },
       {
-        "text": "a correr libre y el Támesis no se congelará nunca más en Londres. [pausa: 2s] En el siglo XVIII el puente es un estorbo. Los",
+        "text": "[pausa: 2.2s] Un siglo y medio después, en 1390, el puente es escenario de un",
         "start": 346,
         "end": 356
       },
       {
-        "text": "carruajes tardan una hora en cruzarlo y en 1722 el alcalde ordena, por primera vez en Inglaterra, que el tráfico circule por la izquierda.",
+        "text": "torneo. Un caballero escocés y un lord inglés se enfrentan a lanza",
         "start": 356,
         "end": 366
       },
       {
-        "text": "Entre 1758 y 1762 se derriban todas las casas y se ensancha el arco central. [pausa: 1.5s] Pero la estructura medieval ya no resiste.",
+        "text": "sobre la calzada ante el rey Ricardo II. Y en 1536, la hija pequeña de un",
         "start": 366,
         "end": 376
       },
       {
-        "text": "En 1799 se convoca un concurso para reemplazarla y el ingeniero John Rennie diseña cinco arcos de granito. Su hijo dirige las obras desde",
+        "text": "mercader cae por una ventana al río y es rescatada por un aprendiz que años",
         "start": 376,
         "end": 386
       },
       {
-        "text": "1824, a 30 metros río arriba del viejo puente, que sigue en uso mientras tanto. [pausa: 1.5s] La construcción dura siete años y cuesta",
+        "text": "más tarde se casará con ella y llegará a ser alcalde de Londres.",
         "start": 386,
         "end": 396
       },
       {
-        "text": "la vida a unos 40 obreros. Cada bloque de granito llega por mar desde Dartmoor y Escocia. Para abrir los accesos se derriban calles enteras",
+        "text": "[pausa: 1.7s] El fuego es la amenaza constante. En 1633 un incendio destruye un tercio de las viviendas del extremo norte. Ese hueco vacío salvará al resto en 1666,",
         "start": 396,
         "end": 406
       },
       {
-        "text": "y la iglesia de San Miguel, y el coste final supera los 2 millones de libras, una suma descomunal para la época. [pausa: 1.5s] El",
+        "text": "cuando el Gran Incendio de Londres devora la ciudad y las llamas se detienen justo donde ya no quedaba nada que quemar. [pausa: 2.5s] Los",
         "start": 406,
         "end": 416
       },
       {
-        "text": "primero de agosto de 1831, el rey Guillermo IV inaugura el nuevo Puente de Londres con un banquete bajo una carpa. Semanas después comienzan a",
+        "text": "inviernos traen otro espectáculo.",
         "start": 416,
         "end": 426
       },
       {
-        "text": "desmontar piedra por piedra los arcos de 1209, tras 622 años de servicio. [pausa: 2s] El puente de Rennie tampoco será eterno.",
+        "text": "Los pilares frenan tanto la corriente",
         "start": 426,
         "end": 436
       },
       {
-        "text": "En 1968 se vende a un empresario estadounidense, que lo traslada bloque a bloque hasta el desierto de Arizona, donde todavía cruza un lago",
+        "text": "que, aguas arriba, el Támesis llega",
         "start": 436,
         "end": 446
       },
       {
-        "text": "artificial. [pausa: 1.5s] Del puente habitado solo quedan algunos sillares en un patio de iglesia y los grabados de quienes lo",
+        "text": "a congelarse por completo. Las",
         "start": 446,
         "end": 456
       },
       {
-        "text": "dibujaron. Déjanos saber en los comentarios si te habrías atrevido a vivir en una casa suspendida sobre el río. [pausa: 1.5s] Cada historia",
+        "text": "llaman ferias de la escarcha. [pausa: 2.2s]",
         "start": 456,
         "end": 466
       },
       {
-        "text": "deja una huella. Aquí seguimos sus rastros.",
+        "text": "La última se celebra en febrero de 1814. Un elefante cruza el río helado junto al puente de Blackfriars mientras los impresores venden recuerdos estampados sobre el hielo. Cuando el viejo",
         "start": 466,
-        "end": 470
+        "end": 476
+      },
+      {
+        "text": "puente desaparezca, la corriente volverá a correr libre y el Támesis no se congelará nunca más en Londres. [pausa: 1.5s] En el siglo XVIII el puente es un estorbo. Los",
+        "start": 476,
+        "end": 486
+      },
+      {
+        "text": "carruajes tardan una hora en cruzarlo y en 1722 el alcalde ordena, por primera vez en Inglaterra, que el tráfico circule por la izquierda. Entre 1758 y 1762 se derriban todas las casas y se",
+        "start": 486,
+        "end": 496
+      },
+      {
+        "text": "ensancha el arco central. [pausa: 2.1s] Pero la estructura medieval ya no resiste. En",
+        "start": 496,
+        "end": 506
+      },
+      {
+        "text": "1799 se convoca un concurso para reemplazarla y el ingeniero John Rennie",
+        "start": 506,
+        "end": 516
+      },
+      {
+        "text": "diseña cinco arcos de granito. Su hijo dirige las obras desde 1824, a 30",
+        "start": 516,
+        "end": 526
+      },
+      {
+        "text": "metros río arriba del viejo puente, que sigue en uso mientras tanto.",
+        "start": 526,
+        "end": 536
+      },
+      {
+        "text": "[pausa: 2.3s] La construcción dura siete años y cuesta la vida a unos 40 obreros. Cada bloque de",
+        "start": 536,
+        "end": 546
+      },
+      {
+        "text": "granito llega por mar desde Dartmoor y Escocia. Para abrir los accesos se derriban calles enteras y la iglesia",
+        "start": 546,
+        "end": 556
+      },
+      {
+        "text": "de San Miguel, y el coste final supera los 2 millones de libras, una suma descomunal para la época.",
+        "start": 556,
+        "end": 566
+      },
+      {
+        "text": "[pausa: 2s] El primero de agosto de 1831, el rey Guillermo IV inaugura el nuevo Puente de Londres con un banquete bajo",
+        "start": 566,
+        "end": 576
+      },
+      {
+        "text": "una carpa. Semanas después comienzan a desmontar piedra por piedra los arcos de 1209, tras 622 años de servicio.",
+        "start": 576,
+        "end": 586
+      },
+      {
+        "text": "[pausa: 2.7s] El puente de Rennie tampoco será eterno. En 1968 se vende a un",
+        "start": 586,
+        "end": 596
+      },
+      {
+        "text": "empresario estadounidense, que lo traslada bloque a bloque hasta el desierto de Arizona, donde",
+        "start": 596,
+        "end": 606
+      },
+      {
+        "text": "todavía cruza un lago artificial. [pausa: 3s] Del puente habitado solo quedan algunos sillares en un patio de iglesia y los grabados de quienes",
+        "start": 606,
+        "end": 616
+      },
+      {
+        "text": "lo dibujaron. Déjanos saber en los comentarios si te habrías atrevido a vivir en una casa suspendida sobre el río. [pausa: 2.1s] Cada historia deja una huella. Aquí seguimos sus rastros.",
+        "start": 616,
+        "end": 626
       },
       {
         "text": "[SIN VOZ NARRATIVA — Outro Oficial de Marca (8s)]",
-        "start": 470,
-        "end": 478
+        "start": 626,
+        "end": 634
       }
     ],
-    "timelineFormattedText": "===================================\nCANTIDAD DE PALABRAS: 1016\nPALABRAS POR MINUTO (WPM): 134.3\nDURACIÓN VOZ NARRATIVA: 07:34\nBLOQUES SIN VOZ (Intro + Hook + Outro): +24s\nDURACIÓN VIDEO TOTAL: 07:58\n===================================\n\n1 00:00 - 00:08 [SIN VOZ NARRATIVA — Intro Oficial de Marca (8s)]\n2 00:08 - 00:16 [SIN VOZ NARRATIVA — Clip 1: Hook Visual Inicial y Texto en Pantalla (8s)]\n3 00:16 - 00:26 Año 1209, Puente de Londres, Inglaterra. Tras 33 años de obras, la ciudad inaugura el primer puente de piedra sobre el Támesis, una calle\n4 00:26 - 00:36 habitada que flotará sobre el río durante más de 600 años. [pausa: 1.5s] En los próximos minutos descubrirás cómo un puente medieval se\n5 00:36 - 00:46 convirtió en barrio, mercado, fortaleza y patíbulo, y por qué Londres terminó derribando su monumento más famoso. Cada historia deja una\n6 00:46 - 00:56 huella. Aquí seguimos sus rastros. [pausa: 2s] Todo comienza en 1176, cuando el sacerdote Peter de Colechurch recibe el\n7 00:56 - 01:06 encargo de sustituir el viejo puente de madera, quemado y reconstruido una y otra vez. Durante tres décadas, cientos de obreros hincan estacas\n8 01:06 - 01:16 de olmo en el lecho del río y levantan sobre ellas 19 arcos de piedra desiguales. [pausa: 1.5s] Los pilares son tan anchos que estrechan\n9 01:16 - 01:26 el cauce a la mitad. El agua se acelera entre ellos como en una presa, y cruzar bajo los arcos en bote se vuelve una apuesta mortal que los\n10 01:26 - 01:36 barqueros llaman disparar el puente. [pausa: 1.5s] En el centro se alza una capilla dedicada a Tomás Becket, donde los peregrinos\n11 01:36 - 01:46 rezan antes de partir hacia Canterbury. Y muy pronto, sobre la calzada de apenas 4 metros de ancho, empiezan a levantarse casas.\n12 01:46 - 01:56 [pausa: 2s] Mantenerlo cuesta una fortuna. En 1281 el hielo del invierno arranca cinco arcos de golpe, y la reina Leonor es acusada\n13 01:56 - 02:06 de gastar los fondos en sus propios asuntos. [pausa: 1.5s] Cada pilar descansa sobre una isla artificial de estacas y escombros con\n14 02:06 - 02:16 forma de barca, llamada tajamar. Bajo dos de los arcos giran enormes ruedas de madera que muelen grano y, desde 1581, bombean agua del río hacia\n15 02:16 - 02:26 las casas de la ciudad. [pausa: 2s] Hacia 1358 el puente sostiene 138 tiendas. Merceros, guanteros, libreros y fabricantes\n16 02:26 - 02:36 de agujas pagan alquileres que financian las reparaciones. Los edificios crecen hasta cinco pisos y se unen por arriba con vigas, de\n17 02:36 - 02:46 modo que quien cruza camina por un túnel oscuro de madera y voces. [pausa: 1.5s] La vida ahí arriba tiene ventajas inesperadas. El río\n18 02:46 - 02:56 se lleva la basura, el viento barre el humo, y durante la gran peste de 1665 los vecinos del puente mueren mucho menos que los de las calles\n19 02:56 - 03:06 vecinas. Las letrinas cuelgan directamente sobre el agua, y los barqueros aprenden pronto a no pasar por debajo sin mirar. [pausa: 1.5s]\n20 03:06 - 03:16 A mitad del recorrido, un puente levadizo permite el paso de los barcos de mástil alto y corta el acceso en caso de ataque. En 1381, durante\n21 03:16 - 03:26 la revuelta campesina, alguien lo baja desde dentro y miles de rebeldes entran en Londres sin encontrar resistencia. [pausa: 2s]\n22 03:26 - 03:36 En la puerta sur aparece la costumbre más siniestra. Desde 1305, la cabeza del rebelde escocés William Wallace, hervida y bañada\n23 03:36 - 03:46 en alquitrán, queda clavada en una pica sobre la entrada. Durante 350 años, traidores y condenados compartirán ese lugar frente a los\n24 03:46 - 03:56 viajeros. [pausa: 2s] En 1450 los rebeldes de Jack Cade toman el puente y combaten de noche entre las casas. Muchos vecinos caen\n25 03:56 - 04:06 al río con sus armaduras. Poco después, en 1577, se levanta la casa de Nonsuch, un palacio de madera traído en piezas desde Holanda y ensamblado\n26 04:06 - 04:16 sin un solo clavo de hierro. [pausa: 1.5s] En 1212 ocurre la primera gran tragedia. Un incendio estalla en la orilla sur y la\n27 04:16 - 04:26 multitud corre al puente para ayudar o para mirar. Las crónicas hablan de 3 mil muertos, una cifra que hoy los historiadores consideran\n28 04:26 - 04:36 exagerada. [pausa: 1.5s] Un siglo y medio después, en 1390, el puente es escenario de un torneo. Un caballero escocés y un lord inglés se\n29 04:36 - 04:46 enfrentan a lanza sobre la calzada ante el rey Ricardo II. Y en 1536, la hija pequeña de un mercader cae por una ventana al río y es rescatada\n30 04:46 - 04:56 por un aprendiz que años más tarde se casará con ella y llegará a ser alcalde de Londres. [pausa: 2s] El fuego es la amenaza\n31 04:56 - 05:06 constante. En 1633 un incendio destruye un tercio de las viviendas del extremo norte. Ese hueco vacío salvará al resto en 1666, cuando el Gran\n32 05:06 - 05:16 Incendio de Londres devora la ciudad y las llamas se detienen justo donde ya no quedaba nada que quemar. [pausa: 2s] Los\n33 05:16 - 05:26 inviernos traen otro espectáculo. Los pilares frenan tanto la corriente que, aguas arriba, el Támesis llega a congelarse por completo. Las\n34 05:26 - 05:36 llaman ferias de la escarcha. [pausa: 1.5s] La última se celebra en febrero de 1814. Un elefante cruza el río helado junto al puente de\n35 05:36 - 05:46 Blackfriars mientras los impresores venden recuerdos estampados sobre el hielo. Cuando el viejo puente desaparezca, la corriente volverá\n36 05:46 - 05:56 a correr libre y el Támesis no se congelará nunca más en Londres. [pausa: 2s] En el siglo XVIII el puente es un estorbo. Los\n37 05:56 - 06:06 carruajes tardan una hora en cruzarlo y en 1722 el alcalde ordena, por primera vez en Inglaterra, que el tráfico circule por la izquierda.\n38 06:06 - 06:16 Entre 1758 y 1762 se derriban todas las casas y se ensancha el arco central. [pausa: 1.5s] Pero la estructura medieval ya no resiste.\n39 06:16 - 06:26 En 1799 se convoca un concurso para reemplazarla y el ingeniero John Rennie diseña cinco arcos de granito. Su hijo dirige las obras desde\n40 06:26 - 06:36 1824, a 30 metros río arriba del viejo puente, que sigue en uso mientras tanto. [pausa: 1.5s] La construcción dura siete años y cuesta\n41 06:36 - 06:46 la vida a unos 40 obreros. Cada bloque de granito llega por mar desde Dartmoor y Escocia. Para abrir los accesos se derriban calles enteras\n42 06:46 - 06:56 y la iglesia de San Miguel, y el coste final supera los 2 millones de libras, una suma descomunal para la época. [pausa: 1.5s] El\n43 06:56 - 07:06 primero de agosto de 1831, el rey Guillermo IV inaugura el nuevo Puente de Londres con un banquete bajo una carpa. Semanas después comienzan a\n44 07:06 - 07:16 desmontar piedra por piedra los arcos de 1209, tras 622 años de servicio. [pausa: 2s] El puente de Rennie tampoco será eterno.\n45 07:16 - 07:26 En 1968 se vende a un empresario estadounidense, que lo traslada bloque a bloque hasta el desierto de Arizona, donde todavía cruza un lago\n46 07:26 - 07:36 artificial. [pausa: 1.5s] Del puente habitado solo quedan algunos sillares en un patio de iglesia y los grabados de quienes lo\n47 07:36 - 07:46 dibujaron. Déjanos saber en los comentarios si te habrías atrevido a vivir en una casa suspendida sobre el río. [pausa: 1.5s] Cada historia\n48 07:46 - 07:50 deja una huella. Aquí seguimos sus rastros.\n49 07:50 - 07:58 [SIN VOZ NARRATIVA — Outro Oficial de Marca (8s)]",
+    "timelineFormattedText": "===================================\nCANTIDAD DE PALABRAS: 1016\nPALABRAS POR MINUTO (WPM): 99.9\nDURACIÓN VOZ NARRATIVA: 10:10\nBLOQUES SIN VOZ (Intro + Hook + Outro): +24s\nDURACIÓN VIDEO TOTAL: 10:34\n===================================\n\n1 00:00 - 00:08 [SIN VOZ NARRATIVA — Intro Oficial de Marca (8s)]\n2 00:08 - 00:16 [SIN VOZ NARRATIVA — Clip 1: Hook Visual Inicial y Texto en Pantalla (8s)]\n3 00:16 - 00:26 Año 1209, Puente de Londres, Inglaterra. Tras 33 años de obras, la ciudad\n4 00:26 - 00:36 inaugura el primer puente de piedra sobre el Támesis, una calle habitada que\n5 00:36 - 00:46 flotará sobre el río durante más de 600 años. [pausa: 2.1s] En los próximos minutos\n6 00:46 - 00:56 descubrirás cómo un puente medieval se convirtió en barrio, mercado, fortaleza y patíbulo, y por qué Londres\n7 00:56 - 01:06 terminó derribando su monumento más famoso. Cada historia deja una huella. Aquí seguimos sus rastros.\n8 01:06 - 01:16 [pausa: 2.1s] Todo comienza en 1176, cuando el sacerdote Peter de Colechurch recibe el encargo de sustituir\n9 01:16 - 01:26 el viejo puente de madera, quemado y reconstruido una y otra vez. Durante tres décadas, cientos de\n10 01:26 - 01:36 obreros hincan estacas de olmo en el lecho del río y levantan sobre ellas 19 arcos de piedra desiguales.\n11 01:36 - 01:46 [pausa: 0.9s] Los pilares son tan anchos que estrechan el cauce a la mitad. El agua se acelera\n12 01:46 - 01:56 entre ellos como en una presa, y cruzar bajo los arcos en bote se vuelve una apuesta mortal\n13 01:56 - 02:06 que los barqueros llaman disparar el puente. [pausa: 1s] En el centro se alza una capilla\n14 02:06 - 02:16 dedicada a Tomás Becket, donde los peregrinos rezan antes de partir hacia Canterbury. Y\n15 02:16 - 02:26 muy pronto, sobre la calzada de apenas 4 metros de ancho, empiezan a levantarse casas.\n16 02:26 - 02:36 [pausa: 0.9s] Mantenerlo cuesta una fortuna. En 1281 el hielo del invierno arranca cinco arcos de golpe, y la reina Leonor es acusada de gastar los fondos en sus propios asuntos. [pausa: 1.6s] Cada pilar descansa sobre una isla artificial\n17 02:36 - 02:46 de estacas y escombros con forma de barca, llamada tajamar. Bajo dos de los arcos giran enormes ruedas de madera que muelen grano y, desde 1581, bombean\n18 02:46 - 02:56 agua del río hacia las casas de la ciudad. [pausa: 2.1s] Hacia 1358 el puente sostiene 138 tiendas.\n19 02:56 - 03:06 Merceros, guanteros, libreros y fabricantes de agujas pagan alquileres que\n20 03:06 - 03:16 financian las reparaciones. Los edificios crecen hasta cinco pisos y se unen por\n21 03:16 - 03:26 arriba con vigas, de modo que quien cruza camina por un túnel oscuro de madera y\n22 03:26 - 03:36 voces. [pausa: 2.4s] La vida ahí arriba tiene ventajas inesperadas. El río se lleva la basura, el viento barre el humo, y durante la gran peste de 1665 los vecinos\n23 03:36 - 03:46 del puente mueren mucho menos que los de las calles vecinas. Las letrinas cuelgan directamente sobre el agua, y los barqueros aprenden pronto a no pasar por debajo sin mirar.\n24 03:46 - 03:56 [pausa: 2.6s] A mitad del recorrido, un puente levadizo permite el paso\n25 03:56 - 04:06 de los barcos de mástil alto y corta el acceso en caso de ataque.\n26 04:06 - 04:16 En 1381, durante la revuelta campesina, alguien lo baja desde dentro\n27 04:16 - 04:26 y miles de rebeldes entran en Londres sin encontrar resistencia.\n28 04:26 - 04:36 [pausa: 0.9s] En la puerta sur aparece la costumbre más siniestra. Desde 1305, la cabeza del rebelde escocés\n29 04:36 - 04:46 William Wallace, hervida y bañada en alquitrán, queda clavada en una pica sobre la entrada. Durante 350 años,\n30 04:46 - 04:56 traidores y condenados compartirán ese lugar frente a los viajeros. [pausa: 2.2s] En 1450 los\n31 04:56 - 05:06 rebeldes de Jack Cade toman el puente y combaten de noche entre las casas. Muchos vecinos caen\n32 05:06 - 05:16 al río con sus armaduras. Poco después, en 1577, se levanta la casa de Nonsuch, un palacio de\n33 05:16 - 05:26 madera traído en piezas desde Holanda y ensamblado sin un solo clavo de hierro. [pausa: 1.1s] En 1212\n34 05:26 - 05:36 ocurre la primera gran tragedia. Un incendio estalla en la orilla sur y la multitud corre al puente para ayudar o para\n35 05:36 - 05:46 mirar. Las crónicas hablan de 3 mil muertos, una cifra que hoy los historiadores consideran exagerada.\n36 05:46 - 05:56 [pausa: 2.2s] Un siglo y medio después, en 1390, el puente es escenario de un\n37 05:56 - 06:06 torneo. Un caballero escocés y un lord inglés se enfrentan a lanza\n38 06:06 - 06:16 sobre la calzada ante el rey Ricardo II. Y en 1536, la hija pequeña de un\n39 06:16 - 06:26 mercader cae por una ventana al río y es rescatada por un aprendiz que años\n40 06:26 - 06:36 más tarde se casará con ella y llegará a ser alcalde de Londres.\n41 06:36 - 06:46 [pausa: 1.7s] El fuego es la amenaza constante. En 1633 un incendio destruye un tercio de las viviendas del extremo norte. Ese hueco vacío salvará al resto en 1666,\n42 06:46 - 06:56 cuando el Gran Incendio de Londres devora la ciudad y las llamas se detienen justo donde ya no quedaba nada que quemar. [pausa: 2.5s] Los\n43 06:56 - 07:06 inviernos traen otro espectáculo.\n44 07:06 - 07:16 Los pilares frenan tanto la corriente\n45 07:16 - 07:26 que, aguas arriba, el Támesis llega\n46 07:26 - 07:36 a congelarse por completo. Las\n47 07:36 - 07:46 llaman ferias de la escarcha. [pausa: 2.2s]\n48 07:46 - 07:56 La última se celebra en febrero de 1814. Un elefante cruza el río helado junto al puente de Blackfriars mientras los impresores venden recuerdos estampados sobre el hielo. Cuando el viejo\n49 07:56 - 08:06 puente desaparezca, la corriente volverá a correr libre y el Támesis no se congelará nunca más en Londres. [pausa: 1.5s] En el siglo XVIII el puente es un estorbo. Los\n50 08:06 - 08:16 carruajes tardan una hora en cruzarlo y en 1722 el alcalde ordena, por primera vez en Inglaterra, que el tráfico circule por la izquierda. Entre 1758 y 1762 se derriban todas las casas y se\n51 08:16 - 08:26 ensancha el arco central. [pausa: 2.1s] Pero la estructura medieval ya no resiste. En\n52 08:26 - 08:36 1799 se convoca un concurso para reemplazarla y el ingeniero John Rennie\n53 08:36 - 08:46 diseña cinco arcos de granito. Su hijo dirige las obras desde 1824, a 30\n54 08:46 - 08:56 metros río arriba del viejo puente, que sigue en uso mientras tanto.\n55 08:56 - 09:06 [pausa: 2.3s] La construcción dura siete años y cuesta la vida a unos 40 obreros. Cada bloque de\n56 09:06 - 09:16 granito llega por mar desde Dartmoor y Escocia. Para abrir los accesos se derriban calles enteras y la iglesia\n57 09:16 - 09:26 de San Miguel, y el coste final supera los 2 millones de libras, una suma descomunal para la época.\n58 09:26 - 09:36 [pausa: 2s] El primero de agosto de 1831, el rey Guillermo IV inaugura el nuevo Puente de Londres con un banquete bajo\n59 09:36 - 09:46 una carpa. Semanas después comienzan a desmontar piedra por piedra los arcos de 1209, tras 622 años de servicio.\n60 09:46 - 09:56 [pausa: 2.7s] El puente de Rennie tampoco será eterno. En 1968 se vende a un\n61 09:56 - 10:06 empresario estadounidense, que lo traslada bloque a bloque hasta el desierto de Arizona, donde\n62 10:06 - 10:16 todavía cruza un lago artificial. [pausa: 3s] Del puente habitado solo quedan algunos sillares en un patio de iglesia y los grabados de quienes\n63 10:16 - 10:26 lo dibujaron. Déjanos saber en los comentarios si te habrías atrevido a vivir en una casa suspendida sobre el río. [pausa: 2.1s] Cada historia deja una huella. Aquí seguimos sus rastros.\n64 10:26 - 10:34 [SIN VOZ NARRATIVA — Outro Oficial de Marca (8s)]",
     "timelineSettings": {
       "language": "es",
       "customLanguage": "",
@@ -345,7 +747,7 @@
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "Año 1209, Puente de Londres, Inglaterra. Tras 33 años de obras, la ciudad inaugura el primer puente de piedra sobre el Támesis, una calle",
+        "narrationSegment": "Año 1209, Puente de Londres, Inglaterra. Tras 33 años de obras, la ciudad",
         "pauseNotes": "",
         "imageReady": false,
         "videoReady": true,
@@ -367,8 +769,8 @@
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "habitada que flotará sobre el río durante más de 600 años. [pausa: 1.5s] En los próximos minutos descubrirás cómo un puente medieval se",
-        "pauseNotes": "Contiene [pausa: 1.5s] en la locución",
+        "narrationSegment": "inaugura el primer puente de piedra sobre el Támesis, una calle habitada que",
+        "pauseNotes": "",
         "imageReady": false,
         "videoReady": true,
         "reviewedForEditor": false,
@@ -389,8 +791,8 @@
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "convirtió en barrio, mercado, fortaleza y patíbulo, y por qué Londres terminó derribando su monumento más famoso. Cada historia deja una",
-        "pauseNotes": "",
+        "narrationSegment": "flotará sobre el río durante más de 600 años. [pausa: 2.1s] En los próximos minutos",
+        "pauseNotes": "Contiene [pausa: 2.1s] en la locución",
         "imageReady": false,
         "videoReady": true,
         "reviewedForEditor": false,
@@ -413,8 +815,8 @@
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "huella. Aquí seguimos sus rastros. [pausa: 2s] Todo comienza en 1176, cuando el sacerdote Peter de Colechurch recibe el",
-        "pauseNotes": "Contiene [pausa: 2s] en la locución",
+        "narrationSegment": "descubrirás cómo un puente medieval se convirtió en barrio, mercado, fortaleza y patíbulo, y por qué Londres",
+        "pauseNotes": "",
         "imageReady": false,
         "videoReady": true,
         "reviewedForEditor": false,
@@ -435,7 +837,7 @@
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "encargo de sustituir el viejo puente de madera, quemado y reconstruido una y otra vez. Durante tres décadas, cientos de obreros hincan estacas",
+        "narrationSegment": "terminó derribando su monumento más famoso. Cada historia deja una huella. Aquí seguimos sus rastros.",
         "pauseNotes": "",
         "imageReady": false,
         "videoReady": true,
@@ -457,8 +859,8 @@
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "de olmo en el lecho del río y levantan sobre ellas 19 arcos de piedra desiguales. [pausa: 1.5s] Los pilares son tan anchos que estrechan",
-        "pauseNotes": "Contiene [pausa: 1.5s] en la locución",
+        "narrationSegment": "[pausa: 2.1s] Todo comienza en 1176, cuando el sacerdote Peter de Colechurch recibe el encargo de sustituir",
+        "pauseNotes": "Contiene [pausa: 2.1s] en la locución",
         "imageReady": false,
         "videoReady": true,
         "reviewedForEditor": false,
@@ -479,7 +881,7 @@
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "el cauce a la mitad. El agua se acelera entre ellos como en una presa, y cruzar bajo los arcos en bote se vuelve una apuesta mortal que los",
+        "narrationSegment": "el viejo puente de madera, quemado y reconstruido una y otra vez. Durante tres décadas, cientos de",
         "pauseNotes": "",
         "imageReady": false,
         "videoReady": true,
@@ -501,8 +903,8 @@
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "barqueros llaman disparar el puente. [pausa: 1.5s] En el centro se alza una capilla dedicada a Tomás Becket, donde los peregrinos",
-        "pauseNotes": "Contiene [pausa: 1.5s] en la locución",
+        "narrationSegment": "obreros hincan estacas de olmo en el lecho del río y levantan sobre ellas 19 arcos de piedra desiguales.",
+        "pauseNotes": "",
         "imageReady": false,
         "videoReady": true,
         "reviewedForEditor": false,
@@ -523,8 +925,8 @@
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "rezan antes de partir hacia Canterbury. Y muy pronto, sobre la calzada de apenas 4 metros de ancho, empiezan a levantarse casas.",
-        "pauseNotes": "",
+        "narrationSegment": "[pausa: 0.9s] Los pilares son tan anchos que estrechan el cauce a la mitad. El agua se acelera",
+        "pauseNotes": "Contiene [pausa: 0.9s] en la locución",
         "imageReady": false,
         "videoReady": true,
         "reviewedForEditor": false,
@@ -545,8 +947,8 @@
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "[pausa: 2s] Mantenerlo cuesta una fortuna. En 1281 el hielo del invierno arranca cinco arcos de golpe, y la reina Leonor es acusada",
-        "pauseNotes": "Contiene [pausa: 2s] en la locución",
+        "narrationSegment": "entre ellos como en una presa, y cruzar bajo los arcos en bote se vuelve una apuesta mortal",
+        "pauseNotes": "",
         "imageReady": false,
         "videoReady": true,
         "reviewedForEditor": false,
@@ -567,8 +969,8 @@
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "de gastar los fondos en sus propios asuntos. [pausa: 1.5s] Cada pilar descansa sobre una isla artificial de estacas y escombros con",
-        "pauseNotes": "Contiene [pausa: 1.5s] en la locución",
+        "narrationSegment": "que los barqueros llaman disparar el puente. [pausa: 1s] En el centro se alza una capilla",
+        "pauseNotes": "Contiene [pausa: 1s] en la locución",
         "imageReady": false,
         "videoReady": true,
         "reviewedForEditor": false,
@@ -589,7 +991,7 @@
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "forma de barca, llamada tajamar. Bajo dos de los arcos giran enormes ruedas de madera que muelen grano y, desde 1581, bombean agua del río hacia",
+        "narrationSegment": "dedicada a Tomás Becket, donde los peregrinos rezan antes de partir hacia Canterbury. Y",
         "pauseNotes": "",
         "imageReady": false,
         "videoReady": true,
@@ -611,8 +1013,8 @@
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "las casas de la ciudad. [pausa: 2s] Hacia 1358 el puente sostiene 138 tiendas. Merceros, guanteros, libreros y fabricantes",
-        "pauseNotes": "Contiene [pausa: 2s] en la locución",
+        "narrationSegment": "muy pronto, sobre la calzada de apenas 4 metros de ancho, empiezan a levantarse casas.",
+        "pauseNotes": "",
         "imageReady": false,
         "videoReady": true,
         "reviewedForEditor": false,
@@ -633,8 +1035,8 @@
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "de agujas pagan alquileres que financian las reparaciones. Los edificios crecen hasta cinco pisos y se unen por arriba con vigas, de",
-        "pauseNotes": "",
+        "narrationSegment": "[pausa: 0.9s] Mantenerlo cuesta una fortuna. En 1281 el hielo del invierno arranca cinco arcos de golpe, y la reina Leonor es acusada de gastar los fondos en sus propios asuntos. [pausa: 1.6s] Cada pilar descansa sobre una isla artificial",
+        "pauseNotes": "Contiene [pausa: 0.9s], [pausa: 1.6s] en la locución",
         "imageReady": false,
         "videoReady": true,
         "reviewedForEditor": false,
@@ -655,8 +1057,8 @@
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "modo que quien cruza camina por un túnel oscuro de madera y voces. [pausa: 1.5s] La vida ahí arriba tiene ventajas inesperadas. El río",
-        "pauseNotes": "Contiene [pausa: 1.5s] en la locución",
+        "narrationSegment": "de estacas y escombros con forma de barca, llamada tajamar. Bajo dos de los arcos giran enormes ruedas de madera que muelen grano y, desde 1581, bombean",
+        "pauseNotes": "",
         "imageReady": false,
         "videoReady": true,
         "reviewedForEditor": false,
@@ -677,8 +1079,8 @@
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "se lleva la basura, el viento barre el humo, y durante la gran peste de 1665 los vecinos del puente mueren mucho menos que los de las calles",
-        "pauseNotes": "",
+        "narrationSegment": "agua del río hacia las casas de la ciudad. [pausa: 2.1s] Hacia 1358 el puente sostiene 138 tiendas.",
+        "pauseNotes": "Contiene [pausa: 2.1s] en la locución",
         "imageReady": false,
         "videoReady": true,
         "reviewedForEditor": false,
@@ -699,8 +1101,8 @@
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "vecinas. Las letrinas cuelgan directamente sobre el agua, y los barqueros aprenden pronto a no pasar por debajo sin mirar. [pausa: 1.5s]",
-        "pauseNotes": "Contiene [pausa: 1.5s] en la locución",
+        "narrationSegment": "Merceros, guanteros, libreros y fabricantes de agujas pagan alquileres que",
+        "pauseNotes": "",
         "imageReady": false,
         "videoReady": true,
         "reviewedForEditor": false,
@@ -723,7 +1125,7 @@
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "A mitad del recorrido, un puente levadizo permite el paso de los barcos de mástil alto y corta el acceso en caso de ataque. En 1381, durante",
+        "narrationSegment": "financian las reparaciones. Los edificios crecen hasta cinco pisos y se unen por",
         "pauseNotes": "",
         "imageReady": false,
         "videoReady": true,
@@ -745,8 +1147,8 @@
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "la revuelta campesina, alguien lo baja desde dentro y miles de rebeldes entran en Londres sin encontrar resistencia. [pausa: 2s]",
-        "pauseNotes": "Contiene [pausa: 2s] en la locución",
+        "narrationSegment": "arriba con vigas, de modo que quien cruza camina por un túnel oscuro de madera y",
+        "pauseNotes": "",
         "imageReady": false,
         "videoReady": true,
         "reviewedForEditor": false,
@@ -767,8 +1169,8 @@
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "En la puerta sur aparece la costumbre más siniestra. Desde 1305, la cabeza del rebelde escocés William Wallace, hervida y bañada",
-        "pauseNotes": "Contiene [pausa: 2s] en la locución",
+        "narrationSegment": "voces. [pausa: 2.4s] La vida ahí arriba tiene ventajas inesperadas. El río se lleva la basura, el viento barre el humo, y durante la gran peste de 1665 los vecinos",
+        "pauseNotes": "Contiene [pausa: 2.4s] en la locución",
         "imageReady": false,
         "videoReady": true,
         "reviewedForEditor": false,
@@ -789,7 +1191,7 @@
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "en alquitrán, queda clavada en una pica sobre la entrada. Durante 350 años, traidores y condenados compartirán ese lugar frente a los",
+        "narrationSegment": "del puente mueren mucho menos que los de las calles vecinas. Las letrinas cuelgan directamente sobre el agua, y los barqueros aprenden pronto a no pasar por debajo sin mirar.",
         "pauseNotes": "",
         "imageReady": false,
         "videoReady": true,
@@ -811,8 +1213,8 @@
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "viajeros. [pausa: 2s] En 1450 los rebeldes de Jack Cade toman el puente y combaten de noche entre las casas. Muchos vecinos caen",
-        "pauseNotes": "Contiene [pausa: 2s] en la locución",
+        "narrationSegment": "[pausa: 2.6s] A mitad del recorrido, un puente levadizo permite el paso",
+        "pauseNotes": "Contiene [pausa: 2.6s] en la locución",
         "imageReady": false,
         "videoReady": true,
         "reviewedForEditor": false,
@@ -833,7 +1235,7 @@
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "al río con sus armaduras. Poco después, en 1577, se levanta la casa de Nonsuch, un palacio de madera traído en piezas desde Holanda y ensamblado",
+        "narrationSegment": "de los barcos de mástil alto y corta el acceso en caso de ataque.",
         "pauseNotes": "",
         "imageReady": false,
         "videoReady": true,
@@ -855,8 +1257,8 @@
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "sin un solo clavo de hierro. [pausa: 1.5s] En 1212 ocurre la primera gran tragedia. Un incendio estalla en la orilla sur y la",
-        "pauseNotes": "Contiene [pausa: 1.5s] en la locución",
+        "narrationSegment": "En 1381, durante la revuelta campesina, alguien lo baja desde dentro",
+        "pauseNotes": "",
         "imageReady": false,
         "videoReady": true,
         "reviewedForEditor": false,
@@ -877,7 +1279,7 @@
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "multitud corre al puente para ayudar o para mirar. Las crónicas hablan de 3 mil muertos, una cifra que hoy los historiadores consideran",
+        "narrationSegment": "y miles de rebeldes entran en Londres sin encontrar resistencia.",
         "pauseNotes": "",
         "imageReady": false,
         "videoReady": true,
@@ -899,8 +1301,8 @@
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "exagerada. [pausa: 1.5s] Un siglo y medio después, en 1390, el puente es escenario de un torneo. Un caballero escocés y un lord inglés se",
-        "pauseNotes": "Contiene [pausa: 1.5s] en la locución",
+        "narrationSegment": "[pausa: 0.9s] En la puerta sur aparece la costumbre más siniestra. Desde 1305, la cabeza del rebelde escocés",
+        "pauseNotes": "Contiene [pausa: 0.9s] en la locución",
         "imageReady": false,
         "videoReady": true,
         "reviewedForEditor": false,
@@ -921,7 +1323,7 @@
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "enfrentan a lanza sobre la calzada ante el rey Ricardo II. Y en 1536, la hija pequeña de un mercader cae por una ventana al río y es rescatada",
+        "narrationSegment": "William Wallace, hervida y bañada en alquitrán, queda clavada en una pica sobre la entrada. Durante 350 años,",
         "pauseNotes": "",
         "imageReady": false,
         "videoReady": true,
@@ -945,8 +1347,8 @@
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "por un aprendiz que años más tarde se casará con ella y llegará a ser alcalde de Londres. [pausa: 2s] El fuego es la amenaza",
-        "pauseNotes": "Contiene [pausa: 2s] en la locución",
+        "narrationSegment": "traidores y condenados compartirán ese lugar frente a los viajeros. [pausa: 2.2s] En 1450 los",
+        "pauseNotes": "Contiene [pausa: 2.2s] en la locución",
         "imageReady": false,
         "videoReady": true,
         "reviewedForEditor": false,
@@ -967,7 +1369,7 @@
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "constante. En 1633 un incendio destruye un tercio de las viviendas del extremo norte. Ese hueco vacío salvará al resto en 1666, cuando el Gran",
+        "narrationSegment": "rebeldes de Jack Cade toman el puente y combaten de noche entre las casas. Muchos vecinos caen",
         "pauseNotes": "",
         "imageReady": false,
         "videoReady": true,
@@ -989,8 +1391,8 @@
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "Incendio de Londres devora la ciudad y las llamas se detienen justo donde ya no quedaba nada que quemar. [pausa: 2s] Los",
-        "pauseNotes": "Contiene [pausa: 2s] en la locución",
+        "narrationSegment": "al río con sus armaduras. Poco después, en 1577, se levanta la casa de Nonsuch, un palacio de",
+        "pauseNotes": "",
         "imageReady": false,
         "videoReady": true,
         "reviewedForEditor": false,
@@ -1011,8 +1413,8 @@
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "inviernos traen otro espectáculo. Los pilares frenan tanto la corriente que, aguas arriba, el Támesis llega a congelarse por completo. Las",
-        "pauseNotes": "",
+        "narrationSegment": "madera traído en piezas desde Holanda y ensamblado sin un solo clavo de hierro. [pausa: 1.1s] En 1212",
+        "pauseNotes": "Contiene [pausa: 1.1s] en la locución",
         "imageReady": false,
         "videoReady": true,
         "reviewedForEditor": false,
@@ -1033,8 +1435,8 @@
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "llaman ferias de la escarcha. [pausa: 1.5s] La última se celebra en febrero de 1814. Un elefante cruza el río helado junto al puente de",
-        "pauseNotes": "Contiene [pausa: 1.5s] en la locución",
+        "narrationSegment": "ocurre la primera gran tragedia. Un incendio estalla en la orilla sur y la multitud corre al puente para ayudar o para",
+        "pauseNotes": "",
         "imageReady": false,
         "videoReady": true,
         "reviewedForEditor": false,
@@ -1055,7 +1457,7 @@
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "Blackfriars mientras los impresores venden recuerdos estampados sobre el hielo. Cuando el viejo puente desaparezca, la corriente volverá",
+        "narrationSegment": "mirar. Las crónicas hablan de 3 mil muertos, una cifra que hoy los historiadores consideran exagerada.",
         "pauseNotes": "",
         "imageReady": false,
         "videoReady": true,
@@ -1077,8 +1479,8 @@
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "a correr libre y el Támesis no se congelará nunca más en Londres. [pausa: 2s] En el siglo XVIII el puente es un estorbo. Los",
-        "pauseNotes": "Contiene [pausa: 2s] en la locución",
+        "narrationSegment": "[pausa: 2.2s] Un siglo y medio después, en 1390, el puente es escenario de un",
+        "pauseNotes": "Contiene [pausa: 2.2s] en la locución",
         "imageReady": false,
         "videoReady": true,
         "reviewedForEditor": false,
@@ -1099,7 +1501,7 @@
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "carruajes tardan una hora en cruzarlo y en 1722 el alcalde ordena, por primera vez en Inglaterra, que el tráfico circule por la izquierda.",
+        "narrationSegment": "torneo. Un caballero escocés y un lord inglés se enfrentan a lanza",
         "pauseNotes": "",
         "imageReady": false,
         "videoReady": true,
@@ -1121,8 +1523,8 @@
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "Entre 1758 y 1762 se derriban todas las casas y se ensancha el arco central. [pausa: 1.5s] Pero la estructura medieval ya no resiste.",
-        "pauseNotes": "Contiene [pausa: 1.5s] en la locución",
+        "narrationSegment": "sobre la calzada ante el rey Ricardo II. Y en 1536, la hija pequeña de un",
+        "pauseNotes": "",
         "imageReady": false,
         "videoReady": true,
         "reviewedForEditor": false,
@@ -1143,7 +1545,7 @@
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "En 1799 se convoca un concurso para reemplazarla y el ingeniero John Rennie diseña cinco arcos de granito. Su hijo dirige las obras desde",
+        "narrationSegment": "mercader cae por una ventana al río y es rescatada por un aprendiz que años",
         "pauseNotes": "",
         "imageReady": false,
         "videoReady": true,
@@ -1165,8 +1567,8 @@
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "1824, a 30 metros río arriba del viejo puente, que sigue en uso mientras tanto. [pausa: 1.5s] La construcción dura siete años y cuesta",
-        "pauseNotes": "Contiene [pausa: 1.5s] en la locución",
+        "narrationSegment": "más tarde se casará con ella y llegará a ser alcalde de Londres.",
+        "pauseNotes": "",
         "imageReady": false,
         "videoReady": true,
         "reviewedForEditor": false,
@@ -1189,8 +1591,8 @@
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "la vida a unos 40 obreros. Cada bloque de granito llega por mar desde Dartmoor y Escocia. Para abrir los accesos se derriban calles enteras",
-        "pauseNotes": "",
+        "narrationSegment": "[pausa: 1.7s] El fuego es la amenaza constante. En 1633 un incendio destruye un tercio de las viviendas del extremo norte. Ese hueco vacío salvará al resto en 1666,",
+        "pauseNotes": "Contiene [pausa: 1.7s] en la locución",
         "imageReady": false,
         "videoReady": true,
         "reviewedForEditor": false,
@@ -1211,8 +1613,8 @@
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "y la iglesia de San Miguel, y el coste final supera los 2 millones de libras, una suma descomunal para la época. [pausa: 1.5s] El",
-        "pauseNotes": "Contiene [pausa: 1.5s] en la locución",
+        "narrationSegment": "cuando el Gran Incendio de Londres devora la ciudad y las llamas se detienen justo donde ya no quedaba nada que quemar. [pausa: 2.5s] Los",
+        "pauseNotes": "Contiene [pausa: 2.5s] en la locución",
         "imageReady": false,
         "videoReady": true,
         "reviewedForEditor": false,
@@ -1233,7 +1635,7 @@
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "primero de agosto de 1831, el rey Guillermo IV inaugura el nuevo Puente de Londres con un banquete bajo una carpa. Semanas después comienzan a",
+        "narrationSegment": "inviernos traen otro espectáculo.",
         "pauseNotes": "",
         "imageReady": false,
         "videoReady": true,
@@ -1255,8 +1657,8 @@
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "desmontar piedra por piedra los arcos de 1209, tras 622 años de servicio. [pausa: 2s] El puente de Rennie tampoco será eterno.",
-        "pauseNotes": "Contiene [pausa: 2s] en la locución",
+        "narrationSegment": "Los pilares frenan tanto la corriente",
+        "pauseNotes": "",
         "imageReady": false,
         "videoReady": true,
         "reviewedForEditor": false,
@@ -1279,7 +1681,7 @@
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "En 1968 se vende a un empresario estadounidense, que lo traslada bloque a bloque hasta el desierto de Arizona, donde todavía cruza un lago",
+        "narrationSegment": "que, aguas arriba, el Támesis llega",
         "pauseNotes": "",
         "imageReady": false,
         "videoReady": true,
@@ -1301,8 +1703,8 @@
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "artificial. [pausa: 1.5s] Del puente habitado solo quedan algunos sillares en un patio de iglesia y los grabados de quienes lo",
-        "pauseNotes": "Contiene [pausa: 1.5s] en la locución",
+        "narrationSegment": "a congelarse por completo. Las",
+        "pauseNotes": "",
         "imageReady": false,
         "videoReady": true,
         "reviewedForEditor": false,
@@ -1323,8 +1725,8 @@
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "dibujaron. Déjanos saber en los comentarios si te habrías atrevido a vivir en una casa suspendida sobre el río. [pausa: 1.5s] Cada historia",
-        "pauseNotes": "Contiene [pausa: 1.5s] en la locución",
+        "narrationSegment": "llaman ferias de la escarcha. [pausa: 2.2s]",
+        "pauseNotes": "Contiene [pausa: 2.2s] en la locución",
         "imageReady": false,
         "videoReady": true,
         "reviewedForEditor": false,
@@ -1340,12 +1742,12 @@
       {
         "id": "clip-47-1795226267292-47",
         "clipNumber": 47,
-        "timeRange": "07:46 - 07:50",
+        "timeRange": "07:46 - 07:56",
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "deja una huella. Aquí seguimos sus rastros.",
+        "narrationSegment": "La última se celebra en febrero de 1814. Un elefante cruza el río helado junto al puente de Blackfriars mientras los impresores venden recuerdos estampados sobre el hielo. Cuando el viejo",
         "pauseNotes": "",
         "imageReady": false,
         "videoReady": true,
@@ -1360,12 +1762,267 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "47_Create_an_image_in_16_Broll_4K.mp4",
         "videoSavedAt": 1795223135658
+      },
+      {
+        "id": "clip-48-1795226277764-48",
+        "clipNumber": 48,
+        "timeRange": "07:56 - 08:06",
+        "cameraSelection": "",
+        "visualExplanation": "",
+        "imagePrompt": "",
+        "videoPrompt": "",
+        "narrationSegment": "puente desaparezca, la corriente volverá a correr libre y el Támesis no se congelará nunca más en Londres. [pausa: 1.5s] En el siglo XVIII el puente es un estorbo. Los",
+        "pauseNotes": "Contiene [pausa: 1.5s] en la locución",
+        "imageReady": false,
+        "videoReady": false,
+        "reviewedForEditor": false,
+        "recreated": false,
+        "auditStatus": "warning",
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\")."
+      },
+      {
+        "id": "clip-49-1795226277764-49",
+        "clipNumber": 49,
+        "timeRange": "08:06 - 08:16",
+        "cameraSelection": "",
+        "visualExplanation": "",
+        "imagePrompt": "",
+        "videoPrompt": "",
+        "narrationSegment": "carruajes tardan una hora en cruzarlo y en 1722 el alcalde ordena, por primera vez en Inglaterra, que el tráfico circule por la izquierda. Entre 1758 y 1762 se derriban todas las casas y se",
+        "pauseNotes": "",
+        "imageReady": false,
+        "videoReady": false,
+        "reviewedForEditor": false,
+        "recreated": false,
+        "auditStatus": "warning",
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\")."
+      },
+      {
+        "id": "clip-50-1795226277764-50",
+        "clipNumber": 50,
+        "timeRange": "08:16 - 08:26",
+        "cameraSelection": "",
+        "visualExplanation": "",
+        "imagePrompt": "",
+        "videoPrompt": "",
+        "narrationSegment": "ensancha el arco central. [pausa: 2.1s] Pero la estructura medieval ya no resiste. En",
+        "pauseNotes": "Contiene [pausa: 2.1s] en la locución",
+        "imageReady": false,
+        "videoReady": false,
+        "reviewedForEditor": false,
+        "recreated": false,
+        "auditStatus": "warning",
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\")."
+      },
+      {
+        "id": "clip-51-1795226277764-51",
+        "clipNumber": 51,
+        "timeRange": "08:26 - 08:36",
+        "cameraSelection": "",
+        "visualExplanation": "",
+        "imagePrompt": "",
+        "videoPrompt": "",
+        "narrationSegment": "1799 se convoca un concurso para reemplazarla y el ingeniero John Rennie",
+        "pauseNotes": "",
+        "imageReady": false,
+        "videoReady": false,
+        "reviewedForEditor": false,
+        "recreated": false,
+        "auditStatus": "warning",
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\")."
+      },
+      {
+        "id": "clip-52-1795226277764-52",
+        "clipNumber": 52,
+        "timeRange": "08:36 - 08:46",
+        "cameraSelection": "",
+        "visualExplanation": "",
+        "imagePrompt": "",
+        "videoPrompt": "",
+        "narrationSegment": "diseña cinco arcos de granito. Su hijo dirige las obras desde 1824, a 30",
+        "pauseNotes": "",
+        "imageReady": false,
+        "videoReady": false,
+        "reviewedForEditor": false,
+        "recreated": false,
+        "auditStatus": "warning",
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\")."
+      },
+      {
+        "id": "clip-53-1795226277764-53",
+        "clipNumber": 53,
+        "timeRange": "08:46 - 08:56",
+        "cameraSelection": "",
+        "visualExplanation": "",
+        "imagePrompt": "",
+        "videoPrompt": "",
+        "narrationSegment": "metros río arriba del viejo puente, que sigue en uso mientras tanto.",
+        "pauseNotes": "",
+        "imageReady": false,
+        "videoReady": false,
+        "reviewedForEditor": false,
+        "recreated": false,
+        "auditStatus": "warning",
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\")."
+      },
+      {
+        "id": "clip-54-1795226277764-54",
+        "clipNumber": 54,
+        "timeRange": "08:56 - 09:06",
+        "cameraSelection": "",
+        "visualExplanation": "",
+        "imagePrompt": "",
+        "videoPrompt": "",
+        "narrationSegment": "[pausa: 2.3s] La construcción dura siete años y cuesta la vida a unos 40 obreros. Cada bloque de",
+        "pauseNotes": "Contiene [pausa: 2.3s] en la locución",
+        "imageReady": false,
+        "videoReady": false,
+        "reviewedForEditor": false,
+        "recreated": false,
+        "auditStatus": "warning",
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\")."
+      },
+      {
+        "id": "clip-55-1795226277764-55",
+        "clipNumber": 55,
+        "timeRange": "09:06 - 09:16",
+        "cameraSelection": "",
+        "visualExplanation": "",
+        "imagePrompt": "",
+        "videoPrompt": "",
+        "narrationSegment": "granito llega por mar desde Dartmoor y Escocia. Para abrir los accesos se derriban calles enteras y la iglesia",
+        "pauseNotes": "",
+        "imageReady": false,
+        "videoReady": false,
+        "reviewedForEditor": false,
+        "recreated": false,
+        "auditStatus": "warning",
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\")."
+      },
+      {
+        "id": "clip-56-1795226277764-56",
+        "clipNumber": 56,
+        "timeRange": "09:16 - 09:26",
+        "cameraSelection": "",
+        "visualExplanation": "",
+        "imagePrompt": "",
+        "videoPrompt": "",
+        "narrationSegment": "de San Miguel, y el coste final supera los 2 millones de libras, una suma descomunal para la época.",
+        "pauseNotes": "",
+        "imageReady": false,
+        "videoReady": false,
+        "reviewedForEditor": false,
+        "recreated": false,
+        "auditStatus": "warning",
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\")."
+      },
+      {
+        "id": "clip-57-1795226277764-57",
+        "clipNumber": 57,
+        "timeRange": "09:26 - 09:36",
+        "cameraSelection": "",
+        "visualExplanation": "",
+        "imagePrompt": "",
+        "videoPrompt": "",
+        "narrationSegment": "[pausa: 2s] El primero de agosto de 1831, el rey Guillermo IV inaugura el nuevo Puente de Londres con un banquete bajo",
+        "pauseNotes": "Contiene [pausa: 2s] en la locución",
+        "imageReady": false,
+        "videoReady": false,
+        "reviewedForEditor": false,
+        "recreated": false,
+        "auditStatus": "warning",
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\")."
+      },
+      {
+        "id": "clip-58-1795226277764-58",
+        "clipNumber": 58,
+        "timeRange": "09:36 - 09:46",
+        "cameraSelection": "",
+        "visualExplanation": "",
+        "imagePrompt": "",
+        "videoPrompt": "",
+        "narrationSegment": "una carpa. Semanas después comienzan a desmontar piedra por piedra los arcos de 1209, tras 622 años de servicio.",
+        "pauseNotes": "",
+        "imageReady": false,
+        "videoReady": false,
+        "reviewedForEditor": false,
+        "recreated": false,
+        "auditStatus": "warning",
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\")."
+      },
+      {
+        "id": "clip-59-1795226277764-59",
+        "clipNumber": 59,
+        "timeRange": "09:46 - 09:56",
+        "cameraSelection": "",
+        "visualExplanation": "",
+        "imagePrompt": "",
+        "videoPrompt": "",
+        "narrationSegment": "[pausa: 2.7s] El puente de Rennie tampoco será eterno. En 1968 se vende a un",
+        "pauseNotes": "Contiene [pausa: 2.7s] en la locución",
+        "imageReady": false,
+        "videoReady": false,
+        "reviewedForEditor": false,
+        "recreated": false,
+        "auditStatus": "warning",
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\")."
+      },
+      {
+        "id": "clip-60-1795226277764-60",
+        "clipNumber": 60,
+        "timeRange": "09:56 - 10:06",
+        "cameraSelection": "",
+        "visualExplanation": "",
+        "imagePrompt": "",
+        "videoPrompt": "",
+        "narrationSegment": "empresario estadounidense, que lo traslada bloque a bloque hasta el desierto de Arizona, donde",
+        "pauseNotes": "",
+        "imageReady": false,
+        "videoReady": false,
+        "reviewedForEditor": false,
+        "recreated": false,
+        "auditStatus": "warning",
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\")."
+      },
+      {
+        "id": "clip-61-1795226277764-61",
+        "clipNumber": 61,
+        "timeRange": "10:06 - 10:16",
+        "cameraSelection": "",
+        "visualExplanation": "",
+        "imagePrompt": "",
+        "videoPrompt": "",
+        "narrationSegment": "todavía cruza un lago artificial. [pausa: 3s] Del puente habitado solo quedan algunos sillares en un patio de iglesia y los grabados de quienes",
+        "pauseNotes": "Contiene [pausa: 3s] en la locución",
+        "imageReady": false,
+        "videoReady": false,
+        "reviewedForEditor": false,
+        "recreated": false,
+        "auditStatus": "warning",
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\")."
+      },
+      {
+        "id": "clip-62-1795226277764-62",
+        "clipNumber": 62,
+        "timeRange": "10:16 - 10:26",
+        "cameraSelection": "",
+        "visualExplanation": "",
+        "imagePrompt": "",
+        "videoPrompt": "",
+        "narrationSegment": "lo dibujaron. Déjanos saber en los comentarios si te habrías atrevido a vivir en una casa suspendida sobre el río. [pausa: 2.1s] Cada historia deja una huella. Aquí seguimos sus rastros.",
+        "pauseNotes": "Contiene [pausa: 2.1s] en la locución",
+        "imageReady": false,
+        "videoReady": false,
+        "reviewedForEditor": false,
+        "recreated": false,
+        "auditStatus": "warning",
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\")."
       }
     ],
     "capcutRawSrt": "",
-    "correctedSrt": "",
+    "correctedSrt": "1\n00:00:16,000 --> 00:00:20,056\nAño 1209, Puente de Londres,\n\n2\n00:00:20,056 --> 00:00:23,301\nInglaterra. Tras 33 años\n\n3\n00:00:23,301 --> 00:00:25,870\nde obras, la ciudad\n\n4\n00:00:26,000 --> 00:00:29,213\ninaugura el primer puente\n\n5\n00:00:29,213 --> 00:00:32,941\nde piedra sobre el Támesis,\n\n6\n00:00:32,941 --> 00:00:35,770\nuna calle habitada que\n\n7\n00:00:36,000 --> 00:00:38,117\nflotará sobre el río\n\n8\n00:00:38,117 --> 00:00:41,188\ndurante más de 600 años.\n\n9\n00:00:43,288 --> 00:00:45,939\nEn los próximos minutos\n\n10\n00:00:46,000 --> 00:00:48,453\ndescubrirás cómo un puente\n\n11\n00:00:48,453 --> 00:00:50,435\nmedieval se convirtió\n\n12\n00:00:50,435 --> 00:00:53,172\nen barrio, mercado, fortaleza\n\n13\n00:00:53,172 --> 00:00:55,909\ny patíbulo, y por qué Londres\n\n14\n00:00:56,000 --> 00:00:57,538\nterminó derribando\n\n15\n00:00:57,538 --> 00:01:00,017\nsu monumento más famoso.\n\n16\n00:01:00,017 --> 00:01:03,009\nCada historia deja una huella.\n\n17\n00:01:03,009 --> 00:01:05,659\nAquí seguimos sus rastros.\n\n18\n00:01:09,819 --> 00:01:11,789\nTodo comienza en 1176, cuando\n\n19\n00:01:11,789 --> 00:01:13,962\nel sacerdote Peter de Colechurch\n\n20\n00:01:13,962 --> 00:01:16,000\nrecibe el encargo de sustituir\n\n21\n00:01:16,409 --> 00:01:19,149\nel viejo puente de madera,\n\n22\n00:01:19,149 --> 00:01:21,301\nquemado y reconstruido\n\n23\n00:01:21,301 --> 00:01:23,551\nuna y otra vez. Durante\n\n24\n00:01:23,551 --> 00:01:25,900\ntres décadas, cientos de\n\n25\n00:01:26,000 --> 00:01:28,000\nobreros hincan estacas\n\n26\n00:01:28,000 --> 00:01:30,456\nde olmo en el lecho del río\n\n27\n00:01:30,456 --> 00:01:32,456\ny levantan sobre ellas\n\n28\n00:01:32,456 --> 00:01:35,640\n19 arcos de piedra desiguales.\n\n29\n00:01:37,400 --> 00:01:40,203\nLos pilares son tan anchos\n\n30\n00:01:40,203 --> 00:01:42,575\nque estrechan el cauce\n\n31\n00:01:42,575 --> 00:01:45,810\na la mitad. El agua se acelera\n\n32\n00:01:46,000 --> 00:01:49,516\nentre ellos como en una presa,\n\n33\n00:01:49,516 --> 00:01:52,923\ny cruzar bajo los arcos en bote\n\n34\n00:01:52,923 --> 00:01:56,000\nse vuelve una apuesta mortal\n\n35\n00:01:56,140 --> 00:01:58,687\nque los barqueros llaman\n\n36\n00:01:58,687 --> 00:02:01,234\ndisparar el puente.\n\n37\n00:02:02,234 --> 00:02:05,939\nEn el centro se alza una capilla\n\n38\n00:02:06,000 --> 00:02:08,952\ndedicada a Tomás Becket,\n\n39\n00:02:08,952 --> 00:02:12,586\ndonde los peregrinos rezan antes\n\n40\n00:02:12,586 --> 00:02:15,879\nde partir hacia Canterbury. Y\n\n41\n00:02:16,000 --> 00:02:18,960\nmuy pronto, sobre la calzada\n\n42\n00:02:18,960 --> 00:02:22,131\nde apenas 4 metros de ancho,\n\n43\n00:02:22,131 --> 00:02:25,620\nempiezan a levantarse casas.\n\n44\n00:02:27,420 --> 00:02:28,541\nMantenerlo cuesta una fortuna.\n\n45\n00:02:28,541 --> 00:02:29,469\nEn 1281 el hielo del invierno\n\n46\n00:02:29,469 --> 00:02:30,462\narranca cinco arcos de golpe,\n\n47\n00:02:30,462 --> 00:02:31,103\ny la reina Leonor es\n\n48\n00:02:31,103 --> 00:02:32,000\nacusada de gastar los fondos\n\n49\n00:02:32,000 --> 00:02:32,897\nen sus propios asuntos.\n\n50\n00:02:34,497 --> 00:02:35,146\nCada pilar descansa\n\n51\n00:02:35,146 --> 00:02:36,000\nsobre una isla artificial\n\n52\n00:02:36,199 --> 00:02:38,249\nde estacas y escombros con forma\n\n53\n00:02:38,249 --> 00:02:40,235\nde barca, llamada tajamar.\n\n54\n00:02:40,235 --> 00:02:41,964\nBajo dos de los arcos giran\n\n55\n00:02:41,964 --> 00:02:44,206\nenormes ruedas de madera que muelen\n\n56\n00:02:44,206 --> 00:02:46,000\ngrano y, desde 1581, bombean\n\n57\n00:02:46,150 --> 00:02:48,508\nagua del río hacia las casas\n\n58\n00:02:48,508 --> 00:02:50,025\nde la ciudad.\n\n59\n00:02:52,125 --> 00:02:53,809\nHacia 1358 el puente\n\n60\n00:02:53,809 --> 00:02:56,000\nsostiene 138 tiendas.\n\n61\n00:02:56,379 --> 00:02:59,225\nMerceros, guanteros,\n\n62\n00:02:59,225 --> 00:03:02,070\nlibreros y fabricantes\n\n63\n00:03:02,070 --> 00:03:05,949\nde agujas pagan alquileres que\n\n64\n00:03:06,000 --> 00:03:09,855\nfinancian las reparaciones.\n\n65\n00:03:09,855 --> 00:03:12,265\nLos edificios crecen\n\n66\n00:03:12,265 --> 00:03:16,000\nhasta cinco pisos y se unen por\n\n67\n00:03:16,120 --> 00:03:19,168\narriba con vigas, de modo\n\n68\n00:03:19,168 --> 00:03:21,850\nque quien cruza camina\n\n69\n00:03:21,850 --> 00:03:25,629\npor un túnel oscuro de madera y\n\n70\n00:03:26,000 --> 00:03:26,308\nvoces.\n\n71\n00:03:28,708 --> 00:03:29,976\nLa vida ahí arriba tiene\n\n72\n00:03:29,976 --> 00:03:31,455\nventajas inesperadas. El río\n\n73\n00:03:31,455 --> 00:03:32,988\nse lleva la basura, el viento\n\n74\n00:03:32,988 --> 00:03:34,679\nbarre el humo, y durante la gran\n\n75\n00:03:34,679 --> 00:03:36,000\npeste de 1665 los vecinos\n\n76\n00:03:36,030 --> 00:03:37,425\ndel puente mueren mucho menos\n\n77\n00:03:37,425 --> 00:03:39,109\nque los de las calles vecinas.\n\n78\n00:03:39,109 --> 00:03:40,072\nLas letrinas cuelgan\n\n79\n00:03:40,072 --> 00:03:41,467\ndirectamente sobre el agua,\n\n80\n00:03:41,467 --> 00:03:42,959\ny los barqueros aprenden pronto\n\n81\n00:03:42,959 --> 00:03:44,740\na no pasar por debajo sin mirar.\n\n82\n00:03:49,960 --> 00:03:53,411\nA mitad del recorrido, un puente\n\n83\n00:03:53,411 --> 00:03:56,000\nlevadizo permite el paso\n\n84\n00:03:56,129 --> 00:03:59,434\nde los barcos de mástil\n\n85\n00:03:59,434 --> 00:04:02,595\nalto y corta el acceso\n\n86\n00:04:02,595 --> 00:04:05,900\nen caso de ataque.\n\n87\n00:04:06,000 --> 00:04:08,352\nEn 1381, durante\n\n88\n00:04:08,352 --> 00:04:11,882\nla revuelta campesina,\n\n89\n00:04:11,882 --> 00:04:16,000\nalguien lo baja desde dentro\n\n90\n00:04:16,339 --> 00:04:20,459\ny miles de rebeldes entran en\n\n91\n00:04:20,459 --> 00:04:26,000\nLondres sin encontrar resistencia.\n\n92\n00:04:28,419 --> 00:04:30,314\nEn la puerta sur aparece\n\n93\n00:04:30,314 --> 00:04:32,841\nla costumbre más siniestra.\n\n94\n00:04:32,841 --> 00:04:34,499\nDesde 1305, la cabeza\n\n95\n00:04:34,499 --> 00:04:36,000\ndel rebelde escocés\n\n96\n00:04:36,009 --> 00:04:38,927\nWilliam Wallace, hervida y bañada\n\n97\n00:04:38,927 --> 00:04:41,314\nen alquitrán, queda clavada\n\n98\n00:04:41,314 --> 00:04:44,320\nen una pica sobre la entrada.\n\n99\n00:04:44,320 --> 00:04:46,000\nDurante 350 años,\n\n100\n00:04:46,050 --> 00:04:48,109\ntraidores y condenados\n\n101\n00:04:48,109 --> 00:04:50,076\ncompartirán ese lugar\n\n102\n00:04:50,076 --> 00:04:52,603\nfrente a los viajeros.\n\n103\n00:04:54,803 --> 00:04:55,879\nEn 1450 los\n\n104\n00:04:56,000 --> 00:04:58,928\nrebeldes de Jack Cade toman\n\n105\n00:04:58,928 --> 00:05:02,074\nel puente y combaten de noche\n\n106\n00:05:02,074 --> 00:05:05,980\nentre las casas. Muchos vecinos caen\n\n107\n00:05:06,000 --> 00:05:09,081\nal río con sus armaduras.\n\n108\n00:05:09,081 --> 00:05:12,470\nPoco después, en 1577, se levanta\n\n109\n00:05:12,470 --> 00:05:15,860\nla casa de Nonsuch, un palacio de\n\n110\n00:05:16,000 --> 00:05:18,293\nmadera traído en piezas\n\n111\n00:05:18,293 --> 00:05:20,885\ndesde Holanda y ensamblado\n\n112\n00:05:20,885 --> 00:05:24,175\nsin un solo clavo de hierro.\n\n113\n00:05:25,275 --> 00:05:26,000\nEn 1212\n\n114\n00:05:26,110 --> 00:05:29,159\nocurre la primera gran tragedia.\n\n115\n00:05:29,159 --> 00:05:31,796\nUn incendio estalla en la orilla\n\n116\n00:05:31,796 --> 00:05:33,692\nsur y la multitud corre\n\n117\n00:05:33,692 --> 00:05:36,000\nal puente para ayudar o para\n\n118\n00:05:36,089 --> 00:05:38,372\nmirar. Las crónicas hablan\n\n119\n00:05:38,372 --> 00:05:40,742\nde 3 mil muertos, una cifra\n\n120\n00:05:40,742 --> 00:05:42,937\nque hoy los historiadores\n\n121\n00:05:42,937 --> 00:05:45,220\nconsideran exagerada.\n\n122\n00:05:49,579 --> 00:05:53,191\nUn siglo y medio después, en 1390,\n\n123\n00:05:53,191 --> 00:05:56,000\nel puente es escenario de un\n\n124\n00:05:56,060 --> 00:05:59,088\ntorneo. Un caballero\n\n125\n00:05:59,088 --> 00:06:02,721\nescocés y un lord inglés\n\n126\n00:06:02,721 --> 00:06:05,750\nse enfrentan a lanza\n\n127\n00:06:06,000 --> 00:06:08,073\nsobre la calzada\n\n128\n00:06:08,073 --> 00:06:11,702\nante el rey Ricardo II.\n\n129\n00:06:11,702 --> 00:06:15,850\nY en 1536, la hija pequeña de un\n\n130\n00:06:16,000 --> 00:06:19,835\nmercader cae por una ventana\n\n131\n00:06:19,835 --> 00:06:22,712\nal río y es rescatada\n\n132\n00:06:22,712 --> 00:06:26,000\npor un aprendiz que años\n\n133\n00:06:26,040 --> 00:06:29,828\nmás tarde se casará con ella\n\n134\n00:06:29,828 --> 00:06:35,240\ny llegará a ser alcalde de Londres.\n\n135\n00:06:38,680 --> 00:06:40,450\nEl fuego es la amenaza constante.\n\n136\n00:06:40,450 --> 00:06:41,755\nEn 1633 un incendio destruye\n\n137\n00:06:41,755 --> 00:06:42,967\nun tercio de las viviendas\n\n138\n00:06:42,967 --> 00:06:44,272\ndel extremo norte. Ese hueco\n\n139\n00:06:44,272 --> 00:06:45,810\nvacío salvará al resto en 1666,\n\n140\n00:06:46,000 --> 00:06:48,055\ncuando el Gran Incendio de Londres\n\n141\n00:06:48,055 --> 00:06:49,808\ndevora la ciudad y las llamas\n\n142\n00:06:49,808 --> 00:06:51,199\nse detienen justo donde\n\n143\n00:06:51,199 --> 00:06:53,315\nya no quedaba nada que quemar.\n\n144\n00:06:55,815 --> 00:06:56,000\nLos\n\n145\n00:06:56,250 --> 00:07:00,202\ninviernos traen\n\n146\n00:07:00,202 --> 00:07:06,000\notro espectáculo.\n\n147\n00:07:06,370 --> 00:07:11,185\nLos pilares frenan\n\n148\n00:07:11,185 --> 00:07:16,000\ntanto la corriente\n\n149\n00:07:16,490 --> 00:07:21,773\nque, aguas arriba,\n\n150\n00:07:21,773 --> 00:07:26,000\nel Támesis llega\n\n151\n00:07:26,230 --> 00:07:30,024\na congelarse\n\n152\n00:07:30,024 --> 00:07:35,399\npor completo. Las\n\n153\n00:07:36,000 --> 00:07:41,740\nllaman ferias de la escarcha.\n\n154\n00:07:46,139 --> 00:07:47,200\nLa última se celebra\n\n155\n00:07:47,200 --> 00:07:48,472\nen febrero de 1814.\n\n156\n00:07:48,472 --> 00:07:50,115\nUn elefante cruza el río helado\n\n157\n00:07:50,115 --> 00:07:51,706\njunto al puente de Blackfriars\n\n158\n00:07:51,706 --> 00:07:52,925\nmientras los impresores\n\n159\n00:07:52,925 --> 00:07:54,356\nvenden recuerdos estampados\n\n160\n00:07:54,356 --> 00:07:56,000\nsobre el hielo. Cuando el viejo\n\n161\n00:07:56,050 --> 00:07:57,750\npuente desaparezca, la corriente\n\n162\n00:07:57,750 --> 00:07:58,919\nvolverá a correr libre\n\n163\n00:07:58,919 --> 00:08:00,407\ny el Támesis no se congelará\n\n164\n00:08:00,407 --> 00:08:01,789\nnunca más en Londres.\n\n165\n00:08:03,289 --> 00:08:04,783\nEn el siglo XVIII el puente\n\n166\n00:08:04,783 --> 00:08:05,779\nes un estorbo. Los\n\n167\n00:08:06,000 --> 00:08:07,305\ncarruajes tardan una hora\n\n168\n00:08:07,305 --> 00:08:08,977\nen cruzarlo y en 1722 el alcalde\n\n169\n00:08:08,977 --> 00:08:10,178\nordena, por primera vez\n\n170\n00:08:10,178 --> 00:08:11,693\nen Inglaterra, que el tráfico\n\n171\n00:08:11,693 --> 00:08:13,260\ncircule por la izquierda.\n\n172\n00:08:13,260 --> 00:08:14,775\nEntre 1758 y 1762 se derriban\n\n173\n00:08:14,775 --> 00:08:15,819\ntodas las casas y se\n\n174\n00:08:16,000 --> 00:08:18,803\nensancha el arco central.\n\n175\n00:08:20,903 --> 00:08:22,968\nPero la estructura\n\n176\n00:08:22,968 --> 00:08:25,949\nmedieval ya no resiste. En\n\n177\n00:08:26,000 --> 00:08:29,857\n1799 se convoca un concurso\n\n178\n00:08:29,857 --> 00:08:32,285\npara reemplazarla\n\n179\n00:08:32,285 --> 00:08:36,000\ny el ingeniero John Rennie\n\n180\n00:08:36,000 --> 00:08:40,666\ndiseña cinco arcos de granito.\n\n181\n00:08:40,666 --> 00:08:43,866\nSu hijo dirige las obras\n\n182\n00:08:43,866 --> 00:08:46,000\ndesde 1824, a 30\n\n183\n00:08:46,129 --> 00:08:48,435\nmetros río arriba\n\n184\n00:08:48,435 --> 00:08:52,097\ndel viejo puente, que sigue\n\n185\n00:08:52,097 --> 00:08:55,759\nen uso mientras tanto.\n\n186\n00:09:00,359 --> 00:09:02,101\nLa construcción dura siete\n\n187\n00:09:02,101 --> 00:09:03,509\naños y cuesta la vida\n\n188\n00:09:03,509 --> 00:09:05,720\na unos 40 obreros. Cada bloque de\n\n189\n00:09:06,000 --> 00:09:07,875\ngranito llega por mar\n\n190\n00:09:07,875 --> 00:09:10,553\ndesde Dartmoor y Escocia.\n\n191\n00:09:10,553 --> 00:09:13,589\nPara abrir los accesos se derriban\n\n192\n00:09:13,589 --> 00:09:16,000\ncalles enteras y la iglesia\n\n193\n00:09:16,080 --> 00:09:18,372\nde San Miguel, y el coste\n\n194\n00:09:18,372 --> 00:09:20,847\nfinal supera los 2 millones\n\n195\n00:09:20,847 --> 00:09:22,589\nde libras, una suma\n\n196\n00:09:22,589 --> 00:09:25,340\ndescomunal para la época.\n\n197\n00:09:29,360 --> 00:09:31,320\nEl primero de agosto de 1831,\n\n198\n00:09:31,320 --> 00:09:33,091\nel rey Guillermo IV inaugura\n\n199\n00:09:33,091 --> 00:09:34,735\nel nuevo Puente de Londres\n\n200\n00:09:34,735 --> 00:09:36,000\ncon un banquete bajo\n\n201\n00:09:36,090 --> 00:09:38,311\nuna carpa. Semanas después\n\n202\n00:09:38,311 --> 00:09:40,703\ncomienzan a desmontar piedra\n\n203\n00:09:40,703 --> 00:09:43,351\npor piedra los arcos de 1209,\n\n204\n00:09:43,351 --> 00:09:46,000\ntras 622 años de servicio.\n\n205\n00:09:51,420 --> 00:09:53,602\nEl puente de Rennie tampoco será\n\n206\n00:09:53,602 --> 00:09:55,580\neterno. En 1968 se vende a un\n\n207\n00:09:56,000 --> 00:09:58,978\nempresario estadounidense,\n\n208\n00:09:58,978 --> 00:10:02,276\nque lo traslada bloque a bloque\n\n209\n00:10:02,276 --> 00:10:06,000\nhasta el desierto de Arizona, donde\n\n210\n00:10:06,289 --> 00:10:06,888\ntodavía cruza\n\n211\n00:10:06,888 --> 00:10:07,993\nun lago artificial.\n\n212\n00:10:10,993 --> 00:10:12,271\nDel puente habitado solo\n\n213\n00:10:12,271 --> 00:10:13,496\nquedan algunos sillares\n\n214\n00:10:13,496 --> 00:10:14,668\nen un patio de iglesia\n\n215\n00:10:14,668 --> 00:10:16,000\ny los grabados de quienes\n\n216\n00:10:16,070 --> 00:10:17,253\nlo dibujaron. Déjanos saber\n\n217\n00:10:17,253 --> 00:10:18,657\nen los comentarios si te habrías\n\n218\n00:10:18,657 --> 00:10:19,884\natrevido a vivir en una casa\n\n219\n00:10:19,884 --> 00:10:21,156\nsuspendida sobre el río.\n\n220\n00:10:23,256 --> 00:10:24,605\nCada historia deja una huella.\n\n221\n00:10:24,605 --> 00:10:25,799\nAquí seguimos sus rastros.",
     "srtFileName": "captions_corregidos",
-    "confirmedFinalDuration": "07:42",
+    "confirmedFinalDuration": "10:18",
     "rawSunoText": "",
     "sunoTracks": [],
     "thumbnailOrientation": "HORIZONTAL_16X9",
