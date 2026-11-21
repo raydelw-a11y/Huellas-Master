@@ -986,6 +986,34 @@ function protectAgainstForeignVoice(list: any[]): any[] {
   });
 }
 
+// Removing a documentary's voice on purpose: promptConfig.FIELD_CLEARED_AT_masterAudioUrl holds when it
+// was removed. Merges treat the voice as "sticky" (any copy that still has it brings it back), so on
+// every write a voice recorded before that moment is dropped again. A voice generated afterwards
+// (its track has a later createdAt) is accepted normally.
+function protectClearedVoice(list: any[]): any[] {
+  let diskById: Map<string, any>;
+  try {
+    const raw = fs.existsSync(DOCS_FILE) ? JSON.parse(fs.readFileSync(DOCS_FILE, 'utf8')) : [];
+    diskById = new Map((Array.isArray(raw) ? raw : []).map((d: any) => [d?.id, d]));
+  } catch {
+    return list;
+  }
+  return list.map((doc: any) => {
+    const disk = doc?.id ? diskById.get(doc.id) : null;
+    const clearedAt = Math.max(
+      Number(doc?.promptConfig?.FIELD_CLEARED_AT_masterAudioUrl || 0),
+      Number(disk?.promptConfig?.FIELD_CLEARED_AT_masterAudioUrl || 0)
+    );
+    if (!(clearedAt > 0)) return doc;
+    const tracks: any[] = Array.isArray(doc.audioTracks) ? doc.audioTracks : [];
+    const hasVoice = Boolean(String(doc.masterAudioUrl || '').trim()) || tracks.length > 0;
+    const newestTrackAt = Math.max(0, ...tracks.map((t: any) => Date.parse(String(t?.createdAt || '')) || 0));
+    const promptConfig = { ...(doc.promptConfig || {}), FIELD_CLEARED_AT_masterAudioUrl: String(clearedAt) };
+    if (!hasVoice || newestTrackAt > clearedAt) return { ...doc, promptConfig };
+    return { ...doc, promptConfig, masterAudioUrl: '', audioTracks: [] };
+  });
+}
+
 function protectLockedDocs(list: any[]): any[] {
   let diskById: Map<string, any>;
   try {
@@ -1072,8 +1100,10 @@ function writeDocumentaries(list: any[], skipCloudPush = false) {
   const sanitizedList = Array.isArray(list)
     ? protectLockedDocs(
         protectClipFrameTransforms(
-          protectAgainstForeignVoice(
-            protectAgainstForeignClips(protectRecordedNarrationScripts(protectPublishMetadata(list)))
+          protectClearedVoice(
+            protectAgainstForeignVoice(
+              protectAgainstForeignClips(protectRecordedNarrationScripts(protectPublishMetadata(list)))
+            )
           )
         )
       ).map(
