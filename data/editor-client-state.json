@@ -47,7 +47,7 @@
     "_v9_9x16_logo_x10_y3": true,
     "_v10_9x16_captionBottom20": true
   },
-  "updatedAt": "2026-11-21T23:20:08.977Z",
+  "updatedAt": "2026-11-21T23:21:04.147Z",
   "overlayStyles": {
     "logoScalePct": 5,
     "logoOpacity": 95,
@@ -448,7 +448,7 @@
       "duration": 10.32,
       "trimStart": 0.44,
       "trimEnd": 9.94,
-      "speed": 0.93,
+      "speed": 0.92,
       "smoothSlowMo": true,
       "foleyVolume": 20,
       "customVolumeSet": false,
