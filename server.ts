@@ -825,7 +825,20 @@ function protectAgainstForeignClips(list: any[]): any[] {
     const diskDoc = doc?.id ? diskById.get(doc.id) : null;
     if (!diskDoc || !Array.isArray(doc.clips) || doc.clips.length === 0) return doc;
     const diskClips: any[] = Array.isArray(diskDoc.clips) ? diskDoc.clips : [];
-    if (diskClips.length === 0) return doc;
+    if (diskClips.length === 0) {
+      // First clips of a documentary: they may be brand new, but they can never arrive already tied to
+      // video files that belong to another documentary (a wrong folder was scanned for it).
+      const foreignFiles = doc.clips.filter((c: any) =>
+        ownedByOther(fileOwner, String(c?.videoSavedFileName || '').trim(), doc.id)
+      ).length;
+      if (foreignFiles >= 3 || (foreignFiles > 0 && foreignFiles / doc.clips.length >= 0.25)) {
+        console.warn(
+          `[ForeignClipsGuard] Rejected the first clips of ${doc.id}: ${foreignFiles}/${doc.clips.length} point to video files of another documentary`
+        );
+        return { ...doc, clips: diskClips, rawClipsText: diskDoc.rawClipsText };
+      }
+      return doc;
+    }
     const isForeign = (c: any) =>
       ownedByOther(idOwner, String(c?.id || '').trim(), doc.id) ||
       ownedByOther(fileOwner, String(c?.videoSavedFileName || '').trim(), doc.id);
@@ -11068,9 +11081,21 @@ function resolveLocalDocumentaryFolder(
   docTitleQuery?: string
 ): string {
   const renum = (v: string) => v.split('Video 75 Castillo Louvre').join('Video 30 Castillo Louvre');
-  const rawPath = renum(String(folderPathQuery || '').trim());
-  const rawName = renum(String(folderNameQuery || '').trim());
+  const hintedRawPath = renum(String(folderPathQuery || '').trim());
+  const hintedRawName = renum(String(folderNameQuery || '').trim());
   const rawTitle = renum(String(docTitleQuery || '').trim());
+  // A documentary whose title has no video number (e.g. "Prueba") must never be given the folder of a
+  // numbered documentary: a path or name hint that carries a video number is somebody else's folder.
+  const titleHasNoNumber = Boolean(rawTitle) && !extractVideoNumberFromText(rawTitle);
+  const hintedPathVidNum = extractVideoNumberFromText(hintedRawPath);
+  const hintedNameVidNum = extractVideoNumberFromText(hintedRawName);
+  if (titleHasNoNumber && (hintedPathVidNum || hintedNameVidNum)) {
+    console.warn(
+      `[FolderGuard] Ignored the folder of Video ${hintedPathVidNum || hintedNameVidNum} for the un-numbered documentary "${rawTitle.slice(0, 40)}"`
+    );
+  }
+  const rawPath = titleHasNoNumber && hintedPathVidNum ? '' : hintedRawPath;
+  const rawName = titleHasNoNumber && hintedNameVidNum ? '' : hintedRawName;
   const homeDir = process.env.HOME || process.env.USERPROFILE || '';
   if (!homeDir) return '';
 
@@ -13984,6 +14009,9 @@ function decideOrphanClipAssignments(
     const m = name.match(NUMBERED_CLIP_VIDEO_RE);
     const lead = m ? parseInt(m[1], 10) : 0;
     if (lead > 0 && validNums.has(lead)) occupied.add(lead);
+    // A file that already starts with a number is NEVER an orphan, even when that number is not a clip
+    // of this documentary: it may belong to another documentary whose folder is being scanned by mistake.
+    else if (lead > 0) continue;
     else orphans.push(name);
   }
   const assignments: Array<{ fileName: string; clipNumber: number; method: OrphanClipMethod }> = [];
@@ -13997,12 +14025,17 @@ function decideOrphanClipAssignments(
 
   // 1) clip number written in the name, next to a word that announces it
   for (const name of orphans) {
-    const base = name.replace(/\.[^.]+$/, '');
+    // Quality and format marks are not clip numbers ("Broll_4K", "16_9", "in_16")
+    const base = name
+      .replace(/\.[^.]+$/, '')
+      .replace(/[_\-\s](?:broll[_\-\s])?(?:4|8)k\b/gi, '')
+      .replace(/\b(?:16[_x:\-]9|9[_x:\-]16)\b/gi, '')
+      .replace(/\bin[_\-\s]16\b/gi, '');
     const kw = base.match(
       /(?:^|[^a-z0-9])(?:clip|inicial|initial|broll|b[\-_]?roll|scene|escena|toma|take)[_\-\s.#]*0*(\d{1,3})(?!\d)/i
     );
     const n = kw ? parseInt(kw[1], 10) : 0;
-    if (n > 0 && validNums.has(n) && !taken.has(n)) {
+    if (n > 0 && validNums.has(n) && !taken.has(n) && !occupied.has(n)) {
       assignments.push({ fileName: name, clipNumber: n, method: 'numero_en_nombre' });
       taken.add(n);
     } else {

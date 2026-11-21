@@ -201,7 +201,7 @@ import { useNoticeStack } from './utils/noticeStack';
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '08:10 PM - 11/20/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '08:21 PM - 11/20/2026';
 
 // PRODUCTION LOCK: while promptConfig.PRODUCTION_LOCKED === 'YES' these fields never change (the server
 // enforces the same list in protectLockedDocs). Metadata, thumbnails, review marks and reframes stay editable.
@@ -6738,7 +6738,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     const docNum =
       extractDocVideoNumber(doc.title || '') || extractDocVideoNumber(doc.topic || '');
     const folderNum = extractDocVideoNumber(cleanCand);
-    if (docNum && folderNum && docNum !== folderNum) return false;
+    // A folder that carries a video number only matches the documentary with that same number. A
+    // documentary without a number (e.g. "Prueba") never takes a numbered documentary's folder.
+    if (folderNum && docNum !== folderNum) return false;
     return true;
   };
 
