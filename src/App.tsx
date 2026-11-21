@@ -201,7 +201,7 @@ import { useNoticeStack } from './utils/noticeStack';
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '09:48 PM - 11/20/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '11:43 PM - 11/20/2026';
 
 // PRODUCTION LOCK: while promptConfig.PRODUCTION_LOCKED === 'YES' these fields never change (the server
 // enforces the same list in protectLockedDocs). Metadata, thumbnails, review marks and reframes stay editable.
@@ -28266,8 +28266,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                     `${(activeDoc.topic || activeDoc.title || 'Historia Oculta').replace(/^Video\s*\d+\s*/i, '').trim()}: La Verdadera Historia Detrás de los Registros de la Época (${activeDoc.historicalTime || 'Siglo XIX'}) | Documental Completo`,
                   ];
 
-              const displayedTitleSuggestions =
-                stage11TitleOptions.length > 0 ? stage11TitleOptions : defaultSpecificTitleSuggestions;
+              const displayedTitleSuggestions = (
+                stage11TitleOptions.length > 0 ? stage11TitleOptions : defaultSpecificTitleSuggestions
+              ).map((t) => fitYoutubeTitle(t));
 
               const handleExtractTagsAndPinned = () => {
                 const sourceText = (youtubeMeta || facebookMeta || '').trim();
@@ -28413,9 +28414,18 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                         type="text"
                         value={currentDetectedTitle}
                         onChange={(e) => applySpecificTitleToMetadata(e.target.value)}
+                        maxLength={YOUTUBE_TITLE_MAX_CHARS}
                         placeholder="Escribe o selecciona abajo un título específico y sugerente referente a la historia del documental..."
                         className="flex-1 bg-slate-950 border border-amber-500/40 focus:border-amber-400 rounded-xl px-3.5 py-2 text-xs font-bold text-amber-100 outline-none"
                       />
+                      <span
+                        className={`text-[11px] font-bold shrink-0 ${
+                          currentDetectedTitle.length > YOUTUBE_TITLE_MAX_CHARS ? 'text-red-400' : 'text-slate-400'
+                        }`}
+                        title="YouTube admite títulos de hasta 100 caracteres"
+                      >
+                        {currentDetectedTitle.length}/{YOUTUBE_TITLE_MAX_CHARS}
+                      </span>
                       <button
                         type="button"
                         onClick={() => copyText(currentDetectedTitle, 'copy-specific-title')}
