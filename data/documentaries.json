@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-10-27T02:05:48.997Z",
-    "updatedAt": "2026-11-21T04:43:58.755Z",
+    "updatedAt": "2026-11-21T04:46:33.127Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -20,7 +20,7 @@
       "TEMA_DEL_VIDEO": "Video 74 Castillo Louvre Parte II",
       "UBICACION_INTRO_MARCA": "INTRO_INICIO_00",
       "FIELD_CLEARED_AT_voiceoverScript": "0",
-      "PROMPTS_RESTORED_AT": "1795236238755",
+      "PROMPTS_RESTORED_AT": "1795236393127",
       "FIELD_CLEARED_AT_rawClipsText": "0",
       "FIELD_CLEARED_AT_pinnedComment": "1795091965654",
       "FIELD_CLEARED_AT_correctedSrt": "0",
@@ -36,7 +36,8 @@
       "CAPTION_WORDS_PER_LINE_9X16": 0,
       "FIELD_CLEARED_AT_publishTitle": "0",
       "FIELD_CLEARED_AT_rawYoutubeMetadata": "0",
-      "FIELD_CLEARED_AT_rawFacebookMetadata": "0"
+      "FIELD_CLEARED_AT_rawFacebookMetadata": "0",
+      "FIELD_CLEARED_AT_youtubeTags": "0"
     },
     "compiledMasterPrompt": "Actúa como un historiador, director de cine, y periodista profesional.\n\nPROTOCOLO SECUENCIAL DE EJECUCIÓN OBLIGATORIO: REELS (11 ETAPAS POR SEPARADO):\nEste formato corresponde a un video cinematográfi",
     "topic": "Video 30 Castillo Louvre Parte II",
@@ -2778,7 +2779,7 @@
     "aiNote": "",
     "slogan": "Cada historia deja una huella. Aquí seguimos sus rastros.",
     "hashtags": "",
-    "youtubeTags": "",
+    "youtubeTags": "castillo del louvre, fortaleza del louvre, historia del louvre, paris año 1200, paris medieval, felipe ii augusto, leonor de aquitania, blanca de castilla, vida en la edad media, nobleza medieval, realeza francesa, corte real siglo xiii, banquetes medievales, como vivian los reyes, secretos de la edad media, historia de francia, edad media documental, siglo xiii historia, documental de historia, documentales en español, historia medieval europea, huellas de la humanidad",
     "pinnedComment": "",
     "thumbnailOrientation": "VERTICAL_9X16",
     "flowVideoEngine": "HYBRID_PEOPLE_OMNI_REST_LOWER",
