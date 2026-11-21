@@ -201,7 +201,7 @@ import { useNoticeStack } from './utils/noticeStack';
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '08:21 PM - 11/20/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '08:59 PM - 11/20/2026';
 
 // PRODUCTION LOCK: while promptConfig.PRODUCTION_LOCKED === 'YES' these fields never change (the server
 // enforces the same list in protectLockedDocs). Metadata, thumbnails, review marks and reframes stay editable.
@@ -16631,6 +16631,24 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
   useEffect(() => {
     if (!activeDoc || !folderVoiceoverUrl) return;
     if (isUnusableAudioUrlForCurrentRuntime(folderVoiceoverUrl)) return;
+    // The voice found in the folder scan belongs to the documentary that was scanned. Never attach it to
+    // another documentary: (1) a voice file already used by a different documentary is ignored, and
+    // (2) every save below is bound to the documentary this effect started with.
+    const voiceEffectDocId = activeDoc.id;
+    const voiceBaseName = (folderVoiceoverUrl.match(/tts-files\/([^/?#]+\.(?:mp3|wav))/i)?.[1] || '').toLowerCase();
+    if (
+      voiceBaseName &&
+      documentaries.some(
+        (d) =>
+          d.id !== voiceEffectDocId &&
+          String(d.masterAudioUrl || '').toLowerCase().includes(`tts-files/${voiceBaseName}`)
+      ) &&
+      !String(activeDoc.masterAudioUrl || '').toLowerCase().includes(`tts-files/${voiceBaseName}`)
+    ) {
+      return;
+    }
+    const updateVoiceDoc = (patch: Partial<DocumentaryProject>) =>
+      updateActiveDoc(patch, { docId: voiceEffectDocId });
     let cancelled = false;
     (async () => {
       const normalizedDoc = normalizeDocumentaryVoiceoverAudio(activeDoc);
@@ -16656,7 +16674,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         portableTrack.segmentTimings.length > 0
       ) {
         if (isNonPortableAudioUrl(activeDoc.masterAudioUrl)) {
-          updateActiveDoc({
+          updateVoiceDoc({
             masterAudioUrl: portableTrack.audioUrl,
             audioTracks: normalizedDoc.audioTracks,
           });
@@ -16714,7 +16732,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
             !String(t.id || '').startsWith('tts-folder-') &&
             !isNonPortableAudioUrl(t.audioUrl)
         );
-        updateActiveDoc({
+        updateVoiceDoc({
           audioTracks: [updatedPortable, ...restPortable],
           masterAudioUrl: updatedPortable.audioUrl,
           ...(autoTl.sentences.length > 0 && (activeDoc.timelineSentences?.length || 0) === 0
@@ -16731,7 +16749,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       // Only if no portable track exists at all and folderVoiceoverUrl is portable (not workstation localhost), persist track; otherwise update timeline only
       if (isNonPortableAudioUrl(folderVoiceoverUrl)) {
         if (autoTl.sentences.length > 0 && (activeDoc.timelineSentences?.length || 0) === 0) {
-          updateActiveDoc({
+          updateVoiceDoc({
             timelineSentences: autoTl.sentences,
             timelineFormattedText: autoTl.formatted,
             correctedSrt: autoTl.srt,
@@ -16765,7 +16783,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         (t) => t.id !== recoveredTrack.id && !isNonPortableAudioUrl(t.audioUrl)
       );
 
-      updateActiveDoc({
+      updateVoiceDoc({
         audioTracks: [recoveredTrack, ...otherTracks],
         masterAudioUrl: recoveredTrack.audioUrl,
         ...(autoTl.sentences.length > 0

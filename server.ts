@@ -943,6 +943,49 @@ function protectClipFrameTransforms(list: any[]): any[] {
   });
 }
 
+/** File name (lower case) of a voice file URL such as "tts-files/tts-video-30-louvre.mp3?v=2". */
+function getTtsFileBaseName(url: any): string {
+  const m = String(url || '').match(/tts-files\/([^/?#]+\.(?:mp3|wav))/i);
+  return m ? decodeURIComponent(m[1]).toLowerCase() : '';
+}
+
+// A documentary can never take the narration voice of another documentary. If a save arrives with a
+// master voice that belongs to another documentary on disk, the voice and the timings built from it are
+// dropped and what the documentary had on disk is kept.
+function protectAgainstForeignVoice(list: any[]): any[] {
+  let disk: any[];
+  try {
+    const raw = fs.existsSync(DOCS_FILE) ? JSON.parse(fs.readFileSync(DOCS_FILE, 'utf8')) : [];
+    disk = Array.isArray(raw) ? raw : [];
+  } catch {
+    return list;
+  }
+  const owner = new Map<string, string>();
+  const diskById = new Map<string, any>();
+  for (const d of disk) {
+    if (!d?.id) continue;
+    diskById.set(d.id, d);
+    const base = getTtsFileBaseName(d.masterAudioUrl);
+    if (base) owner.set(base, owner.has(base) && owner.get(base) !== d.id ? '*' : d.id);
+  }
+  return list.map((doc: any) => {
+    const diskDoc = doc?.id ? diskById.get(doc.id) : null;
+    if (!diskDoc) return doc;
+    const base = getTtsFileBaseName(doc.masterAudioUrl);
+    const own = base ? owner.get(base) : undefined;
+    if (!base || !own || own === '*' || own === doc.id) return doc;
+    if (getTtsFileBaseName(diskDoc.masterAudioUrl) === base) return doc;
+    console.warn(`[ForeignVoiceGuard] ${doc.id} tried to take the voice "${base}" of ${own}; kept its own data`);
+    const fixed: any = { ...doc };
+    for (const k of ['masterAudioUrl', 'audioTracks', 'timelineSentences', 'timelineFormattedText', 'correctedSrt', 'confirmedFinalDuration']) {
+      if (diskDoc[k] === undefined) delete fixed[k];
+      else fixed[k] = diskDoc[k];
+    }
+    if (Array.isArray(diskDoc.clips)) fixed.clips = diskDoc.clips;
+    return fixed;
+  });
+}
+
 function protectLockedDocs(list: any[]): any[] {
   let diskById: Map<string, any>;
   try {
@@ -1029,7 +1072,9 @@ function writeDocumentaries(list: any[], skipCloudPush = false) {
   const sanitizedList = Array.isArray(list)
     ? protectLockedDocs(
         protectClipFrameTransforms(
-          protectAgainstForeignClips(protectRecordedNarrationScripts(protectPublishMetadata(list)))
+          protectAgainstForeignVoice(
+            protectAgainstForeignClips(protectRecordedNarrationScripts(protectPublishMetadata(list)))
+          )
         )
       ).map(
         sanitizeServerDocAudioUrls
@@ -12543,7 +12588,20 @@ app.get('/api/flow/list-folder-media', async (req, res) => {
             return 0;
           }
         });
+      // A voice file already used by another documentary is never offered to this one (a documentary
+      // without its own voice used to be given the newest file in the folder, whoever it belonged to)
+      const ttsClaimedByOtherDocs = new Set<string>();
+      try {
+        for (const od of readDocumentaries() || []) {
+          if (!od || od.id === reqDocId) continue;
+          for (const u of [od.masterAudioUrl, ...(Array.isArray(od.audioTracks) ? od.audioTracks.map((t: any) => t?.audioUrl) : [])]) {
+            const base = getTtsFileBaseName(u);
+            if (base) ttsClaimedByOtherDocs.add(base);
+          }
+        }
+      } catch {}
       for (const f of ttsEntries) {
+        if (ttsClaimedByOtherDocs.has(f.toLowerCase())) continue;
         localTtsFiles.push({
           fileName: f,
           url: `/tts-files/${f}`,
