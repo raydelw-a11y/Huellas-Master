@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-11-21T00:57:53.241Z",
-    "updatedAt": "2026-11-21T02:14:12.891Z",
+    "updatedAt": "2026-11-21T02:14:36.444Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -22,10 +22,11 @@
       "PROMPTS_RESTORED_AT": "1795223576344",
       "FIELD_CLEARED_AT_rawClipsText": "1795226859803",
       "GEMINI_CHAT_URL": "https://gemini.google.com/app/bdee564ddf4bf54b",
-      "SHOT_PLAN_AUDIT": "",
+      "SHOT_PLAN_AUDIT": "⚠️ Reparto de tomas (Etapa 6): Tomas de apoyo: se pidieron 2 y llegaron 0.",
       "REMOTE_GEMINI_STAGE_STATUS": "failed",
       "FIELD_CLEARED_AT_correctedSrt": "0",
-      "FIELD_CLEARED_AT_masterAudioUrl": "1795226859803"
+      "FIELD_CLEARED_AT_masterAudioUrl": "1795226859803",
+      "REMOTE_GEMINI_STAGE_ERROR": "Respuesta vacía de Gemini"
     },
     "compiledMasterPrompt": "",
     "topic": "El Puente de Londres: la calle que flotó 600 años sobre el Támesis",
@@ -332,7 +333,7 @@
     "clip1Line1LocationTime": "Londres, Inglaterra, 1209",
     "clip1Line2Hook": "El puente donde vivía una ciudad entera",
     "clip1OptionsRaw": "",
-    "operationalHeader": "",
+    "operationalHeader": "Act as a professional historian, film director, and journalist. Before starting the generation of any images or video clips, first analyze all provided prompts, check scene by scene whether people/human subjects are present or whether the scene is tagged [IMAGE ONLY — DO NOT GENERATE VIDEO CLIP], and give me a clear pre-generation report stating: (1) exact total number of initial images (Nano Banana 2.1), (2) how many video clips will be made with Omni (Omni 1.1 Flash), (3) how many video clips will be made with Lower Priority (Veo 3.1 - Lite [Lower Priority]), and (4) how many scenes are Image-Only Static B-Roll plates ([IMAGE ONLY — DO NOT GENERATE VIDEO CLIP] [B-Roll: STATIC_...]) that require ONLY the Nano Banana 2.1 still image and ZERO video clip generation, and only after delivering that report proceed with generation.\nRename every generated image and video clip using these exact prefixes followed by the 2-digit scene number (01 to 09 for 1 to 9) and the first 6 words of the prompt: start initial clip images with \"Inicial_##_\" (e.g., Inicial_01_create_an_image_in_16_9), start [IMAGE ONLY — DO NOT GENERATE VIDEO CLIP] Static B-Roll plates with \"Broll_##_\" (e.g., Broll_18_create_an_image_in_16_9), and start video clips with \"Clip_##_\" (e.g., Clip_01_generate_a_video_in_16_9).\nUse Omni 1.1 Flash exclusively for video clips featuring people and use Veo 3.1 - Lite [Lower Priority] for all remaining video clips without people; use Nano Banana 2.1 for the initial images of each clip and for all [IMAGE ONLY — DO NOT GENERATE VIDEO CLIP] Static B-Roll plates.\nCreate the images first and then create video clips ONLY for scenes that include a \"Clip XX:\" prompt (using each corresponding image as the starting frame). STRICT RULE FOR STATIC B-ROLL PLATES: Whenever an \"Image XX:\" prompt is tagged [IMAGE ONLY — DO NOT GENERATE VIDEO CLIP] (with no \"Clip XX:\" prompt), generate ONLY the still image with Nano Banana 2.1 and DO NOT generate any video clip for that scene number (4K 60fps camera motion is applied locally in our video editor).\nUse the reference images of locations and anonymous role sheets ONLY when generating the initial images (\"Inicial_##\") with Nano Banana 2.1 to maintain visual fidelity; when generating each video clip (\"Clip_##\")—especially with Omni 1.1 Flash—use ONLY its corresponding generated initial image (\"Inicial_##\") as the starting frame and STRICTLY NEVER include any real or fictional person proper names, surnames, or @Reference tags in any image or video prompt (describe people and locations solely by anonymous period role, adult age, attire, and architectural setting).\nNever make shot changes in any clip (except in that specific clip where the prompt explicitly instructs making two 5-second shots each because the narration voice changed scenes) and ensure video clips have no disappearances or transformations; the created initial image will be used as the start of each video clip.\nDivide creation into batches of 10. Pause 20 seconds between batches.\nrename everything adding _ as the blank spaces between words and replacing any colons (:) or hyphens with _ (never use : in filenames)\nfrom 1 to 9 change the scene number to 01 to 09 (e.g., Inicial_01, Clip_01, Broll_08)",
     "rawClipsText": "",
     "clips": [
       {
