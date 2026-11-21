@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-11-21T00:57:53.241Z",
-    "updatedAt": "2026-11-21T23:45:52.763Z",
+    "updatedAt": "2026-11-21T23:51:25.703Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -19,7 +19,7 @@
       "VOZ_NARRATIVA_EN_CLIPS": "INCLUIR",
       "UBICACION_INTRO_MARCA": "INTRO_INICIO_00",
       "FIELD_CLEARED_AT_voiceoverScript": "0",
-      "PROMPTS_RESTORED_AT": "1795304752763",
+      "PROMPTS_RESTORED_AT": "1795305085703",
       "FIELD_CLEARED_AT_rawClipsText": "0",
       "GEMINI_CHAT_URL": "https://gemini.google.com/app/bdee564ddf4bf54b",
       "SHOT_PLAN_AUDIT": "⚠️ Reparto de tomas (Etapa 6): Clip 16: la toma de apoyo queda demasiado cerca del B-roll del clip 18. • Clip 39: es B-roll y llegó con dos tomas (debe ser una sola).",
@@ -81,247 +81,17 @@
         "end": 16
       },
       {
-        "text": "Año 1209, Puente de Londres, Inglaterra. Tras 33 años de obras, la ciudad inaugura el primer puente de piedra sobre el Támesis, una calle",
+        "text": "Año 1209, Puente de Londres, Inglaterra. Tras 33 años de obras, la ciudad inaugura el primer puente de piedra sobre el Támesis, una calle habitada que flotará sobre el río durante más de 600 años. [pausa: 1.5s] En los próximos minutos descubrirás cómo un puente medieval se convirtió en barrio, mercado, fortaleza y patíbulo, y por qué Londres terminó derribando su monumento más famoso. Cada historia deja una huella. Aquí seguimos sus rastros. [pausa: 2s] Todo comienza en 1176, cuando el sacerdote Peter de Colechurch recibe el encargo de sustituir el viejo puente de madera, quemado y reconstruido una y otra vez. Durante tres décadas, cientos de obreros hincan estacas de olmo en el lecho del río y levantan sobre ellas 19 arcos de piedra desiguales. [pausa: 1.5s] Los pilares son tan anchos que estrechan el cauce a la mitad. El agua se acelera entre ellos como en una presa, y cruzar bajo los arcos en bote se vuelve una apuesta mortal que los barqueros llaman disparar el puente. [pausa: 1.5s] En el centro se alza una capilla dedicada a Tomás Becket, donde los peregrinos rezan antes de partir hacia Canterbury. Y muy pronto, sobre la calzada de apenas 4 metros de ancho, empiezan a levantarse casas. [pausa: 2s] Mantenerlo cuesta una fortuna. La corona crea una institución propia, la Casa del Puente, que administra rentas, peajes y donaciones de fieles que dejan dinero en su testamento a Dios y al puente. En 1281 el hielo del invierno arranca cinco arcos de golpe, y la reina Leonor es acusada de gastar los fondos en sus propios asuntos. [pausa: 1.5s] Cada pilar descansa sobre una isla artificial de estacas y escombros con forma de barca, llamada tajamar. Con la marea baja, la diferencia de nivel entre un lado y otro alcanza casi 2 metros. Bajo dos de los arcos giran enormes ruedas de madera que muelen grano y, desde 1581, bombean agua del río hacia las casas de la ciudad. [pausa: 2s] Hacia 1358 el puente sostiene 138 tiendas. Merceros, guanteros, libreros y fabricantes de agujas pagan alquileres que financian las reparaciones. Los edificios crecen hasta cinco pisos y se unen por arriba con vigas, de modo que quien cruza camina por un túnel oscuro de madera y voces. [pausa: 1.5s] La vida ahí arriba tiene ventajas inesperadas. El río se lleva la basura, el viento barre el humo, y durante la gran peste de 1665 los vecinos del puente enferman mucho menos que los de las calles vecinas. Las letrinas cuelgan directamente sobre el agua, y los barqueros aprenden pronto a no pasar por debajo sin mirar. [pausa: 1.5s] A mitad del recorrido, un puente levadizo permite el paso de los barcos de mástil alto y corta el acceso en caso de ataque. En 1381, durante la revuelta campesina, alguien lo baja desde dentro y miles de rebeldes entran en Londres sin encontrar resistencia. [pausa: 2s] En la puerta sur aparece la costumbre más temida. Desde 1305, tras la condena del rebelde escocés William Wallace, la entrada del puente se convierte en el lugar donde la corona exhibe su castigo a los traidores. Durante 350 años, esa advertencia recibirá a cada viajero que llegue a Londres. [pausa: 2s] En 1450 los rebeldes de Jack Cade toman el puente y combaten de noche entre las casas. Muchos hombres caen al río con sus armaduras. Poco después, en 1577, se levanta la casa de Nonsuch, un palacio de madera traído en piezas desde Holanda y ensamblado sin un solo clavo de hierro. [pausa: 1.5s] En 1212 ocurre la primera gran tragedia. Un incendio estalla en la orilla sur y la multitud corre al puente para ayudar o para mirar. El viento lleva las chispas hasta el extremo norte y la gente queda atrapada entre dos frentes de fuego. Las crónicas hablan de 3 mil víctimas, una cifra que hoy los historiadores consideran exagerada. [pausa: 1.5s] Un siglo y medio después, en 1390, el puente es escenario de un torneo. Un caballero escocés y un lord inglés se enfrentan a lanza sobre la calzada ante el rey Ricardo II. Y en 1536, la hija pequeña de un mercader cae por una ventana al río y es rescatada por un aprendiz que años más tarde se casará con ella y llegará a ser alcalde de Londres. [pausa: 2s] El fuego es la amenaza constante. En 1633 un incendio destruye un tercio de las viviendas del extremo norte. Ese hueco vacío salvará al resto en 1666, cuando el Gran Incendio de Londres devora la ciudad y las llamas se detienen justo donde ya no quedaba nada que quemar. [pausa: 2s] Los inviernos traen otro espectáculo. Los pilares frenan tanto la corriente que, aguas arriba, el Támesis llega a congelarse por completo. En 1683 el hielo aguanta dos meses, y sobre él se levanta una ciudad de tiendas con imprentas, tabernas, carreras de caballos y un buey asado entero. Las llaman ferias de la escarcha. [pausa: 1.5s] La última se celebra en febrero de 1814. Un elefante cruza el río helado junto al puente de Blackfriars mientras los impresores venden recuerdos estampados sobre el hielo. Cuando el viejo puente desaparezca, la corriente volverá a correr libre y el Támesis no se congelará nunca más en Londres. [pausa: 2s] En el siglo XVIII el puente es un estorbo. Los carruajes tardan una hora en cruzarlo y en 1722 el alcalde ordena, por primera vez en Inglaterra, que el tráfico circule por la izquierda. Entre 1758 y 1762 se derriban todas las casas y se ensancha el arco central. [pausa: 1.5s] Pero la estructura medieval ya no resiste. En 1799 se convoca un concurso para reemplazarla y el ingeniero John Rennie diseña cinco arcos de granito. Su hijo dirige las obras desde 1824, a 30 metros río arriba del viejo puente, que sigue en uso mientras tanto. [pausa: 1.5s] La construcción dura siete años y exige un enorme sacrificio a sus obreros. Cada bloque de granito llega por mar desde Dartmoor y Escocia. Para abrir los accesos se derriban calles enteras y la iglesia de San Miguel, y el coste final supera los 2 millones de libras, una suma descomunal para la época. [pausa: 1.5s] El primero de agosto de 1831, el rey Guillermo IV inaugura el nuevo Puente de Londres con un banquete bajo una carpa. Semanas después comienzan a desmontar piedra por piedra los arcos de 1209, tras 622 años de servicio. [pausa: 2s] El puente de Rennie tampoco será eterno. En 1968 se vende a un empresario estadounidense, que lo traslada bloque a bloque hasta el desierto de Arizona, donde todavía cruza un lago artificial. [pausa: 1.5s] Del puente habitado solo quedan algunos sillares en un patio de iglesia y los grabados de quienes lo dibujaron. Déjanos saber en los comentarios si te habrías atrevido a vivir en una casa suspendida sobre el río. [pausa: 1.5s] Cada historia deja una huella. Aquí seguimos sus rastros.",
         "start": 16,
         "end": 26
       },
       {
-        "text": "habitada que flotará sobre el río durante más de 600 años. [pausa: 1.5s] En los próximos minutos descubrirás cómo un puente medieval se convirtió en barrio,",
-        "start": 26,
-        "end": 36
-      },
-      {
-        "text": "mercado, fortaleza y patíbulo, y por qué Londres terminó derribando su monumento más famoso. Cada historia deja una huella. Aquí seguimos sus rastros. [pausa: 2s] Todo",
-        "start": 36,
-        "end": 46
-      },
-      {
-        "text": "comienza en 1176, cuando el sacerdote Peter de Colechurch recibe el encargo de sustituir el viejo puente de madera, quemado y reconstruido una y",
-        "start": 46,
-        "end": 56
-      },
-      {
-        "text": "otra vez. Durante tres décadas, cientos de obreros hincan estacas de olmo en el lecho del río y levantan sobre ellas 19 arcos de",
-        "start": 56,
-        "end": 66
-      },
-      {
-        "text": "piedra desiguales. [pausa: 1.5s] Los pilares son tan anchos que estrechan el cauce a la mitad. El agua se acelera entre ellos como en una presa,",
-        "start": 66,
-        "end": 76
-      },
-      {
-        "text": "y cruzar bajo los arcos en bote se vuelve una apuesta mortal que los barqueros llaman disparar el puente. [pausa: 1.5s] En el centro se alza",
-        "start": 76,
-        "end": 86
-      },
-      {
-        "text": "una capilla dedicada a Tomás Becket, donde los peregrinos rezan antes de partir hacia Canterbury. Y muy pronto, sobre la calzada de apenas 4",
-        "start": 86,
-        "end": 96
-      },
-      {
-        "text": "metros de ancho, empiezan a levantarse casas. [pausa: 2s] Mantenerlo cuesta una fortuna. La corona crea una institución propia, la Casa del Puente, que administra rentas,",
-        "start": 96,
-        "end": 106
-      },
-      {
-        "text": "peajes y donaciones de fieles que dejan dinero en su testamento a Dios y al puente. En 1281 el hielo del invierno arranca cinco",
-        "start": 106,
-        "end": 116
-      },
-      {
-        "text": "arcos de golpe, y la reina Leonor es acusada de gastar los fondos en sus propios asuntos. [pausa: 1.5s] Cada pilar descansa sobre una isla artificial",
-        "start": 116,
-        "end": 126
-      },
-      {
-        "text": "de estacas y escombros con forma de barca, llamada tajamar. Con la marea baja, la diferencia de nivel entre un lado y otro alcanza",
-        "start": 126,
-        "end": 136
-      },
-      {
-        "text": "casi 2 metros. Bajo dos de los arcos giran enormes ruedas de madera que muelen grano y, desde 1581, bombean agua del río hacia",
-        "start": 136,
-        "end": 146
-      },
-      {
-        "text": "las casas de la ciudad. [pausa: 2s] Hacia 1358 el puente sostiene 138 tiendas. Merceros, guanteros, libreros y fabricantes de agujas pagan alquileres que financian las",
-        "start": 146,
-        "end": 156
-      },
-      {
-        "text": "reparaciones. Los edificios crecen hasta cinco pisos y se unen por arriba con vigas, de modo que quien cruza camina por un túnel oscuro",
-        "start": 156,
-        "end": 166
-      },
-      {
-        "text": "de madera y voces. [pausa: 1.5s] La vida ahí arriba tiene ventajas inesperadas. El río se lleva la basura, el viento barre el humo, y durante",
-        "start": 166,
-        "end": 176
-      },
-      {
-        "text": "la gran peste de 1665 los vecinos del puente enferman mucho menos que los de las calles vecinas. Las letrinas cuelgan directamente sobre el",
-        "start": 176,
-        "end": 186
-      },
-      {
-        "text": "agua, y los barqueros aprenden pronto a no pasar por debajo sin mirar. [pausa: 1.5s] A mitad del recorrido, un puente levadizo permite el paso de",
-        "start": 186,
-        "end": 196
-      },
-      {
-        "text": "los barcos de mástil alto y corta el acceso en caso de ataque. En 1381, durante la revuelta campesina, alguien lo baja desde dentro",
-        "start": 196,
-        "end": 206
-      },
-      {
-        "text": "y miles de rebeldes entran en Londres sin encontrar resistencia. [pausa: 2s] En la puerta sur aparece la costumbre más temida. Desde 1305, tras la condena",
-        "start": 206,
-        "end": 216
-      },
-      {
-        "text": "del rebelde escocés William Wallace, la entrada del puente se convierte en el lugar donde la corona exhibe su castigo a los traidores. Durante",
-        "start": 216,
-        "end": 226
-      },
-      {
-        "text": "350 años, esa advertencia recibirá a cada viajero que llegue a Londres. [pausa: 2s] En 1450 los rebeldes de Jack Cade toman el puente y combaten",
-        "start": 226,
-        "end": 236
-      },
-      {
-        "text": "de noche entre las casas. Muchos hombres caen al río con sus armaduras. Poco después, en 1577, se levanta la casa de Nonsuch, un",
-        "start": 236,
-        "end": 246
-      },
-      {
-        "text": "palacio de madera traído en piezas desde Holanda y ensamblado sin un solo clavo de hierro. [pausa: 1.5s] En 1212 ocurre la primera gran tragedia. Un",
-        "start": 246,
-        "end": 256
-      },
-      {
-        "text": "incendio estalla en la orilla sur y la multitud corre al puente para ayudar o para mirar. El viento lleva las chispas hasta el",
-        "start": 256,
-        "end": 266
-      },
-      {
-        "text": "extremo norte y la gente queda atrapada entre dos frentes de fuego. Las crónicas hablan de 3 mil víctimas, una cifra que hoy los",
-        "start": 266,
-        "end": 276
-      },
-      {
-        "text": "historiadores consideran exagerada. [pausa: 1.5s] Un siglo y medio después, en 1390, el puente es escenario de un torneo. Un caballero escocés y un lord inglés",
-        "start": 276,
-        "end": 286
-      },
-      {
-        "text": "se enfrentan a lanza sobre la calzada ante el rey Ricardo II. Y en 1536, la hija pequeña de un mercader cae por una",
-        "start": 286,
-        "end": 296
-      },
-      {
-        "text": "ventana al río y es rescatada por un aprendiz que años más tarde se casará con ella y llegará a ser alcalde de Londres.",
-        "start": 296,
-        "end": 306
-      },
-      {
-        "text": "[pausa: 2s] El fuego es la amenaza constante. En 1633 un incendio destruye un tercio de las viviendas del extremo norte. Ese hueco vacío salvará al",
-        "start": 306,
-        "end": 316
-      },
-      {
-        "text": "resto en 1666, cuando el Gran Incendio de Londres devora la ciudad y las llamas se detienen justo donde ya no quedaba nada que",
-        "start": 316,
-        "end": 326
-      },
-      {
-        "text": "quemar. [pausa: 2s] Los inviernos traen otro espectáculo. Los pilares frenan tanto la corriente que, aguas arriba, el Támesis llega a congelarse por completo. En 1683",
-        "start": 326,
-        "end": 336
-      },
-      {
-        "text": "el hielo aguanta dos meses, y sobre él se levanta una ciudad de tiendas con imprentas, tabernas, carreras de caballos y un buey asado",
-        "start": 336,
-        "end": 346
-      },
-      {
-        "text": "entero. Las llaman ferias de la escarcha. [pausa: 1.5s] La última se celebra en febrero de 1814. Un elefante cruza el río helado junto al puente",
-        "start": 346,
-        "end": 356
-      },
-      {
-        "text": "de Blackfriars mientras los impresores venden recuerdos estampados sobre el hielo. Cuando el viejo puente desaparezca, la corriente volverá a correr libre y el",
-        "start": 356,
-        "end": 366
-      },
-      {
-        "text": "Támesis no se congelará nunca más en Londres. [pausa: 2s] En el siglo XVIII el puente es un estorbo. Los carruajes tardan una hora en cruzarlo",
-        "start": 366,
-        "end": 376
-      },
-      {
-        "text": "y en 1722 el alcalde ordena, por primera vez en Inglaterra, que el tráfico circule por la izquierda. Entre 1758 y 1762 se derriban",
-        "start": 376,
-        "end": 386
-      },
-      {
-        "text": "todas las casas y se ensancha el arco central. [pausa: 1.5s] Pero la estructura medieval ya no resiste. En 1799 se convoca un concurso para reemplazarla",
-        "start": 386,
-        "end": 396
-      },
-      {
-        "text": "y el ingeniero John Rennie diseña cinco arcos de granito. Su hijo dirige las obras desde 1824, a 30 metros río arriba del viejo",
-        "start": 396,
-        "end": 406
-      },
-      {
-        "text": "puente, que sigue en uso mientras tanto. [pausa: 1.5s] La construcción dura siete años y exige un enorme sacrificio a sus obreros. Cada bloque de granito",
-        "start": 406,
-        "end": 416
-      },
-      {
-        "text": "llega por mar desde Dartmoor y Escocia. Para abrir los accesos se derriban calles enteras y la iglesia de San Miguel, y el coste",
-        "start": 416,
-        "end": 426
-      },
-      {
-        "text": "final supera los 2 millones de libras, una suma descomunal para la época. [pausa: 1.5s] El primero de agosto de 1831, el rey Guillermo IV inaugura",
-        "start": 426,
-        "end": 436
-      },
-      {
-        "text": "el nuevo Puente de Londres con un banquete bajo una carpa. Semanas después comienzan a desmontar piedra por piedra los arcos de 1209, tras",
-        "start": 436,
-        "end": 446
-      },
-      {
-        "text": "622 años de servicio. [pausa: 2s] El puente de Rennie tampoco será eterno. En 1968 se vende a un empresario estadounidense, que lo traslada bloque a",
-        "start": 446,
-        "end": 456
-      },
-      {
-        "text": "bloque hasta el desierto de Arizona, donde todavía cruza un lago artificial. [pausa: 1.5s] Del puente habitado solo quedan algunos sillares en un patio de iglesia",
-        "start": 456,
-        "end": 466
-      },
-      {
-        "text": "y los grabados de quienes lo dibujaron. Déjanos saber en los comentarios si te habrías atrevido a vivir en una casa suspendida sobre el",
-        "start": 466,
-        "end": 476
-      },
-      {
-        "text": "río. [pausa: 1.5s] Cada historia deja una huella. Aquí seguimos sus rastros.",
-        "start": 476,
-        "end": 486
-      },
-      {
         "text": "[SIN VOZ NARRATIVA — Outro Oficial de Marca (8s)]",
-        "start": 486,
-        "end": 494
+        "start": 26,
+        "end": 34
       }
     ],
-    "timelineFormattedText": "===================================\nCANTIDAD DE PALABRAS: 1114\nPALABRAS POR MINUTO (WPM): 147.0\nDURACIÓN VOZ NARRATIVA: 07:50\nBLOQUES SIN VOZ (Intro + Hook + Outro): +24s\nDURACIÓN VIDEO TOTAL: 08:14\n===================================\n\n1 00:00 - 00:08 [SIN VOZ NARRATIVA — Intro Oficial de Marca (8s)]\n2 00:08 - 00:16 [SIN VOZ NARRATIVA — Clip 1: Hook Visual Inicial y Texto en Pantalla (8s)]\n3 00:16 - 00:26 Año 1209, Puente de Londres, Inglaterra. Tras 33 años de obras, la ciudad inaugura el primer puente de piedra sobre el Támesis, una calle\n4 00:26 - 00:36 habitada que flotará sobre el río durante más de 600 años. [pausa: 1.5s] En los próximos minutos descubrirás cómo un puente medieval se convirtió en barrio,\n5 00:36 - 00:46 mercado, fortaleza y patíbulo, y por qué Londres terminó derribando su monumento más famoso. Cada historia deja una huella. Aquí seguimos sus rastros. [pausa: 2s] Todo\n6 00:46 - 00:56 comienza en 1176, cuando el sacerdote Peter de Colechurch recibe el encargo de sustituir el viejo puente de madera, quemado y reconstruido una y\n7 00:56 - 01:06 otra vez. Durante tres décadas, cientos de obreros hincan estacas de olmo en el lecho del río y levantan sobre ellas 19 arcos de\n8 01:06 - 01:16 piedra desiguales. [pausa: 1.5s] Los pilares son tan anchos que estrechan el cauce a la mitad. El agua se acelera entre ellos como en una presa,\n9 01:16 - 01:26 y cruzar bajo los arcos en bote se vuelve una apuesta mortal que los barqueros llaman disparar el puente. [pausa: 1.5s] En el centro se alza\n10 01:26 - 01:36 una capilla dedicada a Tomás Becket, donde los peregrinos rezan antes de partir hacia Canterbury. Y muy pronto, sobre la calzada de apenas 4\n11 01:36 - 01:46 metros de ancho, empiezan a levantarse casas. [pausa: 2s] Mantenerlo cuesta una fortuna. La corona crea una institución propia, la Casa del Puente, que administra rentas,\n12 01:46 - 01:56 peajes y donaciones de fieles que dejan dinero en su testamento a Dios y al puente. En 1281 el hielo del invierno arranca cinco\n13 01:56 - 02:06 arcos de golpe, y la reina Leonor es acusada de gastar los fondos en sus propios asuntos. [pausa: 1.5s] Cada pilar descansa sobre una isla artificial\n14 02:06 - 02:16 de estacas y escombros con forma de barca, llamada tajamar. Con la marea baja, la diferencia de nivel entre un lado y otro alcanza\n15 02:16 - 02:26 casi 2 metros. Bajo dos de los arcos giran enormes ruedas de madera que muelen grano y, desde 1581, bombean agua del río hacia\n16 02:26 - 02:36 las casas de la ciudad. [pausa: 2s] Hacia 1358 el puente sostiene 138 tiendas. Merceros, guanteros, libreros y fabricantes de agujas pagan alquileres que financian las\n17 02:36 - 02:46 reparaciones. Los edificios crecen hasta cinco pisos y se unen por arriba con vigas, de modo que quien cruza camina por un túnel oscuro\n18 02:46 - 02:56 de madera y voces. [pausa: 1.5s] La vida ahí arriba tiene ventajas inesperadas. El río se lleva la basura, el viento barre el humo, y durante\n19 02:56 - 03:06 la gran peste de 1665 los vecinos del puente enferman mucho menos que los de las calles vecinas. Las letrinas cuelgan directamente sobre el\n20 03:06 - 03:16 agua, y los barqueros aprenden pronto a no pasar por debajo sin mirar. [pausa: 1.5s] A mitad del recorrido, un puente levadizo permite el paso de\n21 03:16 - 03:26 los barcos de mástil alto y corta el acceso en caso de ataque. En 1381, durante la revuelta campesina, alguien lo baja desde dentro\n22 03:26 - 03:36 y miles de rebeldes entran en Londres sin encontrar resistencia. [pausa: 2s] En la puerta sur aparece la costumbre más temida. Desde 1305, tras la condena\n23 03:36 - 03:46 del rebelde escocés William Wallace, la entrada del puente se convierte en el lugar donde la corona exhibe su castigo a los traidores. Durante\n24 03:46 - 03:56 350 años, esa advertencia recibirá a cada viajero que llegue a Londres. [pausa: 2s] En 1450 los rebeldes de Jack Cade toman el puente y combaten\n25 03:56 - 04:06 de noche entre las casas. Muchos hombres caen al río con sus armaduras. Poco después, en 1577, se levanta la casa de Nonsuch, un\n26 04:06 - 04:16 palacio de madera traído en piezas desde Holanda y ensamblado sin un solo clavo de hierro. [pausa: 1.5s] En 1212 ocurre la primera gran tragedia. Un\n27 04:16 - 04:26 incendio estalla en la orilla sur y la multitud corre al puente para ayudar o para mirar. El viento lleva las chispas hasta el\n28 04:26 - 04:36 extremo norte y la gente queda atrapada entre dos frentes de fuego. Las crónicas hablan de 3 mil víctimas, una cifra que hoy los\n29 04:36 - 04:46 historiadores consideran exagerada. [pausa: 1.5s] Un siglo y medio después, en 1390, el puente es escenario de un torneo. Un caballero escocés y un lord inglés\n30 04:46 - 04:56 se enfrentan a lanza sobre la calzada ante el rey Ricardo II. Y en 1536, la hija pequeña de un mercader cae por una\n31 04:56 - 05:06 ventana al río y es rescatada por un aprendiz que años más tarde se casará con ella y llegará a ser alcalde de Londres.\n32 05:06 - 05:16 [pausa: 2s] El fuego es la amenaza constante. En 1633 un incendio destruye un tercio de las viviendas del extremo norte. Ese hueco vacío salvará al\n33 05:16 - 05:26 resto en 1666, cuando el Gran Incendio de Londres devora la ciudad y las llamas se detienen justo donde ya no quedaba nada que\n34 05:26 - 05:36 quemar. [pausa: 2s] Los inviernos traen otro espectáculo. Los pilares frenan tanto la corriente que, aguas arriba, el Támesis llega a congelarse por completo. En 1683\n35 05:36 - 05:46 el hielo aguanta dos meses, y sobre él se levanta una ciudad de tiendas con imprentas, tabernas, carreras de caballos y un buey asado\n36 05:46 - 05:56 entero. Las llaman ferias de la escarcha. [pausa: 1.5s] La última se celebra en febrero de 1814. Un elefante cruza el río helado junto al puente\n37 05:56 - 06:06 de Blackfriars mientras los impresores venden recuerdos estampados sobre el hielo. Cuando el viejo puente desaparezca, la corriente volverá a correr libre y el\n38 06:06 - 06:16 Támesis no se congelará nunca más en Londres. [pausa: 2s] En el siglo XVIII el puente es un estorbo. Los carruajes tardan una hora en cruzarlo\n39 06:16 - 06:26 y en 1722 el alcalde ordena, por primera vez en Inglaterra, que el tráfico circule por la izquierda. Entre 1758 y 1762 se derriban\n40 06:26 - 06:36 todas las casas y se ensancha el arco central. [pausa: 1.5s] Pero la estructura medieval ya no resiste. En 1799 se convoca un concurso para reemplazarla\n41 06:36 - 06:46 y el ingeniero John Rennie diseña cinco arcos de granito. Su hijo dirige las obras desde 1824, a 30 metros río arriba del viejo\n42 06:46 - 06:56 puente, que sigue en uso mientras tanto. [pausa: 1.5s] La construcción dura siete años y exige un enorme sacrificio a sus obreros. Cada bloque de granito\n43 06:56 - 07:06 llega por mar desde Dartmoor y Escocia. Para abrir los accesos se derriban calles enteras y la iglesia de San Miguel, y el coste\n44 07:06 - 07:16 final supera los 2 millones de libras, una suma descomunal para la época. [pausa: 1.5s] El primero de agosto de 1831, el rey Guillermo IV inaugura\n45 07:16 - 07:26 el nuevo Puente de Londres con un banquete bajo una carpa. Semanas después comienzan a desmontar piedra por piedra los arcos de 1209, tras\n46 07:26 - 07:36 622 años de servicio. [pausa: 2s] El puente de Rennie tampoco será eterno. En 1968 se vende a un empresario estadounidense, que lo traslada bloque a\n47 07:36 - 07:46 bloque hasta el desierto de Arizona, donde todavía cruza un lago artificial. [pausa: 1.5s] Del puente habitado solo quedan algunos sillares en un patio de iglesia\n48 07:46 - 07:56 y los grabados de quienes lo dibujaron. Déjanos saber en los comentarios si te habrías atrevido a vivir en una casa suspendida sobre el\n49 07:56 - 08:06 río. [pausa: 1.5s] Cada historia deja una huella. Aquí seguimos sus rastros.\n50 08:06 - 08:14 [SIN VOZ NARRATIVA — Outro Oficial de Marca (8s)]",
+    "timelineFormattedText": "===================================\nCANTIDAD DE PALABRAS: 1114\nPALABRAS POR MINUTO (WPM): 6684.0\nDURACIÓN VOZ NARRATIVA: 00:10\nBLOQUES SIN VOZ (Intro + Hook + Outro): +24s\nDURACIÓN VIDEO TOTAL: 00:34\n===================================\n\n1 00:00 - 00:08 [SIN VOZ NARRATIVA — Intro Oficial de Marca (8s)]\n2 00:08 - 00:16 [SIN VOZ NARRATIVA — Clip 1: Hook Visual Inicial y Texto en Pantalla (8s)]\n3 00:16 - 00:26 Año 1209, Puente de Londres, Inglaterra. Tras 33 años de obras, la ciudad inaugura el primer puente de piedra sobre el Támesis, una calle habitada que flotará sobre el río durante más de 600 años. [pausa: 1.5s] En los próximos minutos descubrirás cómo un puente medieval se convirtió en barrio, mercado, fortaleza y patíbulo, y por qué Londres terminó derribando su monumento más famoso. Cada historia deja una huella. Aquí seguimos sus rastros. [pausa: 2s] Todo comienza en 1176, cuando el sacerdote Peter de Colechurch recibe el encargo de sustituir el viejo puente de madera, quemado y reconstruido una y otra vez. Durante tres décadas, cientos de obreros hincan estacas de olmo en el lecho del río y levantan sobre ellas 19 arcos de piedra desiguales. [pausa: 1.5s] Los pilares son tan anchos que estrechan el cauce a la mitad. El agua se acelera entre ellos como en una presa, y cruzar bajo los arcos en bote se vuelve una apuesta mortal que los barqueros llaman disparar el puente. [pausa: 1.5s] En el centro se alza una capilla dedicada a Tomás Becket, donde los peregrinos rezan antes de partir hacia Canterbury. Y muy pronto, sobre la calzada de apenas 4 metros de ancho, empiezan a levantarse casas. [pausa: 2s] Mantenerlo cuesta una fortuna. La corona crea una institución propia, la Casa del Puente, que administra rentas, peajes y donaciones de fieles que dejan dinero en su testamento a Dios y al puente. En 1281 el hielo del invierno arranca cinco arcos de golpe, y la reina Leonor es acusada de gastar los fondos en sus propios asuntos. [pausa: 1.5s] Cada pilar descansa sobre una isla artificial de estacas y escombros con forma de barca, llamada tajamar. Con la marea baja, la diferencia de nivel entre un lado y otro alcanza casi 2 metros. Bajo dos de los arcos giran enormes ruedas de madera que muelen grano y, desde 1581, bombean agua del río hacia las casas de la ciudad. [pausa: 2s] Hacia 1358 el puente sostiene 138 tiendas. Merceros, guanteros, libreros y fabricantes de agujas pagan alquileres que financian las reparaciones. Los edificios crecen hasta cinco pisos y se unen por arriba con vigas, de modo que quien cruza camina por un túnel oscuro de madera y voces. [pausa: 1.5s] La vida ahí arriba tiene ventajas inesperadas. El río se lleva la basura, el viento barre el humo, y durante la gran peste de 1665 los vecinos del puente enferman mucho menos que los de las calles vecinas. Las letrinas cuelgan directamente sobre el agua, y los barqueros aprenden pronto a no pasar por debajo sin mirar. [pausa: 1.5s] A mitad del recorrido, un puente levadizo permite el paso de los barcos de mástil alto y corta el acceso en caso de ataque. En 1381, durante la revuelta campesina, alguien lo baja desde dentro y miles de rebeldes entran en Londres sin encontrar resistencia. [pausa: 2s] En la puerta sur aparece la costumbre más temida. Desde 1305, tras la condena del rebelde escocés William Wallace, la entrada del puente se convierte en el lugar donde la corona exhibe su castigo a los traidores. Durante 350 años, esa advertencia recibirá a cada viajero que llegue a Londres. [pausa: 2s] En 1450 los rebeldes de Jack Cade toman el puente y combaten de noche entre las casas. Muchos hombres caen al río con sus armaduras. Poco después, en 1577, se levanta la casa de Nonsuch, un palacio de madera traído en piezas desde Holanda y ensamblado sin un solo clavo de hierro. [pausa: 1.5s] En 1212 ocurre la primera gran tragedia. Un incendio estalla en la orilla sur y la multitud corre al puente para ayudar o para mirar. El viento lleva las chispas hasta el extremo norte y la gente queda atrapada entre dos frentes de fuego. Las crónicas hablan de 3 mil víctimas, una cifra que hoy los historiadores consideran exagerada. [pausa: 1.5s] Un siglo y medio después, en 1390, el puente es escenario de un torneo. Un caballero escocés y un lord inglés se enfrentan a lanza sobre la calzada ante el rey Ricardo II. Y en 1536, la hija pequeña de un mercader cae por una ventana al río y es rescatada por un aprendiz que años más tarde se casará con ella y llegará a ser alcalde de Londres. [pausa: 2s] El fuego es la amenaza constante. En 1633 un incendio destruye un tercio de las viviendas del extremo norte. Ese hueco vacío salvará al resto en 1666, cuando el Gran Incendio de Londres devora la ciudad y las llamas se detienen justo donde ya no quedaba nada que quemar. [pausa: 2s] Los inviernos traen otro espectáculo. Los pilares frenan tanto la corriente que, aguas arriba, el Támesis llega a congelarse por completo. En 1683 el hielo aguanta dos meses, y sobre él se levanta una ciudad de tiendas con imprentas, tabernas, carreras de caballos y un buey asado entero. Las llaman ferias de la escarcha. [pausa: 1.5s] La última se celebra en febrero de 1814. Un elefante cruza el río helado junto al puente de Blackfriars mientras los impresores venden recuerdos estampados sobre el hielo. Cuando el viejo puente desaparezca, la corriente volverá a correr libre y el Támesis no se congelará nunca más en Londres. [pausa: 2s] En el siglo XVIII el puente es un estorbo. Los carruajes tardan una hora en cruzarlo y en 1722 el alcalde ordena, por primera vez en Inglaterra, que el tráfico circule por la izquierda. Entre 1758 y 1762 se derriban todas las casas y se ensancha el arco central. [pausa: 1.5s] Pero la estructura medieval ya no resiste. En 1799 se convoca un concurso para reemplazarla y el ingeniero John Rennie diseña cinco arcos de granito. Su hijo dirige las obras desde 1824, a 30 metros río arriba del viejo puente, que sigue en uso mientras tanto. [pausa: 1.5s] La construcción dura siete años y exige un enorme sacrificio a sus obreros. Cada bloque de granito llega por mar desde Dartmoor y Escocia. Para abrir los accesos se derriban calles enteras y la iglesia de San Miguel, y el coste final supera los 2 millones de libras, una suma descomunal para la época. [pausa: 1.5s] El primero de agosto de 1831, el rey Guillermo IV inaugura el nuevo Puente de Londres con un banquete bajo una carpa. Semanas después comienzan a desmontar piedra por piedra los arcos de 1209, tras 622 años de servicio. [pausa: 2s] El puente de Rennie tampoco será eterno. En 1968 se vende a un empresario estadounidense, que lo traslada bloque a bloque hasta el desierto de Arizona, donde todavía cruza un lago artificial. [pausa: 1.5s] Del puente habitado solo quedan algunos sillares en un patio de iglesia y los grabados de quienes lo dibujaron. Déjanos saber en los comentarios si te habrías atrevido a vivir en una casa suspendida sobre el río. [pausa: 1.5s] Cada historia deja una huella. Aquí seguimos sus rastros.\n4 00:26 - 00:34 [SIN VOZ NARRATIVA — Outro Oficial de Marca (8s)]",
     "timelineSettings": {
       "language": "es",
       "customLanguage": "",
@@ -375,8 +145,8 @@
         "visualExplanation": "",
         "imagePrompt": "Image 02: Create an image in 16-9 horizontal aspect ratio the newly inaugurated the Stone Bridge 1209 in London, England, 1209, where 45-year-old adult historical figure in authentic period attire and adult the adult historical figure in authentic period attire in heavy wool mantles and linen hoods walk ceremoniously across the fresh pale limestone roadway above stone river arches, 35mm lens, cinematic lighting, historical accuracy, portrayed by anonymous mature adult historical reenactment actors in authentic period costume, cinematic documentary realism, safe framing composition, 8k resolution, sharp focus, no modern objects, no CGI look, no text, no spoken voice, no human speech, no music. fix the name to Inicial_02_create_an_image_in_16_9",
         "videoPrompt": "Clip 02: Generate a video in 16-9 horizontal aspect ratio across 10 seconds showing a full ensemble shot at eye-level with a lateral tracking shot moving alongside 45-year-old medieval civic aldermen and adult citizens in heavy wool mantles walking steadily across the newly laid pale limestone roadway of the stone bridge in 1209, all background furniture, architectural fixtures, and tabletop props remain 100% gravity-locked and stationary while any held object moves smoothly under natural hand control, fixed subject count from 0s to 10s, single continuous shot, strictly no shot changes, with subtle ambient foley of leather boots stepping firmly on fresh cut limestone, heavy wool cloaks rustling in brisk river wind, tidal water flowing below. cinematic documentary realism, safe framing composition, 8k resolution, sharp focus, no modern objects, no CGI look, no text, no spoken voice, no human speech, no music. fix the name to Clip_02_generate_a_video_in_16_9",
-        "narrationSegment": "Año 1209, Puente de Londres, Inglaterra. Tras 33 años de obras, la ciudad inaugura el primer puente de piedra sobre el Támesis, una calle",
-        "pauseNotes": "",
+        "narrationSegment": "Año 1209, Puente de Londres, Inglaterra. Tras 33 años de obras, la ciudad inaugura el primer puente de piedra sobre el Támesis, una calle habitada que flotará sobre el río durante más de 600 años. [pausa: 1.5s] En los próximos minutos descubrirás cómo un puente medieval se convirtió en barrio, mercado, fortaleza y patíbulo, y por qué Londres terminó derribando su monumento más famoso. Cada historia deja una huella. Aquí seguimos sus rastros. [pausa: 2s] Todo comienza en 1176, cuando el sacerdote Peter de Colechurch recibe el encargo de sustituir el viejo puente de madera, quemado y reconstruido una y otra vez. Durante tres décadas, cientos de obreros hincan estacas de olmo en el lecho del río y levantan sobre ellas 19 arcos de piedra desiguales. [pausa: 1.5s] Los pilares son tan anchos que estrechan el cauce a la mitad. El agua se acelera entre ellos como en una presa, y cruzar bajo los arcos en bote se vuelve una apuesta mortal que los barqueros llaman disparar el puente. [pausa: 1.5s] En el centro se alza una capilla dedicada a Tomás Becket, donde los peregrinos rezan antes de partir hacia Canterbury. Y muy pronto, sobre la calzada de apenas 4 metros de ancho, empiezan a levantarse casas. [pausa: 2s] Mantenerlo cuesta una fortuna. La corona crea una institución propia, la Casa del Puente, que administra rentas, peajes y donaciones de fieles que dejan dinero en su testamento a Dios y al puente. En 1281 el hielo del invierno arranca cinco arcos de golpe, y la reina Leonor es acusada de gastar los fondos en sus propios asuntos. [pausa: 1.5s] Cada pilar descansa sobre una isla artificial de estacas y escombros con forma de barca, llamada tajamar. Con la marea baja, la diferencia de nivel entre un lado y otro alcanza casi 2 metros. Bajo dos de los arcos giran enormes ruedas de madera que muelen grano y, desde 1581, bombean agua del río hacia las casas de la ciudad. [pausa: 2s] Hacia 1358 el puente sostiene 138 tiendas. Merceros, guanteros, libreros y fabricantes de agujas pagan alquileres que financian las reparaciones. Los edificios crecen hasta cinco pisos y se unen por arriba con vigas, de modo que quien cruza camina por un túnel oscuro de madera y voces. [pausa: 1.5s] La vida ahí arriba tiene ventajas inesperadas. El río se lleva la basura, el viento barre el humo, y durante la gran peste de 1665 los vecinos del puente enferman mucho menos que los de las calles vecinas. Las letrinas cuelgan directamente sobre el agua, y los barqueros aprenden pronto a no pasar por debajo sin mirar. [pausa: 1.5s] A mitad del recorrido, un puente levadizo permite el paso de los barcos de mástil alto y corta el acceso en caso de ataque. En 1381, durante la revuelta campesina, alguien lo baja desde dentro y miles de rebeldes entran en Londres sin encontrar resistencia. [pausa: 2s] En la puerta sur aparece la costumbre más temida. Desde 1305, tras la condena del rebelde escocés William Wallace, la entrada del puente se convierte en el lugar donde la corona exhibe su castigo a los traidores. Durante 350 años, esa advertencia recibirá a cada viajero que llegue a Londres. [pausa: 2s] En 1450 los rebeldes de Jack Cade toman el puente y combaten de noche entre las casas. Muchos hombres caen al río con sus armaduras. Poco después, en 1577, se levanta la casa de Nonsuch, un palacio de madera traído en piezas desde Holanda y ensamblado sin un solo clavo de hierro. [pausa: 1.5s] En 1212 ocurre la primera gran tragedia. Un incendio estalla en la orilla sur y la multitud corre al puente para ayudar o para mirar. El viento lleva las chispas hasta el extremo norte y la gente queda atrapada entre dos frentes de fuego. Las crónicas hablan de 3 mil víctimas, una cifra que hoy los historiadores consideran exagerada. [pausa: 1.5s] Un siglo y medio después, en 1390, el puente es escenario de un torneo. Un caballero escocés y un lord inglés se enfrentan a lanza sobre la calzada ante el rey Ricardo II. Y en 1536, la hija pequeña de un mercader cae por una ventana al río y es rescatada por un aprendiz que años más tarde se casará con ella y llegará a ser alcalde de Londres. [pausa: 2s] El fuego es la amenaza constante. En 1633 un incendio destruye un tercio de las viviendas del extremo norte. Ese hueco vacío salvará al resto en 1666, cuando el Gran Incendio de Londres devora la ciudad y las llamas se detienen justo donde ya no quedaba nada que quemar. [pausa: 2s] Los inviernos traen otro espectáculo. Los pilares frenan tanto la corriente que, aguas arriba, el Támesis llega a congelarse por completo. En 1683 el hielo aguanta dos meses, y sobre él se levanta una ciudad de tiendas con imprentas, tabernas, carreras de caballos y un buey asado entero. Las llaman ferias de la escarcha. [pausa: 1.5s] La última se celebra en febrero de 1814. Un elefante cruza el río helado junto al puente de Blackfriars mientras los impresores venden recuerdos estampados sobre el hielo. Cuando el viejo puente desaparezca, la corriente volverá a correr libre y el Támesis no se congelará nunca más en Londres. [pausa: 2s] En el siglo XVIII el puente es un estorbo. Los carruajes tardan una hora en cruzarlo y en 1722 el alcalde ordena, por primera vez en Inglaterra, que el tráfico circule por la izquierda. Entre 1758 y 1762 se derriban todas las casas y se ensancha el arco central. [pausa: 1.5s] Pero la estructura medieval ya no resiste. En 1799 se convoca un concurso para reemplazarla y el ingeniero John Rennie diseña cinco arcos de granito. Su hijo dirige las obras desde 1824, a 30 metros río arriba del viejo puente, que sigue en uso mientras tanto. [pausa: 1.5s] La construcción dura siete años y exige un enorme sacrificio a sus obreros. Cada bloque de granito llega por mar desde Dartmoor y Escocia. Para abrir los accesos se derriban calles enteras y la iglesia de San Miguel, y el coste final supera los 2 millones de libras, una suma descomunal para la época. [pausa: 1.5s] El primero de agosto de 1831, el rey Guillermo IV inaugura el nuevo Puente de Londres con un banquete bajo una carpa. Semanas después comienzan a desmontar piedra por piedra los arcos de 1209, tras 622 años de servicio. [pausa: 2s] El puente de Rennie tampoco será eterno. En 1968 se vende a un empresario estadounidense, que lo traslada bloque a bloque hasta el desierto de Arizona, donde todavía cruza un lago artificial. [pausa: 1.5s] Del puente habitado solo quedan algunos sillares en un patio de iglesia y los grabados de quienes lo dibujaron. Déjanos saber en los comentarios si te habrías atrevido a vivir en una casa suspendida sobre el río. [pausa: 1.5s] Cada historia deja una huella. Aquí seguimos sus rastros.",
+        "pauseNotes": "Contiene [pausa: 1.5s], [pausa: 2s], [pausa: 1.5s], [pausa: 1.5s], [pausa: 2s], [pausa: 1.5s], [pausa: 2s], [pausa: 1.5s], [pausa: 1.5s], [pausa: 2s], [pausa: 2s], [pausa: 1.5s], [pausa: 1.5s], [pausa: 2s], [pausa: 2s], [pausa: 1.5s], [pausa: 2s], [pausa: 1.5s], [pausa: 1.5s], [pausa: 1.5s], [pausa: 2s], [pausa: 1.5s], [pausa: 1.5s] en la locución",
         "imageReady": true,
         "videoReady": true,
         "reviewedForEditor": false,
@@ -5619,6 +5389,7 @@
         "reframeReason": "Paneo dinámico IA (78% → 28%) desde sujeto derecho hacia escena izquierda (Der → Izq)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -5649,6 +5420,7 @@
         "reframeConfidence": 0.55,
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -5677,6 +5449,7 @@
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -5705,6 +5478,7 @@
         "reframeReason": "Paneo dinámico IA (34% → 78%) entre dos sujetos (Izq → Der)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -5733,6 +5507,7 @@
         "reframeReason": "Paneo dinámico IA (67% → 54%) siguiendo acción/sujeto",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -5761,6 +5536,7 @@
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -5789,6 +5565,7 @@
         "reframeReason": "Paneo dinámico IA (31% → 16%) siguiendo acción/sujeto",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -5817,6 +5594,7 @@
         "reframeReason": "Paneo dinámico IA (24% → 76%) desde escena izquierda hacia sujeto derecho (Izq → Der)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -5845,6 +5623,7 @@
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -5873,6 +5652,7 @@
         "reframeReason": "Paneo dinámico IA (18% → 76%) desde sujeto izquierdo hacia escena derecha (Izq → Der)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -5901,6 +5681,7 @@
         "reframeReason": "Paneo dinámico IA (58% → 32%) siguiendo acción/sujeto",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -5931,6 +5712,7 @@
         "reframeReason": "Paneo dinámico IA (78% → 24%) desde sujeto derecho hacia escena izquierda (Der → Izq)",
         "videoDiscardOverriddenAt": 1794830501989,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -5961,6 +5743,7 @@
         "reframeConfidence": 0.55,
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -5989,6 +5772,7 @@
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6017,6 +5801,7 @@
         "reframeReason": "Paneo dinámico IA (69% → 50%) siguiendo acción/sujeto",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6047,6 +5832,7 @@
         "reframeConfidence": 0.55,
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6075,6 +5861,7 @@
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6106,6 +5893,7 @@
         "reframeReason": "Paneo dinámico IA (18% → 76%) desde sujeto izquierdo hacia escena derecha (Izq → Der)",
         "previousVideoPrompt": "Clip 18 (02:24 - 02:32): Create a cinematic 8-second static B-roll video executing ONLY a smooth, continuous, ultra-steady optical Ken Burns zoom-in over the frozen scene: ONLY a slow, steady optical Ken Burns zoom-in (gradual push-in from wide to tight framing with zero lens distortion) across the 100% still archival photograph plate of the open 1929 scientific bulletin with monochrome bacterial agar illustrations resting motionless on @Mesa_Historiador, keeping the entire starting image 100% frozen as a still documentary B-roll plate from 0s to 8s with zero internal object animation, with no people present. STATIC B-ROLL PLATE LOCK (CAMERA MOTION ONLY): Treat the starting image as a 100% frozen, motionless archival B-roll still plate from 0s to 8s with strictly zero internal object animation, zero morphing, and zero lighting shifts—ONLY the virtual optical rostrum camera performs the zoom in movement. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: subtle archival library room tone, faint dry paper stillness, single continuous shot, strictly no shot changes, no music, no speech, no text. [B-Roll: STATIC_ZOOM_IN] [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6134,6 +5922,7 @@
         "reframeReason": "Paneo dinámico IA (22% → 81%) entre dos sujetos (Izq → Der)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6164,6 +5953,7 @@
         "reframeConfidence": 0.62,
         "reframeReason": "Paneo dinámico IA (39% → 58%) siguiendo acción/sujeto",
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6192,6 +5982,7 @@
         "reframeReason": "Paneo manual (76% → 53%): termina con el hombre centrado",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "userReframed9x16": true,
         "reframeUpdatedAt": 1795055359917,
         "videoAuditReason": "",
@@ -6222,6 +6013,7 @@
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6250,6 +6042,7 @@
         "reframeReason": "Paneo dinámico IA (82% → 24%) desde sujeto derecho hacia escena izquierda (Der → Izq)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6278,6 +6071,7 @@
         "reframeReason": "Paneo dinámico IA (66% → 46%) siguiendo acción/sujeto",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6306,6 +6100,7 @@
         "reframeReason": "Paneo dinámico IA (22% → 78%) entre dos sujetos (Izq → Der)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6336,6 +6131,7 @@
         "reframeConfidence": 0.55,
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6364,6 +6160,7 @@
         "reframeReason": "Paneo dinámico IA (22% → 76%) desde sujeto izquierdo hacia escena derecha (Izq → Der)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6395,6 +6192,7 @@
         "reframeReason": "Enfoque inteligente IA en tercio derecho (63%)",
         "previousVideoPrompt": "Clip 28 (03:44 - 03:52): Create a cinematic 8-second static B-roll video executing ONLY a smooth, continuous, ultra-steady optical Ken Burns zoom-out over the frozen scene: ONLY a slow, steady optical Ken Burns zoom-out (gradual pull-back from close detail to wide framing revealing full context) across the 100% still archival photograph plate of the preserved 1928 Petri dish, cloth-bound notebook, and brass fountain pen frozen in slanting light on the wooden bench of @Laboratorio_St_Mary, keeping the entire starting image 100% frozen as a still documentary B-roll plate from 0s to 8s with zero internal object animation, with no people present. STATIC B-ROLL PLATE LOCK (CAMERA MOTION ONLY): Treat the starting image as a 100% frozen, motionless archival B-roll still plate from 0s to 8s with strictly zero internal object animation, zero morphing, and zero lighting shifts—ONLY the virtual optical rostrum camera performs the zoom out movement. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: quiet regulator wall clock ticking in the basement laboratory, calm room tone, single continuous shot, strictly no shot changes, no music, no speech, no text. [B-Roll: STATIC_ZOOM_OUT] [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6423,6 +6221,7 @@
         "reframeReason": "Enfoque inteligente IA en tercio derecho (64%)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6451,6 +6250,7 @@
         "reframeReason": "Paneo dinámico IA (82% → 24%) desde sujeto derecho hacia escena izquierda (Der → Izq)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6479,6 +6279,7 @@
         "reframeReason": "Paneo dinámico IA (22% → 82%) entre dos sujetos (Izq → Der)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6510,6 +6311,7 @@
         "reframeReason": "Enfoque inteligente IA en tercio izquierdo (17%)",
         "promptUpdatedAt": 1794572688032,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6540,6 +6342,7 @@
         "reframeConfidence": 0.66,
         "reframeReason": "Enfoque inteligente IA en tercio izquierdo (21%)",
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6568,6 +6371,7 @@
         "reframeReason": "Enfoque inteligente IA en tercio derecho (66%)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6596,6 +6400,7 @@
         "reframeReason": "Paneo dinámico IA (22% → 72%) entre dos sujetos (Izq → Der)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6624,6 +6429,7 @@
         "reframeReason": "Paneo dinámico IA (84% → 66%) siguiendo acción/sujeto",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6652,6 +6458,7 @@
         "reframeReason": "Paneo dinámico IA (22% → 76%) desde sujeto izquierdo hacia escena derecha (Izq → Der)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6680,6 +6487,7 @@
         "reframeReason": "Paneo dinámico IA (46% → 62%) siguiendo acción/sujeto",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6745,6 +6553,7 @@
         "reframeReason": "Paneo dinámico IA (22% → 76%) desde sujeto izquierdo hacia escena derecha (Izq → Der)",
         "promptUpdatedAt": 1794572688032,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6773,6 +6582,7 @@
         "reframeReason": "Paneo dinámico IA (24% → 76%) desde escena izquierda hacia sujeto derecho (Izq → Der)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6801,6 +6611,7 @@
         "reframeReason": "Paneo dinámico IA (24% → 76%) desde escena izquierda hacia sujeto derecho (Izq → Der)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6832,6 +6643,7 @@
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "previousVideoPrompt": "Clip 43 (05:44 - 05:52): Create a cinematic 8-second static B-roll video executing ONLY a smooth, continuous vertical rostrum camera tilt upward from bottom to top over the frozen scene: ONLY a slow, controlled vertical pedestal tilt upward from the base of the still archival frame to the top across the 100% still documentary photograph plate ascending from the lower glass milk bottles up the reclaimed oak shelving, hand-blown glass spirals, and copper coils inside @Escuela_Dunn_Oxford, keeping the entire starting image 100% frozen as a still documentary B-roll plate from 0s to 8s with zero internal object animation, with no people present. STATIC B-ROLL PLATE LOCK (CAMERA MOTION ONLY): Treat the starting image as a 100% frozen, motionless archival B-roll still plate from 0s to 8s with strictly zero internal object animation, zero morphing, and zero lighting shifts—ONLY the virtual optical rostrum camera performs the tilt arriba movement. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: soft resonant glass-and-oak laboratory room tone, distant faint condenser hum, single continuous shot, strictly no shot changes, no music, no speech, no text. [B-Roll: STATIC_TILT_UP] [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6862,6 +6674,7 @@
         "reframeConfidence": 0.82,
         "reframeReason": "Paneo dinámico IA (78% → 24%) desde sujeto derecho hacia escena izquierda (Der → Izq)",
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6890,6 +6703,7 @@
         "reframeReason": "Enfoque inteligente IA en tercio izquierdo (32%)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6918,6 +6732,7 @@
         "reframeReason": "Paneo dinámico IA (50% → 30%) siguiendo acción/sujeto",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6952,6 +6767,7 @@
         "previousVideoPrompt": "Clip 47 (06:16 - 06:24): Create a cinematic 8-second video showing a smooth gentle arc shot inside the vintage Oxford research laboratory as the dark-haired mustachioed male biochemist in his white lab coat exchanges a quiet triumphant look with the bespectacled male pathology professor in his white lab coat over a brown tweed waistcoat beside him over the open printed medical journal pages bathed in warm late-summer daylight across the full 8 seconds, holding a natural composed frame through the final second. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous action across the full 8 seconds, holding a natural composed posture through the final frame. Fixed subject count from 0s to 8s (no new people appearing out of nowhere, vanishing, or morphing; background figures stationary in shallow optical bokeh). Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects. Cinematic historical drama reenactment featuring anonymous fictionalized theatre actors in period costume (no real public figures or prominent people, steady continuous lighting with zero sudden flashes). Ambient Foley: crisp rustle of freshly printed journal pages, distant cheerful chime of Oxford college bells, single continuous shot, strictly no shot changes, no music, no speech, no text. [Duration: 8s] [Model: Omni 1.1 Flash] fix the name",
         "promptUpdatedAt": 1794572688032,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6983,6 +6799,7 @@
         "reframeReason": "Paneo dinámico IA (28% → 64%) siguiendo acción/sujeto",
         "previousVideoPrompt": "Clip 48 (06:24 - 06:32): Create a cinematic 8-second video showing a sweeping slow crane glide down the center aisle of @Escuela_Dunn_Oxford revealing row after row of white enameled hospital bedpans and improvised tin vessels stacked neatly from floor to ceiling, with no people present across the full 8 seconds, holding a natural composed frame through the final second. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: warm steady hum of steam heating pipes, subtle metallic creak of heavily loaded wooden racks, single continuous shot, strictly no shot changes, no music, no speech, no text. [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7011,6 +6828,7 @@
         "reframeReason": "Enfoque inteligente IA en tercio derecho (68%)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7039,6 +6857,7 @@
         "reframeReason": "Paneo dinámico IA (42% → 60%) siguiendo acción/sujeto",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7067,6 +6886,7 @@
         "reframeReason": "Enfoque inteligente IA en tercio izquierdo (17%)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7095,6 +6915,7 @@
         "reframeReason": "Paneo dinámico IA (78% → 24%) desde sujeto derecho hacia escena izquierda (Der → Izq)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7123,6 +6944,7 @@
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7151,6 +6973,7 @@
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7181,6 +7004,7 @@
         "reframeConfidence": 0.61,
         "reframeReason": "Enfoque inteligente IA en tercio izquierdo (16%)",
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7209,6 +7033,7 @@
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7237,6 +7062,7 @@
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7265,6 +7091,7 @@
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7293,6 +7120,7 @@
         "reframeReason": "Enfoque inteligente IA en tercio izquierdo (22%)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7321,6 +7149,7 @@
         "reframeReason": "Paneo dinámico IA (78% → 24%) desde sujeto derecho hacia escena izquierda (Der → Izq)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7352,6 +7181,7 @@
         "reframeReason": "Paneo dinámico IA (82% → 28%) desde sujeto derecho hacia escena izquierda (Der → Izq)",
         "previousVideoPrompt": "Clip 61 (08:08 - 08:16): Create a cinematic 8-second static B-roll video executing ONLY a smooth, continuous, ultra-steady optical Ken Burns zoom-in over the frozen scene: ONLY a slow, steady optical Ken Burns zoom-in (gradual push-in from wide to tight framing with zero lens distortion) across the 100% still macro photograph plate of the vintage syringe needle tip touching the completely dry empty glass medicine vial on sterile gauze inside @Enfermeria_Radcliffe, keeping the entire starting image 100% frozen as a still documentary B-roll plate from 0s to 8s with zero internal object animation, with no people present. STATIC B-ROLL PLATE LOCK (CAMERA MOTION ONLY): Treat the starting image as a 100% frozen, motionless archival B-roll still plate from 0s to 8s with strictly zero internal object animation, zero morphing, and zero lighting shifts—ONLY the virtual optical rostrum camera performs the zoom in movement. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: heavy solemn hospital ward silence, faint distant radiator tone, single continuous shot, strictly no shot changes, no music, no speech, no text. [B-Roll: STATIC_ZOOM_IN] [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7380,6 +7210,7 @@
         "reframeReason": "Paneo dinámico IA (54% → 24%) siguiendo acción/sujeto",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7408,6 +7239,7 @@
         "reframeReason": "Paneo dinámico IA (18% → 76%) desde sujeto izquierdo hacia escena derecha (Izq → Der)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7442,6 +7274,7 @@
         "previousVideoPrompt": "Clip 64 (08:32 - 08:40): Create a cinematic 8-second video showing a slow tense dolly pull-back away from the tightly shut heavy mahogany and brass boardroom doors as cold shadow falls across the polished marble corridor floor, with no people present across the full 8 seconds, holding a natural composed frame through the final second. Strictly zero people or human figures appearing anywhere in the frame from 0s to 8s. All furniture, tables, and props remain 100% physically solid and non-deforming from 0s to 8s, with zero self-moving, floating, morphing, mutating, vanishing, or shape-shifting objects. Cinematic historical documentary still-life cinematography (no real public figures or prominent people, steady continuous lighting with zero sudden flashes). Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects, steady continuous lighting with zero sudden flashes. Ambient Foley: deep resonant thud of heavy mahogany boardroom doors latching shut, echoing silence in marble hallway, single continuous shot, strictly no shot changes, no music, no speech, no text. [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
         "promptUpdatedAt": 1794784316977,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7506,6 +7339,7 @@
         "reframeConfidence": 0.55,
         "reframeReason": "Paneo dinámico IA (56% → 39%) siguiendo acción/sujeto",
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7534,6 +7368,7 @@
         "reframeReason": "Paneo dinámico IA (22% → 77%) entre dos sujetos (Izq → Der)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794573067176,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7563,6 +7398,7 @@
         "reframeReason": "Enfoque inteligente IA en tercio izquierdo (16%)",
         "videoDiscardOverriddenAt": 1794830501989,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7597,6 +7433,7 @@
         "previousVideoPrompt": "Clip 69 (09:12 - 09:20): Create a cinematic 8-second video showing a slow lateral dolly shot across the drafting table as a senior British engineer runs his hand incredulously over the massive bottle-count calculation sheet and closes the blueprint portfolio across the full 8 seconds, holding a natural composed frame through the final second. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous action across the full 8 seconds, holding a natural composed posture through the final frame. Fixed subject count from 0s to 8s (no new people appearing out of nowhere, vanishing, or morphing; background figures stationary in shallow optical bokeh). Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects. Cinematic historical drama reenactment featuring anonymous fictionalized theatre actors in period costume (no real public figures or prominent people, steady continuous lighting with zero sudden flashes). Ambient Foley: heavy rustle of rolled blueprint sheets closing, quiet sigh in dim 1940s period office, single continuous shot, strictly no shot changes, no music, no speech, no text. [Duration: 8s] [Model: Omni 1.1 Flash] fix the name",
         "promptUpdatedAt": 1794785728722,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7625,6 +7462,7 @@
         "reframeReason": "Paneo dinámico IA (43% → 68%) siguiendo acción/sujeto",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794573067176,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7689,6 +7527,7 @@
         "reframeConfidence": 0.55,
         "reframeReason": "Paneo dinámico IA (65% → 38%) siguiendo acción/sujeto",
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7756,6 +7595,7 @@
         "reframeReason": "Paneo dinámico IA (18% → 76%) desde sujeto izquierdo hacia escena derecha (Izq → Der)",
         "previousVideoPrompt": "Clip 74 (09:52 - 10:00): Create a cinematic 8-second static B-roll video executing ONLY a smooth, continuous horizontal rostrum camera pan from left to right over the frozen scene: ONLY a slow, level horizontal fluid-head pan from left to right across the still archival frame across the 100% still archival photograph plate gliding laterally from the crossed-out chalk molecular ring diagrams on the slate blackboard across the row of cold inert synthesis flasks, keeping the entire starting image 100% frozen as a still documentary B-roll plate from 0s to 8s with zero internal object animation, with no people present. STATIC B-ROLL PLATE LOCK (CAMERA MOTION ONLY): Treat the starting image as a 100% frozen, motionless archival B-roll still plate from 0s to 8s with strictly zero internal object animation, zero morphing, and zero lighting shifts—ONLY the virtual optical rostrum camera performs the pan derecha movement. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: quiet ticking of a laboratory stopwatch, distant muffled wartime night stillness, single continuous shot, strictly no shot changes, no music, no speech, no text. [B-Roll: STATIC_PAN_RIGHT] [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7786,6 +7626,7 @@
         "reframeConfidence": 0.96,
         "reframeReason": "Paneo dinámico IA (18% → 72%) desde sujeto izquierdo hacia escena derecha (Izq → Der)",
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7816,6 +7657,7 @@
         "reframeConfidence": 0.82,
         "reframeReason": "Paneo dinámico IA (82% → 24%) desde sujeto derecho hacia escena izquierda (Der → Izq)",
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7845,6 +7687,7 @@
         "reframeConfidence": 0.55,
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7874,6 +7717,7 @@
         "reframeConfidence": 0.55,
         "reframeReason": "Enfoque inteligente IA en tercio izquierdo (41%)",
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7903,6 +7747,7 @@
         "reframeConfidence": 0.55,
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7932,6 +7777,7 @@
         "reframeConfidence": 0.84,
         "reframeReason": "Paneo dinámico IA (24% → 76%) desde escena izquierda hacia sujeto derecho (Izq → Der)",
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7961,6 +7807,7 @@
         "reframeConfidence": 0.55,
         "reframeReason": "Paneo dinámico IA (39% → 21%) siguiendo acción/sujeto",
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7990,6 +7837,7 @@
         "reframeConfidence": 0.82,
         "reframeReason": "Paneo dinámico IA (78% → 28%) desde sujeto derecho hacia escena izquierda (Der → Izq)",
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8019,6 +7867,7 @@
         "reframeConfidence": 0.62,
         "reframeReason": "Paneo dinámico IA (84% → 67%) siguiendo acción/sujeto",
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8048,6 +7897,7 @@
         "reframeConfidence": 0.55,
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8077,6 +7927,7 @@
         "reframeConfidence": 0.62,
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8107,6 +7958,7 @@
         "videoDiscardOverriddenAt": 1794830501989,
         "videoSavedAt": 1794830501989,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8136,6 +7988,7 @@
         "videoSavedFileName": "87_generate_a_video_in_16_9_68ccc0a1_4K.mp4",
         "videoSavedAt": 1794831222323,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8166,6 +8019,7 @@
         "videoDiscardOverriddenAt": 1794830501883,
         "videoSavedAt": 1794830501883,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8199,6 +8053,7 @@
         "videoSavedAt": 1794830501989,
         "previousVideoPrompt": "Clip 89 (11:52 - 12:00): Create a cinematic 8-second static B-roll video executing ONLY a smooth, continuous, ultra-steady optical Ken Burns zoom-in over the frozen scene: ONLY a slow, steady optical Ken Burns zoom-in (gradual push-in from wide to tight framing with zero lens distortion) across the 100% still macro photograph plate of the netted cantaloupe rind on the steel tray inside @Laboratorio_Peoria centering tightly on the luminous golden-yellow mold scar, keeping the entire starting image 100% frozen as a still documentary B-roll plate from 0s to 8s with zero internal object animation, with no people present. STATIC B-ROLL PLATE LOCK (CAMERA MOTION ONLY): Treat the starting image as a 100% frozen, motionless archival B-roll still plate from 0s to 8s with strictly zero internal object animation, zero morphing, and zero lighting shifts—ONLY the virtual optical rostrum camera performs the zoom in movement. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: hushed laboratory room tone, faint sterile ventilation hum, single continuous shot, strictly no shot changes, no music, no speech, no text. [B-Roll: STATIC_ZOOM_IN] [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8229,6 +8084,7 @@
         "videoDiscardOverriddenAt": 1794830668929,
         "videoSavedAt": 1794830668929,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8259,6 +8115,7 @@
         "videoDiscardOverriddenAt": 1794830768488,
         "videoSavedAt": 1794830768488,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8292,6 +8149,7 @@
         "videoSavedAt": 1794830768977,
         "previousVideoPrompt": "Clip 92 (12:16 - 12:24): Create a cinematic 8-second video showing a slow solemn wide tracking glide across the wet sand of @Playas_Normandia_1944 past the olive-drab medical crates toward gray Atlantic waves breaking against dark steel beach obstacles, with no people present across the full 8 seconds, holding a natural composed frame through the final second. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: rolling crash of cold English Channel waves on wet sand, sea wind snapping canvas tent ropes, single continuous shot, strictly no shot changes, no music, no speech, no text. [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8326,6 +8184,7 @@
         "previousVideoPrompt": "Clip 93: Generate a video in 16-9 horizontal aspect ratio across 8 seconds showing a slow tense push-in across the green baize conference table as a military medical officer closes a heavy leather dispatch portfolio beside a small rack of golden amber botanical solution ampoules across the full 8 seconds, holding a natural composed frame through the final second, with no people present and zero human figures, all background furniture, architectural fixtures, and tabletop props remain 100% gravity-locked and stationary while any held object moves smoothly under natural hand control, fixed subject count from 0s to 8s, single continuous shot, strictly no shot changes, with subtle ambient foley of quiet period room tone and natural atmospheric acoustics. cinematic documentary realism, safe framing composition, 8k resolution, sharp focus, no modern objects, no CGI look, no text, no spoken voice, no human speech, no music. fix the name to Clip_93_generate_a_video_in_16_9",
         "promptUpdatedAt": 1794831962791,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8356,6 +8215,7 @@
         "videoDiscardOverriddenAt": 1794830848719,
         "videoSavedAt": 1794830848719,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8420,6 +8280,7 @@
         "videoDiscardOverriddenAt": 1794830848719,
         "videoSavedAt": 1794830848719,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8484,6 +8345,7 @@
         "videoDiscardOverriddenAt": 1794830848621,
         "videoSavedAt": 1794830896464,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8514,6 +8376,7 @@
         "videoDiscardOverriddenAt": 1794830848621,
         "videoSavedAt": 1794830896464,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8543,6 +8406,7 @@
         "videoSavedFileName": "100_generate_a_video_in_16_9_a78a4b78_4K.mp4",
         "videoSavedAt": 1794830896464,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8573,6 +8437,7 @@
         "videoDiscardOverriddenAt": 1794833523145,
         "videoSavedAt": 1794833770519,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8603,6 +8468,7 @@
         "videoDiscardOverriddenAt": 1794833540414,
         "videoSavedAt": 1794833770519,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8636,6 +8502,7 @@
         "videoSavedAt": 1794833770519,
         "previousVideoPrompt": "Clip 103 (13:44 - 13:52): Create a cinematic 8-second static B-roll video executing ONLY a smooth, continuous, ultra-steady optical Ken Burns zoom-out over the frozen scene: ONLY a slow, steady optical Ken Burns zoom-out (gradual pull-back from close detail to wide framing revealing full context) across the 100% still high-angle archival photograph plate pulling back from a tight cluster of golden penicillin ampoules to reveal the vast 1944 Allied supply depot filled wall-to-wall with crates, keeping the entire starting image 100% frozen as a still documentary B-roll plate from 0s to 8s with zero internal object animation, with no people present. STATIC B-ROLL PLATE LOCK (CAMERA MOTION ONLY): Treat the starting image as a 100% frozen, motionless archival B-roll still plate from 0s to 8s with strictly zero internal object animation, zero morphing, and zero lighting shifts—ONLY the virtual optical rostrum camera performs the zoom out movement. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: deep cavernous warehouse echo, faint wooden crate stillness, single continuous shot, strictly no shot changes, no music, no speech, no text. [B-Roll: STATIC_ZOOM_OUT] [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8666,6 +8533,7 @@
         "videoDiscardOverriddenAt": 1794833737161,
         "videoSavedAt": 1794833770519,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8696,6 +8564,7 @@
         "videoDiscardOverriddenAt": 1794833737161,
         "videoSavedAt": 1794833770519,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8730,6 +8599,7 @@
         "previousVideoPrompt": "Clip 106 (14:08 - 14:16): Create a cinematic 8-second video showing a slow graceful macro slider shot across the marble counter from the humble vintage coins toward the abundant gleaming glass vials bathed in warm afternoon sunlight, with no people present across the full 8 seconds, holding a natural composed frame through the final second. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: warm peaceful afternoon street murmur muffled behind shop glass, quiet clock tick, single continuous shot, strictly no shot changes, no music, no speech, no text. [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
         "promptUpdatedAt": 1794834092912,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8760,6 +8630,7 @@
         "videoDiscardOverriddenAt": 1794833737161,
         "videoSavedAt": 1794833770519,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8790,6 +8661,7 @@
         "videoDiscardOverriddenAt": 1794833737161,
         "videoSavedAt": 1794833770519,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8820,6 +8692,7 @@
         "videoDiscardOverriddenAt": 1794833737161,
         "videoSavedAt": 1794833770519,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8884,6 +8757,7 @@
         "videoDiscardOverriddenAt": 1794833880030,
         "videoSavedAt": 1794833880030,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8914,6 +8788,7 @@
         "videoDiscardOverriddenAt": 1794833880030,
         "videoSavedAt": 1794833880030,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8944,6 +8819,7 @@
         "videoDiscardOverriddenAt": 1794833880030,
         "videoSavedAt": 1794833880030,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8974,6 +8850,7 @@
         "videoDiscardOverriddenAt": 1794833880030,
         "videoSavedAt": 1794833880030,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -9004,6 +8881,7 @@
         "videoDiscardOverriddenAt": 1794833880030,
         "videoSavedAt": 1794833880030,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -9034,6 +8912,7 @@
         "videoDiscardOverriddenAt": 1794834839299,
         "videoSavedAt": 1794834839299,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -9098,6 +8977,7 @@
         "videoDiscardOverriddenAt": 1794834883252,
         "videoSavedAt": 1794834883252,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -9128,6 +9008,7 @@
         "videoDiscardOverriddenAt": 1794835144268,
         "videoSavedAt": 1794835203918,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -9161,6 +9042,7 @@
         "videoSavedAt": 1794835003300,
         "previousVideoPrompt": "Clip 120 (16:00 - 16:08): Create a cinematic 8-second static B-roll video executing ONLY a smooth, continuous horizontal rostrum camera pan from right to left over the frozen scene: ONLY a slow, level horizontal fluid-head pan from right to left across the still archival frame across the 100% still archival photograph plate panning smoothly from the closed neoclassical stone ministry facade leftward toward the misty iron harbor cranes along the Rio de la Plata in 1944 Buenos Aires, keeping the entire starting image 100% frozen as a still documentary B-roll plate from 0s to 8s with zero internal object animation, with no people present. STATIC B-ROLL PLATE LOCK (CAMERA MOTION ONLY): Treat the starting image as a 100% frozen, motionless archival B-roll still plate from 0s to 8s with strictly zero internal object animation, zero morphing, and zero lighting shifts—ONLY the virtual optical rostrum camera performs the pan izquierda movement. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: distant ship foghorn echoing across river mist, cold wind over wet granite, single continuous shot, strictly no shot changes, no music, no speech, no text. [B-Roll: STATIC_PAN_LEFT] [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -9225,6 +9107,7 @@
         "videoDiscardOverriddenAt": 1794835172529,
         "videoSavedAt": 1794835203918,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -9255,6 +9138,7 @@
         "videoDiscardOverriddenAt": 1794954475626,
         "videoSavedAt": 1794954475626,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "userReframed9x16": true,
         "reframeUpdatedAt": 1795057123761,
         "videoAuditReason": "",
@@ -9287,6 +9171,7 @@
         "videoDiscardOverriddenAt": 1794835214531,
         "videoSavedAt": 1794835215441,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -9317,6 +9202,7 @@
         "videoDiscardOverriddenAt": 1794835225209,
         "videoSavedAt": 1794835226645,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -9347,6 +9233,7 @@
         "videoDiscardOverriddenAt": 1794835248432,
         "videoSavedAt": 1794835312992,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -9413,6 +9300,7 @@
         "videoDiscardOverriddenAt": 1794835071960,
         "videoSavedAt": 1794835203918,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -9443,6 +9331,7 @@
         "videoDiscardOverriddenAt": 1794835087120,
         "videoSavedAt": 1794835203918,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -9473,6 +9362,7 @@
         "videoDiscardOverriddenAt": 1794835263417,
         "videoSavedAt": 1794835312992,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -9503,6 +9393,7 @@
         "videoDiscardOverriddenAt": 1794836340448,
         "videoSavedAt": 1794836402971,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "userReframed9x16": true,
         "reframeUpdatedAt": 1795057310443,
         "videoAuditReason": "",
@@ -9535,6 +9426,7 @@
         "videoDiscardOverriddenAt": 1794836366907,
         "videoSavedAt": 1794836402971,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -9564,6 +9456,7 @@
         "videoSavedFileName": "133_generate_a_video_in_16_9_90b71187_4K.mp4",
         "videoSavedAt": 1794839803726,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -9630,6 +9523,7 @@
         "videoDiscardOverriddenAt": 1794836406278,
         "videoSavedAt": 1794836494024,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "userReframed9x16": true,
         "reframeUpdatedAt": 1795057358371,
         "videoAuditReason": "",
@@ -9662,6 +9556,7 @@
         "videoDiscardOverriddenAt": 1794836700830,
         "videoSavedAt": 1794836700830,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "userReframed9x16": true,
         "reframeUpdatedAt": 1795057376889,
         "videoAuditReason": "",
@@ -9694,6 +9589,7 @@
         "videoDiscardOverriddenAt": 1794837016438,
         "videoSavedAt": 1794837074425,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "userReframed9x16": true,
         "reframeUpdatedAt": 1795057396376,
         "videoAuditReason": "",
@@ -9729,6 +9625,7 @@
         "videoSavedAt": 1794836700983,
         "previousVideoPrompt": "Clip 138 (18:24 - 18:32): Create a cinematic 8-second static B-roll video executing ONLY a smooth, continuous vertical rostrum camera tilt downward from top to bottom over the frozen scene: ONLY a slow, controlled vertical pedestal tilt downward from the top of the still archival frame to the base detail across the 100% still overhead documentary photograph plate tilting downward across the slate bench grid of ten Petri dishes onto the four plates overrun by golden resistant bacterial colonies, keeping the entire starting image 100% frozen as a still documentary B-roll plate from 0s to 8s with zero internal object animation, with no people present. STATIC B-ROLL PLATE LOCK (CAMERA MOTION ONLY): Treat the starting image as a 100% frozen, motionless archival B-roll still plate from 0s to 8s with strictly zero internal object animation, zero morphing, and zero lighting shifts—ONLY the virtual optical rostrum camera performs the tilt abajo movement. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: quiet hum of laboratory lighting ballast, cold clinical glass stillness, single continuous shot, strictly no shot changes, no music, no speech, no text. [B-Roll: STATIC_TILT_DOWN] [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -9759,6 +9656,7 @@
         "videoDiscardOverriddenAt": 1794836700830,
         "videoSavedAt": 1794836700830,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -9789,6 +9687,7 @@
         "videoDiscardOverriddenAt": 1794837076411,
         "videoSavedAt": 1794837111382,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -9819,6 +9718,7 @@
         "videoDiscardOverriddenAt": 1794837087507,
         "videoSavedAt": 1794837111382,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -9849,6 +9749,7 @@
         "videoDiscardOverriddenAt": 1794837119656,
         "videoSavedAt": 1794837119656,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "userReframed9x16": true,
         "reframeUpdatedAt": 1795057490839,
         "videoAuditReason": "",
@@ -9880,6 +9781,7 @@
         "videoSavedFileName": "143_generate_a_video_in_16_9_c4991e65_4K.mp4",
         "videoSavedAt": 1794839561116,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       }
