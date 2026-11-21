@@ -62,7 +62,7 @@ export interface ViralClipSuggestion {
   words: WordTimestamp[];
   reframeMode: 'center_fill' | 'fit_blur' | 'auto_pan';
   focusX: number;
-  captionStyle: 'opus_gold' | 'hormozi_green' | 'viral_box' | 'huellas_cinema';
+  captionStyle: 'yellow_white' | 'opus_gold' | 'hormozi_green' | 'viral_box' | 'huellas_cinema';
   renderedReelUrl?: string;
   renderedStoryUrl?: string;
   savedDocFolderPath?: string;
@@ -540,7 +540,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
           words,
           reframeMode: 'center_fill',
           focusX: 50,
-          captionStyle: 'opus_gold',
+          captionStyle: 'yellow_white',
         };
       });
       setViralClips(built);
@@ -1340,7 +1340,9 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                       {activeCaptionChunk.chunk.map((w, idx) => {
                         const isActive = idx === activeCaptionChunk.activeIdx;
                         const activeClasses =
-                          selectedClip.captionStyle === 'hormozi_green'
+                          selectedClip.captionStyle === 'yellow_white'
+                            ? 'text-white scale-110'
+                            : selectedClip.captionStyle === 'hormozi_green'
                             ? 'text-emerald-400 scale-110'
                             : selectedClip.captionStyle === 'viral_box'
                             ? 'bg-sky-400 text-slate-950 px-1.5 rounded scale-105'
@@ -1351,7 +1353,11 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                           <span
                             key={`${w.start}-${idx}`}
                             className={`uppercase transition-transform duration-75 drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)] ${
-                              isActive ? activeClasses : 'text-white'
+                              isActive
+                                ? activeClasses
+                                : selectedClip.captionStyle === 'yellow_white'
+                                ? 'text-[#ffe600]'
+                                : 'text-white'
                             }`}
                           >
                             {w.word}
@@ -1453,6 +1459,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                     <div className="flex items-center gap-1 flex-wrap">
                       {(
                         [
+                          { id: 'yellow_white', label: '🟡 Amarillo' },
                           { id: 'opus_gold', label: '⚡ Opus Gold' },
                           { id: 'hormozi_green', label: '💚 Hormozi' },
                           { id: 'viral_box', label: '🟦 Box' },

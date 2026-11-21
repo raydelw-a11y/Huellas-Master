@@ -7207,6 +7207,15 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       startSec: number;
       endSec: number;
       text: string;
+      wordStarts?: number[];
+    }
+    // Karaoke: the editor sends when each word starts, keyed by the caption start in milliseconds
+    const captionWordStartsByMs = new Map<number, number[]>();
+    if (Array.isArray(overlays?.captionWordStarts)) {
+      for (const it of overlays.captionWordStarts) {
+        const sMs = Math.round(Number(it?.s) * 1000);
+        if (Number.isFinite(sMs) && Array.isArray(it?.w)) captionWordStartsByMs.set(sMs, it.w.map(Number));
+      }
     }
     const parsedTimelineCaptions: ParsedTimelineCaption[] = [];
     if (overlays?.burnInCaptions !== false && captionOverlayFiles.length === 0) {
@@ -7267,10 +7276,12 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
             shiftSec = targetVoStart;
           }
           for (const rp of rawParsed) {
+            const rpWordStarts = captionWordStartsByMs.get(Math.round(rp.startSec * 1000));
             parsedTimelineCaptions.push({
               startSec: Number((rp.startSec + shiftSec).toFixed(3)),
               endSec: Number((rp.endSec + shiftSec).toFixed(3)),
               text: rp.text,
+              ...(rpWordStarts ? { wordStarts: rpWordStarts.map((t) => Number((t + shiftSec).toFixed(3))) } : {}),
             });
           }
         }
@@ -22480,7 +22491,7 @@ app.post('/api/viral-clips/analyze', async (req, res) => {
         words,
         reframeMode: 'center_fill' as 'center_fill' | 'fit_blur' | 'auto_pan',
         focusX: 50,
-        captionStyle: 'opus_gold' as 'opus_gold' | 'hormozi_green' | 'viral_box' | 'huellas_cinema',
+        captionStyle: 'yellow_white' as 'yellow_white' | 'opus_gold' | 'hormozi_green' | 'viral_box' | 'huellas_cinema',
       };
     });
 
@@ -22502,7 +22513,7 @@ function buildOpusClipAssSubtitles(params: {
   outW: number;
   outH: number;
   words: WordTimestamp[];
-  captionStyle: 'opus_gold' | 'hormozi_green' | 'viral_box' | 'huellas_cinema';
+  captionStyle: 'yellow_white' | 'opus_gold' | 'hormozi_green' | 'viral_box' | 'huellas_cinema';
   wordsPerLine: number;
   fontSizeScale: number; // e.g., 1.0 default
   captionYPercent: number; // e.g., 74 (74% from top)
@@ -22543,8 +22554,12 @@ function buildOpusClipAssSubtitles(params: {
   const centerX = Math.round(outW / 2);
 
   // Active word highlight colors in ASS BGR format (&HBBGGRR&)
+  // 'yellow_white': texto amarillo de alto contraste y la palabra que se está diciendo en blanco
+  const baseColorAss = captionStyle === 'yellow_white' ? '&H0000E6FF&' : '&H00FFFFFF&';
   const highlightColorAss =
-    captionStyle === 'hormozi_green'
+    captionStyle === 'yellow_white'
+      ? '&H00FFFFFF&'
+      : captionStyle === 'hormozi_green'
       ? '&H0080DE4A&' // Neon Green (#4ADE80)
       : captionStyle === 'viral_box'
       ? '&H0038BDF8&' // Sky/Cyan (#F8BD38 / Gold-Amber)
@@ -22623,7 +22638,7 @@ function buildOpusClipAssSubtitles(params: {
           .replace(/[{}]/g, '')
           .toUpperCase();
         if (j === activeIdx) {
-          return `{\\1c${highlightColorAss}\\fscx108\\fscy108}${cleanWord}{\\1c&H00FFFFFF&\\fscx100\\fscy100}`;
+          return `{\\1c${highlightColorAss}\\fscx108\\fscy108}${cleanWord}{\\1c${baseColorAss}\\fscx100\\fscy100}`;
         }
         return cleanWord;
       });
@@ -22632,7 +22647,7 @@ function buildOpusClipAssSubtitles(params: {
       assLines.push(
         `Dialogue: 2,${formatAssTime(wStart)},${formatAssTime(
           wEnd
-        )},OpusMain,,0,0,0,,{\\pos(${centerX},${posY})}${lineStr}`
+        )},OpusMain,,0,0,0,,{\\pos(${centerX},${posY})\\1c${baseColorAss}}${lineStr}`
       );
     }
   }
@@ -22652,7 +22667,7 @@ async function renderViralClipMp4Internal(params: {
   hookTeaserEndSec?: number;
   reframeMode: 'center_fill' | 'fit_blur' | 'auto_pan';
   focusX: number;
-  captionStyle: 'opus_gold' | 'hormozi_green' | 'viral_box' | 'huellas_cinema';
+  captionStyle: 'yellow_white' | 'opus_gold' | 'hormozi_green' | 'viral_box' | 'huellas_cinema';
   wordsPerLine: number;
   fontSizeScale: number;
   captionYPercent: number;
@@ -22679,7 +22694,7 @@ async function renderViralClipMp4Internal(params: {
     hookTeaserEndSec = startSec + 3,
     reframeMode = 'center_fill',
     focusX = 50,
-    captionStyle = 'opus_gold',
+    captionStyle = 'yellow_white',
     wordsPerLine = 3,
     fontSizeScale = 1.0,
     captionYPercent = 74,

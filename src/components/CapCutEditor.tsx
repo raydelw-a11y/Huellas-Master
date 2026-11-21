@@ -568,6 +568,46 @@ export function getTextShadowCss(style: OverlayShadowStyle): string {
   }
 }
 
+/** Captions del formato 9:16: mayúsculas en amarillo de alto contraste, sombra negra y la palabra que se dice en blanco. */
+export const KARAOKE_9X16_CAPTION = {
+  color: '#ffe600',
+  activeWordColor: '#ffffff',
+  shadowStyle: 'outline' as OverlayShadowStyle,
+  bgStyle: 'none' as const,
+};
+
+/** Segundo de la línea de tiempo en que empieza cada palabra del texto mostrado de un caption. */
+export function getCaptionWordStarts(
+  cap: { start: number; end: number; text: string; audioStartSec?: number; audioEndSec?: number; words?: Array<{ audioStartSec: number }> },
+  displayText?: string
+): number[] {
+  const tokens = String(displayText ?? cap.text ?? '').split(/\s+/).filter(Boolean);
+  const dur = Math.max(0.01, cap.end - cap.start);
+  const timed = Array.isArray(cap.words) ? cap.words : [];
+  let out: number[];
+  if (timed.length === tokens.length && timed.length > 0 && timed.every((w) => Number.isFinite(Number(w?.audioStartSec)))) {
+    const a0 = Number.isFinite(Number(cap.audioStartSec)) ? Number(cap.audioStartSec) : Number(timed[0].audioStartSec);
+    const a1 = Number(cap.audioEndSec);
+    const scale = Number.isFinite(a1) && a1 > a0 + 0.05 ? dur / (a1 - a0) : 1;
+    out = timed.map((w) => cap.start + (Number(w.audioStartSec) - a0) * scale);
+  } else {
+    const weights = tokens.map((t) => t.length + 1);
+    const total = weights.reduce((a, b) => a + b, 0) || 1;
+    let acc = 0;
+    out = weights.map((w) => {
+      const t = cap.start + (acc / total) * dur;
+      acc += w;
+      return t;
+    });
+  }
+  let prev = cap.start;
+  return out.map((t, i) => {
+    const v = i === 0 ? cap.start : Math.max(prev, Math.min(cap.end, t));
+    prev = v;
+    return Number(v.toFixed(3));
+  });
+}
+
 export function hexToRgba(hex: string, opacityPct: number): string {
   const clean = (hex || '#000000').replace('#', '');
   const r = parseInt(clean.substring(0, 2) || '00', 16) || 0;
@@ -2569,10 +2609,25 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     if (aspectRatio === '16:9') {
       raw = balanceCaptionsFor16x9(raw);
     }
+    if (aspectRatio === '9:16') return raw.toLocaleUpperCase('es-ES');
     if (captionTextCase === 'uppercase') return raw.toLocaleUpperCase('es-ES');
     if (captionTextCase === 'lowercase') return raw.toLocaleLowerCase('es-ES');
     return raw;
   };
+  // 9:16: estilo fijo amarillo en mayúsculas con sombra negra y palabra activa en blanco
+  const karaokeCaptions = aspectRatio === '9:16';
+  const effCaptionColorHex = karaokeCaptions
+    ? KARAOKE_9X16_CAPTION.color
+    : captionColor === 'amber'
+    ? '#fde047'
+    : captionColor === 'custom'
+    ? captionCustomColor
+    : '#ffffff';
+  const effCaptionBgStyle: OverlayBgStyle = karaokeCaptions ? KARAOKE_9X16_CAPTION.bgStyle : captionBgStyle;
+  const effCaptionShadowStyle: OverlayShadowStyle = karaokeCaptions
+    ? KARAOKE_9X16_CAPTION.shadowStyle
+    : captionShadowStyle;
+  const viewerCaptionSpanRef = useRef<HTMLSpanElement | null>(null);
 
   // Track whether the user has edited Hook Text or Captions on the active documentary so background effects NEVER reset them
   const userEditedHookDocIdRef = useRef<string>(
@@ -10386,6 +10441,19 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       }
     }
 
+    // Captions 9:16: la palabra que se está diciendo se pinta en blanco cuadro a cuadro
+    const capSpan = viewerCaptionSpanRef.current;
+    if (capSpan && capSpan.firstElementChild) {
+      const wordEls = capSpan.querySelectorAll<HTMLElement>('span[data-ws]');
+      for (let i = 0; i < wordEls.length; i++) {
+        const el = wordEls[i];
+        const ws = Number(el.dataset.ws);
+        const we = el.dataset.we ? Number(el.dataset.we) : Infinity;
+        const want = safeT >= ws && safeT < we ? KARAOKE_9X16_CAPTION.activeWordColor : '';
+        if ((el.style.color !== '') !== (want !== '')) el.style.color = want;
+      }
+    }
+
     const secInt = Math.floor(safeT);
     if (secInt !== lastSecIntRef.current) {
       lastSecIntRef.current = secInt;
@@ -14666,6 +14734,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   line2AnimOutDur: hookLine2AnimOutDur,
                 },
                 burnInCaptions,
+                ...(karaokeCaptions
+                  ? {
+                      captionWordStarts: captions.map((c) => ({
+                        s: Number((Math.max(0, Math.round(c.start * 1000)) / 1000).toFixed(3)),
+                        w: getCaptionWordStarts(c, formatCaptionTextCase(c.text)),
+                      })),
+                    }
+                  : {}),
                 captionSegments: [],
                 captionStyle: {
                   fontFamily: captionFontFamily,
@@ -14676,14 +14752,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     aspectRatio === '9:16' ? captionWordsPerLine9x16 : captionWordsPerLine16x9,
                   maxCharsPerLine: captionMaxChars,
                   lineMode: captionLineMode,
-                  color:
-                    captionColor === 'amber'
-                      ? '#fde047'
-                      : captionColor === 'custom'
-                      ? captionCustomColor
-                      : '#ffffff',
-                  bgStyle: captionBgStyle,
-                  shadowStyle: captionShadowStyle,
+                  color: effCaptionColorHex,
+                  ...(karaokeCaptions ? { activeWordColor: KARAOKE_9X16_CAPTION.activeWordColor } : {}),
+                  bgStyle: effCaptionBgStyle,
+                  shadowStyle: effCaptionShadowStyle,
                   bgColor: captionBgColor,
                   bgOpacity: captionBgOpacity,
                   bottomPct: captionBottomPct,
@@ -17944,31 +18016,27 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                         ? 'pointer-events-none select-none'
                         : 'pointer-events-auto cursor-ns-resize'
                     } ${
-                      captionBgStyle === 'word_shadow'
+                      effCaptionBgStyle === 'word_shadow'
                         ? 'inline px-2.5 py-0.5 rounded-md'
                         : 'inline-block px-3.5 py-1 rounded-lg'
                     } font-extrabold transition whitespace-pre-line`}
+                    ref={viewerCaptionSpanRef}
                     style={{
                       fontFamily: captionFontFamily,
                       fontSize: `${Math.max(13, captionFontSize * 0.76)}px`,
                       textWrap: (aspectRatio === '16:9' ? 'pretty' : undefined) as any,
-                      color:
-                        captionColor === 'amber'
-                          ? '#fde047'
-                          : captionColor === 'custom'
-                          ? captionCustomColor
-                          : '#ffffff',
-                      textShadow: getTextShadowCss(captionShadowStyle),
+                      color: effCaptionColorHex,
+                      textShadow: getTextShadowCss(effCaptionShadowStyle),
                       boxDecorationBreak: 'clone',
                       WebkitBoxDecorationBreak: 'clone',
                       backgroundColor:
-                        captionBgStyle === 'none'
+                        effCaptionBgStyle === 'none'
                           ? 'transparent'
                           : hexToRgba(
                               captionBgColor,
-                              captionBgStyle === 'solid' ? 95 : captionBgOpacity
+                              effCaptionBgStyle === 'solid' ? 95 : captionBgOpacity
                             ),
-                      ...(captionBgStyle === 'word_shadow'
+                      ...(effCaptionBgStyle === 'word_shadow'
                         ? {
                             boxShadow: `0 0 12px 4px ${hexToRgba(
                               captionBgColor,
@@ -17978,9 +18046,31 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                         : {}),
                     }}
                   >
-                    {formatCaptionTextCase(
-                      activeCaptionAtPlayhead?.text || nearestCaptionAtPlayhead?.text || ''
-                    )}
+                    {(() => {
+                      const shownCap = activeCaptionAtPlayhead || nearestCaptionAtPlayhead;
+                      const shownText = formatCaptionTextCase(shownCap?.text || '');
+                      if (!karaokeCaptions || !shownCap) return shownText;
+                      // Palabra por palabra: la que se está diciendo va en blanco (el bucle de reproducción la afina cuadro a cuadro)
+                      const starts = getCaptionWordStarts(shownCap, shownText);
+                      let wi = -1;
+                      return shownText.split(/(\s+)/).map((piece, pi) => {
+                        if (!piece.trim()) return piece;
+                        wi += 1;
+                        const ws = starts[wi] ?? shownCap.start;
+                        const we = starts[wi + 1] ?? Infinity;
+                        const isActive = currentTime >= ws && currentTime < we;
+                        return (
+                          <span
+                            key={`${shownCap.id}-${pi}`}
+                            data-ws={ws}
+                            data-we={Number.isFinite(we) ? we : ''}
+                            style={{ color: isActive ? KARAOKE_9X16_CAPTION.activeWordColor : undefined }}
+                          >
+                            {piece}
+                          </span>
+                        );
+                      });
+                    })()}
                   </span>
                 </div>
               )}

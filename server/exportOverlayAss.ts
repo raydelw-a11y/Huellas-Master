@@ -43,6 +43,8 @@ export interface ExportCaptionStyle {
   animIn?: ExportAnimType | string;
   animOut?: ExportAnimType | string;
   animDur?: number;
+  /** Karaoke: colour of the word being spoken (the rest keeps `color`). */
+  activeWordColor?: string;
 }
 
 export interface ExportHookConfig {
@@ -78,6 +80,33 @@ export interface ExportTimelineCaption {
   startSec: number;
   endSec: number;
   text: string;
+  /** Timeline second at which each word of `text` starts being spoken (same order as the words). */
+  wordStarts?: number[];
+}
+
+/** Start time of every word; uses the real timings when they match the text, otherwise spreads them by length. */
+export function resolveCaptionWordStarts(cp: ExportTimelineCaption, wordCount: number, words: string[]): number[] {
+  const dur = Math.max(0.01, cp.endSec - cp.startSec);
+  const given = Array.isArray(cp.wordStarts) ? cp.wordStarts.map(Number) : [];
+  let out: number[];
+  if (given.length === wordCount && given.every((n) => Number.isFinite(n))) {
+    out = given.slice();
+  } else {
+    const weights = words.map((w) => w.length + 1);
+    const total = weights.reduce((a, b) => a + b, 0) || 1;
+    let acc = 0;
+    out = weights.map((w) => {
+      const t = cp.startSec + (acc / total) * dur;
+      acc += w;
+      return t;
+    });
+  }
+  let prev = cp.startSec;
+  return out.map((t, i) => {
+    const v = i === 0 ? cp.startSec : Math.max(prev, Math.min(cp.endSec, t));
+    prev = v;
+    return v;
+  });
 }
 
 interface FontInfo {
@@ -326,6 +355,8 @@ interface TextEventSpec {
   shadowStyle: string | undefined;
   k: number;
   layerBase: number;
+  /** Karaoke: the crisp text layer is emitted once per slice (text already escaped, may carry colour tags). */
+  crispSlices?: Array<{ startSec: number; endSec: number; fadeInMs: number; fadeOutMs: number; taggedText: string }>;
 }
 
 function pushTextEvents(events: string[], s: TextEventSpec): void {
@@ -344,6 +375,15 @@ function pushTextEvents(events: string[], s: TextEventSpec): void {
     );
   });
   const bordTags = outlinePx > 0 ? `\\bord${(outlinePx * s.k).toFixed(1)}\\3c&H000000&\\3a&H00&` : '\\bord0';
+  if (s.crispSlices && s.crispSlices.length > 0) {
+    for (const sl of s.crispSlices) {
+      if (!(sl.endSec > sl.startSec + 0.005)) continue;
+      events.push(
+        `Dialogue: ${s.layerBase + 5},${formatAssTime(sl.startSec)},${formatAssTime(sl.endSec)},Overlay,,0,0,0,,{${base}${bordTags}\\pos(${s.x.toFixed(1)},${s.yCenter.toFixed(1)})\\fad(${sl.fadeInMs},${sl.fadeOutMs})\\1c${assColor(s.colorHex, 1).replace(/^&H00/, '&H')}&\\1a&H00&}${sl.taggedText}`
+      );
+    }
+    return;
+  }
   events.push(
     `Dialogue: ${s.layerBase + 5},${t0},${t1},Overlay,,0,0,0,,{${base}${bordTags}\\pos(${s.x.toFixed(1)},${s.yCenter.toFixed(1)})${fad}\\1c${assColor(s.colorHex, 1).replace(/^&H00/, '&H')}&\\1a&H00&}${txt}`
   );
@@ -603,7 +643,42 @@ export function buildSegmentAss(input: BuildSegmentAssInput): string | null {
         });
       }
       const extraBottom = !isWordShadow && bgStyle !== 'none' ? padY : 0;
+      // Karaoke: the word being spoken is painted in activeWordColor, the rest keeps the caption colour
+      const rowWords = rows.map((row) => row.split(' ').filter((w) => w.length > 0));
+      const allWords = rowWords.flat();
+      const karaokeOn = Boolean(cs.activeWordColor) && allWords.length > 0;
+      const wordStartsAbs = karaokeOn ? resolveCaptionWordStarts(cp, allWords.length, allWords) : [];
+      const baseTag = `{\\1c${assColor(cs.color || '#ffffff', 1).replace(/^&H00/, '&H')}&}`;
+      const activeTag = `{\\1c${assColor(cs.activeWordColor || '#ffffff', 1).replace(/^&H00/, '&H')}&}`;
+      let wordCursor = 0;
       rows.forEach((row, r) => {
+        let crispSlices: TextEventSpec['crispSlices'];
+        if (karaokeOn) {
+          const words = rowWords[r];
+          const first = wordCursor;
+          wordCursor += words.length;
+          const toLocal = (abs: number) => Math.max(ls, Math.min(le, abs - segStartSec));
+          const plain = words.map((w) => escapeAssText(w)).join(' ');
+          crispSlices = [];
+          const rowStart = first === 0 ? ls : toLocal(wordStartsAbs[first]);
+          const rowEnd = first + words.length >= allWords.length ? le : toLocal(wordStartsAbs[first + words.length]);
+          if (rowStart > ls + 0.005) crispSlices.push({ startSec: ls, endSec: rowStart, fadeInMs: 0, fadeOutMs: 0, taggedText: plain });
+          words.forEach((_w, wi) => {
+            const a = wi === 0 ? rowStart : toLocal(wordStartsAbs[first + wi]);
+            const b = wi === words.length - 1 ? rowEnd : toLocal(wordStartsAbs[first + wi + 1]);
+            const tagged = words
+              .map((w, j) => (j === wi ? `${activeTag}${escapeAssText(w)}${baseTag}` : escapeAssText(w)))
+              .join(' ');
+            crispSlices!.push({ startSec: a, endSec: b, fadeInMs: 0, fadeOutMs: 0, taggedText: tagged });
+          });
+          if (rowEnd < le - 0.005) crispSlices.push({ startSec: rowEnd, endSec: le, fadeInMs: 0, fadeOutMs: 0, taggedText: plain });
+          const live = crispSlices.filter((sl) => sl.endSec > sl.startSec + 0.005);
+          if (live.length > 0) {
+            live[0].fadeInMs = fin;
+            live[live.length - 1].fadeOutMs = fout;
+          }
+          crispSlices = live;
+        }
         const yc = wrapperBottomY - extraBottom - (rows.length - 1 - r) * lineBox - lineBox / 2;
         if (isWordShadow) {
           const textW = measureTextEm(row, font) * cssPx;
@@ -641,6 +716,7 @@ export function buildSegmentAss(input: BuildSegmentAssInput): string | null {
           shadowStyle: cs.shadowStyle || 'cinema',
           k,
           layerBase: 2,
+          crispSlices,
         });
       });
     }
