@@ -447,6 +447,9 @@ export interface TimelineCaptionItem {
   alignSource?: 'vosk-v2' | 'webaudio-v2' | 'video76-srt' | 'manual';
 }
 
+// Volumen por defecto de cada canción (%). Un volumen que el usuario fijó a mano se respeta siempre.
+const DEFAULT_MUSIC_TRACK_VOLUME_PCT = 20;
+
 // Canción 1 a 50% durante el Clip 1, con rampa suave hacia su volumen normal
 export const CLIP1_SONG_BOOST_PCT = 50;
 export const CLIP1_BOOST_RAMP_BEFORE_SEC = 1;
@@ -4444,7 +4447,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     const v = Number(
       initialDocStateForInit?.masterMusicVolume ?? initialSessionState?.masterMusicVolume
     );
-    return Number.isFinite(v) && v >= 0 && v <= 100 ? v : 10;
+    return Number.isFinite(v) && v >= 0 && v <= 100 ? v : 20;
   });
   const [selectedMusicTrackId, setSelectedMusicTrackId] = useState<string | null>(
     () =>
@@ -4884,7 +4887,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           typeof savedDoc?.foleyDuckedVolume === 'number' ? savedDoc.foleyDuckedVolume : 20
         );
         setMasterMusicVolume(
-          typeof savedDoc?.masterMusicVolume === 'number' ? savedDoc.masterMusicVolume : 10
+          typeof savedDoc?.masterMusicVolume === 'number' ? savedDoc.masterMusicVolume : 20
         );
         setShowOnlyReviewedClips(true);
         setReframeSummary9x16(
@@ -8008,7 +8011,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           volume:
             savedEdit.userSetVolumeV10 && typeof savedEdit.volume === 'number'
               ? savedEdit.volume
-              : 10,
+              : DEFAULT_MUSIC_TRACK_VOLUME_PCT,
           audioUrl: combinedSunoAudioMap[trackNum] || st.audioUrl,
           isLast90Sec: isLast,
           fadeInSec:
@@ -8034,9 +8037,12 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             volume:
               savedEdit.userSetVolumeV10 && typeof savedEdit.volume === 'number'
                 ? savedEdit.volume
-                : prevMatch && typeof prevMatch.volume === 'number' && prevMatch.volume !== 24
+                : prevMatch &&
+                  typeof prevMatch.volume === 'number' &&
+                  prevMatch.volume !== 24 &&
+                  prevMatch.volume !== 10
                 ? prevMatch.volume
-                : 10,
+                : DEFAULT_MUSIC_TRACK_VOLUME_PCT,
             fadeInSec:
               savedEdit.userSetFadesV5 && typeof savedEdit.fadeInSec === 'number'
                 ? savedEdit.fadeInSec
@@ -19845,14 +19851,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                         type="button"
                         onClick={() => {
                           handleUpdateMusicTrack(selectedMusicTrack.id, {
-                            volume: 10,
+                            volume: DEFAULT_MUSIC_TRACK_VOLUME_PCT,
                             fadeInSec: 5,
                             fadeOutSec: 5,
                           });
                         }}
                         className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 font-semibold text-[10px] cursor-pointer"
                       >
-                        🔄 Restaurar Canción (10% • 5s / 5s)
+                        🔄 Restaurar Canción (20% • 5s / 5s)
                       </button>
                     </div>
                   </div>
