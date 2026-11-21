@@ -44,11 +44,11 @@
     "_v6_16x9_captionOriginalDefault": true,
     "_v7_9x16_captions22": true
   },
-  "updatedAt": "2026-11-21T01:15:53.138Z",
+  "updatedAt": "2026-11-21T01:59:55.313Z",
   "overlayStyles": {
-    "logoScalePct": 5,
+    "logoScalePct": 12,
     "logoOpacity": 95,
-    "logoPosX": 3,
+    "logoPosX": 10,
     "logoPosY": 3,
     "logoDefault16x9V4": true,
     "logoAnimIn": "fade",
@@ -57,8 +57,8 @@
     "logoAnimOut": "fade",
     "logoAnimOutDur": 2.5,
     "hookFontFamily": "'Cinzel', Georgia, 'Times New Roman', serif",
-    "hookLine1FontSize": 19,
-    "hookLine2FontSize": 26,
+    "hookLine1FontSize": 13,
+    "hookLine2FontSize": 20,
     "hookLine1Color": "#fcd34d",
     "hookLine2Color": "#ffffff",
     "hookShadowStyle": "cinema",
@@ -67,8 +67,8 @@
     "hookBgOpacity": 55,
     "hookLeftPct": 50,
     "hookTopPct": 48,
-    "hookBoxWidthPct": 96,
-    "hookLine1StartSec": 9,
+    "hookBoxWidthPct": 88,
+    "hookLine1StartSec": 8,
     "hookLine1AnimIn": "fade",
     "hookLine1AnimInDur": 1,
     "hookLine1AnimOut": "fade",
@@ -78,15 +78,15 @@
     "hookLine2AnimInDur": 1,
     "hookLine2AnimOut": "fade",
     "hookLine2AnimOutDur": 1,
-    "clip1OverlayEndSec": 16,
+    "clip1OverlayEndSec": 14,
     "captionFontFamily": "'Cinzel', Georgia, 'Times New Roman', serif",
     "captionFontSize": 25,
     "captionFontSize16x9": 25,
     "captionFontSize9x16": 21,
-    "captionWordsPerLine16x9": 0,
-    "captionWordsPerLine9x16": 0,
+    "captionWordsPerLine16x9": 4,
+    "captionWordsPerLine9x16": 3,
     "captionMaxChars": 22,
-    "captionLineMode": "original",
+    "captionLineMode": "subdivide",
     "captionOriginal16x9V1": true,
     "captionFontSizeV25": true,
     "captionBottomPct": 10,
@@ -118,7 +118,7 @@
       "audioMuted": false
     },
     {
-      "id": "clip-1-1795223134871",
+      "id": "clip-1-1795226267288",
       "clipNumber": 1,
       "duration": 8,
       "trimStart": 0,
@@ -130,7 +130,7 @@
       "audioMuted": false
     },
     {
-      "id": "clip-2-1795223134874-2",
+      "id": "clip-2-1795226267288-2",
       "clipNumber": 2,
       "duration": 10,
       "trimStart": 0,
@@ -142,9 +142,9 @@
       "audioMuted": false
     },
     {
-      "id": "clip-3-1795223134874-3",
+      "id": "clip-3-1795226267288-3",
       "clipNumber": 3,
-      "duration": 10,
+      "duration": 9.99,
       "trimStart": 0,
       "trimEnd": 10,
       "speed": 1,
@@ -154,7 +154,7 @@
       "audioMuted": false
     },
     {
-      "id": "clip-4-1795223134874-4",
+      "id": "clip-4-1795226267288-4",
       "clipNumber": 4,
       "duration": 10,
       "trimStart": 0,
@@ -166,7 +166,7 @@
       "audioMuted": false
     },
     {
-      "id": "clip-5-1795223134874-5",
+      "id": "clip-5-1795226267288-5",
       "clipNumber": 5,
       "duration": 10,
       "trimStart": 0,
@@ -178,9 +178,9 @@
       "audioMuted": false
     },
     {
-      "id": "clip-6-1795223134874-6",
+      "id": "clip-6-1795226267288-6",
       "clipNumber": 6,
-      "duration": 10,
+      "duration": 9.99,
       "trimStart": 0,
       "trimEnd": 10,
       "speed": 1,
@@ -190,7 +190,7 @@
       "audioMuted": false
     },
     {
-      "id": "clip-7-1795223134874-7",
+      "id": "clip-7-1795226267288-7",
       "clipNumber": 7,
       "duration": 10,
       "trimStart": 0,
@@ -202,7 +202,7 @@
       "audioMuted": false
     },
     {
-      "id": "clip-8-1795223134874-8",
+      "id": "clip-8-1795226267288-8",
       "clipNumber": 8,
       "duration": 10,
       "trimStart": 0,
@@ -214,9 +214,9 @@
       "audioMuted": false
     },
     {
-      "id": "clip-9-1795223134874-9",
+      "id": "clip-9-1795226267288-9",
       "clipNumber": 9,
-      "duration": 10,
+      "duration": 9.99,
       "trimStart": 0,
       "trimEnd": 10,
       "speed": 1,
@@ -226,7 +226,7 @@
       "audioMuted": false
     },
     {
-      "id": "clip-10-1795223134874-10",
+      "id": "clip-10-1795226267289-10",
       "clipNumber": 10,
       "duration": 10,
       "trimStart": 0,
@@ -238,7 +238,7 @@
       "audioMuted": false
     },
     {
-      "id": "clip-11-1795223134874-11",
+      "id": "clip-11-1795226267289-11",
       "clipNumber": 11,
       "duration": 10,
       "trimStart": 0,
@@ -250,9 +250,9 @@
       "audioMuted": false
     },
     {
-      "id": "clip-12-1795223134874-12",
+      "id": "clip-12-1795226267289-12",
       "clipNumber": 12,
-      "duration": 10,
+      "duration": 9.99,
       "trimStart": 0,
       "trimEnd": 10,
       "speed": 1,
@@ -262,7 +262,7 @@
       "audioMuted": false
     },
     {
-      "id": "clip-13-1795223134874-13",
+      "id": "clip-13-1795226267289-13",
       "clipNumber": 13,
       "duration": 10,
       "trimStart": 0,
@@ -274,7 +274,7 @@
       "audioMuted": false
     },
     {
-      "id": "clip-14-1795223134874-14",
+      "id": "clip-14-1795226267289-14",
       "clipNumber": 14,
       "duration": 10,
       "trimStart": 0,
@@ -286,9 +286,9 @@
       "audioMuted": false
     },
     {
-      "id": "clip-15-1795223134874-15",
+      "id": "clip-15-1795226267289-15",
       "clipNumber": 15,
-      "duration": 10,
+      "duration": 9.99,
       "trimStart": 0,
       "trimEnd": 10,
       "speed": 1,
@@ -298,7 +298,7 @@
       "audioMuted": false
     },
     {
-      "id": "clip-16-1795223134874-16",
+      "id": "clip-16-1795226267289-16",
       "clipNumber": 16,
       "duration": 10,
       "trimStart": 0,
@@ -310,7 +310,7 @@
       "audioMuted": false
     },
     {
-      "id": "clip-17-1795223134874-17",
+      "id": "clip-17-1795226267289-17",
       "clipNumber": 17,
       "duration": 10,
       "trimStart": 0,
@@ -322,9 +322,9 @@
       "audioMuted": false
     },
     {
-      "id": "clip-18-1795223134874-18",
+      "id": "clip-18-1795226267289-18",
       "clipNumber": 18,
-      "duration": 10,
+      "duration": 9.99,
       "trimStart": 0,
       "trimEnd": 10,
       "speed": 1,
@@ -334,7 +334,7 @@
       "audioMuted": false
     },
     {
-      "id": "clip-19-1795223134875-19",
+      "id": "clip-19-1795226267289-19",
       "clipNumber": 19,
       "duration": 10,
       "trimStart": 0,
@@ -346,7 +346,7 @@
       "audioMuted": false
     },
     {
-      "id": "clip-20-1795223134875-20",
+      "id": "clip-20-1795226267289-20",
       "clipNumber": 20,
       "duration": 10,
       "trimStart": 0,
@@ -358,9 +358,9 @@
       "audioMuted": false
     },
     {
-      "id": "clip-21-1795223134875-21",
+      "id": "clip-21-1795226267289-21",
       "clipNumber": 21,
-      "duration": 10,
+      "duration": 9.99,
       "trimStart": 0,
       "trimEnd": 10,
       "speed": 1,
@@ -370,7 +370,7 @@
       "audioMuted": false
     },
     {
-      "id": "clip-22-1795223134875-22",
+      "id": "clip-22-1795226267291-22",
       "clipNumber": 22,
       "duration": 10,
       "trimStart": 0,
@@ -382,7 +382,7 @@
       "audioMuted": false
     },
     {
-      "id": "clip-23-1795223134875-23",
+      "id": "clip-23-1795226267291-23",
       "clipNumber": 23,
       "duration": 10,
       "trimStart": 0,
@@ -394,9 +394,9 @@
       "audioMuted": false
     },
     {
-      "id": "clip-24-1795223134875-24",
+      "id": "clip-24-1795226267291-24",
       "clipNumber": 24,
-      "duration": 10,
+      "duration": 9.99,
       "trimStart": 0,
       "trimEnd": 10,
       "speed": 1,
@@ -406,7 +406,7 @@
       "audioMuted": false
     },
     {
-      "id": "clip-25-1795223134875-25",
+      "id": "clip-25-1795226267291-25",
       "clipNumber": 25,
       "duration": 10,
       "trimStart": 0,
@@ -418,7 +418,7 @@
       "audioMuted": false
     },
     {
-      "id": "clip-26-1795223134875-26",
+      "id": "clip-26-1795226267291-26",
       "clipNumber": 26,
       "duration": 10,
       "trimStart": 0,
@@ -430,9 +430,9 @@
       "audioMuted": false
     },
     {
-      "id": "clip-27-1795223134875-27",
+      "id": "clip-27-1795226267291-27",
       "clipNumber": 27,
-      "duration": 10,
+      "duration": 9.99,
       "trimStart": 0,
       "trimEnd": 10,
       "speed": 1,
@@ -442,7 +442,7 @@
       "audioMuted": false
     },
     {
-      "id": "clip-28-1795223134875-28",
+      "id": "clip-28-1795226267291-28",
       "clipNumber": 28,
       "duration": 10,
       "trimStart": 0,
@@ -454,7 +454,7 @@
       "audioMuted": false
     },
     {
-      "id": "clip-29-1795223134875-29",
+      "id": "clip-29-1795226267291-29",
       "clipNumber": 29,
       "duration": 10,
       "trimStart": 0,
@@ -466,9 +466,9 @@
       "audioMuted": false
     },
     {
-      "id": "clip-30-1795223134875-30",
+      "id": "clip-30-1795226267291-30",
       "clipNumber": 30,
-      "duration": 10,
+      "duration": 9.99,
       "trimStart": 0,
       "trimEnd": 10,
       "speed": 1,
@@ -478,7 +478,7 @@
       "audioMuted": false
     },
     {
-      "id": "clip-31-1795223134875-31",
+      "id": "clip-31-1795226267291-31",
       "clipNumber": 31,
       "duration": 10,
       "trimStart": 0,
@@ -490,7 +490,7 @@
       "audioMuted": false
     },
     {
-      "id": "clip-32-1795223134875-32",
+      "id": "clip-32-1795226267291-32",
       "clipNumber": 32,
       "duration": 10,
       "trimStart": 0,
@@ -502,7 +502,7 @@
       "audioMuted": false
     },
     {
-      "id": "clip-33-1795223134875-33",
+      "id": "clip-33-1795226267291-33",
       "clipNumber": 33,
       "duration": 10,
       "trimStart": 0,
@@ -514,9 +514,9 @@
       "audioMuted": false
     },
     {
-      "id": "clip-34-1795223134875-34",
+      "id": "clip-34-1795226267291-34",
       "clipNumber": 34,
-      "duration": 10,
+      "duration": 9.99,
       "trimStart": 0,
       "trimEnd": 10,
       "speed": 1,
@@ -526,7 +526,7 @@
       "audioMuted": false
     },
     {
-      "id": "clip-35-1795223134875-35",
+      "id": "clip-35-1795226267291-35",
       "clipNumber": 35,
       "duration": 10,
       "trimStart": 0,
@@ -538,7 +538,7 @@
       "audioMuted": false
     },
     {
-      "id": "clip-36-1795223134875-36",
+      "id": "clip-36-1795226267292-36",
       "clipNumber": 36,
       "duration": 10,
       "trimStart": 0,
@@ -550,9 +550,9 @@
       "audioMuted": false
     },
     {
-      "id": "clip-37-1795223134875-37",
+      "id": "clip-37-1795226267292-37",
       "clipNumber": 37,
-      "duration": 10,
+      "duration": 9.99,
       "trimStart": 0,
       "trimEnd": 10,
       "speed": 1,
@@ -562,7 +562,7 @@
       "audioMuted": false
     },
     {
-      "id": "clip-38-1795223134875-38",
+      "id": "clip-38-1795226267292-38",
       "clipNumber": 38,
       "duration": 10,
       "trimStart": 0,
@@ -574,7 +574,7 @@
       "audioMuted": false
     },
     {
-      "id": "clip-39-1795223134875-39",
+      "id": "clip-39-1795226267292-39",
       "clipNumber": 39,
       "duration": 10,
       "trimStart": 0,
@@ -586,9 +586,9 @@
       "audioMuted": false
     },
     {
-      "id": "clip-40-1795223134876-40",
+      "id": "clip-40-1795226267292-40",
       "clipNumber": 40,
-      "duration": 10,
+      "duration": 9.99,
       "trimStart": 0,
       "trimEnd": 10,
       "speed": 1,
@@ -598,7 +598,7 @@
       "audioMuted": false
     },
     {
-      "id": "clip-41-1795223134876-41",
+      "id": "clip-41-1795226267292-41",
       "clipNumber": 41,
       "duration": 10,
       "trimStart": 0,
@@ -610,7 +610,7 @@
       "audioMuted": false
     },
     {
-      "id": "clip-42-1795223134876-42",
+      "id": "clip-42-1795226267292-42",
       "clipNumber": 42,
       "duration": 10,
       "trimStart": 0,
@@ -622,9 +622,9 @@
       "audioMuted": false
     },
     {
-      "id": "clip-43-1795223134876-43",
+      "id": "clip-43-1795226267292-43",
       "clipNumber": 43,
-      "duration": 10,
+      "duration": 9.99,
       "trimStart": 0,
       "trimEnd": 10,
       "speed": 1,
@@ -634,7 +634,7 @@
       "audioMuted": false
     },
     {
-      "id": "clip-44-1795223134876-44",
+      "id": "clip-44-1795226267292-44",
       "clipNumber": 44,
       "duration": 10,
       "trimStart": 0,
@@ -646,7 +646,7 @@
       "audioMuted": false
     },
     {
-      "id": "clip-45-1795223134876-45",
+      "id": "clip-45-1795226267292-45",
       "clipNumber": 45,
       "duration": 10,
       "trimStart": 0,
@@ -658,8 +658,20 @@
       "audioMuted": false
     },
     {
-      "id": "clip-46-1795223134876-46",
+      "id": "clip-46-1795226267292-46",
       "clipNumber": 46,
+      "duration": 9.99,
+      "trimStart": 0,
+      "trimEnd": 10,
+      "speed": 1,
+      "smoothSlowMo": false,
+      "foleyVolume": 20,
+      "customVolumeSet": false,
+      "audioMuted": false
+    },
+    {
+      "id": "clip-47-1795226267292-47",
+      "clipNumber": 47,
       "duration": 10,
       "trimStart": 0,
       "trimEnd": 10,
@@ -670,8 +682,176 @@
       "audioMuted": false
     },
     {
-      "id": "clip-47-1795223134876-47",
-      "clipNumber": 47,
+      "id": "clip-48-1795226277764-48",
+      "clipNumber": 48,
+      "duration": 10,
+      "trimStart": 0,
+      "trimEnd": 10,
+      "speed": 1,
+      "smoothSlowMo": false,
+      "foleyVolume": 20,
+      "customVolumeSet": false,
+      "audioMuted": false
+    },
+    {
+      "id": "clip-49-1795226277764-49",
+      "clipNumber": 49,
+      "duration": 9.99,
+      "trimStart": 0,
+      "trimEnd": 10,
+      "speed": 1,
+      "smoothSlowMo": false,
+      "foleyVolume": 20,
+      "customVolumeSet": false,
+      "audioMuted": false
+    },
+    {
+      "id": "clip-50-1795226277764-50",
+      "clipNumber": 50,
+      "duration": 10,
+      "trimStart": 0,
+      "trimEnd": 10,
+      "speed": 1,
+      "smoothSlowMo": false,
+      "foleyVolume": 20,
+      "customVolumeSet": false,
+      "audioMuted": false
+    },
+    {
+      "id": "clip-51-1795226277764-51",
+      "clipNumber": 51,
+      "duration": 10,
+      "trimStart": 0,
+      "trimEnd": 10,
+      "speed": 1,
+      "smoothSlowMo": false,
+      "foleyVolume": 20,
+      "customVolumeSet": false,
+      "audioMuted": false
+    },
+    {
+      "id": "clip-52-1795226277764-52",
+      "clipNumber": 52,
+      "duration": 9.99,
+      "trimStart": 0,
+      "trimEnd": 10,
+      "speed": 1,
+      "smoothSlowMo": false,
+      "foleyVolume": 20,
+      "customVolumeSet": false,
+      "audioMuted": false
+    },
+    {
+      "id": "clip-53-1795226277764-53",
+      "clipNumber": 53,
+      "duration": 10,
+      "trimStart": 0,
+      "trimEnd": 10,
+      "speed": 1,
+      "smoothSlowMo": false,
+      "foleyVolume": 20,
+      "customVolumeSet": false,
+      "audioMuted": false
+    },
+    {
+      "id": "clip-54-1795226277764-54",
+      "clipNumber": 54,
+      "duration": 10,
+      "trimStart": 0,
+      "trimEnd": 10,
+      "speed": 1,
+      "smoothSlowMo": false,
+      "foleyVolume": 20,
+      "customVolumeSet": false,
+      "audioMuted": false
+    },
+    {
+      "id": "clip-55-1795226277764-55",
+      "clipNumber": 55,
+      "duration": 9.99,
+      "trimStart": 0,
+      "trimEnd": 10,
+      "speed": 1,
+      "smoothSlowMo": false,
+      "foleyVolume": 20,
+      "customVolumeSet": false,
+      "audioMuted": false
+    },
+    {
+      "id": "clip-56-1795226277764-56",
+      "clipNumber": 56,
+      "duration": 10,
+      "trimStart": 0,
+      "trimEnd": 10,
+      "speed": 1,
+      "smoothSlowMo": false,
+      "foleyVolume": 20,
+      "customVolumeSet": false,
+      "audioMuted": false
+    },
+    {
+      "id": "clip-57-1795226277764-57",
+      "clipNumber": 57,
+      "duration": 10,
+      "trimStart": 0,
+      "trimEnd": 10,
+      "speed": 1,
+      "smoothSlowMo": false,
+      "foleyVolume": 20,
+      "customVolumeSet": false,
+      "audioMuted": false
+    },
+    {
+      "id": "clip-58-1795226277764-58",
+      "clipNumber": 58,
+      "duration": 9.99,
+      "trimStart": 0,
+      "trimEnd": 10,
+      "speed": 1,
+      "smoothSlowMo": false,
+      "foleyVolume": 20,
+      "customVolumeSet": false,
+      "audioMuted": false
+    },
+    {
+      "id": "clip-59-1795226277764-59",
+      "clipNumber": 59,
+      "duration": 10,
+      "trimStart": 0,
+      "trimEnd": 10,
+      "speed": 1,
+      "smoothSlowMo": false,
+      "foleyVolume": 20,
+      "customVolumeSet": false,
+      "audioMuted": false
+    },
+    {
+      "id": "clip-60-1795226277764-60",
+      "clipNumber": 60,
+      "duration": 10,
+      "trimStart": 0,
+      "trimEnd": 10,
+      "speed": 1,
+      "smoothSlowMo": false,
+      "foleyVolume": 20,
+      "customVolumeSet": false,
+      "audioMuted": false
+    },
+    {
+      "id": "clip-61-1795226277764-61",
+      "clipNumber": 61,
+      "duration": 9.99,
+      "trimStart": 0,
+      "trimEnd": 10,
+      "speed": 1,
+      "smoothSlowMo": false,
+      "foleyVolume": 20,
+      "customVolumeSet": false,
+      "audioMuted": false
+    },
+    {
+      "id": "clip-62-1795226277764-62",
+      "clipNumber": 62,
       "duration": 10,
       "trimStart": 0,
       "trimEnd": 10,
