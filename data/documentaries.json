@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-11-21T00:57:53.241Z",
-    "updatedAt": "2026-11-21T01:23:45.959Z",
+    "updatedAt": "2026-11-21T01:57:09.666Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -1248,8 +1248,8 @@
     "youtubeTags": "",
     "pinnedComment": "",
     "flowVideoEngine": "HYBRID_PEOPLE_OMNI_REST_LOWER",
-    "downloadFolderName": "",
-    "downloadFolderPath": "",
+    "downloadFolderName": "Prueba",
+    "downloadFolderPath": "/Users/raydelsantana/Library/Mobile Documents/com~apple~CloudDocs/0YouTube/Huellas de la Humanidad/Videos/Prueba",
     "geminiChatUrl": "https://gemini.google.com/app/bdee564ddf4bf54b",
     "geminiChatTitle": "Prueba"
   },
