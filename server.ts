@@ -910,6 +910,7 @@ const CLIP_FRAME_TRANSFORM_FIELDS = [
   'frameZoomInSec16x9',
   'frameZoomInSec9x16',
   'frameKeys16x9',
+  'frameKeys9x16',
 ];
 function protectClipFrameTransforms(list: any[]): any[] {
   let diskById: Map<string, any>;
@@ -8102,6 +8103,41 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
           }:black`
         : '';
 
+      // Framing points: the clip is first laid out at normal size and then a moving window follows the points
+      const rawFrameKeys: any[] = Array.isArray((c as any).frameKeys)
+        ? (c as any).frameKeys
+        : Array.isArray((savedClipMatch as any)?.[isVertical916 ? 'frameKeys9x16' : 'frameKeys16x9'])
+        ? (savedClipMatch as any)[isVertical916 ? 'frameKeys9x16' : 'frameKeys16x9']
+        : [];
+      const frameKeys = rawFrameKeys
+        .map((fk) => ({ t: Number(fk?.t), z: Number(fk?.z) / 100, x: Number(fk?.x) / 100, y: Number(fk?.y) / 100 }))
+        .filter((fk) => [fk.t, fk.z, fk.x, fk.y].every((n) => Number.isFinite(n)) && fk.t >= 0)
+        .sort((a, b) => a.t - b.t)
+        .slice(0, 8);
+      const useFrameKeys =
+        !isIntroClip && !isOutroClip && frameKeys.length >= 2 && frameKeys.every((fk) => fk.z >= 0.999 && fk.z <= 3.001);
+      // Piecewise eased value over the output frame number `on`
+      const buildKeyExpr = (pick: (fk: { z: number; x: number; y: number }) => number) => {
+        let expr = pick(frameKeys[frameKeys.length - 1]).toFixed(5);
+        for (let ki = frameKeys.length - 2; ki >= 0; ki--) {
+          const a = frameKeys[ki];
+          const b = frameKeys[ki + 1];
+          const fa = Math.round(a.t * safeFps);
+          const fb = Math.max(fa + 1, Math.round(b.t * safeFps));
+          const p = `((on-${fa})/${fb - fa})`;
+          const seg = `(${pick(a).toFixed(5)}+(${(pick(b) - pick(a)).toFixed(5)})*${p}*${p}*(3-2*${p}))`;
+          expr = `if(lt(on,${fb}),${seg},${expr})`;
+        }
+        const first = frameKeys[0];
+        return `if(lt(on,${Math.round(first.t * safeFps)}),${pick(first).toFixed(5)},${expr})`;
+      };
+      const keyZ = useFrameKeys ? buildKeyExpr((fk) => fk.z) : '1';
+      const keyX = useFrameKeys ? buildKeyExpr((fk) => fk.x) : '0';
+      const keyY = useFrameKeys ? buildKeyExpr((fk) => fk.y) : '0';
+      // Moving window that follows the framing points; (ox, oy) is the point of the frame the zoom grows from
+      const buildKeyZoompan = (ox: number, oy: number) =>
+        `zoompan=z='${keyZ}':x='max(0,min(iw-iw/zoom,iw*${ox.toFixed(4)}*(1-1/zoom)-iw*(${keyX})/zoom))':y='max(0,min(ih-ih/zoom,ih*${oy.toFixed(4)}*(1-1/zoom)-ih*(${keyY})/zoom))':d=1:s=${outW}x${outH}:fps=${safeFps}`;
+
       let scaleAndCropVf: string;
       if (isOutroClip) {
         if (isVertical916) {
@@ -8147,47 +8183,19 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
           ? `'max(0,min(iw-ow,(iw-ow)*(${fStart.toFixed(4)}+(${(fEnd - fStart).toFixed(4)})*min(1,max(0,t/${panDurSec.toFixed(3)})))))'`
           : `'max(0,min(iw-ow,(iw-ow)*${fStart.toFixed(4)}))'`;
         const cropYExpr = `'max(0,min(ih-oh,(ih-oh)*${fY.toFixed(4)}))'`;
-        scaleAndCropVf = hasFrameZoom
+        scaleAndCropVf = useFrameKeys
+          ? `scale=${outW}:${outH}:force_original_aspect_ratio=increase:flags=${clipScaleFlags},${fpsInterpStage},crop=${outW}:${outH}:${cropXExpr}:${cropYExpr},${buildKeyZoompan(fStart, fY)}`
+          : hasFrameZoom
           ? `scale=${zoomW}:${zoomH}:force_original_aspect_ratio=increase:force_divisible_by=2:flags=${clipScaleFlags},${fpsInterpStage},crop=${zoomCropSize}:${cropXExpr}:${cropYExpr},${zoomPad}`
           : `scale=${outW}:${outH}:force_original_aspect_ratio=increase:flags=${clipScaleFlags},${fpsInterpStage},crop=${outW}:${outH}:${cropXExpr}:${cropYExpr}`;
-        if (hasFrameShift) scaleAndCropVf += `,${frameShiftPad},crop=${outW}:${outH}`;
+        if (hasFrameShift && !useFrameKeys) scaleAndCropVf += `,${frameShiftPad},crop=${outW}:${outH}`;
       } else {
         // Framing points (16:9): the clip is first laid out at normal size and then a moving window follows
         // the points (size + position per instant), easing from each point to the next. Before the first
         // point it holds the first framing; after the last one it holds the last. Only when every point
         // enlarges the clip (a window inside the picture); otherwise the fixed framing above is used.
-        const rawFrameKeys: any[] = Array.isArray((c as any).frameKeys)
-          ? (c as any).frameKeys
-          : !isVertical916 && Array.isArray((savedClipMatch as any)?.frameKeys16x9)
-          ? (savedClipMatch as any).frameKeys16x9
-          : [];
-        const frameKeys = rawFrameKeys
-          .map((fk) => ({ t: Number(fk?.t), z: Number(fk?.z) / 100, x: Number(fk?.x) / 100, y: Number(fk?.y) / 100 }))
-          .filter((fk) => [fk.t, fk.z, fk.x, fk.y].every((n) => Number.isFinite(n)) && fk.t >= 0)
-          .sort((a, b) => a.t - b.t)
-          .slice(0, 8);
-        const useFrameKeys =
-          !isVertical916 && frameKeys.length >= 2 && frameKeys.every((fk) => fk.z >= 0.999 && fk.z <= 3.001);
-        // Piecewise eased value over the output frame number `on`
-        const buildKeyExpr = (pick: (fk: { z: number; x: number; y: number }) => number) => {
-          let expr = pick(frameKeys[frameKeys.length - 1]).toFixed(5);
-          for (let ki = frameKeys.length - 2; ki >= 0; ki--) {
-            const a = frameKeys[ki];
-            const b = frameKeys[ki + 1];
-            const fa = Math.round(a.t * safeFps);
-            const fb = Math.max(fa + 1, Math.round(b.t * safeFps));
-            const p = `((on-${fa})/${fb - fa})`;
-            const seg = `(${pick(a).toFixed(5)}+(${(pick(b) - pick(a)).toFixed(5)})*${p}*${p}*(3-2*${p}))`;
-            expr = `if(lt(on,${fb}),${seg},${expr})`;
-          }
-          const first = frameKeys[0];
-          return `if(lt(on,${Math.round(first.t * safeFps)}),${pick(first).toFixed(5)},${expr})`;
-        };
-        const keyZ = useFrameKeys ? buildKeyExpr((fk) => fk.z) : '1';
-        const keyX = useFrameKeys ? buildKeyExpr((fk) => fk.x) : '0';
-        const keyY = useFrameKeys ? buildKeyExpr((fk) => fk.y) : '0';
         scaleAndCropVf = useFrameKeys
-          ? `scale=${outW}:${outH}:force_original_aspect_ratio=decrease:flags=${clipScaleFlags},pad=${outW}:${outH}:(ow-iw)/2:(oh-ih)/2:black,${fpsInterpStage},zoompan=z='${keyZ}':x='max(0,min(iw-iw/zoom,iw/2-(iw/2+iw*(${keyX}))/zoom))':y='max(0,min(ih-ih/zoom,ih/2-(ih/2+ih*(${keyY}))/zoom))':d=1:s=${outW}x${outH}:fps=${safeFps}`
+          ? `scale=${outW}:${outH}:force_original_aspect_ratio=decrease:flags=${clipScaleFlags},pad=${outW}:${outH}:(ow-iw)/2:(oh-ih)/2:black,${fpsInterpStage},${buildKeyZoompan(0.5, 0.5)}`
           : hasFrameShift
           ? `scale=${zoomW}:${zoomH}:force_original_aspect_ratio=decrease:force_divisible_by=2:flags=${clipScaleFlags},${fpsInterpStage},${frameShiftPad},crop=${zoomCropSize},${zoomPad}`
           : hasFrameZoom

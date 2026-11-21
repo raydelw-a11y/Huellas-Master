@@ -299,11 +299,13 @@ type ClipFrameSource = {
   frameZoomInSec16x9?: number;
   frameZoomInSec9x16?: number;
   frameKeys16x9?: ClipFrameKey[];
+  frameKeys9x16?: ClipFrameKey[];
 } | null | undefined;
-/** Framing points of the clip (16:9 only), sorted by time. An old "gradual zoom" counts as two points. */
+/** Framing points of the clip for the given format, sorted by time. An old "gradual zoom" counts as two points. */
 function getClipFrameKeys(clip: ClipFrameSource, ratio: string): ClipFrameKey[] {
-  if (ratio !== '16:9' || !clip) return [];
-  const raw = Array.isArray(clip.frameKeys16x9) ? clip.frameKeys16x9 : [];
+  if (!clip) return [];
+  const rawKeys = ratio === '9:16' ? clip.frameKeys9x16 : clip.frameKeys16x9;
+  const raw = Array.isArray(rawKeys) ? rawKeys : [];
   const clean = raw
     .map((k) => ({ t: Number(k?.t), z: Number(k?.z), x: Number(k?.x), y: Number(k?.y) }))
     .filter((k) => [k.t, k.z, k.x, k.y].every((v) => Number.isFinite(v)) && k.t >= 0 && k.z > 0)
@@ -398,6 +400,7 @@ interface TimelineClipItem {
   frameZoomInSec16x9?: number; // gradual zoom: seconds from 100% to the set size/position (0 = off)
   frameZoomInSec9x16?: number;
   frameKeys16x9?: ClipFrameKey[]; // framing points (16:9): the clip pans/zooms from one to the next
+  frameKeys9x16?: ClipFrameKey[]; // framing points (9:16)
   reframeConfidence?: number;
   reframeReason?: string;
   userReframed9x16?: boolean;  // true when user manually set or adjusted reframe in the editor
@@ -1704,6 +1707,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             captionMaxChars: 16,
             captionBottomPct: 25,
           };
+        }
+        if (!parsed._v9_9x16_logo_x10_y3 && parsed?.['9:16']) {
+          parsed['9:16'] = { ...parsed['9:16'], logoPosX: 10, logoPosY: 3 };
         }
         return parsed?.[aspectRatio] || null;
       }
@@ -3085,6 +3091,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           saved9x16.captionMaxChars = 16;
           saved9x16.captionBottomPct = 25;
         }
+        if (!parsed._v9_9x16_logo_x10_y3) {
+          saved9x16.logoPosX = 10;
+          saved9x16.logoPosY = 3;
+        }
         return {
           '16:9': { ...default16x9, ...saved16x9 },
           '9:16': { ...default9x16, ...saved9x16 },
@@ -3152,6 +3162,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           _v6_16x9_captionOriginalDefault: true,
           _v7_9x16_captions22: true,
           _v8_9x16_captions16_bottom25: true,
+          _v9_9x16_logo_x10_y3: true,
         })
       );
       const serverOrigin = getEditorPrimaryServerOrigin();
@@ -3544,7 +3555,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         nearIdx >= 0
           ? keys.map((k, i) => (i === nearIdx ? { ...k, z: zoomPct, x, y } : k))
           : [...keys, { t: elapsed, z: zoomPct, x, y }].sort((a, b) => a.t - b.t).slice(0, MAX_CLIP_FRAME_KEYS);
-      saveClipFramePatch(matchedClip, { frameKeys16x9: nextKeys, frameZoomInSec16x9: 0 }, commit);
+      saveClipFramePatch(
+        matchedClip,
+        is916 ? { frameKeys9x16: nextKeys, frameZoomInSec9x16: 0 } : { frameKeys16x9: nextKeys, frameZoomInSec16x9: 0 },
+        commit
+      );
       return;
     }
     saveClipFramePatch(
@@ -3568,7 +3583,13 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       nearIdx >= 0
         ? keys.map((k, i) => (i === nearIdx ? point : k))
         : [...keys, point].sort((a, b) => a.t - b.t).slice(0, MAX_CLIP_FRAME_KEYS);
-    saveClipFramePatch(clip, { frameKeys16x9: nextKeys, frameZoomInSec16x9: 0 }, true);
+    saveClipFramePatch(
+      clip,
+      aspectRatio === '9:16'
+        ? { frameKeys9x16: nextKeys, frameZoomInSec9x16: 0 }
+        : { frameKeys16x9: nextKeys, frameZoomInSec16x9: 0 },
+      true
+    );
   };
   // Removes one framing point; removing the last one leaves the clip fixed at that point's framing
   const handleRemoveClipFrameKey = (clip: TimelineClipItem, keyIndex: number) => {
@@ -3578,7 +3599,17 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     const nextKeys = keys.filter((_, i) => i !== keyIndex);
     saveClipFramePatch(
       clip,
-      nextKeys.length > 0
+      aspectRatio === '9:16'
+        ? nextKeys.length > 0
+          ? { frameKeys9x16: nextKeys, frameZoomInSec9x16: 0 }
+          : {
+              frameKeys9x16: [],
+              frameZoomInSec9x16: 0,
+              frameZoom9x16: Math.round(removed.z),
+              frameOffsetX9x16: removed.x,
+              frameOffsetY9x16: removed.y,
+            }
+        : nextKeys.length > 0
         ? { frameKeys16x9: nextKeys, frameZoomInSec16x9: 0 }
         : {
             frameKeys16x9: [],
@@ -3599,7 +3630,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         [is916 ? 'frameZoom9x16' : 'frameZoom16x9']: 100,
         [is916 ? 'frameOffsetX9x16' : 'frameOffsetX16x9']: 0,
         [is916 ? 'frameOffsetY9x16' : 'frameOffsetY16x9']: 0,
-        ...(is916 ? {} : { frameKeys16x9: [], frameZoomInSec16x9: 0 }),
+        ...(is916 ? { frameKeys9x16: [], frameZoomInSec9x16: 0 } : { frameKeys16x9: [], frameZoomInSec16x9: 0 }),
       },
       true
     );
@@ -6953,6 +6984,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         frameZoomInSec16x9: Number((c as any).frameTransformAt || 0) > Number((existingItem as any)?.frameTransformAt || 0) ? c.frameZoomInSec16x9 : existingItem?.frameZoomInSec16x9 ?? c.frameZoomInSec16x9,
         frameZoomInSec9x16: Number((c as any).frameTransformAt || 0) > Number((existingItem as any)?.frameTransformAt || 0) ? c.frameZoomInSec9x16 : existingItem?.frameZoomInSec9x16 ?? c.frameZoomInSec9x16,
         frameKeys16x9: Number((c as any).frameTransformAt || 0) > Number((existingItem as any)?.frameTransformAt || 0) ? c.frameKeys16x9 : existingItem?.frameKeys16x9 ?? c.frameKeys16x9,
+        frameKeys9x16: Number((c as any).frameTransformAt || 0) > Number((existingItem as any)?.frameTransformAt || 0) ? c.frameKeys9x16 : existingItem?.frameKeys9x16 ?? c.frameKeys9x16,
         // A size/position saved in the documentary later than this browser's copy wins (set on another device)
         frameTransformAt: Math.max(Number((c as any).frameTransformAt || 0), Number((existingItem as any)?.frameTransformAt || 0)) || undefined,
         reframeConfidence: existingItem?.reframeConfidence ?? c.reframeConfidence,
@@ -7390,6 +7422,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   frameZoomInSec16x9: docClipMatch.frameZoomInSec16x9,
                   frameZoomInSec9x16: docClipMatch.frameZoomInSec9x16,
                   frameKeys16x9: docClipMatch.frameKeys16x9,
+                  frameKeys9x16: docClipMatch.frameKeys9x16,
                   frameTransformAt: docFrameAt,
                 }
               : {};
@@ -7573,6 +7606,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         frameZoomInSec16x9: Number((bc as any).frameTransformAt || 0) > Number((liveMatch as any)?.frameTransformAt || 0) ? bc.frameZoomInSec16x9 : liveMatch?.frameZoomInSec16x9 ?? bc.frameZoomInSec16x9,
         frameZoomInSec9x16: Number((bc as any).frameTransformAt || 0) > Number((liveMatch as any)?.frameTransformAt || 0) ? bc.frameZoomInSec9x16 : liveMatch?.frameZoomInSec9x16 ?? bc.frameZoomInSec9x16,
         frameKeys16x9: Number((bc as any).frameTransformAt || 0) > Number((liveMatch as any)?.frameTransformAt || 0) ? bc.frameKeys16x9 : liveMatch?.frameKeys16x9 ?? bc.frameKeys16x9,
+        frameKeys9x16: Number((bc as any).frameTransformAt || 0) > Number((liveMatch as any)?.frameTransformAt || 0) ? bc.frameKeys9x16 : liveMatch?.frameKeys9x16 ?? bc.frameKeys9x16,
         // A size/position saved in the documentary later than this browser's copy wins (set on another device)
         frameTransformAt: Math.max(Number((bc as any).frameTransformAt || 0), Number((liveMatch as any)?.frameTransformAt || 0)) || undefined,
         reframeConfidence: liveMatch?.reframeConfidence ?? bc.reframeConfidence,
@@ -16781,7 +16815,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   >
                     ✥ Mover en el visor
                   </button>
-                  {aspectRatio === '16:9' && (
+                  {(aspectRatio === '16:9' || aspectRatio === '9:16') && (
                     <>
                       <button
                         type="button"
