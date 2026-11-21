@@ -1698,6 +1698,13 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             captionWordsPerLine: 0,
           };
         }
+        if (!parsed._v8_9x16_captions16_bottom25 && parsed?.['9:16']) {
+          parsed['9:16'] = {
+            ...parsed['9:16'],
+            captionMaxChars: 16,
+            captionBottomPct: 25,
+          };
+        }
         return parsed?.[aspectRatio] || null;
       }
     } catch {}
@@ -2455,7 +2462,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   const [captionMaxChars, setCaptionMaxChars] = useState<number>(() => {
     if (aspectRatio === '9:16') {
       const fromDoc916 = Number(activeDoc?.promptConfig?.CAPTION_MAX_CHARS_9X16);
-      return Number.isFinite(fromDoc916) && fromDoc916 > 0 ? fromDoc916 : 22;
+      return Number.isFinite(fromDoc916) && fromDoc916 > 0 ? fromDoc916 : 16;
     }
     const fromDoc = Number(activeDoc?.promptConfig?.CAPTION_MAX_CHARS);
     if (Number.isFinite(fromDoc) && fromDoc >= 0) return fromDoc;
@@ -2565,7 +2572,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       : typeof initialOverlayStyles.captionBottomPct === 'number'
       ? initialOverlayStyles.captionBottomPct
       : aspectRatio === '9:16'
-      ? 15
+      ? 25
       : 10;
   });
   const [captionColor, setCaptionColor] = useState<'white' | 'amber' | 'custom'>(() => {
@@ -3032,9 +3039,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       hookBoxWidthPct: 88,
       captionFontSize: 21,
       captionWordsPerLine: 3,
-      captionBottomPct: 15,
+      captionBottomPct: 25,
       captionLineMode: 'subdivide',
-      captionMaxChars: 22,
+      captionMaxChars: 16,
     };
     try {
       const raw = localStorage.getItem('huellas_editor_format_profiles_v1');
@@ -3063,9 +3070,12 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           saved16x9.captionWordsPerLine = 0;
         }
         if (!parsed._v7_9x16_captions22) {
-          saved9x16.captionMaxChars = 22;
           saved9x16.captionLineMode = 'subdivide';
           saved9x16.captionWordsPerLine = 3;
+        }
+        if (!parsed._v8_9x16_captions16_bottom25) {
+          saved9x16.captionMaxChars = 16;
+          saved9x16.captionBottomPct = 25;
         }
         return {
           '16:9': { ...default16x9, ...saved16x9 },
@@ -3133,6 +3143,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           _v5_16x9_captionBottom10: true,
           _v6_16x9_captionOriginalDefault: true,
           _v7_9x16_captions22: true,
+          _v8_9x16_captions16_bottom25: true,
         })
       );
       const serverOrigin = getEditorPrimaryServerOrigin();
@@ -3718,7 +3729,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       if (nextRatio === '9:16') {
         const doc916Max = Number(activeDoc?.promptConfig?.CAPTION_MAX_CHARS_9X16);
         const doc916Mode = activeDoc?.promptConfig?.CAPTION_LINE_MODE_9X16;
-        setCaptionMaxChars(Number.isFinite(doc916Max) && doc916Max > 0 ? doc916Max : 22);
+        setCaptionMaxChars(Number.isFinite(doc916Max) && doc916Max > 0 ? doc916Max : 16);
         setCaptionLineMode(
           doc916Mode === 'subdivide' || doc916Mode === 'wrap' || doc916Mode === 'original' ? doc916Mode : 'subdivide'
         );
@@ -3773,7 +3784,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       aspectRatio === '9:16'
         ? typeof cfg.CAPTION_MAX_CHARS_9X16 === 'number'
           ? cfg.CAPTION_MAX_CHARS_9X16
-          : 22
+          : 16
         : cfg.CAPTION_MAX_CHARS;
     if (typeof docMaxForRatio === 'number' && docMaxForRatio !== captionMaxChars) {
       setCaptionMaxChars(docMaxForRatio);

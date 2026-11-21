@@ -22529,7 +22529,7 @@ function buildOpusClipAssSubtitles(params: {
     captionStyle,
     wordsPerLine = 3,
     fontSizeScale = 1.0,
-    captionYPercent = 74,
+    captionYPercent = 75,
     hookBannerText,
     showHookBanner,
     storyCtaBannerText,
@@ -22622,9 +22622,26 @@ function buildOpusClipAssSubtitles(params: {
   }
 
   // 3) Group words into chunks of `wordsPerLine` and emit word-by-word active highlight events
+  //    Each line also stops at VIRAL_CAPTION_MAX_CHARS characters (a single longer word still gets its own line).
   const safeWordsPerChunk = Math.max(1, Math.min(6, Number(wordsPerLine) || 3));
-  for (let i = 0; i < words.length; i += safeWordsPerChunk) {
-    const chunk = words.slice(i, i + safeWordsPerChunk);
+  const VIRAL_CAPTION_MAX_CHARS = 16;
+  const wordChunks: WordTimestamp[][] = [];
+  {
+    let cur: WordTimestamp[] = [];
+    let curLen = 0;
+    for (const w of words) {
+      const wl = String(w.word || '').replace(/[{}]/g, '').length;
+      if (cur.length > 0 && (cur.length >= safeWordsPerChunk || curLen + 1 + wl > VIRAL_CAPTION_MAX_CHARS)) {
+        wordChunks.push(cur);
+        cur = [];
+        curLen = 0;
+      }
+      cur.push(w);
+      curLen += (cur.length > 1 ? 1 : 0) + wl;
+    }
+    if (cur.length > 0) wordChunks.push(cur);
+  }
+  for (const chunk of wordChunks) {
     if (chunk.length === 0) continue;
 
     for (let activeIdx = 0; activeIdx < chunk.length; activeIdx++) {
@@ -22697,7 +22714,7 @@ async function renderViralClipMp4Internal(params: {
     captionStyle = 'yellow_white',
     wordsPerLine = 3,
     fontSizeScale = 1.0,
-    captionYPercent = 74,
+    captionYPercent = 75,
     words = [],
     hookBannerText = '',
     showHookBanner = true,

@@ -191,7 +191,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
   // 4. Global Caption & Overlay Customization
   const [wordsPerLine, setWordsPerLine] = useState<number>(3);
   const [fontSizeScale, setFontSizeScale] = useState<number>(1.0);
-  const [captionYPercent, setCaptionYPercent] = useState<number>(74);
+  const [captionYPercent, setCaptionYPercent] = useState<number>(75);
   const [showHookBanner, setShowHookBanner] = useState<boolean>(true);
   const [previewStoryCta, setPreviewStoryCta] = useState<boolean>(false);
   const [storyPublishMode, setStoryPublishMode] = useState<'story_teaser' | 'story_full'>(
@@ -611,8 +611,23 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
     }
     const safePerLine = Math.max(1, Math.min(6, wordsPerLine));
     const words = selectedClip.words;
-    for (let i = 0; i < words.length; i += safePerLine) {
-      const chunk = words.slice(i, i + safePerLine);
+    // Igual que la exportación: cada línea se corta también a los 16 caracteres
+    const VIRAL_CAPTION_MAX_CHARS = 16;
+    const chunks: (typeof words)[] = [];
+    let cur: typeof words = [];
+    let curLen = 0;
+    for (const w of words) {
+      const wl = String(w.word || '').length;
+      if (cur.length > 0 && (cur.length >= safePerLine || curLen + 1 + wl > VIRAL_CAPTION_MAX_CHARS)) {
+        chunks.push(cur);
+        cur = [];
+        curLen = 0;
+      }
+      cur.push(w);
+      curLen += (cur.length > 1 ? 1 : 0) + wl;
+    }
+    if (cur.length > 0) chunks.push(cur);
+    for (const chunk of chunks) {
       const chunkStart = chunk[0].start;
       const chunkEnd = chunk[chunk.length - 1].end;
       if (playheadSec >= chunkStart - 0.08 && playheadSec <= chunkEnd + 0.15) {
