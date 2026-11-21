@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-11-21T00:57:53.241Z",
-    "updatedAt": "2026-11-21T06:16:19.510Z",
+    "updatedAt": "2026-11-21T06:16:32.220Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -19,7 +19,7 @@
       "VOZ_NARRATIVA_EN_CLIPS": "INCLUIR",
       "UBICACION_INTRO_MARCA": "INTRO_INICIO_00",
       "FIELD_CLEARED_AT_voiceoverScript": "0",
-      "PROMPTS_RESTORED_AT": "1795241779510",
+      "PROMPTS_RESTORED_AT": "1795241792220",
       "FIELD_CLEARED_AT_rawClipsText": "0",
       "GEMINI_CHAT_URL": "https://gemini.google.com/app/bdee564ddf4bf54b",
       "SHOT_PLAN_AUDIT": "✅ Reparto de tomas: 2 de 2 tomas de apoyo y 1 imagen de archivo de época.",
@@ -28,7 +28,8 @@
       "FIELD_CLEARED_AT_masterAudioUrl": "1795226859803",
       "REMOTE_GEMINI_STAGE_ERROR": "Respuesta vacía de Gemini",
       "FIELD_CLEARED_AT_rawSunoText": "0",
-      "FIELD_CLEARED_AT_sunoTracks": "0"
+      "FIELD_CLEARED_AT_sunoTracks": "0",
+      "CAPTION_BOTTOM_PCT_16X9": 10
     },
     "compiledMasterPrompt": "",
     "topic": "El Puente de Londres: la calle que flotó 600 años sobre el Támesis",
@@ -229,10 +230,10 @@
         "videoAuditIssues": [],
         "videoSavedFileName": "06_create_a_cinematic_8_second_fe849478_4K.mp4",
         "videoSavedAt": 1795223135658,
-        "frameZoom16x9": 129,
+        "frameZoom16x9": 100,
         "frameOffsetX16x9": 0,
         "frameOffsetY16x9": 0,
-        "frameTransformAt": 1795241779379,
+        "frameTransformAt": 1795241791766,
         "frameKeys16x9": [],
         "frameZoomInSec16x9": 0
       },
