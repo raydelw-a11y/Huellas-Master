@@ -201,7 +201,7 @@ import { useNoticeStack } from './utils/noticeStack';
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '09:46 AM - 11/21/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '05:17 PM - 11/21/2026';
 
 // PRODUCTION LOCK: while promptConfig.PRODUCTION_LOCKED === 'YES' these fields never change (the server
 // enforces the same list in protectLockedDocs). Metadata, thumbnails, review marks and reframes stay editable.
@@ -6268,7 +6268,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       const shotPlanSummary =
         shotPlanAudit.warnings.length > 0
           ? `⚠️ Reparto de tomas (Etapa 6): ${shotPlanAudit.warnings.join(' • ')}`
-          : `✅ Reparto de tomas: ${shotPlanAudit.supportCount} de ${shotPlanAudit.quota} tomas de apoyo y ${shotPlanAudit.archiveCount} imagen de archivo de época.`;
+          : `✅ Reparto de tomas: ${shotPlanAudit.supportCount} de ${shotPlanAudit.quota} tomas de apoyo, ${shotPlanAudit.archiveCount} imagen de archivo de época y ${shotPlanAudit.twoShotCount} clip${shotPlanAudit.twoShotCount === 1 ? '' : 's'} de dos tomas${
+              shotPlanAudit.twoShotCount > 0 ? ` (${shotPlanAudit.twoShotClips.join(', ')})` : ''
+            }.`;
       setFlowStatusLog(shotPlanSummary);
       updateActiveDoc({
         operationalHeader: cleanOpHeader,

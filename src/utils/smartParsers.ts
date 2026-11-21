@@ -9,6 +9,7 @@ import {
   isClipDiscardOverridden,
 } from '../types';
 import { formatMMSS } from './formatTime';
+import { isTwoShotClipText } from './shotCatalogue';
 
 export const BROLL_MOTION_TAG_BY_KEY: Record<BrollCameraMotion, string> = {
   zoom_in: 'STATIC_ZOOM_IN',
@@ -2079,6 +2080,9 @@ function finalizeCleanFlowPromptParagraph(
   const isStaticBroll =
     mode === 'image' && Boolean(options.isStaticBroll || isImageOnlyBrollPrompt(raw));
 
+  // Two-shot clip (decided by Gemini from the narration): detected before the tags are stripped
+  const isTwoShotClip = mode === 'video' && isTwoShotClipText(raw);
+
   // Strip leading header ("Image 01:", "Clip 01 (00:08 - 00:16):")
   let body = raw
     .replace(/^(?:Image|Imagen|Clip)\s*\[?0*\d+\]?(?:\s*\([^)]*\))?\s*[:\-–]\s*/i, '')
@@ -2152,7 +2156,7 @@ function finalizeCleanFlowPromptParagraph(
   if (foleyClause) {
     foleyClause = stripAllClosingBoilerplates(stripLeakedSpanishNarrationTail(foleyClause))
       .replace(
-        /,?\s*(?:single\s+continuous\s+shot|strictly\s+no\s+shot\s+changes|100%\s*pure\s*ambient\s*foley[^,.]*|no\s+music|no\s+spoken\s+voice|no\s+human\s+speech|no\s+speech|no\s+text|no\s+watermarks)\b[\s\S]*$/i,
+        /,?\s*(?:single\s+continuous\s+shot|strictly\s+no\s+shot\s+changes|exactly\s+two\s+shots\s+joined|100%\s*pure\s*ambient\s*foley[^,.]*|no\s+music|no\s+spoken\s+voice|no\s+human\s+speech|no\s+speech|no\s+text|no\s+watermarks)\b[\s\S]*$/i,
         ''
       )
       .replace(/\(\s*100%\s*pure\s*ambient\s*foley[^)]*\)/gi, '')
@@ -2204,7 +2208,7 @@ function finalizeCleanFlowPromptParagraph(
         ' '
       )
       .replace(
-        /,?\s*(?:single\s+continuous\s+shot|strictly\s+no\s+shot\s+changes|no\s+music|no\s+spoken\s+voice|no\s+human\s+speech|no\s+speech|no\s+text)\b[\s\S]*$/i,
+        /,?\s*(?:single\s+continuous\s+shot|strictly\s+no\s+shot\s+changes|exactly\s+two\s+shots\s+joined|no\s+music|no\s+spoken\s+voice|no\s+human\s+speech|no\s+speech|no\s+text)\b[\s\S]*$/i,
         ' '
       )
       .replace(/\b(?:STRICT\s+ADULTS-ONLY\s+CAST[^:]*|SINGLE\s+CONTINUOUS\s+UNBROKEN\s+TAKE[^:]*|Visual\s+Style)\s*:\s*/gi, '')
@@ -2222,9 +2226,15 @@ function finalizeCleanFlowPromptParagraph(
   body = `Generate a video in 16-9 horizontal aspect ratio across ${resolvedDur} seconds showing ${body}`;
 
   const hasHuman = detectPromptSceneHasHumanSubjects(body);
+  // One shot by default; a two-shot clip keeps its single hard cut instead of being forced back to one take
+  const shotCountClause = isTwoShotClip
+    ? `fixed subject count within each shot, exactly two shots joined by one clean hard cut near second ${Math.round(
+        resolvedDur / 2
+      )}, each shot one continuous take`
+    : `fixed subject count from 0s to ${resolvedDur}s, single continuous shot, strictly no shot changes`;
   const physicsClause = hasHuman
-    ? `all background furniture, architectural fixtures, and tabletop props remain 100% gravity-locked and stationary while any held object moves smoothly under natural hand control, fixed subject count from 0s to ${resolvedDur}s, single continuous shot, strictly no shot changes`
-    : `with no people present and zero human figures, all background furniture, architectural fixtures, and tabletop props remain 100% gravity-locked and stationary, fixed subject count from 0s to ${resolvedDur}s, single continuous shot, strictly no shot changes`;
+    ? `all background furniture, architectural fixtures, and tabletop props remain 100% gravity-locked and stationary while any held object moves smoothly under natural hand control, ${shotCountClause}`
+    : `with no people present and zero human figures, all background furniture, architectural fixtures, and tabletop props remain 100% gravity-locked and stationary, ${shotCountClause}`;
 
   body = body
     .replace(/,\s*,+/g, ', ')

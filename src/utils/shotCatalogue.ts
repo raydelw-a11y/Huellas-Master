@@ -135,6 +135,7 @@ export function buildShotDirectionClause(opts: {
   const catalogue = `
 - CINEMATOGRAPHY CATALOGUE (VARY IT ACROSS THE WHOLE DOCUMENTARY): Open every Clip NN description, right after "showing", with the shot size and the single camera movement, then the subject and its one action. Choose from: SHOT SIZES extreme wide shot, wide establishing shot, full ensemble shot, medium shot, cowboy shot, close-up, extreme close-up, insert shot of hands at work; ANGLES eye-level, low angle, high angle, overhead top-down, ground-level, aerial bird's-eye view, over-the-shoulder, point-of-view of a witness, shot through a doorway, grille or window, backlit silhouette; CAMERA MOVEMENTS slow dolly-in, slow dolly-out reveal, lateral tracking shot, crane up, crane down, slow pan, slow tilt, following shot from behind, slow orbit, handheld immersive, static locked-off tripod shot, parallax past a foreground object. Never use the same shot size, the same angle or the same camera movement in two consecutive scenes, and do not let any single camera movement exceed one quarter of all clips. Use the slow orbit and the dolly-out reveal sparingly (at most once every 15 clips each). Never use a dolly zoom, a camera roll, a whip pan or a rack focus.
 - OPTICS IN IMAGE NN ONLY (the clip inherits them from its starting image): add exactly ONE short lens phrase, written as the phrase alone and never with its reason. Allowed phrases: "wide-angle lens" (architecture and landscapes), "35mm lens" or "50mm lens" (scenes with people), "85mm portrait lens, shallow depth of field" (one face), "telephoto lens" (crowds and distant ranks), "macro lens" (textures such as ink, cloth or metal), "deep focus" (when the setting matters as much as the subject). The words in parentheses are guidance for you and must NOT be copied into the prompt. Never name a camera brand or model.
+- ONE OR TWO SHOTS PER CLIP (DECIDE SCENE BY SCENE FROM THE NARRATION): By default a Clip NN is ONE continuous shot. Write a TWO-SHOT clip only when that row's narration clearly holds two distinct beats — it moves to another place, another subject or another moment, or a [pausa] splits the row into two ideas — so that a single shot cannot honestly cover both. Decide it by the scene and the narration, never for variety or to reach a quota. Clip 01, every row marked ★ (Static B-Roll) and every historical support shot are ALWAYS one shot. Format of a two-shot clip: right after "showing" write "first shot, [shot size + one camera movement + subject + its one action], then a hard cut to a second shot, [a DIFFERENT shot size and camera movement + subject + its one action]", each shot filling about half of the clip. The first shot starts exactly on Image NN; the second shot has no starting image, so describe it fully in words (subject age, anonymous role, period attire, setting) and keep it in the same year and wardrobe. Add the tag "[Shots: 2]" immediately before "[Duration:", and in that clip replace the closing words "single continuous shot, strictly no shot changes" with "exactly two shots joined by one hard cut, each shot one continuous take". One-shot clips keep "single continuous shot, strictly no shot changes" and carry no tag.
 - DESCRIBE WHAT IS THERE, NOT WHAT IS MISSING: inside the scene description prefer positive wording ("an empty stone hall", "a deserted quay at dawn") over lists of exclusions. Keep every mandatory closing phrase and safety phrase of this stage exactly as specified.`;
 
   const support =
@@ -185,11 +186,28 @@ export function extractShotPlanTextByScene(rawText: string): Map<number, string>
   return byScene;
 }
 
+/** true when a clip prompt (raw from Gemini or already cleaned by the page) is a two-shot clip. */
+export function isTwoShotClipText(text: string | undefined | null): boolean {
+  const t = String(text || '');
+  return (
+    /\[Shots:\s*2\s*\]/i.test(t) ||
+    /\bthen\s+a\s+hard\s+cut\s+to\s+a\s+second\s+shot\b/i.test(t) ||
+    /\bexactly\s+two\s+shots\s+joined\s+by\s+one\b/i.test(t)
+  );
+}
+
 /** Counts what Gemini actually delivered and returns one Spanish warning per broken rule. */
 export function auditShotPlan(
   clips: ShotPlanClipLike[],
   opts: { totalDocSec: number; rawText?: string }
-): { supportCount: number; archiveCount: number; quota: number; warnings: string[] } {
+): {
+  supportCount: number;
+  archiveCount: number;
+  quota: number;
+  warnings: string[];
+  twoShotCount: number;
+  twoShotClips: number[];
+} {
   const rawByScene = extractShotPlanTextByScene(opts.rawText || '');
   const warnings: string[] = [];
   const quota = getSupportShotQuota(opts.totalDocSec);
@@ -271,5 +289,21 @@ export function auditShotPlan(
     }
   }
 
-  return { supportCount: support.length, archiveCount: archive.length, quota, warnings };
+  // Clips de dos tomas: los decide Gemini por escena; nunca en el Clip 01, en B-roll ni en tomas de apoyo
+  const supportNums = new Set(support.map((s) => s.num));
+  const twoShotNums = sorted.filter((c) => isTwoShotClipText(textOf(c))).map((c) => c.clipNumber);
+  for (const n of twoShotNums) {
+    if (n === 1) warnings.push('Clip 1: llegó con dos tomas y debe ser de una sola.');
+    else if (brollNums.includes(n)) warnings.push(`Clip ${n}: es B-roll y llegó con dos tomas (debe ser una sola).`);
+    else if (supportNums.has(n)) warnings.push(`Clip ${n}: es toma de apoyo y llegó con dos tomas (debe ser una sola).`);
+  }
+
+  return {
+    supportCount: support.length,
+    archiveCount: archive.length,
+    quota,
+    warnings,
+    twoShotCount: twoShotNums.length,
+    twoShotClips: twoShotNums,
+  };
 }
