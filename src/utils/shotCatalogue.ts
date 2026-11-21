@@ -61,28 +61,28 @@ export const ARCHIVE_MEDIA_BY_ERA: Array<{
     key: 'MANUSCRIPT_MINIATURE',
     label: 'Miniatura de manuscrito, tapiz o vitral',
     english:
-      'an illuminated manuscript miniature in tempera and gold leaf on vellum, a woven tapestry or a stained-glass panel',
+      'a full-page illuminated manuscript miniature in tempera and gold leaf on vellum whose painted scene and decorative border fill the whole page, a woven tapestry or a stained-glass panel',
   },
   {
     from: 1450,
     to: 1599,
     key: 'WOODCUT',
     label: 'Xilografía o dibujo a pluma',
-    english: 'a woodcut print with bold carved black lines on laid paper, or a pen drawing',
+    english: 'a woodcut print with bold carved black lines on aged laid paper with plain unlettered margins, or a pen drawing',
   },
   {
     from: 1600,
     to: 1799,
     key: 'COPPER_ENGRAVING',
     label: 'Grabado en cobre o aguafuerte',
-    english: 'a copperplate engraving or etching with fine cross-hatched lines, or an ink-and-wash drawing',
+    english: 'a copperplate engraving or etching with fine cross-hatched lines and plain unlettered margins, or an ink-and-wash drawing',
   },
   {
     from: 1800,
     to: 1839,
     key: 'LITHOGRAPH',
     label: 'Litografía o acuarela',
-    english: 'a lithograph with soft crayon-like grey tones, a watercolour or a press caricature',
+    english: 'a lithograph with soft crayon-like grey tones and plain unlettered margins, or a watercolour',
   },
   {
     from: 1840,
@@ -96,7 +96,7 @@ export const ARCHIVE_MEDIA_BY_ERA: Array<{
     to: 1899,
     key: 'ALBUMEN_PHOTO',
     label: 'Fotografía en albúmina (sepia)',
-    english: 'a warm sepia albumen print photograph mounted on card',
+    english: 'a warm sepia albumen print photograph mounted on a plain unlettered card with worn corners',
   },
   {
     from: 1900,
@@ -150,12 +150,12 @@ export function buildShotDirectionClause(opts: {
             : ''
         }. Never choose Clip 01, the slogan scene or the final scene. Types: ${SUPPORT_SHOT_TYPES.map(
           (t) => `${t} (${SUPPORT_SHOT_DESCRIPTIONS[t]})`
-        ).join('; ')}. A support shot is a normal Image NN + Clip NN pair with zero people. Its Clip NN is camera movement ONLY: write "a static, locked-off scene in which nothing inside the frame moves" plus ONE slow camera movement (slow dolly-in, slow pan, slow tilt or slow dolly-out), and use [Model: Veo 3.1 - Lite [Lower Priority]]. In BOTH its Image NN and its Clip NN write the tags "[Support: TYPE] [Era: YYYY]" immediately before "[Duration:" (for Image NN, immediately before "fix the name"), where YYYY is the approximate year narrated in that scene (negative for BC). Every map, drawing, document or artwork in a support shot must be of a medium that already existed in that year.`
+        ).join('; ')}. A support shot is a normal Image NN + Clip NN pair with zero people. Its Clip NN is camera movement ONLY: write "a static, locked-off scene in which nothing inside the frame moves" plus ONE slow camera movement (slow dolly-in, slow pan, slow tilt or slow dolly-out), and use [Model: Veo 3.1 - Lite [Lower Priority]]. In BOTH its Image NN and its Clip NN write the tags "[Support: TYPE] [Era: YYYY]" immediately before "[Duration:" (for Image NN, immediately before "fix the name"), where YYYY is the approximate year narrated in that scene (negative for BC). Every map, drawing, document or artwork in a support shot must be of a medium that already existed in that year, with plain unlettered margins.`
       : '';
 
   const archive = hasBroll
     ? `
-- ONE PERIOD ARCHIVAL IMAGE PER DOCUMENTARY (EXACTLY ONE): Choose exactly ONE of the rows marked ★ — the one whose narration suits it best — and design its Static B-Roll plate as an archival image made in the medium that existed in the year narrated IN THAT SCENE (decide by the scene, not by the documentary as a whole): ${eraTable}. Add the tags "[Archive: KEY] [Era: YYYY]" immediately before "[Time:" in that Image NN. Never use a photograph of any kind for a scene narrated before 1840. All the other ★ rows stay regular Static B-Roll plates without an [Archive:] tag.`
+- ONE PERIOD ARCHIVAL IMAGE PER DOCUMENTARY (EXACTLY ONE): Choose exactly ONE of the rows marked ★ — the one whose narration suits it best — and design its Static B-Roll plate as an archival image made in the medium that existed in the year narrated IN THAT SCENE (decide by the scene, not by the documentary as a whole): ${eraTable}. Add the tags "[Archive: KEY] [Era: YYYY]" immediately before "[Time:" in that Image NN. Never use a photograph of any kind for a scene narrated before 1840. The archival image is picture only: plain unlettered margins and mount, the image area filled by the scene itself (tested in Nano Banana: when margins are left undescribed it invents captions, dates and lines of script). All the other ★ rows stay regular Static B-Roll plates without an [Archive:] tag.`
     : '';
 
   return `${catalogue}${support}${archive}`;
