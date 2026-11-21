@@ -3508,6 +3508,24 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                   ''
                 ).trim();
                 if (!remaining || remaining.length < 3) return;
+                // Never send the prompt written twice (Gemini answers a doubled long prompt with a blank
+                // response): put it back once through Quill and try again on the next tick.
+                try {
+                  if (cleanExpected.length >= 200 && remaining.length > cleanExpected.length * 1.5) {
+                    const squash = (s) => String(s || '').replace(/\s+/g, ' ');
+                    const probe = squash(cleanExpected.slice(0, 60));
+                    if (squash(remaining).split(probe).length - 1 >= 2) {
+                      const host = inputEl.closest('rich-textarea');
+                      const q = inputEl.__quill || (host && host.__quill);
+                      if (q && typeof q.setText === 'function' && attemptsLeft > 1) {
+                        q.setText(cleanExpected, 'user');
+                        attemptsLeft -= 1;
+                        setTimeout(tryClickSend, 250);
+                        return;
+                      }
+                    }
+                  }
+                } catch {}
                 const btn = findSendBtn();
                 if (btn) {
                   btn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));

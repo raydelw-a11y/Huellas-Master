@@ -201,7 +201,7 @@ import { useNoticeStack } from './utils/noticeStack';
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '09:06 PM - 11/20/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '09:42 PM - 11/20/2026';
 
 // PRODUCTION LOCK: while promptConfig.PRODUCTION_LOCKED === 'YES' these fields never change (the server
 // enforces the same list in protectLockedDocs). Metadata, thumbnails, review marks and reframes stay editable.
@@ -6207,6 +6207,15 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       const textWithHeader = ensureOperationalHeaderInRawClips(text, cleanOpHeader);
       const { clip1Sec, standardClipSec } = getStage1ClipDurations(activeDoc);
       const parsedDirectly = parseClipsFromRawText(textWithHeader, [], clip1Sec, standardClipSec);
+      // Gemini sometimes answers with a blank response (it does when the prompt goes out doubled). That is
+      // a failure, not a result: say so and leave the documentary untouched.
+      if (!/\b(?:Image|Imagen)\s+\[?0*\d+/i.test(text || '')) {
+        setBridgeStatusType('ERROR');
+        setBridgeStatusMsg(
+          '⛔ Gemini devolvió una respuesta vacía en la Etapa 6 (sin ningún prompt). Vuelve a pulsar Generar Prompts en Gemini.'
+        );
+        return;
+      }
       const docRefs = activeDoc.references || [];
       const docCtxText = `${activeDoc.topic || ''} ${activeDoc.voiceoverScript || ''}`;
       const rawSyncedClips = syncAndAuditProductionClips({

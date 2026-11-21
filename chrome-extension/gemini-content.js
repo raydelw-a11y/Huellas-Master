@@ -649,6 +649,58 @@
     return { ...extracted, element: lastEl };
   }
 
+  // The injection paths (paste event, insertText, MAIN-world Quill) can each add the prompt again when
+  // Gemini is slow to enable Send, which happens with long prompts: the message then goes out with the
+  // prompt written twice and Gemini answers with a blank response. Right before sending, a prompt found
+  // two or more times in the box is put back exactly once.
+  function collapseDuplicatedPrompt(inputEl, text, keepNewlines = false) {
+    try {
+      if (!inputEl || inputEl.tagName === 'TEXTAREA' || inputEl.tagName === 'INPUT') return false;
+      const normalizedText = String(text || '').replace(/\r\n/g, '\n').trim();
+      const single = normalizedText
+        .split('\n')
+        .map((l) => l.trim())
+        .filter(Boolean)
+        .join('   |   ');
+      const expectedLen = (keepNewlines ? normalizedText : single).length;
+      if (expectedLen < 200) return false;
+      const cur = (inputEl.innerText || inputEl.textContent || '').trim();
+      if (cur.length < expectedLen * 1.5) return false;
+      const squash = (s) => String(s || '').replace(/\s+/g, ' ');
+      const probe = squash(single.slice(0, 60));
+      if (squash(cur).split(probe).length - 1 < 2) return false;
+      inputEl.focus();
+      const selection = window.getSelection();
+      const range = document.createRange();
+      range.selectNodeContents(inputEl);
+      selection.removeAllRanges();
+      selection.addRange(range);
+      let inserted = false;
+      try {
+        document.execCommand('delete', false);
+        inserted = document.execCommand('insertText', false, single);
+      } catch {}
+      const after = (inputEl.innerText || inputEl.textContent || '').trim();
+      if (!inserted || after.length > expectedLen * 1.5 || after.length < expectedLen * 0.5) {
+        let p = inputEl.querySelector('p');
+        if (!p) {
+          p = document.createElement('p');
+          inputEl.appendChild(p);
+        }
+        p.textContent = single;
+        Array.from(inputEl.querySelectorAll('p')).forEach((node, idx) => {
+          if (idx > 0) node.remove();
+        });
+        inputEl.dispatchEvent(
+          new InputEvent('input', { bubbles: true, composed: true, inputType: 'insertText', data: single })
+        );
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   function setInputText(inputEl, text, keepNewlines = false) {
     inputEl.focus();
 
@@ -4422,6 +4474,9 @@
               continue;
             }
 
+            if (collapseDuplicatedPrompt(currentInputEl, rawPrompt, preserveStageNewlines)) {
+              await sleep(250);
+            }
             let sendBtn = findSendButton();
             if (!sendBtn) {
               // Wake up Quill / Angular FormControl if Send button is still disabled
