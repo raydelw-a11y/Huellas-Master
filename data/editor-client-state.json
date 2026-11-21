@@ -47,7 +47,7 @@
     "_v9_9x16_logo_x10_y3": true,
     "_v10_9x16_captionBottom20": true
   },
-  "updatedAt": "2026-11-21T23:22:42.439Z",
+  "updatedAt": "2026-11-21T23:22:52.648Z",
   "overlayStyles": {
     "logoScalePct": 5,
     "logoOpacity": 95,
@@ -181,10 +181,11 @@
       "foleyVolume": 20,
       "customVolumeSet": false,
       "audioMuted": false,
-      "reframe9x16Mode": "auto_pan",
-      "reframeFocusXStart": 84,
-      "reframeFocusXEnd": 45,
-      "reframeFocusY": 50
+      "reframe9x16Mode": "auto_center",
+      "reframeFocusXStart": 50,
+      "reframeFocusXEnd": 50,
+      "reframeFocusY": 50,
+      "userReframed9x16": true
     },
     {
       "id": "clip-5-1794891908260-dwo3",
