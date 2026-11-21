@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-11-21T00:57:53.241Z",
-    "updatedAt": "2026-11-21T01:05:34.876Z",
+    "updatedAt": "2026-11-21T01:07:55.616Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -18,7 +18,8 @@
       "BROLL_ESTATICO_INTERVALO_MIN": "2",
       "VOZ_NARRATIVA_EN_CLIPS": "INCLUIR",
       "UBICACION_INTRO_MARCA": "INTRO_INICIO_00",
-      "FIELD_CLEARED_AT_voiceoverScript": "0"
+      "FIELD_CLEARED_AT_voiceoverScript": "0",
+      "GEMINI_CHAT_URL": "https://gemini.google.com/app/bdee564ddf4bf54b"
     },
     "compiledMasterPrompt": "",
     "topic": "El Puente de Londres: la calle que flotó 600 años sobre el Támesis",
@@ -321,13 +322,16 @@
         "narrationSegment": "(00:08 - 00:16 Sin Voz Narrativa — La voz entra en 00:16)",
         "pauseNotes": "Sin locución en el tramo inicial (00:08 - 00:16)",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "reviewedForEditor": false,
         "recreated": false,
         "videoSavedFileName": "01_create_a_cinematic_6_second_4bcd0a45_4K.mp4",
-        "auditStatus": "warning",
+        "auditStatus": "ok",
         "auditReason": "Pendiente de generar prompts de Imagen Inicial y Video en Gemini (pulsa el botón \"✨ Generar Prompts en Gemini\").",
-        "videoSavedAt": 1795223135658
+        "videoSavedAt": 1795223135658,
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-2-1795223134874-2",
@@ -340,13 +344,16 @@
         "narrationSegment": "Año 1209, Puente de Londres, Inglaterra. Tras 33 años de obras, la ciudad inaugura el primer puente de piedra sobre el Támesis, una calle",
         "pauseNotes": "",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "reviewedForEditor": false,
         "recreated": false,
         "videoSavedFileName": "02_Ano_1941_Enfermeria_Radcliffe_Oxford_Inglaterra_4K.mp4",
         "videoSavedAt": 1795223135658,
-        "auditStatus": "warning",
-        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\")."
+        "auditStatus": "ok",
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-3-1795223134874-3",
@@ -359,13 +366,16 @@
         "narrationSegment": "habitada que flotará sobre el río durante más de 600 años. [pausa: 1.5s] En los próximos minutos descubrirás cómo un puente medieval se",
         "pauseNotes": "Contiene [pausa: 1.5s] en la locución",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "reviewedForEditor": false,
         "recreated": false,
         "videoSavedFileName": "03_create_a_cinematic_8_second_d8115b23_4K.mp4",
         "videoSavedAt": 1795223135658,
-        "auditStatus": "warning",
-        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\")."
+        "auditStatus": "ok",
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-4-1795223134874-4",
@@ -378,13 +388,16 @@
         "narrationSegment": "convirtió en barrio, mercado, fortaleza y patíbulo, y por qué Londres terminó derribando su monumento más famoso. Cada historia deja una",
         "pauseNotes": "",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "reviewedForEditor": false,
         "recreated": false,
         "videoSavedFileName": "04_create_a_cinematic_8_second_9f89be36_4K.mp4",
         "videoSavedAt": 1795223135658,
-        "auditStatus": "warning",
-        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\")."
+        "auditStatus": "ok",
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-5-1795223134874-5",
@@ -397,13 +410,16 @@
         "narrationSegment": "huella. Aquí seguimos sus rastros. [pausa: 2s] Todo comienza en 1176, cuando el sacerdote Peter de Colechurch recibe el",
         "pauseNotes": "Contiene [pausa: 2s] en la locución",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "reviewedForEditor": false,
         "recreated": false,
         "videoSavedFileName": "05_create_a_cinematic_8_second_77a1f962_4K.mp4",
         "videoSavedAt": 1795223135658,
-        "auditStatus": "warning",
-        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\")."
+        "auditStatus": "ok",
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-6-1795223134874-6",
@@ -416,13 +432,16 @@
         "narrationSegment": "encargo de sustituir el viejo puente de madera, quemado y reconstruido una y otra vez. Durante tres décadas, cientos de obreros hincan estacas",
         "pauseNotes": "",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "reviewedForEditor": false,
         "recreated": false,
         "videoSavedFileName": "06_create_a_cinematic_8_second_fe849478_4K.mp4",
         "videoSavedAt": 1795223135658,
-        "auditStatus": "warning",
-        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\")."
+        "auditStatus": "ok",
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-7-1795223134874-7",
@@ -435,13 +454,16 @@
         "narrationSegment": "de olmo en el lecho del río y levantan sobre ellas 19 arcos de piedra desiguales. [pausa: 1.5s] Los pilares son tan anchos que estrechan",
         "pauseNotes": "Contiene [pausa: 1.5s] en la locución",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "reviewedForEditor": false,
         "recreated": false,
         "videoSavedFileName": "07_create_a_cinematic_8_second_8a0e5be8_4K.mp4",
         "videoSavedAt": 1795223135658,
-        "auditStatus": "warning",
-        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\")."
+        "auditStatus": "ok",
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-8-1795223134874-8",
@@ -454,13 +476,16 @@
         "narrationSegment": "el cauce a la mitad. El agua se acelera entre ellos como en una presa, y cruzar bajo los arcos en bote se vuelve una apuesta mortal que los",
         "pauseNotes": "",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "reviewedForEditor": false,
         "recreated": false,
         "videoSavedFileName": "08_create_a_cinematic_8_second_3d797e03_4K.mp4",
         "videoSavedAt": 1795223135658,
-        "auditStatus": "warning",
-        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\")."
+        "auditStatus": "ok",
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-9-1795223134874-9",
@@ -473,13 +498,16 @@
         "narrationSegment": "barqueros llaman disparar el puente. [pausa: 1.5s] En el centro se alza una capilla dedicada a Tomás Becket, donde los peregrinos",
         "pauseNotes": "Contiene [pausa: 1.5s] en la locución",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "reviewedForEditor": false,
         "recreated": false,
         "videoSavedFileName": "09_create_a_cinematic_8_second_0cf4c630_4K.mp4",
         "videoSavedAt": 1795223135658,
-        "auditStatus": "warning",
-        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\")."
+        "auditStatus": "ok",
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-10-1795223134874-10",
@@ -492,13 +520,16 @@
         "narrationSegment": "rezan antes de partir hacia Canterbury. Y muy pronto, sobre la calzada de apenas 4 metros de ancho, empiezan a levantarse casas.",
         "pauseNotes": "",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "reviewedForEditor": false,
         "recreated": false,
         "videoSavedFileName": "10_create_a_cinematic_8_second_1fff4388_4K.mp4",
         "videoSavedAt": 1795223135658,
-        "auditStatus": "warning",
-        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\")."
+        "auditStatus": "ok",
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-11-1795223134874-11",
@@ -511,13 +542,16 @@
         "narrationSegment": "[pausa: 2s] Mantenerlo cuesta una fortuna. En 1281 el hielo del invierno arranca cinco arcos de golpe, y la reina Leonor es acusada",
         "pauseNotes": "Contiene [pausa: 2s] en la locución",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "reviewedForEditor": false,
         "recreated": false,
         "videoSavedFileName": "11_create_a_cinematic_8_second_02b868e8_4K.mp4",
         "videoSavedAt": 1795223135658,
-        "auditStatus": "warning",
-        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\")."
+        "auditStatus": "ok",
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-12-1795223134874-12",
@@ -530,13 +564,16 @@
         "narrationSegment": "de gastar los fondos en sus propios asuntos. [pausa: 1.5s] Cada pilar descansa sobre una isla artificial de estacas y escombros con",
         "pauseNotes": "Contiene [pausa: 1.5s] en la locución",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "reviewedForEditor": false,
         "recreated": false,
         "videoSavedFileName": "12_Physician_studies_chart_67a33dd3_4K.mp4",
         "videoSavedAt": 1795223135658,
-        "auditStatus": "warning",
-        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\")."
+        "auditStatus": "ok",
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-13-1795223134874-13",
@@ -549,13 +586,16 @@
         "narrationSegment": "forma de barca, llamada tajamar. Bajo dos de los arcos giran enormes ruedas de madera que muelen grano y, desde 1581, bombean agua del río hacia",
         "pauseNotes": "",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "reviewedForEditor": false,
         "recreated": false,
         "videoSavedFileName": "13_Physician_using_glass_pipette_c91e1e39_4K.mp4",
         "videoSavedAt": 1795223135658,
-        "auditStatus": "warning",
-        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\")."
+        "auditStatus": "ok",
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-14-1795223134874-14",
@@ -568,13 +608,16 @@
         "narrationSegment": "las casas de la ciudad. [pausa: 2s] Hacia 1358 el puente sostiene 138 tiendas. Merceros, guanteros, libreros y fabricantes",
         "pauseNotes": "Contiene [pausa: 2s] en la locución",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "reviewedForEditor": false,
         "recreated": false,
         "videoSavedFileName": "14_create_a_cinematic_8_second_38fa30f9_4K.mp4",
         "videoSavedAt": 1795223135658,
-        "auditStatus": "warning",
-        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\")."
+        "auditStatus": "ok",
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-15-1795223134874-15",
@@ -587,13 +630,16 @@
         "narrationSegment": "de agujas pagan alquileres que financian las reparaciones. Los edificios crecen hasta cinco pisos y se unen por arriba con vigas, de",
         "pauseNotes": "",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "reviewedForEditor": false,
         "recreated": false,
         "videoSavedFileName": "15_create_a_cinematic_8_second_6ae2fc0d_4K.mp4",
         "videoSavedAt": 1795223135658,
-        "auditStatus": "warning",
-        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\")."
+        "auditStatus": "ok",
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-16-1795223134874-16",
@@ -606,13 +652,16 @@
         "narrationSegment": "modo que quien cruza camina por un túnel oscuro de madera y voces. [pausa: 1.5s] La vida ahí arriba tiene ventajas inesperadas. El río",
         "pauseNotes": "Contiene [pausa: 1.5s] en la locución",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "reviewedForEditor": false,
         "recreated": false,
         "videoSavedFileName": "16_create_a_cinematic_8_second_video_698399b1_4K.mp4",
         "videoSavedAt": 1795223135658,
-        "auditStatus": "warning",
-        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\")."
+        "auditStatus": "ok",
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-17-1795223134874-17",
@@ -625,13 +674,16 @@
         "narrationSegment": "se lleva la basura, el viento barre el humo, y durante la gran peste de 1665 los vecinos del puente mueren mucho menos que los de las calles",
         "pauseNotes": "",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "reviewedForEditor": false,
         "recreated": false,
         "videoSavedFileName": "17_create_a_cinematic_8_second_7c7428d8_4K.mp4",
         "videoSavedAt": 1795223135658,
-        "auditStatus": "warning",
-        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\")."
+        "auditStatus": "ok",
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-18-1795223134874-18",
@@ -644,15 +696,18 @@
         "narrationSegment": "vecinas. Las letrinas cuelgan directamente sobre el agua, y los barqueros aprenden pronto a no pasar por debajo sin mirar. [pausa: 1.5s]",
         "pauseNotes": "Contiene [pausa: 1.5s] en la locución",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "reviewedForEditor": false,
         "recreated": false,
         "videoSavedFileName": "18_Create_an_image_in_16_Broll_4K.mp4",
         "videoSavedAt": 1795223135658,
-        "auditStatus": "warning",
+        "auditStatus": "ok",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "isStaticBroll": true,
-        "brollCameraMotion": "zoom_in"
+        "brollCameraMotion": "zoom_in",
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-19-1795223134875-19",
@@ -665,13 +720,16 @@
         "narrationSegment": "A mitad del recorrido, un puente levadizo permite el paso de los barcos de mástil alto y corta el acceso en caso de ataque. En 1381, durante",
         "pauseNotes": "",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "reviewedForEditor": false,
         "recreated": false,
         "videoSavedFileName": "19_create_a_cinematic_8_second_49483cb1_4K.mp4",
         "videoSavedAt": 1795223135658,
-        "auditStatus": "warning",
-        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\")."
+        "auditStatus": "ok",
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-20-1795223134875-20",
@@ -684,13 +742,16 @@
         "narrationSegment": "la revuelta campesina, alguien lo baja desde dentro y miles de rebeldes entran en Londres sin encontrar resistencia. [pausa: 2s]",
         "pauseNotes": "Contiene [pausa: 2s] en la locución",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "reviewedForEditor": false,
         "recreated": false,
         "videoSavedFileName": "20_create_a_cinematic_8_second_da4c71cf_4K.mp4",
         "videoSavedAt": 1795223135658,
-        "auditStatus": "warning",
-        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\")."
+        "auditStatus": "ok",
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-21-1795223134875-21",
@@ -703,13 +764,16 @@
         "narrationSegment": "En la puerta sur aparece la costumbre más siniestra. Desde 1305, la cabeza del rebelde escocés William Wallace, hervida y bañada",
         "pauseNotes": "Contiene [pausa: 2s] en la locución",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "reviewedForEditor": false,
         "recreated": false,
         "videoSavedFileName": "21_create_a_cinematic_8_second_video_4db99d4b_4K.mp4",
         "videoSavedAt": 1795223135658,
-        "auditStatus": "warning",
-        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\")."
+        "auditStatus": "ok",
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-22-1795223134875-22",
@@ -722,13 +786,16 @@
         "narrationSegment": "en alquitrán, queda clavada en una pica sobre la entrada. Durante 350 años, traidores y condenados compartirán ese lugar frente a los",
         "pauseNotes": "",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "reviewedForEditor": false,
         "recreated": false,
         "videoSavedFileName": "22_create_a_cinematic_8_second_video_751661e8_4K.mp4",
         "videoSavedAt": 1795223135658,
-        "auditStatus": "warning",
-        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\")."
+        "auditStatus": "ok",
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-23-1795223134875-23",
@@ -741,13 +808,16 @@
         "narrationSegment": "viajeros. [pausa: 2s] En 1450 los rebeldes de Jack Cade toman el puente y combaten de noche entre las casas. Muchos vecinos caen",
         "pauseNotes": "Contiene [pausa: 2s] en la locución",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "reviewedForEditor": false,
         "recreated": false,
         "videoSavedFileName": "23_create_a_cinematic_8_second_video_de5f3c8a_4K.mp4",
         "videoSavedAt": 1795223135658,
-        "auditStatus": "warning",
-        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\")."
+        "auditStatus": "ok",
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-24-1795223134875-24",
@@ -760,13 +830,16 @@
         "narrationSegment": "al río con sus armaduras. Poco después, en 1577, se levanta la casa de Nonsuch, un palacio de madera traído en piezas desde Holanda y ensamblado",
         "pauseNotes": "",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "reviewedForEditor": false,
         "recreated": false,
         "videoSavedFileName": "24_create_a_cinematic_8_second_video_39bc2cfa_4K.mp4",
         "videoSavedAt": 1795223135658,
-        "auditStatus": "warning",
-        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\")."
+        "auditStatus": "ok",
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-25-1795223134875-25",
@@ -779,13 +852,16 @@
         "narrationSegment": "sin un solo clavo de hierro. [pausa: 1.5s] En 1212 ocurre la primera gran tragedia. Un incendio estalla en la orilla sur y la",
         "pauseNotes": "Contiene [pausa: 1.5s] en la locución",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "reviewedForEditor": false,
         "recreated": false,
         "videoSavedFileName": "25_create_a_cinematic_8_second_video_29287299_4K.mp4",
         "videoSavedAt": 1795223135658,
-        "auditStatus": "warning",
-        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\")."
+        "auditStatus": "ok",
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-26-1795223134875-26",
@@ -798,13 +874,16 @@
         "narrationSegment": "multitud corre al puente para ayudar o para mirar. Las crónicas hablan de 3 mil muertos, una cifra que hoy los historiadores consideran",
         "pauseNotes": "",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "reviewedForEditor": false,
         "recreated": false,
         "videoSavedFileName": "26_create_a_cinematic_8_second_video_a13cda38_4K.mp4",
         "videoSavedAt": 1795223135658,
-        "auditStatus": "warning",
-        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\")."
+        "auditStatus": "ok",
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-27-1795223134875-27",
@@ -817,13 +896,16 @@
         "narrationSegment": "exagerada. [pausa: 1.5s] Un siglo y medio después, en 1390, el puente es escenario de un torneo. Un caballero escocés y un lord inglés se",
         "pauseNotes": "Contiene [pausa: 1.5s] en la locución",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "reviewedForEditor": false,
         "recreated": false,
         "videoSavedFileName": "27_create_a_cinematic_8_second_video_a1ebeddd_4K.mp4",
         "videoSavedAt": 1795223135658,
-        "auditStatus": "warning",
-        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\")."
+        "auditStatus": "ok",
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-28-1795223134875-28",
@@ -836,15 +918,18 @@
         "narrationSegment": "enfrentan a lanza sobre la calzada ante el rey Ricardo II. Y en 1536, la hija pequeña de un mercader cae por una ventana al río y es rescatada",
         "pauseNotes": "",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "reviewedForEditor": false,
         "recreated": false,
         "videoSavedFileName": "28_Create_an_image_in_16_Broll_4K.mp4",
         "videoSavedAt": 1795223135658,
-        "auditStatus": "warning",
+        "auditStatus": "ok",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "isStaticBroll": true,
-        "brollCameraMotion": "zoom_in"
+        "brollCameraMotion": "zoom_in",
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-29-1795223134875-29",
@@ -857,13 +942,16 @@
         "narrationSegment": "por un aprendiz que años más tarde se casará con ella y llegará a ser alcalde de Londres. [pausa: 2s] El fuego es la amenaza",
         "pauseNotes": "Contiene [pausa: 2s] en la locución",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "reviewedForEditor": false,
         "recreated": false,
         "videoSavedFileName": "29_create_a_cinematic_8_second_video_530d5f28_4K.mp4",
         "videoSavedAt": 1795223135658,
-        "auditStatus": "warning",
-        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\")."
+        "auditStatus": "ok",
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-30-1795223134875-30",
@@ -876,13 +964,16 @@
         "narrationSegment": "constante. En 1633 un incendio destruye un tercio de las viviendas del extremo norte. Ese hueco vacío salvará al resto en 1666, cuando el Gran",
         "pauseNotes": "",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "reviewedForEditor": false,
         "recreated": false,
         "videoSavedFileName": "30_Director_examining_flask_in_office_4c723756_4K.mp4",
         "videoSavedAt": 1795223135658,
-        "auditStatus": "warning",
-        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\")."
+        "auditStatus": "ok",
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-31-1795223134875-31",
@@ -895,13 +986,16 @@
         "narrationSegment": "Incendio de Londres devora la ciudad y las llamas se detienen justo donde ya no quedaba nada que quemar. [pausa: 2s] Los",
         "pauseNotes": "Contiene [pausa: 2s] en la locución",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "reviewedForEditor": false,
         "recreated": false,
         "videoSavedFileName": "31_create_a_cinematic_8_second_video_fcbeeefd_4K.mp4",
         "videoSavedAt": 1795223135658,
-        "auditStatus": "warning",
-        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\")."
+        "auditStatus": "ok",
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-32-1795223134875-32",
@@ -914,13 +1008,16 @@
         "narrationSegment": "inviernos traen otro espectáculo. Los pilares frenan tanto la corriente que, aguas arriba, el Támesis llega a congelarse por completo. Las",
         "pauseNotes": "",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "reviewedForEditor": false,
         "recreated": false,
         "videoSavedFileName": "32_create_a_cinematic_8_second_cde23c68_4K.mp4",
         "videoSavedAt": 1795223135658,
-        "auditStatus": "warning",
-        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\")."
+        "auditStatus": "ok",
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-33-1795223134875-33",
@@ -933,13 +1030,16 @@
         "narrationSegment": "llaman ferias de la escarcha. [pausa: 1.5s] La última se celebra en febrero de 1814. Un elefante cruza el río helado junto al puente de",
         "pauseNotes": "Contiene [pausa: 1.5s] en la locución",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "reviewedForEditor": false,
         "recreated": false,
         "videoSavedFileName": "33_create_a_cinematic_8_second_a164be7a_4K.mp4",
         "videoSavedAt": 1795223135658,
-        "auditStatus": "warning",
-        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\")."
+        "auditStatus": "ok",
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-34-1795223134875-34",
@@ -952,13 +1052,16 @@
         "narrationSegment": "Blackfriars mientras los impresores venden recuerdos estampados sobre el hielo. Cuando el viejo puente desaparezca, la corriente volverá",
         "pauseNotes": "",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "reviewedForEditor": false,
         "recreated": false,
         "videoSavedFileName": "34_create_a_cinematic_8_second_video_3d55e994_4K.mp4",
         "videoSavedAt": 1795223135658,
-        "auditStatus": "warning",
-        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\")."
+        "auditStatus": "ok",
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-35-1795223134875-35",
@@ -971,13 +1074,16 @@
         "narrationSegment": "a correr libre y el Támesis no se congelará nunca más en Londres. [pausa: 2s] En el siglo XVIII el puente es un estorbo. Los",
         "pauseNotes": "Contiene [pausa: 2s] en la locución",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "reviewedForEditor": false,
         "recreated": false,
         "videoSavedFileName": "35_create_a_cinematic_8_second_video_0edf6ca0_4K.mp4",
         "videoSavedAt": 1795223135658,
-        "auditStatus": "warning",
-        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\")."
+        "auditStatus": "ok",
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-36-1795223134875-36",
@@ -990,13 +1096,16 @@
         "narrationSegment": "carruajes tardan una hora en cruzarlo y en 1722 el alcalde ordena, por primera vez en Inglaterra, que el tráfico circule por la izquierda.",
         "pauseNotes": "",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "reviewedForEditor": false,
         "recreated": false,
         "videoSavedFileName": "36_create_a_cinematic_8_second_video_4c1eb370_4K.mp4",
         "videoSavedAt": 1795223135658,
-        "auditStatus": "warning",
-        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\")."
+        "auditStatus": "ok",
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-37-1795223134875-37",
@@ -1009,13 +1118,16 @@
         "narrationSegment": "Entre 1758 y 1762 se derriban todas las casas y se ensancha el arco central. [pausa: 1.5s] Pero la estructura medieval ya no resiste.",
         "pauseNotes": "Contiene [pausa: 1.5s] en la locución",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "reviewedForEditor": false,
         "recreated": false,
         "videoSavedFileName": "37_create_a_cinematic_8_second_video_579ee378_4K.mp4",
         "videoSavedAt": 1795223135658,
-        "auditStatus": "warning",
-        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\")."
+        "auditStatus": "ok",
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-38-1795223134875-38",
@@ -1028,13 +1140,16 @@
         "narrationSegment": "En 1799 se convoca un concurso para reemplazarla y el ingeniero John Rennie diseña cinco arcos de granito. Su hijo dirige las obras desde",
         "pauseNotes": "",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "reviewedForEditor": false,
         "recreated": false,
         "videoSavedFileName": "38_create_a_cinematic_8_second_video_85509bae_4K.mp4",
         "videoSavedAt": 1795223135658,
-        "auditStatus": "warning",
-        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\")."
+        "auditStatus": "ok",
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-39-1795223134875-39",
@@ -1047,15 +1162,18 @@
         "narrationSegment": "1824, a 30 metros río arriba del viejo puente, que sigue en uso mientras tanto. [pausa: 1.5s] La construcción dura siete años y cuesta",
         "pauseNotes": "Contiene [pausa: 1.5s] en la locución",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "reviewedForEditor": false,
         "recreated": false,
         "videoSavedFileName": "39_Create_an_image_in_16_Broll_4K.mp4",
         "videoSavedAt": 1795223135658,
-        "auditStatus": "warning",
+        "auditStatus": "ok",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "isStaticBroll": true,
-        "brollCameraMotion": "zoom_in"
+        "brollCameraMotion": "zoom_in",
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-40-1795223134876-40",
@@ -1068,13 +1186,16 @@
         "narrationSegment": "la vida a unos 40 obreros. Cada bloque de granito llega por mar desde Dartmoor y Escocia. Para abrir los accesos se derriban calles enteras",
         "pauseNotes": "",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "reviewedForEditor": false,
         "recreated": false,
         "videoSavedFileName": "40_create_a_cinematic_8_second_video_dd7e8aef_4K.mp4",
         "videoSavedAt": 1795223135658,
-        "auditStatus": "warning",
-        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\")."
+        "auditStatus": "ok",
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-41-1795223134876-41",
@@ -1087,13 +1208,16 @@
         "narrationSegment": "y la iglesia de San Miguel, y el coste final supera los 2 millones de libras, una suma descomunal para la época. [pausa: 1.5s] El",
         "pauseNotes": "Contiene [pausa: 1.5s] en la locución",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "reviewedForEditor": false,
         "recreated": false,
         "videoSavedFileName": "41_create_a_cinematic_8_second_video_db2bd31c_4K.mp4",
         "videoSavedAt": 1795223135658,
-        "auditStatus": "warning",
-        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\")."
+        "auditStatus": "ok",
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-42-1795223134876-42",
@@ -1106,13 +1230,16 @@
         "narrationSegment": "primero de agosto de 1831, el rey Guillermo IV inaugura el nuevo Puente de Londres con un banquete bajo una carpa. Semanas después comienzan a",
         "pauseNotes": "",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "reviewedForEditor": false,
         "recreated": false,
         "videoSavedFileName": "42_create_a_cinematic_8_second_video_2fde4ec1_4K.mp4",
         "videoSavedAt": 1795223135658,
-        "auditStatus": "warning",
-        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\")."
+        "auditStatus": "ok",
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-43-1795223134876-43",
@@ -1125,15 +1252,18 @@
         "narrationSegment": "desmontar piedra por piedra los arcos de 1209, tras 622 años de servicio. [pausa: 2s] El puente de Rennie tampoco será eterno.",
         "pauseNotes": "Contiene [pausa: 2s] en la locución",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "reviewedForEditor": false,
         "recreated": false,
         "videoSavedFileName": "43_Create_an_image_in_16_Broll_4K.mp4",
         "videoSavedAt": 1795223135658,
-        "auditStatus": "warning",
+        "auditStatus": "ok",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "isStaticBroll": true,
-        "brollCameraMotion": "zoom_in"
+        "brollCameraMotion": "zoom_in",
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-44-1795223134876-44",
@@ -1146,13 +1276,16 @@
         "narrationSegment": "En 1968 se vende a un empresario estadounidense, que lo traslada bloque a bloque hasta el desierto de Arizona, donde todavía cruza un lago",
         "pauseNotes": "",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "reviewedForEditor": false,
         "recreated": false,
         "videoSavedFileName": "44_create_a_cinematic_8_second_video_c3f588ba_4K.mp4",
         "videoSavedAt": 1795223135658,
-        "auditStatus": "warning",
-        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\")."
+        "auditStatus": "ok",
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-45-1795223134876-45",
@@ -1165,13 +1298,16 @@
         "narrationSegment": "artificial. [pausa: 1.5s] Del puente habitado solo quedan algunos sillares en un patio de iglesia y los grabados de quienes lo",
         "pauseNotes": "Contiene [pausa: 1.5s] en la locución",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "reviewedForEditor": false,
         "recreated": false,
         "videoSavedFileName": "45_create_a_cinematic_8_second_video_7e360369_4K.mp4",
         "videoSavedAt": 1795223135658,
-        "auditStatus": "warning",
-        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\")."
+        "auditStatus": "ok",
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-46-1795223134876-46",
@@ -1184,13 +1320,16 @@
         "narrationSegment": "dibujaron. Déjanos saber en los comentarios si te habrías atrevido a vivir en una casa suspendida sobre el río. [pausa: 1.5s] Cada historia",
         "pauseNotes": "Contiene [pausa: 1.5s] en la locución",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "reviewedForEditor": false,
         "recreated": false,
         "videoSavedFileName": "46_create_a_cinematic_8_second_video_ab0c9aae_4K.mp4",
         "videoSavedAt": 1795223135658,
-        "auditStatus": "warning",
-        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\")."
+        "auditStatus": "ok",
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-47-1795223134876-47",
@@ -1203,15 +1342,18 @@
         "narrationSegment": "deja una huella. Aquí seguimos sus rastros.",
         "pauseNotes": "",
         "imageReady": false,
-        "videoReady": false,
+        "videoReady": true,
         "reviewedForEditor": false,
         "recreated": false,
         "videoSavedFileName": "47_Create_an_image_in_16_Broll_4K.mp4",
         "videoSavedAt": 1795223135658,
-        "auditStatus": "warning",
+        "auditStatus": "ok",
         "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "isStaticBroll": true,
-        "brollCameraMotion": "zoom_in"
+        "brollCameraMotion": "zoom_in",
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       }
     ],
     "capcutRawSrt": "",
@@ -1242,7 +1384,9 @@
     "pinnedComment": "",
     "flowVideoEngine": "HYBRID_PEOPLE_OMNI_REST_LOWER",
     "downloadFolderName": "",
-    "downloadFolderPath": ""
+    "downloadFolderPath": "",
+    "geminiChatUrl": "https://gemini.google.com/app/bdee564ddf4bf54b",
+    "geminiChatTitle": "Prueba"
   },
   {
     "id": "doc-1793066748998-7if4",
