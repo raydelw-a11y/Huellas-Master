@@ -1958,6 +1958,21 @@ function mergeServerDocObjects(winner: any, other: any) {
   } else if (!baseWinner.flowVideoEngine && other.flowVideoEngine) {
     baseWinner.flowVideoEngine = other.flowVideoEngine;
   }
+  // Caption settings (CAPTION_*) merge as one group by CAPTION_SETTINGS_UPDATED_AT, not by the doc's
+  // updatedAt: a stale copy saved later (another device, a remote Gemini task) must not roll them back.
+  try {
+    const wCapTs = Number(baseWinner.promptConfig?.CAPTION_SETTINGS_UPDATED_AT || 0);
+    const oCapTs = Number(other.promptConfig?.CAPTION_SETTINGS_UPDATED_AT || 0);
+    const oPc: Record<string, any> = other.promptConfig || {};
+    const pc: Record<string, any> = { ...(baseWinner.promptConfig || {}) };
+    if (oCapTs > wCapTs) {
+      for (const k of Object.keys(pc)) if (k.startsWith('CAPTION_') && !(k in oPc)) delete pc[k];
+      for (const k of Object.keys(oPc)) if (k.startsWith('CAPTION_')) pc[k] = oPc[k];
+    } else {
+      for (const k of Object.keys(oPc)) if (k.startsWith('CAPTION_') && pc[k] === undefined) pc[k] = oPc[k];
+    }
+    baseWinner.promptConfig = pc;
+  } catch {}
   let mergedClips = mergeServerClipsPreservingAuthored(
     baseWinner.clips,
     other.clips,
@@ -2710,6 +2725,15 @@ app.put('/api/documentaries/:id', (req, res) => {
         if (pcCleared > 0 && pcCleared <= effectivePromptsRestoredAt) {
           nextPc.FIELD_CLEARED_AT_rawClipsText = '0';
         }
+      }
+      // A promptConfig patch carries the client's whole promptConfig; if its caption stamp is older
+      // than the disk's, its CAPTION_* values are stale and the disk's caption settings are kept.
+      const diskPc: Record<string, any> = currentDiskDoc.promptConfig || {};
+      const diskCapTs = Number(diskPc.CAPTION_SETTINGS_UPDATED_AT || 0);
+      const incCapTs = Number(incomingBody?.promptConfig?.CAPTION_SETTINGS_UPDATED_AT || 0);
+      if (surgicalPatch.promptConfig && diskCapTs > incCapTs) {
+        for (const k of Object.keys(nextPc)) if (k.startsWith('CAPTION_') && !(k in diskPc)) delete nextPc[k];
+        for (const k of Object.keys(diskPc)) if (k.startsWith('CAPTION_')) nextPc[k] = diskPc[k];
       }
       surgicalPatch.promptConfig = nextPc;
     }
@@ -7796,7 +7820,7 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
               savedClientState.overlayStyles.captionBottomPct >= 2
             ? savedClientState.overlayStyles.captionBottomPct
             : isVertical916
-            ? 15.5
+            ? 20
             : 10;
         const capMarginV = Math.round(outH * (reqBottomPct / 100));
         const capWideOffsetY = Math.max(2, Math.round(refShortSide * 0.004));

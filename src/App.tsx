@@ -201,7 +201,7 @@ import { useNoticeStack } from './utils/noticeStack';
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '05:17 PM - 11/21/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '06:16 PM - 11/21/2026';
 
 // PRODUCTION LOCK: while promptConfig.PRODUCTION_LOCKED === 'YES' these fields never change (the server
 // enforces the same list in protectLockedDocs). Metadata, thumbnails, review marks and reframes stay editable.
@@ -5320,6 +5320,19 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     const allowedClearSet = new Set(options?.allowClearFields || []);
     const protectedFieldSet = new Set<string>(PROTECTED_DOC_TEXT_FIELDS);
     const sanitizedPatch: Partial<DocumentaryProject> = { ...patch };
+
+    // Caption settings carry their own timestamp so a stale copy of the documentary (another device,
+    // a remote Gemini task) that wins the merge on updatedAt cannot roll back the caption height/style.
+    if (sanitizedPatch.promptConfig) {
+      const basePc: Record<string, any> = currentBaseDoc.promptConfig || {};
+      const nextPc: Record<string, any> = sanitizedPatch.promptConfig as any;
+      const captionChanged = Object.keys(nextPc).some(
+        (k) => k.startsWith('CAPTION_') && k !== 'CAPTION_SETTINGS_UPDATED_AT' && JSON.stringify(nextPc[k]) !== JSON.stringify(basePc[k])
+      );
+      if (captionChanged) {
+        sanitizedPatch.promptConfig = { ...nextPc, CAPTION_SETTINGS_UPDATED_AT: String(Date.now()) } as any;
+      }
+    }
 
     // 0. Production lock: the lock itself only changes through setDocProductionLock, and while locked the
     //    script, voice, timeline, subtitles and clip structure are never rewritten (automatic or manual).
@@ -26570,7 +26583,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                 if (typeof p === 'number') return p;
                               }
                             } catch {}
-                            return 15;
+                            return 20;
                           })();
 
                     const effColor: 'white' | 'amber' | 'custom' =

@@ -2381,6 +2381,22 @@ function mergeTwoDocumentaryObjects(
       : {}),
   };
 
+  // Caption settings (CAPTION_*) merge as one group by CAPTION_SETTINGS_UPDATED_AT, not by the doc's
+  // updatedAt: a stale copy saved later (another device, a remote Gemini task) must not roll them back.
+  {
+    const wCapTs = Number(baseWinner.promptConfig?.CAPTION_SETTINGS_UPDATED_AT || 0);
+    const oCapTs = Number(oNorm.promptConfig?.CAPTION_SETTINGS_UPDATED_AT || 0);
+    const oPc: Record<string, any> = oNorm.promptConfig || {};
+    const pc: Record<string, any> = { ...(baseWinner.promptConfig || {}) };
+    if (oCapTs > wCapTs) {
+      for (const k of Object.keys(pc)) if (k.startsWith('CAPTION_') && !(k in oPc)) delete pc[k];
+      for (const k of Object.keys(oPc)) if (k.startsWith('CAPTION_')) pc[k] = oPc[k];
+    } else {
+      for (const k of Object.keys(oPc)) if (k.startsWith('CAPTION_') && pc[k] === undefined) pc[k] = oPc[k];
+    }
+    baseWinner = { ...baseWinner, promptConfig: pc };
+  }
+
   const wWasHybrid =
     (wNorm.flowVideoEngine || 'HYBRID_PEOPLE_OMNI_REST_LOWER') ===
     'HYBRID_PEOPLE_OMNI_REST_LOWER';

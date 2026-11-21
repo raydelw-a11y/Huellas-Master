@@ -1711,6 +1711,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         if (!parsed._v9_9x16_logo_x10_y3 && parsed?.['9:16']) {
           parsed['9:16'] = { ...parsed['9:16'], logoPosX: 10, logoPosY: 3 };
         }
+        if (!parsed._v10_9x16_captionBottom20 && parsed?.['9:16']) {
+          parsed['9:16'] = { ...parsed['9:16'], captionBottomPct: 20 };
+        }
         return parsed?.[aspectRatio] || null;
       }
     } catch {}
@@ -2578,7 +2581,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       : typeof initialOverlayStyles.captionBottomPct === 'number'
       ? initialOverlayStyles.captionBottomPct
       : aspectRatio === '9:16'
-      ? 25
+      ? 20
       : 10;
   });
   const [captionColor, setCaptionColor] = useState<'white' | 'amber' | 'custom'>(() => {
@@ -3053,7 +3056,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       hookBoxWidthPct: 88,
       captionFontSize: 21,
       captionWordsPerLine: 3,
-      captionBottomPct: 25,
+      captionBottomPct: 20,
       captionLineMode: 'subdivide',
       captionMaxChars: 16,
     };
@@ -3094,6 +3097,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         if (!parsed._v9_9x16_logo_x10_y3) {
           saved9x16.logoPosX = 10;
           saved9x16.logoPosY = 3;
+        }
+        if (!parsed._v10_9x16_captionBottom20) {
+          saved9x16.captionBottomPct = 20;
         }
         return {
           '16:9': { ...default16x9, ...saved16x9 },
@@ -3163,6 +3169,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           _v7_9x16_captions22: true,
           _v8_9x16_captions16_bottom25: true,
           _v9_9x16_logo_x10_y3: true,
+          _v10_9x16_captionBottom20: true,
         })
       );
       const serverOrigin = getEditorPrimaryServerOrigin();
