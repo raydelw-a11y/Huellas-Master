@@ -3707,6 +3707,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     try {
       e.currentTarget.releasePointerCapture(e.pointerId);
     } catch {}
+    // A plain click (no movement) changes nothing and must not save anything
+    if (Object.keys(drag.last).length === 0) return;
     handleUpdateClipFrameTransform(drag.clipId, drag.last, true);
   };
 
@@ -7957,6 +7959,12 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           // Posición y duración que propone Gemini en la tarjeta de la Etapa 8
           startSec = geminiPlacement.start;
           durSec = geminiPlacement.duration;
+          // La última canción SIEMPRE termina con el último clip antes del Outro: si el rango de Gemini
+          // acaba antes, se corre entera hacia el final (misma duración, sin pisar la canción anterior).
+          if (isLast && sunoList.length > 1 && startSec + durSec < bodySpanEndSec - 0.25) {
+            const prevSongEndSec = Math.max(FIXED_INTRO_SEC, cursorSec - silenceGapSec);
+            startSec = Number(Math.max(prevSongEndSec, bodySpanEndSec - durSec).toFixed(2));
+          }
         } else if (isLast) {
           // Always anchor the last song so it reaches 100% to the end of Clip 82 right before the Outro
           startSec = sunoList.length > 1 ? lastSongTargetStartSec : Math.max(FIXED_INTRO_SEC, lastSongTargetStartSec);
@@ -9611,9 +9619,18 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       const hasGeminiRange = (mt: { videoTimeRange?: string }) =>
         /(\d{1,2}:\d{2}(?::\d{2})?)\s*[-–—]\s*(\d{1,2}:\d{2}(?::\d{2})?)/.test(String(mt.videoTimeRange || ''));
       if (prev.every((mt) => hasGeminiRange(mt))) {
-        return prev.map((mt) => {
+        return prev.map((mt, idx) => {
           const maxDur = Number((outroClipStartSec - mt.start).toFixed(2));
-          return maxDur > 5 && mt.duration > maxDur ? { ...mt, duration: maxDur } : mt;
+          if (maxDur > 5 && mt.duration > maxDur) return { ...mt, duration: maxDur };
+          // La última canción SIEMPRE termina con el último clip antes del Outro: si se queda corta,
+          // se corre entera hacia el final (misma duración, sin pisar la canción anterior).
+          if (idx === prev.length - 1 && prev.length > 1 && mt.start + mt.duration < outroClipStartSec - 0.25) {
+            const prevTrack = prev[idx - 1];
+            const prevEnd = prevTrack ? prevTrack.start + prevTrack.duration : FIXED_INTRO_SEC;
+            const shiftedStart = Number(Math.max(prevEnd, outroClipStartSec - mt.duration).toFixed(2));
+            return shiftedStart > mt.start ? { ...mt, start: shiftedStart } : mt;
+          }
+          return mt;
         });
       }
 
@@ -17694,14 +17711,15 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   const right = Math.min(100, rawLeft + rawSize);
                   const bottom = Math.min(100, rawTop + rawSize);
                   const corners: Array<{ key: string; style: React.CSSProperties; cursor: string }> = [
-                    { key: 'tl', style: { left: 0, top: 0 }, cursor: 'nwse-resize' },
-                    { key: 'tr', style: { left: '100%', top: 0 }, cursor: 'nesw-resize' },
-                    { key: 'bl', style: { left: 0, top: '100%' }, cursor: 'nesw-resize' },
-                    { key: 'br', style: { left: '100%', top: '100%' }, cursor: 'nwse-resize' },
+                    // Inset so the handles stay whole inside the frame (the viewer clips anything outside it)
+                    { key: 'tl', style: { left: 3, top: 3 }, cursor: 'nwse-resize' },
+                    { key: 'tr', style: { right: 3, top: 3 }, cursor: 'nesw-resize' },
+                    { key: 'bl', style: { left: 3, bottom: 3 }, cursor: 'nesw-resize' },
+                    { key: 'br', style: { right: 3, bottom: 3 }, cursor: 'nwse-resize' },
                   ];
                   return (
                     <div
-                      className="absolute z-40 border-2 border-amber-400 cursor-move"
+                      className="absolute z-40 border-2 border-amber-400 cursor-move pointer-events-auto"
                       style={{
                         left: `${left}%`,
                         top: `${top}%`,
@@ -17721,13 +17739,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                       {corners.map((corner) => (
                         <span
                           key={corner.key}
-                          className="absolute rounded-full bg-amber-400 border-2 border-slate-950 shadow"
+                          className="absolute rounded-full bg-amber-400 border-2 border-slate-950 shadow pointer-events-auto"
                           style={{
                             ...corner.style,
                             width: 26,
                             height: 26,
-                            marginLeft: -13,
-                            marginTop: -13,
                             cursor: corner.cursor,
                             touchAction: 'none',
                           }}
@@ -17737,7 +17753,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                           onPointerCancel={endClipTransformDrag}
                         />
                       ))}
-                      <span className="absolute left-1 top-1 px-1.5 py-0.5 rounded bg-amber-500 text-slate-950 font-black text-[11px] whitespace-nowrap shadow pointer-events-none">
+                      <span className="absolute left-1/2 -translate-x-1/2 top-1 px-1.5 py-0.5 rounded bg-amber-500 text-slate-950 font-black text-[11px] whitespace-nowrap shadow pointer-events-none">
                         Clip {String(tClip.clipNumber).padStart(2, '0')} • {Math.round(z * 100)}% • X {off.x.toFixed(0)} Y{' '}
                         {off.y.toFixed(0)}
                       </span>
