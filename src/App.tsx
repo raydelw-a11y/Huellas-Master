@@ -201,7 +201,7 @@ import { useNoticeStack } from './utils/noticeStack';
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '07:42 PM - 11/20/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '08:10 PM - 11/20/2026';
 
 // PRODUCTION LOCK: while promptConfig.PRODUCTION_LOCKED === 'YES' these fields never change (the server
 // enforces the same list in protectLockedDocs). Metadata, thumbnails, review marks and reframes stay editable.
@@ -15358,7 +15358,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         : isResearchStage
         ? `🔬 Etapa 1 (Parte 2): Enviando a Gemini Web en 4 Carbon · Thinking level: Low + Deep Research activo (con Auto-Iniciar Plan)...`
         : stageNum === 8 && stage8ExpectedClipCount > 0
-        ? `⚡ Enviando Etapa 6 (${stage8ExpectedClipCount} clips posibles) a Gemini Web en 4 Carbon · Low (ventana extendida hasta 20 min con auto-continuación sin reinicios)...`
+        ? `⚡ Enviando Etapa 6 (${stage8ExpectedClipCount} clips posibles) a Gemini Web en 4 Carbon · Thinking level: High (ventana extendida hasta 20 min con auto-continuación sin reinicios)...`
         : `⚡ Enviando prompt a Gemini Web en modo 4 Carbon (Thinking level: Low)...`
     );
     const targetVideoBaseName = String(currentCanonicalVideoName || currentDoc.title || '')
@@ -15376,11 +15376,12 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       stageNumber: stageNum,
       ...(stage8ExpectedClipCount > 0 ? { expectedClipCount: stage8ExpectedClipCount } : {}),
       taskType: isStage1Part1Low ? 'STAGE1_PART1_DEFINITION' : 'STAGE_GENERATION',
-      enableHighModel: useHighModel,
-      enableArgonLow: useArgonLow,
-      enableCarbonLow: true,
-      preferredModel: 'CARBON_4_LOW',
-      thinkingLevel: 'LOW',
+      // Image and clip prompts (Stage 8) are written with Thinking level: High; every other stage stays on Low
+      enableHighModel: stageNum === 8 ? true : useHighModel,
+      enableArgonLow: stageNum === 8 ? false : useArgonLow,
+      enableCarbonLow: stageNum !== 8,
+      preferredModel: stageNum === 8 ? 'CARBON_HIGH' : 'CARBON_4_LOW',
+      thinkingLevel: stageNum === 8 ? 'HIGH' : 'LOW',
       enableDeepResearch: useDeepResearch,
       skipModelSwitch: Boolean(options?.skipModelSwitch),
       autoSubmit: true,
