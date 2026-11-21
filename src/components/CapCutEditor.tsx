@@ -572,8 +572,15 @@ export function getTextShadowCss(style: OverlayShadowStyle): string {
 export const KARAOKE_9X16_CAPTION = {
   color: '#ffe600',
   activeWordColor: '#ffffff',
-  shadowStyle: 'outline' as OverlayShadowStyle,
+  shadowStyle: 'karaoke' as const,
   bgStyle: 'none' as const,
+  fontFamily: "'Arial Black', Impact, 'Helvetica Neue', sans-serif",
+  /** Contorno real (no copias desplazadas del texto) + sombra corta. */
+  viewerCss: {
+    WebkitTextStroke: '4px #000000',
+    paintOrder: 'stroke fill',
+    textShadow: '0 2px 3px rgba(0,0,0,0.9)',
+  } as React.CSSProperties,
 };
 
 /** Segundo de la línea de tiempo en que empieza cada palabra del texto mostrado de un caption. */
@@ -2624,9 +2631,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     ? captionCustomColor
     : '#ffffff';
   const effCaptionBgStyle: OverlayBgStyle = karaokeCaptions ? KARAOKE_9X16_CAPTION.bgStyle : captionBgStyle;
-  const effCaptionShadowStyle: OverlayShadowStyle = karaokeCaptions
+  const effCaptionShadowStyle: OverlayShadowStyle | 'karaoke' = karaokeCaptions
     ? KARAOKE_9X16_CAPTION.shadowStyle
     : captionShadowStyle;
+  const effCaptionFontFamily = karaokeCaptions ? KARAOKE_9X16_CAPTION.fontFamily : captionFontFamily;
   const viewerCaptionSpanRef = useRef<HTMLSpanElement | null>(null);
 
   // Track whether the user has edited Hook Text or Captions on the active documentary so background effects NEVER reset them
@@ -14744,7 +14752,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   : {}),
                 captionSegments: [],
                 captionStyle: {
-                  fontFamily: captionFontFamily,
+                  fontFamily: effCaptionFontFamily,
                   fontSize: aspectRatio === '9:16' ? captionFontSize9x16 : captionFontSize16x9,
                   fontSize16x9: captionFontSize16x9,
                   fontSize9x16: captionFontSize9x16,
@@ -18022,11 +18030,13 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     } font-extrabold transition whitespace-pre-line`}
                     ref={viewerCaptionSpanRef}
                     style={{
-                      fontFamily: captionFontFamily,
+                      fontFamily: effCaptionFontFamily,
                       fontSize: `${Math.max(13, captionFontSize * 0.76)}px`,
                       textWrap: (aspectRatio === '16:9' ? 'pretty' : undefined) as any,
                       color: effCaptionColorHex,
-                      textShadow: getTextShadowCss(effCaptionShadowStyle),
+                      ...(karaokeCaptions
+                        ? KARAOKE_9X16_CAPTION.viewerCss
+                        : { textShadow: getTextShadowCss(captionShadowStyle) }),
                       boxDecorationBreak: 'clone',
                       WebkitBoxDecorationBreak: 'clone',
                       backgroundColor:

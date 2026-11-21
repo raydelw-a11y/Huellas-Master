@@ -124,7 +124,9 @@ const FONT_TABLE: Array<{ match: RegExp; assName: string; file: string | null }>
   { match: /^playfair display$/i, assName: 'Playfair Display', file: 'PlayfairDisplay-Bold.ttf' },
   // Not loaded as webfonts → the browser falls back to these system faces on macOS.
   { match: /^(montserrat|helvetica neue|system-ui|-apple-system|blinkmacsystemfont|inter|arial|sans-serif)$/i, assName: 'Helvetica Neue', file: null },
-  { match: /^(oswald|impact|arial black)$/i, assName: 'Impact', file: null },
+  // Captions 9:16 (karaoke): gruesa sin remates, medida con el archivo real del sistema.
+  { match: /^arial black$/i, assName: 'Arial Black', file: '/System/Library/Fonts/Supplemental/Arial Black.ttf' },
+  { match: /^(oswald|impact)$/i, assName: 'Impact', file: null },
   { match: /^(courier new|courier|monospace)$/i, assName: 'Courier New', file: null },
 ];
 
@@ -210,7 +212,9 @@ export function resolveExportFont(cssFamily: string | undefined, fontsDir: strin
   const cached = fontCache.get(cacheKey);
   if (cached) return cached;
   let info: FontInfo | null = null;
-  if (entry.file) info = parseTtf(path.join(fontsDir, entry.file), entry.assName);
+  if (entry.file) {
+    info = parseTtf(path.isAbsolute(entry.file) ? entry.file : path.join(fontsDir, entry.file), entry.assName);
+  }
   if (!info) {
     info = {
       assName: entry.assName,
@@ -313,6 +317,9 @@ function textShadowLayers(style: string | undefined): {
       return { outlinePx: 0, layers: [{ dx: 0, dy: 2, blur: 6, color: '000000', alpha: 0.85 }] };
     case 'outline':
       return { outlinePx: 2, layers: [{ dx: 0, dy: 4, blur: 10, color: '000000', alpha: 0.95 }] };
+    case 'karaoke':
+      // Contorno negro nítido y sombra corta pegada a la letra (sin halo que parezca texto repetido)
+      return { outlinePx: 2, layers: [{ dx: 0, dy: 2, blur: 3, color: '000000', alpha: 0.9 }] };
     case 'gold_glow':
       return {
         outlinePx: 0,
