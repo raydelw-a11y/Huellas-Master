@@ -129,7 +129,41 @@
     return null;
   }
 
+  // While Gemini answers, the Send button IS the Stop button (same element, same classes): clicking it
+  // cancels the answer ("You stopped this response"). Nothing here may ever return or click it.
+  function isStopLikeButton(btn) {
+    if (!btn) return false;
+    try {
+      const container = btn.closest ? btn.closest('.send-button-container') : null;
+      const label = [
+        btn.getAttribute('aria-label'),
+        btn.getAttribute('mattooltip'),
+        btn.getAttribute('title'),
+        btn.getAttribute('data-test-id'),
+        typeof btn.className === 'string' ? btn.className : '',
+        container && typeof container.className === 'string' ? container.className : '',
+      ]
+        .map((v) => String(v || ''))
+        .join(' ')
+        .toLowerCase();
+      if (/\bstop\b|detener|interrumpir|\bcancel/.test(label)) return true;
+      return Boolean(
+        btn.querySelector(
+          '.stop-icon, mat-icon[data-mat-icon-name*="stop" i], mat-icon[fonticon*="stop" i]'
+        )
+      );
+    } catch {
+      return false;
+    }
+  }
+  function markPromptSentNow() {
+    try {
+      document.documentElement.setAttribute('data-huellas-sent-at', String(Date.now()));
+    } catch {}
+  }
+
   function findSendButton() {
+    if (isGeminiStillGenerating()) return null;
     const selectors = [
       'button.send-button:not([disabled]):not([aria-disabled="true"])',
       '.send-button-container button:not([disabled]):not([aria-disabled="true"])',
@@ -143,7 +177,7 @@
     ];
     for (const sel of selectors) {
       const btn = document.querySelector(sel);
-      if (btn && btn.offsetParent !== null) return btn;
+      if (btn && btn.offsetParent !== null && !isStopLikeButton(btn)) return btn;
     }
     // Fallback: check any button with send icon inside input area
     const iconBtns = Array.from(
@@ -153,6 +187,7 @@
     );
     for (const btn of iconBtns) {
       if (!btn || btn.disabled || btn.getAttribute('aria-disabled') === 'true') continue;
+      if (isStopLikeButton(btn)) continue;
       const iconTxt = (btn.innerText || btn.textContent || '').trim().toLowerCase();
       const aria = (btn.getAttribute('aria-label') || '').toLowerCase();
       const hasSendIcon = Boolean(
@@ -4428,6 +4463,9 @@
           stageNumPayload === 101 ||
           stageNumPayload === 505;
         const promptFingerprint = normalizeCompareText(rawPrompt.slice(0, 120));
+        try {
+          document.documentElement.setAttribute('data-huellas-sent-at', '0');
+        } catch {}
         setInputText(inputEl, rawPrompt, preserveStageNewlines);
         reportStatus('PROMPT_INJECTED', 'Prompt pegado en Gemini Web, enviando orden...', {
           stageNumber: payload.stageNumber,
@@ -4473,6 +4511,7 @@
               const chipSendBtn = findSendButton();
               if (chipSendBtn) {
                 try {
+                  markPromptSentNow();
                   chipSendBtn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
                   chipSendBtn.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
                   chipSendBtn.click();
@@ -4504,6 +4543,7 @@
 
             if (sendBtn) {
               try {
+                markPromptSentNow();
                 sendBtn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
                 sendBtn.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
                 sendBtn.click();
@@ -5357,6 +5397,7 @@
             }
             if (sendBtn) {
               try {
+                markPromptSentNow();
                 sendBtn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
                 sendBtn.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
                 sendBtn.click();

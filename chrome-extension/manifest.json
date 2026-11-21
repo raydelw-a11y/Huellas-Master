@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Huellas Master — Puente Web Gratis (Gemini, ChatGPT, Claude, Grok, Copilot, Google Flow & Flow Music)",
-  "version": "2.9.5",
+  "version": "2.9.6",
   "description": "Conecta Huellas Master con Gemini Web (Quick answers), ChatGPT Web, Claude Web (Bajo), Grok Web (Fast — MODO 9 y MODO 10 MÁXIMO), Copilot, Google Flow y Flow Music.",
   "permissions": [
     "tabs",

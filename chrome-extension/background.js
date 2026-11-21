@@ -3383,7 +3383,56 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                   .trim();
             if (!cleanExpected) return;
 
+            // While Gemini answers, the Send button IS the Stop button (same element): clicking it cancels
+            // the answer ("You stopped this response"). This script may arrive after the prompt was already
+            // sent by the content script, so it must never re-type the prompt or click once Gemini is answering.
+            const isStopLike = (btn) => {
+              if (!btn) return false;
+              try {
+                const container = btn.closest('.send-button-container');
+                const label = [
+                  btn.getAttribute('aria-label'),
+                  btn.getAttribute('mattooltip'),
+                  btn.getAttribute('title'),
+                  btn.getAttribute('data-test-id'),
+                  typeof btn.className === 'string' ? btn.className : '',
+                  container && typeof container.className === 'string' ? container.className : '',
+                ]
+                  .map((v) => String(v || ''))
+                  .join(' ')
+                  .toLowerCase();
+                if (/\bstop\b|detener|interrumpir|\bcancel/.test(label)) return true;
+                return Boolean(
+                  btn.querySelector('.stop-icon, mat-icon[data-mat-icon-name*="stop" i], mat-icon[fonticon*="stop" i]')
+                );
+              } catch {
+                return false;
+              }
+            };
+            const isAnswering = () => {
+              try {
+                const stopSel =
+                  'button[aria-label*="Stop" i], button[aria-label*="Detener" i], button[aria-label*="Interrumpir" i], button[mattooltip*="Stop" i], button[mattooltip*="Detener" i], button.stop-button, button.send-button.stop, .send-button-container.stop button';
+                for (const el of document.querySelectorAll(stopSel)) {
+                  if (el && el.offsetParent !== null && !el.disabled) return true;
+                }
+                return (
+                  document.querySelectorAll(
+                    'model-response[is-streaming="true"], message-content[is-streaming="true"], .markdown.streaming'
+                  ).length > 0
+                );
+              } catch {
+                return false;
+              }
+            };
+            const sentRecently = () => {
+              const at = Number(document.documentElement.getAttribute('data-huellas-sent-at') || 0);
+              return at > 0 && Date.now() - at < 15000;
+            };
+            if (isAnswering()) return;
+
             const findSendBtn = () => {
+              if (isAnswering()) return null;
               const sendSelectors = [
                 'button.send-button:not([disabled]):not([aria-disabled="true"])',
                 '.send-button-container button:not([disabled]):not([aria-disabled="true"])',
@@ -3395,7 +3444,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
               ];
               for (const sel of sendSelectors) {
                 const btn = document.querySelector(sel);
-                if (btn && btn.offsetParent !== null) return btn;
+                if (btn && btn.offsetParent !== null && !isStopLike(btn)) return btn;
               }
               return null;
             };
@@ -3413,6 +3462,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
               ''
             ).trim();
             const existingSendBtn = findSendBtn();
+            // Empty box right after the content script pressed Send = the prompt is already on its way.
+            if (!currentText && sentRecently()) return;
 
             // Even if text is visually present, if the Send button is STILL disabled, re-inject via MAIN-world Quill/Clipboard/execCommand to wake Angular FormControl!
             if (!currentText || currentText.length < minExpectedLen || !existingSendBtn) {
@@ -3508,6 +3559,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                   ''
                 ).trim();
                 if (!remaining || remaining.length < 3) return;
+                if (isAnswering()) return;
                 // Never send the prompt written twice (Gemini answers a doubled long prompt with a blank
                 // response): put it back once through Quill and try again on the next tick.
                 try {
@@ -3528,6 +3580,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 } catch {}
                 const btn = findSendBtn();
                 if (btn) {
+                  try {
+                    document.documentElement.setAttribute('data-huellas-sent-at', String(Date.now()));
+                  } catch {}
                   btn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
                   btn.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
                   btn.click();
@@ -7006,7 +7061,14 @@ async function forceSubmitPromptInGeminiTab(tabId, rawPrompt) {
             ];
             for (const s of sels) {
               const b = document.querySelector(s);
-              if (b && b.offsetParent !== null) return b;
+              if (!b || b.offsetParent === null) continue;
+              // Never the Stop button (same element as Send while Gemini answers)
+              const lbl = `${b.getAttribute('aria-label') || ''} ${b.getAttribute('mattooltip') || ''} ${
+                typeof b.className === 'string' ? b.className : ''
+              }`.toLowerCase();
+              if (/\bstop\b|detener|interrumpir|\bcancel/.test(lbl)) continue;
+              if (b.querySelector('.stop-icon, mat-icon[data-mat-icon-name*="stop" i], mat-icon[fonticon*="stop" i]')) continue;
+              return b;
             }
             return null;
           };
