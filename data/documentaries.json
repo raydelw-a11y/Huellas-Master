@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-11-21T00:57:53.241Z",
-    "updatedAt": "2026-11-21T23:52:09.389Z",
+    "updatedAt": "2026-11-21T23:52:16.696Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -19,7 +19,7 @@
       "VOZ_NARRATIVA_EN_CLIPS": "INCLUIR",
       "UBICACION_INTRO_MARCA": "INTRO_INICIO_00",
       "FIELD_CLEARED_AT_voiceoverScript": "0",
-      "PROMPTS_RESTORED_AT": "1795305129389",
+      "PROMPTS_RESTORED_AT": "1795305136696",
       "FIELD_CLEARED_AT_rawClipsText": "0",
       "GEMINI_CHAT_URL": "https://gemini.google.com/app/bdee564ddf4bf54b",
       "SHOT_PLAN_AUDIT": "⚠️ Reparto de tomas (Etapa 6): Clip 16: la toma de apoyo queda demasiado cerca del B-roll del clip 18. • Clip 39: es B-roll y llegó con dos tomas (debe ser una sola).",
@@ -198,13 +198,13 @@
         "auditStatus": "ok",
         "auditReason": "🖼️ Escena B-Roll Solo Imagen (Zoom In) lista — movimiento 4K 60fps local en Editor.",
         "isStaticBroll": true,
-        "brollCameraMotion": "zoom_in",
         "previousVideoPrompt": "Clip 04: Generate a video in 16-9 horizontal aspect ratio across 10 seconds showing a backlit silhouette medium shot with a slow dolly-out reveal from the iron portcullis of the fortified stone gatehouse to the clustered timber rooftops spanning the misty dawn river. All masonry parapets, iron grilles, and timber structures remain 100% gravity-locked and stationary with zero self-moving objects. Steady golden dawn lighting with zero sudden flashes, with no people present and zero human figures, all background furniture, architectural fixtures, and tabletop props remain 100% gravity-locked and stationary, fixed subject count from 0s to 10s, single continuous shot, strictly no shot changes, with subtle ambient foley of hollow wind whistling through iron portcullis bars, deep river tide rushing beneath stone arches, faint timber creaks. cinematic documentary realism, safe framing composition, 8k resolution, sharp focus, no modern objects, no CGI look, no text, no spoken voice, no human speech, no music. fix the name to Clip_04_generate_a_video_in_16_9",
         "videoAuditStatus": "approved",
         "videoAuditReason": "",
         "videoAuditIssues": [],
         "videoSavedFileName": "04_Clip_04_65_Create_an_image_in_16_Broll_4K.mp4",
-        "videoSavedAt": 1795223341190
+        "videoSavedAt": 1795223341190,
+        "brollCameraMotion": "zoom_in"
       },
       {
         "id": "clip-5-1795229017000-5",
@@ -522,13 +522,13 @@
         "auditStatus": "ok",
         "auditReason": "🖼️ Escena B-Roll Solo Imagen (Zoom In) lista — movimiento 4K 60fps local en Editor.",
         "isStaticBroll": true,
-        "brollCameraMotion": "zoom_in",
         "previousVideoPrompt": "Clip 18: Generate a video in 16-9 horizontal aspect ratio across 10 seconds showing a cowboy shot through a window with a lateral tracking shot gliding past a healthy 40-year-old seventeenth-century merchant in a white linen collar breathing fresh river wind beside projecting wooden latrine bays suspended high above the rushing arches, all background furniture, architectural fixtures, and tabletop props remain 100% gravity-locked and stationary while any held object moves smoothly under natural hand control, fixed subject count from 0s to 10s, single continuous shot, strictly no shot changes, with subtle ambient foley of iron window latch clicking open, fresh river breeze sweeping past leaded glass, river current rushing far below. cinematic documentary realism, safe framing composition, 8k resolution, sharp focus, no modern objects, no CGI look, no text, no spoken voice, no human speech, no music. fix the name to Clip_18_generate_a_video_in_16_9",
         "videoAuditStatus": "approved",
         "videoAuditReason": "",
         "videoAuditIssues": [],
         "videoSavedFileName": "18_Create_an_image_in_16_Broll_4K.mp4",
-        "videoSavedAt": 1795223135658
+        "videoSavedAt": 1795223135658,
+        "brollCameraMotion": "zoom_in"
       },
       {
         "id": "clip-19-1795229017001-19",
@@ -747,13 +747,13 @@
         "auditStatus": "ok",
         "auditReason": "🖼️ Escena B-Roll Solo Imagen (Zoom In) lista — movimiento 4K 60fps local en Editor.",
         "isStaticBroll": true,
-        "brollCameraMotion": "zoom_in",
         "previousVideoPrompt": "Clip 28: Generate a video in 16-9 horizontal aspect ratio across 10 seconds showing a low angle medium shot with a slow dolly-out reveal from an adult knight in steel plate armor lowering his painted wooden lance atop a caparisoned warhorse to reveal his armored rival poised down the banner-lined bridge roadway in 1390, all background furniture, architectural fixtures, and tabletop props remain 100% gravity-locked and stationary while any held object moves smoothly under natural hand control, fixed subject count from 0s to 10s, single continuous shot, strictly no shot changes, with subtle ambient foley of steel armor plates clinking, warhorse snorting and iron horseshoes pawing sand-strewn cobblestones, silk banners snapping in river breeze. cinematic documentary realism, safe framing composition, 8k resolution, sharp focus, no modern objects, no CGI look, no text, no spoken voice, no human speech, no music. fix the name to Clip_28_generate_a_video_in_16_9",
         "videoAuditStatus": "approved",
         "videoAuditReason": "",
         "videoAuditIssues": [],
         "videoSavedFileName": "28_Create_an_image_in_16_Broll_4K.mp4",
-        "videoSavedAt": 1795223135658
+        "videoSavedAt": 1795223135658,
+        "brollCameraMotion": "zoom_in"
       },
       {
         "id": "clip-29-1795229017001-29",
@@ -994,13 +994,13 @@
         "auditStatus": "ok",
         "auditReason": "🖼️ Escena B-Roll Solo Imagen (Zoom In) lista — movimiento 4K 60fps local en Editor.",
         "isStaticBroll": true,
-        "brollCameraMotion": "zoom_in",
         "previousVideoPrompt": "Clip 39: Generate a video in 16-9 horizontal aspect ratio across 10 seconds showing a low angle wide establishing shot with a crane down from the house-cleared stone balustrades and widened central arch to two adult bridge surveyors in dark wool coats aboard a moored wooden boat inspecting deep cracks in the worn medieval stone piers, all background furniture, architectural fixtures, and tabletop props remain 100% gravity-locked and stationary while any held object moves smoothly under natural hand control, fixed subject count from 0s to 10s, single continuous shot, strictly no shot changes, with subtle ambient foley of river tide lapping against moored wooden boat, brass plumb bob clinking softly near cracked stone masonry, wind whistling through stone balusters. cinematic documentary realism, safe framing composition, 8k resolution, sharp focus, no modern objects, no CGI look, no text, no spoken voice, no human speech, no music. fix the name to Clip_39_generate_a_video_in_16_9",
         "videoAuditStatus": "approved",
         "videoAuditReason": "",
         "videoAuditIssues": [],
         "videoSavedFileName": "39_Create_an_image_in_16_Broll_4K.mp4",
-        "videoSavedAt": 1795223135658
+        "videoSavedAt": 1795223135658,
+        "brollCameraMotion": "zoom_in"
       },
       {
         "id": "clip-40-1795229017002-40",
@@ -1085,13 +1085,13 @@
         "auditStatus": "ok",
         "auditReason": "🖼️ Escena B-Roll Solo Imagen (Zoom In) lista — movimiento 4K 60fps local en Editor.",
         "isStaticBroll": true,
-        "brollCameraMotion": "zoom_in",
         "previousVideoPrompt": "Clip 43: Generate a video in 16-9 horizontal aspect ratio across 10 seconds showing a low angle medium shot with a crane up from a 65-year-old white-haired monarch in a gold-braided navy ceremonial coat walking beside civic dignitaries in top hats to the grand striped canvas banquet marquee and fluttering maritime flags spanning the new granite bridge in 1831, all background furniture, architectural fixtures, and tabletop props remain 100% gravity-locked and stationary while any held object moves smoothly under natural hand control, fixed subject count from 0s to 10s, single continuous shot, strictly no shot changes, with subtle ambient foley of polished leather boots striding on fresh granite pavers, canvas pavilion roof and signal flags snapping briskly in river breeze, porcelain banquet tableware clinking softly. cinematic documentary realism, safe framing composition, 8k resolution, sharp focus, no modern objects, no CGI look, no text, no spoken voice, no human speech, no music. fix the name to Clip_43_generate_a_video_in_16_9",
         "videoAuditStatus": "approved",
         "videoAuditReason": "",
         "videoAuditIssues": [],
         "videoSavedFileName": "43_Create_an_image_in_16_Broll_4K.mp4",
-        "videoSavedAt": 1795223135658
+        "videoSavedAt": 1795223135658,
+        "brollCameraMotion": "zoom_in"
       },
       {
         "id": "clip-44-1795229017002-44",
@@ -1176,13 +1176,13 @@
         "auditStatus": "ok",
         "auditReason": "🖼️ Escena B-Roll Solo Imagen (Zoom In) lista — movimiento 4K 60fps local en Editor.",
         "isStaticBroll": true,
-        "brollCameraMotion": "zoom_in",
         "previousVideoPrompt": "Clip 47: Generate a video in 16-9 horizontal aspect ratio across 10 seconds showing a ground-level medium shot with parallax past a foreground object of wrought-iron churchyard railings, gliding slowly past weathered medieval limestone ashlar blocks resting in a quiet stone church courtyard with the twilight river glimmering softly beyond and. Solid, non-deforming limestone blocks and rigid 3D architectural geometry. All stone relics, flagstones, and iron railings remain 100% gravity-locked and stationary with zero self-moving objects. Steady golden-blue twilight illumination with zero sudden flashes, with no people present and zero human figures, all background furniture, architectural fixtures, and tabletop props remain 100% gravity-locked and stationary, fixed subject count from 0s to 10s, single continuous shot, strictly no shot changes, with subtle ambient foley of quiet evening breeze rustling dry courtyard leaves against ancient stone, distant tidal river lapping softly. cinematic documentary realism, safe framing composition, 8k resolution, sharp focus, no modern objects, no CGI look, no text, no spoken voice, no human speech, no music. fix the name to Clip_47_generate_a_video_in_16_9",
         "videoAuditStatus": "approved",
         "videoAuditReason": "",
         "videoAuditIssues": [],
         "videoSavedFileName": "47_Create_an_image_in_16_Broll_4K.mp4",
-        "videoSavedAt": 1795223135658
+        "videoSavedAt": 1795223135658,
+        "brollCameraMotion": "zoom_in"
       },
       {
         "id": "clip-48-1795229017002-48",
