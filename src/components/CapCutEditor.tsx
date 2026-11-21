@@ -2654,6 +2654,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     : captionShadowStyle;
   const effCaptionFontFamily = karaokeCaptions ? KARAOKE_9X16_CAPTION.fontFamily : captionFontFamily;
   const viewerCaptionSpanRef = useRef<HTMLSpanElement | null>(null);
+  // Barras de Tamaño del clip y Encuadre 9:16 encima del visor: cerradas por defecto para dar altura al visor
+  const [showFramingBars, setShowFramingBars] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('huellas_editor_show_framing_bars') === '1';
+    } catch {
+      return false;
+    }
+  });
 
   // Track whether the user has edited Hook Text or Captions on the active documentary so background effects NEVER reset them
   const userEditedHookDocIdRef = useRef<string>(
@@ -15677,7 +15685,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   setCurrentTime(0);
                   onSelectDoc(e.target.value);
                 }}
-                className="bg-slate-950 border border-amber-500/40 rounded-lg px-2 py-0.5 text-[11px] font-bold text-amber-200 max-w-[260px] min-w-0 shrink cursor-pointer outline-none"
+                className="bg-slate-950 border border-amber-500/40 rounded-lg px-2 py-0.5 text-[11px] font-bold text-amber-200 max-w-[220px] min-w-0 shrink cursor-pointer outline-none"
                 title="Cambiar de documental directamente desde el Editor de Video"
               >
                 {documentaries.map((d) => (
@@ -15721,7 +15729,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   }
                 >
                   <span className="truncate">
-                    {reviewedCount === 0 ? '🔒' : '✅'} Revisados en Timeline ({reviewedCount}/{totalScriptCount})
+                    {reviewedCount === 0 ? '🔒' : '✅'} Revisados ({reviewedCount}/{totalScriptCount})
                   </span>
                   {!isAllReviewed && onOpenStage6Review && (
                     <span className="underline opacity-90">• Etapa 6</span>
@@ -15730,6 +15738,96 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               </div>
             );
           })()}
+        </div>
+
+        {/* Panel toggles + quick overlay selection + framing bars toggle (formerly a second bar above the viewer) */}
+        <div className="flex items-center gap-1.5 shrink-0 text-[10px]">
+          <button
+            type="button"
+            onClick={() => {
+              setIsLeftPanelCollapsed((prev) => {
+                const next = !prev;
+                if (!next && typeof window !== 'undefined' && window.innerWidth < 1024) {
+                  setIsRightPanelCollapsed(true);
+                }
+                return next;
+              });
+            }}
+            className="shrink-0 inline-flex items-center px-1.5 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700/80 font-bold text-slate-200 cursor-pointer"
+            title={isLeftPanelCollapsed ? 'Mostrar panel izquierdo Media' : 'Ocultar panel izquierdo Media para ampliar el visor'}
+          >
+            ◧
+          </button>
+          <div
+            data-keep-canvas-selection="true"
+            className="shrink-0 flex items-center gap-0.5 bg-slate-950 border border-slate-800 rounded-lg p-0.5"
+          >
+            {(
+              [
+                { id: 'logo', label: '🏷️ Logo', tab: 'branding', on: 'bg-amber-500 text-slate-950' },
+                { id: 'hook_text', label: '🔤 Texto', tab: 'branding', on: 'bg-amber-500 text-slate-950' },
+                { id: 'captions', label: '💬 Captions', tab: 'captions', on: 'bg-sky-400 text-slate-950' },
+              ] as const
+            ).map((o) => (
+              <button
+                key={o.id}
+                type="button"
+                onClick={() => {
+                  setSelectedCanvasObject((prev) => (prev === o.id ? null : o.id));
+                  setActiveInspectorTab(o.tab);
+                }}
+                className={`px-1.5 py-0.5 rounded font-bold cursor-pointer transition ${
+                  selectedCanvasObject === o.id ? o.on : 'text-slate-300 hover:bg-slate-800'
+                }`}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setShowFramingBars((prev) => {
+                const next = !prev;
+                try {
+                  localStorage.setItem('huellas_editor_show_framing_bars', next ? '1' : '0');
+                } catch {
+                  /* almacenamiento no disponible */
+                }
+                return next;
+              });
+            }}
+            aria-pressed={showFramingBars}
+            className={`shrink-0 px-1.5 py-0.5 rounded border font-bold cursor-pointer transition ${
+              showFramingBars
+                ? 'bg-amber-500 border-amber-400 text-slate-950'
+                : 'bg-slate-900 hover:bg-slate-800 border-slate-700/80 text-slate-200'
+            }`}
+            title="Mostrar u ocultar las barras de Tamaño del clip y Encuadre 9:16 encima del visor (al hacer clic en el clip del visor, la de Tamaño aparece sola)"
+          >
+            🎯 Encuadre
+          </button>
+          {!(effectiveVoiceoverUrl && !voiceAudioError) && (
+            <span className="shrink-0 px-1.5 py-0.5 rounded font-bold bg-amber-500/15 border border-amber-500/40 text-amber-300">
+              🔇 Sin Voz
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              setIsRightPanelCollapsed((prev) => {
+                const next = !prev;
+                if (!next && typeof window !== 'undefined' && window.innerWidth < 1024) {
+                  setIsLeftPanelCollapsed(true);
+                }
+                return next;
+              });
+            }}
+            className="shrink-0 inline-flex items-center px-1.5 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700/80 font-bold text-slate-200 cursor-pointer"
+            title={isRightPanelCollapsed ? 'Mostrar panel derecho Details/Inspector' : 'Ocultar panel derecho Details/Inspector para ampliar el visor'}
+          >
+            ◨
+          </button>
         </div>
 
         {/* Aspect Ratio (16:9 vs 9:16) + Export Quality (HD / 2K / 4K / 8K) + Folder & Download (with Render) */}
@@ -16604,125 +16702,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             COLUMN 2: DOMINANT CENTER VIDEO PLAYER (MAXIMIZED VIEWPORT AREA)
         ================================================================= */}
         <div className="flex-1 min-w-0 min-h-0 h-full max-h-full flex flex-col bg-[#080705] border border-slate-800/90 rounded-xl overflow-hidden">
-          {/* Compact CapCut-Style Player Header ("Player - Timeline 01" + Quick Overlay Selection) */}
-          <div className="w-full px-2 sm:px-3 py-1 bg-[#100d0a] border-b border-slate-800/80 flex items-center justify-between text-xs text-slate-400 overflow-x-auto flex-nowrap sm:flex-wrap whitespace-nowrap gap-1.5 shrink-0 [-webkit-overflow-scrolling:touch]">
-            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 flex-nowrap sm:flex-wrap">
-              <button
-                type="button"
-                onClick={() => {
-                  setIsLeftPanelCollapsed((prev) => {
-                    const next = !prev;
-                    if (!next && typeof window !== 'undefined' && window.innerWidth < 1024) {
-                      setIsRightPanelCollapsed(true);
-                    }
-                    return next;
-                  });
-                }}
-                className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700/80 text-[10px] font-bold text-slate-200 cursor-pointer"
-                title={isLeftPanelCollapsed ? 'Mostrar panel izquierdo Media' : 'Ocultar panel izquierdo Media para ampliar aún más el visor'}
-              >
-                <span>◧</span>
-                <span className="lg:hidden">Media</span>
-              </button>
-              <span className="hidden sm:inline font-semibold text-slate-200 text-[11px]">
-                Player - Timeline 01
-              </span>
-              <span className="shrink-0 font-mono text-amber-300/90 text-[10px] font-bold">
-                • {aspectRatio} •{' '}
-                {aspectRatio === '16:9'
-                  ? `${activePreset.width16x9}×${activePreset.height16x9}`
-                  : `${activePreset.width9x16}×${activePreset.height9x16}`}
-              </span>
-              <span
-                className="shrink-0 font-mono px-2 py-0.5 rounded bg-slate-900/90 border border-slate-700/80 text-[10px] font-bold text-amber-300 flex items-center gap-1 shadow-sm"
-                title={`Duración total del video: ${formatViewerTimecode(totalDurationSec)} (${Math.round(totalDurationSec)}s)`}
-              >
-                <Clock className="w-3 h-3 text-amber-400" />
-                <span>Total: {formatViewerTimecode(totalDurationSec)}</span>
-              </span>
-              <div
-                data-keep-canvas-selection="true"
-                className="shrink-0 flex items-center gap-1 bg-slate-950 border border-slate-800 rounded-lg p-0.5"
-              >
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedCanvasObject((prev) => (prev === 'logo' ? null : 'logo'));
-                    setActiveInspectorTab('branding');
-                  }}
-                  className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition ${
-                    selectedCanvasObject === 'logo'
-                      ? 'bg-amber-500 text-slate-950'
-                      : 'text-slate-300 hover:bg-slate-800'
-                  }`}
-                >
-                  🏷️ Logo
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedCanvasObject((prev) => (prev === 'hook_text' ? null : 'hook_text'));
-                    setActiveInspectorTab('branding');
-                  }}
-                  className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition ${
-                    selectedCanvasObject === 'hook_text'
-                      ? 'bg-amber-500 text-slate-950'
-                      : 'text-slate-300 hover:bg-slate-800'
-                  }`}
-                >
-                  🔤 Texto
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedCanvasObject((prev) => (prev === 'captions' ? null : 'captions'));
-                    setActiveInspectorTab('captions');
-                  }}
-                  className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition ${
-                    selectedCanvasObject === 'captions'
-                      ? 'bg-sky-400 text-slate-950'
-                      : 'text-slate-300 hover:bg-slate-800'
-                  }`}
-                >
-                  💬 Captions
-                </button>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-1.5 shrink-0">
-              <span
-                className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                  effectiveVoiceoverUrl && !voiceAudioError
-                    ? 'bg-emerald-500/15 border border-emerald-500/40 text-emerald-300'
-                    : 'bg-amber-500/15 border border-amber-500/40 text-amber-300'
-                }`}
-              >
-                {effectiveVoiceoverUrl && !voiceAudioError
-                  ? `🎙️ Voz 00:${String(Math.floor(voiceStartOffsetSec)).padStart(2, '0')} (${formatTimeMMSS(totalDurationSec)})`
-                  : '🔇 Sin Voz'}
-              </span>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsRightPanelCollapsed((prev) => {
-                    const next = !prev;
-                    if (!next && typeof window !== 'undefined' && window.innerWidth < 1024) {
-                      setIsLeftPanelCollapsed(true);
-                    }
-                    return next;
-                  });
-                }}
-                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700/80 text-[10px] font-bold text-slate-200 cursor-pointer"
-                title={isRightPanelCollapsed ? 'Mostrar panel derecho Details/Inspector' : 'Ocultar panel derecho Details/Inspector para ampliar aún más el visor'}
-              >
-                <span>◨</span>
-                <span className="lg:hidden">Editar</span>
-              </button>
-            </div>
-          </div>
-
           {/* Clip size bar: enlarge / shrink the clip under the playhead inside the frame (saved per format) */}
-          {activeClipAtPlayhead &&
+          {(showFramingBars || selectedCanvasObject === 'clip') &&
+            activeClipAtPlayhead &&
             activeClipAtPlayhead.clipNumber !== 0 &&
             activeClipAtPlayhead.clipNumber !== 999 &&
             activeClipAtPlayhead.id !== 'fixed-doc-intro' &&
@@ -16854,7 +16836,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             })()}
 
           {/* Smart Auto-Reframe 9:16 Control Bar (Visible when editing in 9:16 Vertical mode) */}
-          {aspectRatio === '9:16' && (
+          {aspectRatio === '9:16' && showFramingBars && (
             <div className="w-full px-3 py-1 bg-[#14100b] border-b border-amber-500/30 flex items-center justify-between gap-2 flex-wrap shrink-0 text-[10px]">
               <div className="flex items-center gap-1.5 flex-wrap">
                 <button
