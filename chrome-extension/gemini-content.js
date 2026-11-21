@@ -4251,17 +4251,26 @@
 
         // All Huellas Master app calls run on 4 Carbon · Thinking: Low (Carbon High is reserved exclusively for MODO DUO / MODO TRIO external debate)
         const wantCreateImage = Boolean(payload.enableCreateImage || payload.mediaType === 'THUMBNAILS');
+        // Exception: the image and clip prompts (Stage 8) are written with Thinking level: High when the
+        // app asks for it. Every other stage stays on Low.
+        const wantHighThinking =
+          Number(payload.stageNumber) === 8 &&
+          !payload.enableDeepResearch &&
+          !wantCreateImage &&
+          String(payload.thinkingLevel || '').toUpperCase() === 'HIGH';
         const desiredModeKey = payload.enableDeepResearch
           ? 'CARBON4_LOW_DEEP_RESEARCH'
           : wantCreateImage
           ? 'CARBON4_LOW_CREATE_IMAGE'
+          : wantHighThinking
+          ? 'CARBON4_HIGH'
           : 'CARBON4_LOW';
 
         // 2. Always verify & configure 4 Carbon + Thinking Level: Low + Deep Research / Create image in DOM
         if (!payload.skipModelSwitch) {
           reportStatus(
             'WORKING',
-            `⚡ Configurando Gemini Web en 4 Carbon (Thinking: Low)${
+            `⚡ Configurando Gemini Web en 4 Carbon (Thinking: ${wantHighThinking ? 'High' : 'Low'})${
               payload.enableDeepResearch
                 ? ' + Deep Research activo'
                 : wantCreateImage
@@ -4271,15 +4280,15 @@
             { stageNumber: payload.stageNumber }
           );
           const cfgResult = await configureGeminiModelAndDeepResearch(
-            false,
+            wantHighThinking,
             Boolean(payload.enableDeepResearch),
-            true,
+            !wantHighThinking,
             wantCreateImage,
             String(payload.aspectRatio || '')
           );
           lastConfiguredModelMode = desiredModeKey;
 
-          const levelLabel = 'Low';
+          const levelLabel = wantHighThinking ? 'High' : 'Low';
           const diagText =
             cfgResult && Array.isArray(cfgResult.diag) && cfgResult.diag.length > 0
               ? ` [${cfgResult.diag.join(' · ')}]`
