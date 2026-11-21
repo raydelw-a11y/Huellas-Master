@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-11-21T00:57:53.241Z",
-    "updatedAt": "2026-11-21T23:44:55.946Z",
+    "updatedAt": "2026-11-21T23:45:18.081Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -19,7 +19,7 @@
       "VOZ_NARRATIVA_EN_CLIPS": "INCLUIR",
       "UBICACION_INTRO_MARCA": "INTRO_INICIO_00",
       "FIELD_CLEARED_AT_voiceoverScript": "0",
-      "PROMPTS_RESTORED_AT": "1795304695946",
+      "PROMPTS_RESTORED_AT": "1795304718081",
       "FIELD_CLEARED_AT_rawClipsText": "0",
       "GEMINI_CHAT_URL": "https://gemini.google.com/app/bdee564ddf4bf54b",
       "SHOT_PLAN_AUDIT": "⚠️ Reparto de tomas (Etapa 6): Clip 16: la toma de apoyo queda demasiado cerca del B-roll del clip 18. • Clip 39: es B-roll y llegó con dos tomas (debe ser una sola).",
@@ -482,8 +482,21 @@
         "frameZoom16x9": 100,
         "frameOffsetX16x9": 0,
         "frameOffsetY16x9": 0,
-        "frameTransformAt": 1795241804424,
-        "frameKeys16x9": [],
+        "frameTransformAt": 1795304717743,
+        "frameKeys16x9": [
+          {
+            "t": 3.19,
+            "z": 100,
+            "x": 0,
+            "y": 0
+          },
+          {
+            "t": 6.09,
+            "z": 130,
+            "x": 0,
+            "y": 0
+          }
+        ],
         "frameZoomInSec16x9": 0,
         "frameZoom9x16": 100,
         "frameOffsetX9x16": 0,
