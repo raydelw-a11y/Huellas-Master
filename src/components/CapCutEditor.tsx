@@ -575,11 +575,22 @@ export const KARAOKE_9X16_CAPTION = {
   shadowStyle: 'karaoke' as const,
   bgStyle: 'none' as const,
   fontFamily: "'Arial Black', Impact, 'Helvetica Neue', sans-serif",
-  /** Contorno real (no copias desplazadas del texto) + sombra corta. */
+  /**
+   * Contorno redondeado hecho con un anillo de sombras en 16 direcciones + sombra corta.
+   * (El trazo de texto del navegador deja una punta en los vértices agudos, como el de la A.)
+   */
   viewerCss: {
-    WebkitTextStroke: '4px #000000',
-    paintOrder: 'stroke fill',
-    textShadow: '0 2px 3px rgba(0,0,0,0.9)',
+    textShadow: [
+      ...Array.from({ length: 16 }, (_, i) => {
+        const a = (i / 16) * Math.PI * 2;
+        return `${(Math.cos(a) * 2).toFixed(2)}px ${(Math.sin(a) * 2).toFixed(2)}px 0 #000`;
+      }),
+      ...Array.from({ length: 8 }, (_, i) => {
+        const a = (i / 8) * Math.PI * 2;
+        return `${Math.cos(a).toFixed(2)}px ${Math.sin(a).toFixed(2)}px 0 #000`;
+      }),
+      '0 3px 3px rgba(0,0,0,0.9)',
+    ].join(', '),
   } as React.CSSProperties,
 };
 
