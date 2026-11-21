@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-11-21T00:57:53.241Z",
-    "updatedAt": "2026-11-21T06:15:28.218Z",
+    "updatedAt": "2026-11-21T06:15:44.125Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -19,7 +19,7 @@
       "VOZ_NARRATIVA_EN_CLIPS": "INCLUIR",
       "UBICACION_INTRO_MARCA": "INTRO_INICIO_00",
       "FIELD_CLEARED_AT_voiceoverScript": "0",
-      "PROMPTS_RESTORED_AT": "1795241728218",
+      "PROMPTS_RESTORED_AT": "1795241744125",
       "FIELD_CLEARED_AT_rawClipsText": "0",
       "GEMINI_CHAT_URL": "https://gemini.google.com/app/bdee564ddf4bf54b",
       "SHOT_PLAN_AUDIT": "✅ Reparto de tomas: 2 de 2 tomas de apoyo y 1 imagen de archivo de época.",
@@ -228,7 +228,11 @@
         "videoAuditReason": "",
         "videoAuditIssues": [],
         "videoSavedFileName": "06_create_a_cinematic_8_second_fe849478_4K.mp4",
-        "videoSavedAt": 1795223135658
+        "videoSavedAt": 1795223135658,
+        "frameZoom16x9": 68,
+        "frameOffsetX16x9": -7.8,
+        "frameOffsetY16x9": -7,
+        "frameTransformAt": 1795241743984
       },
       {
         "id": "clip-7-1795229017000-7",
