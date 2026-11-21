@@ -510,6 +510,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
   // el análisis local. Llega marcada con VIRAL_CLIPS_GEMINI_STAGE y nunca se guarda como resultado de una etapa.
   const transcriptSegmentsRef = useRef<TranscriptSegmentItem[]>([]);
   transcriptSegmentsRef.current = transcriptSegments;
+  const geminiViralOrderRef = useRef<{ payload: any; attempts: number } | null>(null);
   const applyGeminiViralResponseRef = useRef<(text: string) => void>(() => {});
   applyGeminiViralResponseRef.current = (text: string) => {
     setIsWaitingGeminiClips(false);
@@ -531,9 +532,19 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
       return Number.isFinite(st) && Number.isFinite(en) && en > st + 5 && st >= 0 && st < spanEnd;
     });
     if (valid.length === 0) {
+      // A veces la extensión captura la respuesta antes de que Gemini termine: se reenvía una vez sola
+      const pending = geminiViralOrderRef.current;
+      if (pending && pending.attempts < 2) {
+        pending.attempts += 1;
+        sendCommandToWebBridge('GEMINI', pending.payload);
+        setIsWaitingGeminiClips(true);
+        setActionToast('🔁 La respuesta de Gemini llegó incompleta; la pido otra vez...');
+        return;
+      }
       setActionToast('⚠️ Gemini respondió, pero sin una lista de clips que se pueda leer. Vuelve a pulsar "Gemini Web (Gratis)".');
       return;
     }
+    geminiViralOrderRef.current = null;
     const built = buildViralClipsFromList(
       valid.sort((a, b) => (Number(b.viralityScore) || 0) - (Number(a.viralityScore) || 0))
     );
@@ -1317,7 +1328,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                     )
                     .join(' // ');
                   const webPrompt = `Act as OpusClip Pro and an expert viral short-form video editor. From the following timestamped Spanish transcript of "${sourceTitle}", select the ${desiredClipCount} most viral standalone segments lasting between ${minDur}s and ${maxDur}s. CRITICAL OUTPUT LANGUAGE REQUIREMENT: Return ONLY a valid JSON object (no markdown commentary) where all audience-facing text fields ("title", "viralityReason", "hookBannerText", "socialCaption", "hashtags") are written in Neutral Spanish: {"clips":[{"title":"...","viralityScore":96,"viralityReason":"...","structureMode":"hook_teaser","startSec":0,"endSec":42,"hookTeaserStartSec":10,"hookTeaserEndSec":14,"hookBannerText":"...","socialCaption":"...","hashtags":"#Historia #Documental #Reels"}]}. TIMESTAMPED TRANSCRIPT: ${formattedTranscript}`;
-                  sendCommandToWebBridge('GEMINI', {
+                  const geminiViralPayload = {
                     action: 'SEND_PROMPT',
                     prompt: webPrompt,
                     // Pedido suelto en un chat nuevo: su respuesta vuelve a esta pantalla, no a una etapa
@@ -1339,7 +1350,9 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                     enableCreateImage: false,
                     autoSubmit: true,
                     focusTab: false,
-                  } as any);
+                  } as any;
+                  geminiViralOrderRef.current = { payload: geminiViralPayload, attempts: 1 };
+                  sendCommandToWebBridge('GEMINI', geminiViralPayload);
                   setIsWaitingGeminiClips(true);
                   setActionToast(
                     '🌐 Enviado a Gemini Web. Cuando responda, los clips aparecerán aquí solos.'
