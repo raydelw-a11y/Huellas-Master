@@ -44,7 +44,7 @@
     "_v6_16x9_captionOriginalDefault": true,
     "_v7_9x16_captions22": true
   },
-  "updatedAt": "2026-11-21T05:26:26.136Z",
+  "updatedAt": "2026-11-21T05:35:58.974Z",
   "overlayStyles": {
     "logoScalePct": 5,
     "logoOpacity": 95,
@@ -136,7 +136,7 @@
     {
       "id": "clip-2-1794891908251-r2ru",
       "clipNumber": 2,
-      "duration": 10.02,
+      "duration": 10.03,
       "trimStart": 0,
       "trimEnd": 10,
       "speed": 1,
@@ -153,7 +153,7 @@
     {
       "id": "clip-3-1794891908256-amek",
       "clipNumber": 3,
-      "duration": 10.03,
+      "duration": 10.02,
       "trimStart": 0,
       "trimEnd": 10,
       "speed": 1,
@@ -170,7 +170,7 @@
     {
       "id": "clip-4-1794891908258-w1fa",
       "clipNumber": 4,
-      "duration": 10.02,
+      "duration": 10.03,
       "trimStart": 0,
       "trimEnd": 10,
       "speed": 1,
@@ -202,7 +202,7 @@
     {
       "id": "clip-6-1794891908263-os58",
       "clipNumber": 6,
-      "duration": 10.02,
+      "duration": 10.03,
       "trimStart": 0,
       "trimEnd": 10,
       "speed": 1,
@@ -218,7 +218,7 @@
     {
       "id": "clip-7-1794891908265-tu8y",
       "clipNumber": 7,
-      "duration": 10.03,
+      "duration": 10.02,
       "trimStart": 0,
       "trimEnd": 10,
       "speed": 1,
@@ -234,7 +234,7 @@
     {
       "id": "clip-8-1794891908272-l6v2",
       "clipNumber": 8,
-      "duration": 10.02,
+      "duration": 10.03,
       "trimStart": 0,
       "trimEnd": 10,
       "speed": 1,
@@ -266,7 +266,7 @@
     {
       "id": "clip-10-1794891908276-2hyc",
       "clipNumber": 10,
-      "duration": 10.02,
+      "duration": 10.03,
       "trimStart": 0,
       "trimEnd": 10,
       "speed": 1,
@@ -282,7 +282,7 @@
     {
       "id": "clip-11-1794891908277-5as9",
       "clipNumber": 11,
-      "duration": 10.03,
+      "duration": 10.02,
       "trimStart": 0,
       "trimEnd": 10,
       "speed": 1,
@@ -298,7 +298,7 @@
     {
       "id": "clip-12-1794891908279-49w3",
       "clipNumber": 12,
-      "duration": 10.02,
+      "duration": 10.03,
       "trimStart": 0,
       "trimEnd": 10,
       "speed": 1,
@@ -330,7 +330,7 @@
     {
       "id": "clip-14-1794891908282-11kz",
       "clipNumber": 14,
-      "duration": 10.02,
+      "duration": 10.03,
       "trimStart": 0,
       "trimEnd": 10,
       "speed": 1,
@@ -346,7 +346,7 @@
     {
       "id": "clip-15-1794891908284-gazl",
       "clipNumber": 15,
-      "duration": 10.03,
+      "duration": 10.02,
       "trimStart": 0,
       "trimEnd": 10,
       "speed": 1,
@@ -362,7 +362,7 @@
     {
       "id": "clip-16-1794891908287-lyru",
       "clipNumber": 16,
-      "duration": 10.02,
+      "duration": 10.03,
       "trimStart": 0,
       "trimEnd": 10,
       "speed": 1,
@@ -394,7 +394,7 @@
     {
       "id": "clip-18-1794891908290-iq3m",
       "clipNumber": 18,
-      "duration": 10.02,
+      "duration": 10.03,
       "trimStart": 0,
       "trimEnd": 10,
       "speed": 1,
@@ -410,7 +410,7 @@
     {
       "id": "clip-19-1794891908292-6aig",
       "clipNumber": 19,
-      "duration": 10.03,
+      "duration": 10.02,
       "trimStart": 0,
       "trimEnd": 10,
       "speed": 1,
@@ -426,7 +426,7 @@
     {
       "id": "clip-20-1794891908293-g15z",
       "clipNumber": 20,
-      "duration": 10.02,
+      "duration": 10.03,
       "trimStart": 0,
       "trimEnd": 10,
       "speed": 1,
@@ -442,7 +442,7 @@
     {
       "id": "clip-21-1794891908295-7515",
       "clipNumber": 21,
-      "duration": 10.17,
+      "duration": 10.29,
       "trimStart": 0.44,
       "trimEnd": 9.94,
       "speed": 0.92,
@@ -490,7 +490,7 @@
     {
       "id": "clip-24-1794891908301-eb9m",
       "clipNumber": 24,
-      "duration": 10.02,
+      "duration": 10.03,
       "trimStart": 0,
       "trimEnd": 10,
       "speed": 1,
@@ -554,7 +554,7 @@
     {
       "id": "clip-28-1794891908311-kssr",
       "clipNumber": 28,
-      "duration": 10.02,
+      "duration": 10.03,
       "trimStart": 0,
       "trimEnd": 10,
       "speed": 1,
@@ -618,7 +618,7 @@
     {
       "id": "clip-32-1794891908320-hlhj",
       "clipNumber": 32,
-      "duration": 10.02,
+      "duration": 10.03,
       "trimStart": 0,
       "trimEnd": 10,
       "speed": 1,
@@ -682,7 +682,7 @@
     {
       "id": "clip-36-1794891908329-jl3c",
       "clipNumber": 36,
-      "duration": 10.02,
+      "duration": 10.03,
       "trimStart": 0,
       "trimEnd": 10,
       "speed": 1,
@@ -746,7 +746,7 @@
     {
       "id": "clip-40-1794891908344-pgc8",
       "clipNumber": 40,
-      "duration": 10.02,
+      "duration": 10.03,
       "trimStart": 0,
       "trimEnd": 10,
       "speed": 1,
@@ -810,7 +810,7 @@
     {
       "id": "clip-44-1794891908477-09as",
       "clipNumber": 44,
-      "duration": 10.02,
+      "duration": 10.03,
       "trimStart": 0,
       "trimEnd": 10,
       "speed": 1,
@@ -826,7 +826,7 @@
     {
       "id": "clip-45-1794891908479-edsx",
       "clipNumber": 45,
-      "duration": 10.03,
+      "duration": 10.02,
       "trimStart": 0,
       "trimEnd": 10,
       "speed": 1,
@@ -842,7 +842,7 @@
     {
       "id": "clip-46-1794891908481-hhfl",
       "clipNumber": 46,
-      "duration": 10.02,
+      "duration": 10.03,
       "trimStart": 0,
       "trimEnd": 10,
       "speed": 1,
@@ -874,7 +874,7 @@
     {
       "id": "clip-48-1794891908486-3r5b",
       "clipNumber": 48,
-      "duration": 10.02,
+      "duration": 10.03,
       "trimStart": 0,
       "trimEnd": 10,
       "speed": 1,
@@ -890,7 +890,7 @@
     {
       "id": "clip-49-1794891908489-8swl",
       "clipNumber": 49,
-      "duration": 10.03,
+      "duration": 10.02,
       "trimStart": 0,
       "trimEnd": 10,
       "speed": 1,
@@ -906,7 +906,7 @@
     {
       "id": "clip-50-1794891908490-c4mo",
       "clipNumber": 50,
-      "duration": 10.29,
+      "duration": 10.03,
       "trimStart": 0.38,
       "trimEnd": 9.94,
       "speed": 0.95,
@@ -938,7 +938,7 @@
     {
       "id": "clip-52-1794891908495-urdx",
       "clipNumber": 52,
-      "duration": 10.02,
+      "duration": 10.03,
       "trimStart": 0,
       "trimEnd": 10,
       "speed": 1,
@@ -954,7 +954,7 @@
     {
       "id": "clip-53-1794891908497-oi9a",
       "clipNumber": 53,
-      "duration": 10.03,
+      "duration": 10.02,
       "trimStart": 0,
       "trimEnd": 10,
       "speed": 1,
@@ -970,7 +970,7 @@
     {
       "id": "clip-54-1794891908500-l6na",
       "clipNumber": 54,
-      "duration": 10.02,
+      "duration": 10.03,
       "trimStart": 0,
       "trimEnd": 10,
       "speed": 1,
@@ -1002,7 +1002,7 @@
     {
       "id": "clip-56-1794891908506-01gn",
       "clipNumber": 56,
-      "duration": 10.02,
+      "duration": 10.03,
       "trimStart": 0,
       "trimEnd": 10,
       "speed": 1,
@@ -1018,7 +1018,7 @@
     {
       "id": "clip-57-1794891908508-p4cb",
       "clipNumber": 57,
-      "duration": 10.03,
+      "duration": 10.02,
       "trimStart": 0,
       "trimEnd": 10,
       "speed": 1,
@@ -1034,7 +1034,7 @@
     {
       "id": "clip-58-1794891908510-p2lv",
       "clipNumber": 58,
-      "duration": 10.02,
+      "duration": 10.03,
       "trimStart": 0,
       "trimEnd": 10,
       "speed": 1,
@@ -1066,7 +1066,7 @@
     {
       "id": "clip-60-1795065216435-60",
       "clipNumber": 60,
-      "duration": 10.02,
+      "duration": 10.03,
       "trimStart": 0,
       "trimEnd": 10,
       "speed": 1,
@@ -1082,7 +1082,7 @@
     {
       "id": "clip-61-1795065216435-61",
       "clipNumber": 61,
-      "duration": 10.03,
+      "duration": 10.02,
       "trimStart": 0,
       "trimEnd": 10,
       "speed": 1,
@@ -1098,7 +1098,7 @@
     {
       "id": "clip-62-1795065216435-62",
       "clipNumber": 62,
-      "duration": 10.02,
+      "duration": 10.03,
       "trimStart": 0,
       "trimEnd": 10,
       "speed": 1,
