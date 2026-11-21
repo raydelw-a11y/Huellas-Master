@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-11-21T00:57:53.241Z",
-    "updatedAt": "2026-11-21T23:11:24.203Z",
+    "updatedAt": "2026-11-21T23:14:08.894Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -19,7 +19,7 @@
       "VOZ_NARRATIVA_EN_CLIPS": "INCLUIR",
       "UBICACION_INTRO_MARCA": "INTRO_INICIO_00",
       "FIELD_CLEARED_AT_voiceoverScript": "0",
-      "PROMPTS_RESTORED_AT": "1795302684203",
+      "PROMPTS_RESTORED_AT": "1795302848894",
       "FIELD_CLEARED_AT_rawClipsText": "0",
       "GEMINI_CHAT_URL": "https://gemini.google.com/app/bdee564ddf4bf54b",
       "SHOT_PLAN_AUDIT": "✅ Reparto de tomas: 2 de 2 tomas de apoyo y 1 imagen de archivo de época.",
