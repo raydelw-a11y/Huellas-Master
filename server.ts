@@ -12591,8 +12591,19 @@ app.get('/api/flow/list-folder-media', async (req, res) => {
       // A voice file already used by another documentary is never offered to this one (a documentary
       // without its own voice used to be given the newest file in the folder, whoever it belonged to)
       const ttsClaimedByOtherDocs = new Set<string>();
+      // ...and a loose file is only offered when it is recognisably this documentary's: it is already
+      // referenced by it, or its name carries this documentary's video number ("tts-video-30-...")
+      const ttsOwnedByThisDoc = new Set<string>();
+      let thisDocVideoNum = '';
       try {
         for (const od of readDocumentaries() || []) {
+          if (od && od.id === reqDocId) {
+            thisDocVideoNum = extractVideoNumberFromText(`${od.title || ''} ${od.topic || ''}`);
+            for (const u of [od.masterAudioUrl, ...(Array.isArray(od.audioTracks) ? od.audioTracks.flatMap((t: any) => [t?.audioUrl, t?.filename]) : [])]) {
+              const own = getTtsFileBaseName(u) || (/\.(mp3|wav)$/i.test(String(u || '')) ? String(u).toLowerCase() : '');
+              if (own) ttsOwnedByThisDoc.add(own);
+            }
+          }
           if (!od || od.id === reqDocId) continue;
           for (const u of [od.masterAudioUrl, ...(Array.isArray(od.audioTracks) ? od.audioTracks.map((t: any) => t?.audioUrl) : [])]) {
             const base = getTtsFileBaseName(u);
@@ -12602,6 +12613,9 @@ app.get('/api/flow/list-folder-media', async (req, res) => {
       } catch {}
       for (const f of ttsEntries) {
         if (ttsClaimedByOtherDocs.has(f.toLowerCase())) continue;
+        const nameHasThisVideoNum =
+          Boolean(thisDocVideoNum) && new RegExp(`^tts-video-0*${thisDocVideoNum}(?![0-9])`, 'i').test(f);
+        if (!ttsOwnedByThisDoc.has(f.toLowerCase()) && !nameHasThisVideoNum) continue;
         localTtsFiles.push({
           fileName: f,
           url: `/tts-files/${f}`,
