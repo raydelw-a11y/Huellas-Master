@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-11-21T00:57:53.241Z",
-    "updatedAt": "2026-11-21T01:07:55.616Z",
+    "updatedAt": "2026-11-21T01:08:04.054Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -19,7 +19,9 @@
       "VOZ_NARRATIVA_EN_CLIPS": "INCLUIR",
       "UBICACION_INTRO_MARCA": "INTRO_INICIO_00",
       "FIELD_CLEARED_AT_voiceoverScript": "0",
-      "GEMINI_CHAT_URL": "https://gemini.google.com/app/bdee564ddf4bf54b"
+      "GEMINI_CHAT_URL": "https://gemini.google.com/app/bdee564ddf4bf54b",
+      "REMOTE_GEMINI_STAGE_STATUS": "failed",
+      "REMOTE_GEMINI_STAGE_ERROR": "Respuesta vacía de Gemini"
     },
     "compiledMasterPrompt": "",
     "topic": "El Puente de Londres: la calle que flotó 600 años sobre el Támesis",
