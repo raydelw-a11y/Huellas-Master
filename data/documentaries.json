@@ -22,7 +22,8 @@
       "PROMPTS_RESTORED_AT": "1795223576344",
       "FIELD_CLEARED_AT_rawClipsText": "0",
       "GEMINI_CHAT_URL": "https://gemini.google.com/app/bdee564ddf4bf54b",
-      "SHOT_PLAN_AUDIT": "⚠️ Reparto de tomas (Etapa 6): Tomas de apoyo: se pidieron 2 y llegaron 0. • Imagen de archivo de época: debe haber una sola y llegaron 0."
+      "SHOT_PLAN_AUDIT": "⚠️ Reparto de tomas (Etapa 6): Tomas de apoyo: se pidieron 2 y llegaron 0. • Imagen de archivo de época: debe haber una sola y llegaron 0.",
+      "REMOTE_GEMINI_STAGE_STATUS": "failed"
     },
     "compiledMasterPrompt": "",
     "topic": "El Puente de Londres: la calle que flotó 600 años sobre el Támesis",
@@ -331,8 +332,10 @@
         "videoAuditStatus": "approved",
         "videoSavedFileName": "01_create_a_cinematic_6_second_4bcd0a45_4K.mp4",
         "auditStatus": "ok",
-        "auditReason": "Clip 1 (00:08 - 00:16 sin voz en off, duración Flow 8s; la voz narrativa entra en 00:16).",
-        "videoSavedAt": 1795223135658
+        "auditReason": "Pendiente de generar prompts de Imagen Inicial y Video en Gemini (pulsa el botón \"✨ Generar Prompts en Gemini\").",
+        "videoSavedAt": 1795223135658,
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-2-1795223134874-2",
@@ -352,7 +355,9 @@
         "videoSavedFileName": "02_Ano_1941_Enfermeria_Radcliffe_Oxford_Inglaterra_4K.mp4",
         "videoSavedAt": 1795223135658,
         "auditStatus": "ok",
-        "auditReason": "Sincronizado con el tramo de voz narrativa."
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-3-1795223134874-3",
@@ -372,7 +377,9 @@
         "videoSavedFileName": "03_create_a_cinematic_8_second_d8115b23_4K.mp4",
         "videoSavedAt": 1795223135658,
         "auditStatus": "ok",
-        "auditReason": "Sincronizado con el tramo de voz narrativa."
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-4-1795223134874-4",
@@ -395,7 +402,9 @@
         "auditStatus": "ok",
         "auditReason": "🖼️ Escena B-Roll Solo Imagen (Zoom In) lista — movimiento 4K 60fps local en Editor.",
         "isStaticBroll": true,
-        "brollCameraMotion": "zoom_in"
+        "brollCameraMotion": "zoom_in",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-5-1795223134874-5",
@@ -415,7 +424,9 @@
         "videoSavedFileName": "05_create_a_cinematic_8_second_77a1f962_4K.mp4",
         "videoSavedAt": 1795223135658,
         "auditStatus": "ok",
-        "auditReason": "Sincronizado con el tramo de voz narrativa."
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-6-1795223134874-6",
@@ -435,7 +446,9 @@
         "videoSavedFileName": "06_create_a_cinematic_8_second_fe849478_4K.mp4",
         "videoSavedAt": 1795223135658,
         "auditStatus": "ok",
-        "auditReason": "Sincronizado con el tramo de voz narrativa."
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-7-1795223134874-7",
@@ -455,7 +468,9 @@
         "videoSavedFileName": "07_create_a_cinematic_8_second_8a0e5be8_4K.mp4",
         "videoSavedAt": 1795223135658,
         "auditStatus": "ok",
-        "auditReason": "Sincronizado con el tramo de voz narrativa."
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-8-1795223134874-8",
@@ -475,7 +490,9 @@
         "videoSavedFileName": "08_create_a_cinematic_8_second_3d797e03_4K.mp4",
         "videoSavedAt": 1795223135658,
         "auditStatus": "ok",
-        "auditReason": "Sincronizado con el tramo de voz narrativa."
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-9-1795223134874-9",
@@ -495,7 +512,9 @@
         "videoSavedFileName": "09_create_a_cinematic_8_second_0cf4c630_4K.mp4",
         "videoSavedAt": 1795223135658,
         "auditStatus": "ok",
-        "auditReason": "Sincronizado con el tramo de voz narrativa."
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-10-1795223134874-10",
@@ -515,7 +534,9 @@
         "videoSavedFileName": "10_create_a_cinematic_8_second_1fff4388_4K.mp4",
         "videoSavedAt": 1795223135658,
         "auditStatus": "ok",
-        "auditReason": "Sincronizado con el tramo de voz narrativa."
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-11-1795223134874-11",
@@ -535,7 +556,9 @@
         "videoSavedFileName": "11_create_a_cinematic_8_second_02b868e8_4K.mp4",
         "videoSavedAt": 1795223135658,
         "auditStatus": "ok",
-        "auditReason": "Sincronizado con el tramo de voz narrativa."
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-12-1795223134874-12",
@@ -555,7 +578,9 @@
         "videoSavedFileName": "12_Physician_studies_chart_67a33dd3_4K.mp4",
         "videoSavedAt": 1795223135658,
         "auditStatus": "ok",
-        "auditReason": "Sincronizado con el tramo de voz narrativa."
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-13-1795223134874-13",
@@ -575,7 +600,9 @@
         "videoSavedFileName": "13_Physician_using_glass_pipette_c91e1e39_4K.mp4",
         "videoSavedAt": 1795223135658,
         "auditStatus": "ok",
-        "auditReason": "Sincronizado con el tramo de voz narrativa."
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-14-1795223134874-14",
@@ -595,7 +622,9 @@
         "videoSavedFileName": "14_create_a_cinematic_8_second_38fa30f9_4K.mp4",
         "videoSavedAt": 1795223135658,
         "auditStatus": "ok",
-        "auditReason": "Sincronizado con el tramo de voz narrativa."
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-15-1795223134874-15",
@@ -615,7 +644,9 @@
         "videoSavedFileName": "15_create_a_cinematic_8_second_6ae2fc0d_4K.mp4",
         "videoSavedAt": 1795223135658,
         "auditStatus": "ok",
-        "auditReason": "Sincronizado con el tramo de voz narrativa."
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-16-1795223134874-16",
@@ -635,7 +666,9 @@
         "videoSavedFileName": "16_create_a_cinematic_8_second_video_698399b1_4K.mp4",
         "videoSavedAt": 1795223135658,
         "auditStatus": "ok",
-        "auditReason": "Sincronizado con el tramo de voz narrativa."
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-17-1795223134874-17",
@@ -655,7 +688,9 @@
         "videoSavedFileName": "17_create_a_cinematic_8_second_7c7428d8_4K.mp4",
         "videoSavedAt": 1795223135658,
         "auditStatus": "ok",
-        "auditReason": "Sincronizado con el tramo de voz narrativa."
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-18-1795223134874-18",
@@ -675,9 +710,11 @@
         "videoSavedFileName": "18_Create_an_image_in_16_Broll_4K.mp4",
         "videoSavedAt": 1795223135658,
         "auditStatus": "ok",
-        "auditReason": "🖼️ Escena B-Roll Solo Imagen (Zoom In) lista — movimiento 4K 60fps local en Editor.",
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "isStaticBroll": true,
-        "brollCameraMotion": "zoom_in"
+        "brollCameraMotion": "zoom_in",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-19-1795223134875-19",
@@ -697,7 +734,9 @@
         "videoSavedFileName": "19_create_a_cinematic_8_second_49483cb1_4K.mp4",
         "videoSavedAt": 1795223135658,
         "auditStatus": "ok",
-        "auditReason": "Sincronizado con el tramo de voz narrativa."
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-20-1795223134875-20",
@@ -717,7 +756,9 @@
         "videoSavedFileName": "20_create_a_cinematic_8_second_da4c71cf_4K.mp4",
         "videoSavedAt": 1795223135658,
         "auditStatus": "ok",
-        "auditReason": "Sincronizado con el tramo de voz narrativa."
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-21-1795223134875-21",
@@ -737,7 +778,9 @@
         "videoSavedFileName": "21_create_a_cinematic_8_second_video_4db99d4b_4K.mp4",
         "videoSavedAt": 1795223135658,
         "auditStatus": "ok",
-        "auditReason": "Sincronizado con el tramo de voz narrativa."
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-22-1795223134875-22",
@@ -757,7 +800,9 @@
         "videoSavedFileName": "22_create_a_cinematic_8_second_video_751661e8_4K.mp4",
         "videoSavedAt": 1795223135658,
         "auditStatus": "ok",
-        "auditReason": "Sincronizado con el tramo de voz narrativa."
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-23-1795223134875-23",
@@ -777,7 +822,9 @@
         "videoSavedFileName": "23_create_a_cinematic_8_second_video_de5f3c8a_4K.mp4",
         "videoSavedAt": 1795223135658,
         "auditStatus": "ok",
-        "auditReason": "Sincronizado con el tramo de voz narrativa."
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-24-1795223134875-24",
@@ -797,7 +844,9 @@
         "videoSavedFileName": "24_create_a_cinematic_8_second_video_39bc2cfa_4K.mp4",
         "videoSavedAt": 1795223135658,
         "auditStatus": "ok",
-        "auditReason": "Sincronizado con el tramo de voz narrativa."
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-25-1795223134875-25",
@@ -817,7 +866,9 @@
         "videoSavedFileName": "25_create_a_cinematic_8_second_video_29287299_4K.mp4",
         "videoSavedAt": 1795223135658,
         "auditStatus": "ok",
-        "auditReason": "Sincronizado con el tramo de voz narrativa."
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-26-1795223134875-26",
@@ -837,7 +888,9 @@
         "videoSavedFileName": "26_create_a_cinematic_8_second_video_a13cda38_4K.mp4",
         "videoSavedAt": 1795223135658,
         "auditStatus": "ok",
-        "auditReason": "Sincronizado con el tramo de voz narrativa."
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-27-1795223134875-27",
@@ -857,7 +910,9 @@
         "videoSavedFileName": "27_create_a_cinematic_8_second_video_a1ebeddd_4K.mp4",
         "videoSavedAt": 1795223135658,
         "auditStatus": "ok",
-        "auditReason": "Sincronizado con el tramo de voz narrativa."
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-28-1795223134875-28",
@@ -877,9 +932,11 @@
         "videoSavedFileName": "28_Create_an_image_in_16_Broll_4K.mp4",
         "videoSavedAt": 1795223135658,
         "auditStatus": "ok",
-        "auditReason": "🖼️ Escena B-Roll Solo Imagen (Zoom In) lista — movimiento 4K 60fps local en Editor.",
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "isStaticBroll": true,
-        "brollCameraMotion": "zoom_in"
+        "brollCameraMotion": "zoom_in",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-29-1795223134875-29",
@@ -899,7 +956,9 @@
         "videoSavedFileName": "29_create_a_cinematic_8_second_video_530d5f28_4K.mp4",
         "videoSavedAt": 1795223135658,
         "auditStatus": "ok",
-        "auditReason": "Sincronizado con el tramo de voz narrativa."
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-30-1795223134875-30",
@@ -919,7 +978,9 @@
         "videoSavedFileName": "30_Director_examining_flask_in_office_4c723756_4K.mp4",
         "videoSavedAt": 1795223135658,
         "auditStatus": "ok",
-        "auditReason": "Sincronizado con el tramo de voz narrativa."
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-31-1795223134875-31",
@@ -939,7 +1000,9 @@
         "videoSavedFileName": "31_create_a_cinematic_8_second_video_fcbeeefd_4K.mp4",
         "videoSavedAt": 1795223135658,
         "auditStatus": "ok",
-        "auditReason": "Sincronizado con el tramo de voz narrativa."
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-32-1795223134875-32",
@@ -959,7 +1022,9 @@
         "videoSavedFileName": "32_create_a_cinematic_8_second_cde23c68_4K.mp4",
         "videoSavedAt": 1795223135658,
         "auditStatus": "ok",
-        "auditReason": "Sincronizado con el tramo de voz narrativa."
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-33-1795223134875-33",
@@ -979,7 +1044,9 @@
         "videoSavedFileName": "33_create_a_cinematic_8_second_a164be7a_4K.mp4",
         "videoSavedAt": 1795223135658,
         "auditStatus": "ok",
-        "auditReason": "Sincronizado con el tramo de voz narrativa."
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-34-1795223134875-34",
@@ -999,7 +1066,9 @@
         "videoSavedFileName": "34_create_a_cinematic_8_second_video_3d55e994_4K.mp4",
         "videoSavedAt": 1795223135658,
         "auditStatus": "ok",
-        "auditReason": "Sincronizado con el tramo de voz narrativa."
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-35-1795223134875-35",
@@ -1019,7 +1088,9 @@
         "videoSavedFileName": "35_create_a_cinematic_8_second_video_0edf6ca0_4K.mp4",
         "videoSavedAt": 1795223135658,
         "auditStatus": "ok",
-        "auditReason": "Sincronizado con el tramo de voz narrativa."
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-36-1795223134875-36",
@@ -1039,7 +1110,9 @@
         "videoSavedFileName": "36_create_a_cinematic_8_second_video_4c1eb370_4K.mp4",
         "videoSavedAt": 1795223135658,
         "auditStatus": "ok",
-        "auditReason": "Sincronizado con el tramo de voz narrativa."
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-37-1795223134875-37",
@@ -1059,7 +1132,9 @@
         "videoSavedFileName": "37_create_a_cinematic_8_second_video_579ee378_4K.mp4",
         "videoSavedAt": 1795223135658,
         "auditStatus": "ok",
-        "auditReason": "Sincronizado con el tramo de voz narrativa."
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-38-1795223134875-38",
@@ -1079,7 +1154,9 @@
         "videoSavedFileName": "38_create_a_cinematic_8_second_video_85509bae_4K.mp4",
         "videoSavedAt": 1795223135658,
         "auditStatus": "ok",
-        "auditReason": "Sincronizado con el tramo de voz narrativa."
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-39-1795223134875-39",
@@ -1099,9 +1176,11 @@
         "videoSavedFileName": "39_Create_an_image_in_16_Broll_4K.mp4",
         "videoSavedAt": 1795223135658,
         "auditStatus": "ok",
-        "auditReason": "🖼️ Escena B-Roll Solo Imagen (Zoom In) lista — movimiento 4K 60fps local en Editor.",
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "isStaticBroll": true,
-        "brollCameraMotion": "zoom_in"
+        "brollCameraMotion": "zoom_in",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-40-1795223134876-40",
@@ -1121,7 +1200,9 @@
         "videoSavedFileName": "40_create_a_cinematic_8_second_video_dd7e8aef_4K.mp4",
         "videoSavedAt": 1795223135658,
         "auditStatus": "ok",
-        "auditReason": "Sincronizado con el tramo de voz narrativa."
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-41-1795223134876-41",
@@ -1141,7 +1222,9 @@
         "videoSavedFileName": "41_create_a_cinematic_8_second_video_db2bd31c_4K.mp4",
         "videoSavedAt": 1795223135658,
         "auditStatus": "ok",
-        "auditReason": "Sincronizado con el tramo de voz narrativa."
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-42-1795223134876-42",
@@ -1161,7 +1244,9 @@
         "videoSavedFileName": "42_create_a_cinematic_8_second_video_2fde4ec1_4K.mp4",
         "videoSavedAt": 1795223135658,
         "auditStatus": "ok",
-        "auditReason": "Sincronizado con el tramo de voz narrativa."
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-43-1795223134876-43",
@@ -1181,9 +1266,11 @@
         "videoSavedFileName": "43_Create_an_image_in_16_Broll_4K.mp4",
         "videoSavedAt": 1795223135658,
         "auditStatus": "ok",
-        "auditReason": "🖼️ Escena B-Roll Solo Imagen (Zoom In) lista — movimiento 4K 60fps local en Editor.",
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "isStaticBroll": true,
-        "brollCameraMotion": "zoom_in"
+        "brollCameraMotion": "zoom_in",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-44-1795223134876-44",
@@ -1203,7 +1290,9 @@
         "videoSavedFileName": "44_create_a_cinematic_8_second_video_c3f588ba_4K.mp4",
         "videoSavedAt": 1795223135658,
         "auditStatus": "ok",
-        "auditReason": "Sincronizado con el tramo de voz narrativa."
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-45-1795223134876-45",
@@ -1223,7 +1312,9 @@
         "videoSavedFileName": "45_create_a_cinematic_8_second_video_7e360369_4K.mp4",
         "videoSavedAt": 1795223135658,
         "auditStatus": "ok",
-        "auditReason": "Sincronizado con el tramo de voz narrativa."
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-46-1795223134876-46",
@@ -1243,7 +1334,9 @@
         "videoSavedFileName": "46_create_a_cinematic_8_second_video_ab0c9aae_4K.mp4",
         "videoSavedAt": 1795223135658,
         "auditStatus": "ok",
-        "auditReason": "Sincronizado con el tramo de voz narrativa."
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-47-1795223134876-47",
@@ -1263,9 +1356,11 @@
         "videoSavedFileName": "47_Create_an_image_in_16_Broll_4K.mp4",
         "videoSavedAt": 1795223135658,
         "auditStatus": "ok",
-        "auditReason": "🖼️ Escena B-Roll Solo Imagen (Zoom In) lista — movimiento 4K 60fps local en Editor.",
+        "auditReason": "Pendiente de generar los prompts de Imagen Inicial y Video en Gemini (pulsa \"✨ Generar Prompts en Gemini\").",
         "isStaticBroll": true,
-        "brollCameraMotion": "zoom_in"
+        "brollCameraMotion": "zoom_in",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       }
     ],
     "capcutRawSrt": "",
