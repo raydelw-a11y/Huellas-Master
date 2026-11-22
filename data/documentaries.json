@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-11-21T00:57:53.241Z",
-    "updatedAt": "2026-11-22T01:35:23.588Z",
+    "updatedAt": "2026-11-22T01:35:43.183Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -19,7 +19,7 @@
       "VOZ_NARRATIVA_EN_CLIPS": "INCLUIR",
       "UBICACION_INTRO_MARCA": "INTRO_INICIO_00",
       "FIELD_CLEARED_AT_voiceoverScript": "0",
-      "PROMPTS_RESTORED_AT": "1795311323588",
+      "PROMPTS_RESTORED_AT": "1795311343183",
       "FIELD_CLEARED_AT_rawClipsText": "0",
       "GEMINI_CHAT_URL": "https://gemini.google.com/app/bdee564ddf4bf54b",
       "SHOT_PLAN_AUDIT": "⚠️ Reparto de tomas (Etapa 6): Se quitó la marca de B-roll antigua de los clips 4, 18, 28, 39, 43, 47: en esta generación Gemini escribió clip de video para ellos.",
@@ -476,18 +476,32 @@
         "frameZoom16x9": 100,
         "frameOffsetX16x9": 0,
         "frameOffsetY16x9": 0,
-        "frameTransformAt": 1795309378762,
+        "frameTransformAt": 1795311343124,
         "frameKeys16x9": [],
         "frameZoomInSec16x9": 0,
         "frameZoom9x16": 100,
         "frameOffsetX9x16": 0,
         "frameOffsetY9x16": 0,
-        "frameKeys9x16": [],
+        "frameKeys9x16": [
+          {
+            "t": 6.89,
+            "z": 100,
+            "x": 0,
+            "y": 0,
+            "f": 16.2
+          }
+        ],
         "frameZoomInSec9x16": 0,
         "reviewedUpdatedAt": 1795306275776,
         "discardedVideoFileName": "06_create_a_cinematic_8_second_fe849478_4K.mp4",
         "videoDiscardedAt": 1795306275776,
-        "videoFrames": []
+        "videoFrames": [],
+        "reframe9x16Mode": "manual",
+        "reframeFocusXStart": 16.2,
+        "reframeFocusXEnd": 16.2,
+        "reframeReason": "Enfoque manual elegido en el visor (16%)",
+        "userReframed9x16": true,
+        "reframeUpdatedAt": 1795311341922
       },
       {
         "id": "clip-7-1795229017000-7",
