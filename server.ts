@@ -8148,7 +8148,17 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         ? (savedClipMatch as any)[isVertical916 ? 'frameKeys9x16' : 'frameKeys16x9']
         : [];
       const frameKeys = rawFrameKeys
-        .map((fk) => ({ t: Number(fk?.t), z: Number(fk?.z) / 100, x: Number(fk?.x) / 100, y: Number(fk?.y) / 100 }))
+        .map((fk) => ({
+          t: Number(fk?.t),
+          z: Number(fk?.z) / 100,
+          x: Number(fk?.x) / 100,
+          y: Number(fk?.y) / 100,
+          // 9:16 focus of this point (0..1 across the 16:9 clip); NaN when the point does not set one
+          f:
+            fk?.f !== undefined && fk?.f !== null && fk?.f !== '' && Number.isFinite(Number(fk.f))
+              ? Math.max(0, Math.min(1, Number(fk.f) / 100))
+              : NaN,
+        }))
         .filter((fk) => [fk.t, fk.z, fk.x, fk.y].every((n) => Number.isFinite(n)) && fk.t >= 0)
         .sort((a, b) => a.t - b.t)
         .slice(0, 8);
@@ -8173,8 +8183,12 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       const keyX = useFrameKeys ? buildKeyExpr((fk) => fk.x) : '0';
       const keyY = useFrameKeys ? buildKeyExpr((fk) => fk.y) : '0';
       // Moving window that follows the framing points; (ox, oy) is the point of the frame the zoom grows from
-      const buildKeyZoompan = (ox: number, oy: number) =>
-        `zoompan=z='${keyZ}':x='max(0,min(iw-iw/zoom,iw*${ox.toFixed(4)}*(1-1/zoom)-iw*(${keyX})/zoom))':y='max(0,min(ih-ih/zoom,ih*${oy.toFixed(4)}*(1-1/zoom)-ih*(${keyY})/zoom))':d=1:s=${outW}x${outH}:fps=${safeFps}`;
+      const buildKeyZoompan = (oxIn: number | string, oy: number) => {
+        const ox = typeof oxIn === 'number' ? oxIn.toFixed(4) : `(${oxIn})`;
+        return buildKeyZoompanFromExpr(ox, oy);
+      };
+      const buildKeyZoompanFromExpr = (ox: string, oy: number) =>
+        `zoompan=z='${keyZ}':x='max(0,min(iw-iw/zoom,iw*${ox}*(1-1/zoom)-iw*(${keyX})/zoom))':y='max(0,min(ih-ih/zoom,ih*${oy.toFixed(4)}*(1-1/zoom)-ih*(${keyY})/zoom))':d=1:s=${outW}x${outH}:fps=${safeFps}`;
 
       let scaleAndCropVf: string;
       if (isOutroClip) {
@@ -8217,12 +8231,39 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
           fEnd >= 0.96
             ? Math.max(0.5, effectiveClipDur * 0.6)
             : Math.max(0.5, effectiveClipDur);
-        const cropXExpr = isDynamicPan
+        // Focus points (set by dragging the 16:9 clip under the vertical frame in the viewer): the crop slides
+        // from each point's focus to the next, easing like the framing itself. They replace the clip's own pan.
+        const focusKeys = isVertical916 && !isIntroClip && !isOutroClip
+          ? frameKeys.filter((fk) => Number.isFinite(fk.f))
+          : [];
+        // `unit` is the variable the filter offers: seconds (`t`, crop) or output frame number (`on`, zoompan)
+        const buildFocusExpr = (unit: 't' | 'on'): string => {
+          const k = unit === 'on' ? safeFps : 1;
+          const tv = (sec: number) => (unit === 'on' ? String(Math.round(sec * k)) : sec.toFixed(3));
+          if (focusKeys.length === 0) return '';
+          if (focusKeys.length === 1) return focusKeys[0].f.toFixed(4);
+          let expr = focusKeys[focusKeys.length - 1].f.toFixed(4);
+          for (let ki = focusKeys.length - 2; ki >= 0; ki--) {
+            const a = focusKeys[ki];
+            const b = focusKeys[ki + 1];
+            const span = Math.max(unit === 'on' ? 1 : 0.04, (b.t - a.t) * k);
+            const p = `((${unit}-${tv(a.t)})/${unit === 'on' ? Math.round(span) : span.toFixed(3)})`;
+            const seg = `(${a.f.toFixed(4)}+(${(b.f - a.f).toFixed(4)})*${p}*${p}*(3-2*${p}))`;
+            expr = `if(lt(${unit},${tv(b.t)}),${seg},${expr})`;
+          }
+          return `if(lt(${unit},${tv(focusKeys[0].t)}),${focusKeys[0].f.toFixed(4)},${expr})`;
+        };
+        const focusKeyExpr = buildFocusExpr('t');
+        const cropXExpr = focusKeyExpr
+          ? `'max(0,min(iw-ow,(iw-ow)*(${focusKeyExpr})))'`
+          : isDynamicPan
           ? `'max(0,min(iw-ow,(iw-ow)*(${fStart.toFixed(4)}+(${(fEnd - fStart).toFixed(4)})*min(1,max(0,t/${panDurSec.toFixed(3)})))))'`
           : `'max(0,min(iw-ow,(iw-ow)*${fStart.toFixed(4)}))'`;
+        // The moving window of the framing points grows from the focus point, wherever it is at that instant
+        const keyZoomOriginX: number | string = focusKeys.length > 0 ? buildFocusExpr('on') : fStart;
         const cropYExpr = `'max(0,min(ih-oh,(ih-oh)*${fY.toFixed(4)}))'`;
         scaleAndCropVf = useFrameKeys
-          ? `scale=${outW}:${outH}:force_original_aspect_ratio=increase:flags=${clipScaleFlags},${fpsInterpStage},crop=${outW}:${outH}:${cropXExpr}:${cropYExpr},${buildKeyZoompan(fStart, fY)}`
+          ? `scale=${outW}:${outH}:force_original_aspect_ratio=increase:flags=${clipScaleFlags},${fpsInterpStage},crop=${outW}:${outH}:${cropXExpr}:${cropYExpr},${buildKeyZoompan(keyZoomOriginX, fY)}`
           : hasFrameZoom
           ? `scale=${zoomW}:${zoomH}:force_original_aspect_ratio=increase:force_divisible_by=2:flags=${clipScaleFlags},${fpsInterpStage},crop=${zoomCropSize}:${cropXExpr}:${cropYExpr},${zoomPad}`
           : `scale=${outW}:${outH}:force_original_aspect_ratio=increase:flags=${clipScaleFlags},${fpsInterpStage},crop=${outW}:${outH}:${cropXExpr}:${cropYExpr}`;

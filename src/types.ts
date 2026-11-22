@@ -228,7 +228,7 @@ export interface DocumentaryClip {
   frameZoomInSec16x9?: number; // gradual zoom: seconds from 100% to the set size/position (0 = off)
   frameZoomInSec9x16?: number;
   frameKeys16x9?: Array<{ t: number; z: number; x: number; y: number }>; // framing points (16:9)
-  frameKeys9x16?: Array<{ t: number; z: number; x: number; y: number }>; // framing points (9:16)
+  frameKeys9x16?: Array<{ t: number; z: number; x: number; y: number; f?: number }>; // framing points (9:16); f = horizontal focus 0..100
   reframeConfidence?: number;
   reframeReason?: string;
   // Motor de video específico de este clip (Omni 1.1 Flash si hay personas, Veo 3.1 - Lite [Lower Priority] para el resto)

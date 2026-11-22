@@ -287,7 +287,11 @@ export interface ClipFrameKey {
   z: number;
   x: number;
   y: number;
+  /** 9:16 only: horizontal focus of the vertical crop over the 16:9 clip, 0 (left) .. 100 (right). */
+  f?: number;
 }
+/** Width of a 16:9 clip measured in widths of the 9:16 frame it fills (percent). */
+const SOURCE_16X9_WIDTH_IN_9X16_FRAME_PCT = ((16 / 9) / (9 / 16)) * 100;
 const MAX_CLIP_FRAME_KEYS = 8;
 type ClipFrameSource = {
   frameZoom16x9?: number;
@@ -307,7 +311,18 @@ function getClipFrameKeys(clip: ClipFrameSource, ratio: string): ClipFrameKey[] 
   const rawKeys = ratio === '9:16' ? clip.frameKeys9x16 : clip.frameKeys16x9;
   const raw = Array.isArray(rawKeys) ? rawKeys : [];
   const clean = raw
-    .map((k) => ({ t: Number(k?.t), z: Number(k?.z), x: Number(k?.x), y: Number(k?.y) }))
+    .map((k) => {
+      const f = Number((k as any)?.f);
+      return {
+        t: Number(k?.t),
+        z: Number(k?.z),
+        x: Number(k?.x),
+        y: Number(k?.y),
+        ...(ratio === '9:16' && (k as any)?.f !== undefined && (k as any)?.f !== null && Number.isFinite(f)
+          ? { f: Math.max(0, Math.min(100, f)) }
+          : {}),
+      } as ClipFrameKey;
+    })
     .filter((k) => [k.t, k.z, k.x, k.y].every((v) => Number.isFinite(v)) && k.t >= 0 && k.z > 0)
     .sort((a, b) => a.t - b.t)
     .slice(0, MAX_CLIP_FRAME_KEYS);
@@ -323,7 +338,10 @@ function getClipFrameKeys(clip: ClipFrameSource, ratio: string): ClipFrameKey[] 
   return [];
 }
 /** Framing at `elapsedSec` between points: holds the first point before it and the last point after it. */
-function interpolateClipFrameKeys(keys: ClipFrameKey[], elapsedSec: number): { z: number; x: number; y: number } {
+function interpolateClipFrameKeys(
+  keys: ClipFrameKey[],
+  elapsedSec: number
+): { z: number; x: number; y: number; f?: number } {
   if (elapsedSec <= keys[0].t) return keys[0];
   const last = keys[keys.length - 1];
   if (elapsedSec >= last.t) return last;
@@ -332,13 +350,25 @@ function interpolateClipFrameKeys(keys: ClipFrameKey[], elapsedSec: number): { z
     const b = keys[i + 1];
     if (elapsedSec >= a.t && elapsedSec <= b.t) {
       const e = getFrameZoomInProgress(elapsedSec - a.t, b.t - a.t);
-      return { z: a.z + (b.z - a.z) * e, x: a.x + (b.x - a.x) * e, y: a.y + (b.y - a.y) * e };
+      // A point without its own focus takes the neighbour's, so the focus only moves between points that set it
+      const fa = a.f ?? b.f;
+      const fb = b.f ?? a.f;
+      return {
+        z: a.z + (b.z - a.z) * e,
+        x: a.x + (b.x - a.x) * e,
+        y: a.y + (b.y - a.y) * e,
+        ...(fa !== undefined && fb !== undefined ? { f: fa + (fb - fa) * e } : {}),
+      };
     }
   }
   return last;
 }
 /** Size (percent) and position of the clip at `elapsedSec` seconds into it. */
-function getClipFrameAt(clip: ClipFrameSource, ratio: string, elapsedSec: number): { z: number; x: number; y: number } {
+function getClipFrameAt(
+  clip: ClipFrameSource,
+  ratio: string,
+  elapsedSec: number
+): { z: number; x: number; y: number; f?: number } {
   const keys = getClipFrameKeys(clip, ratio);
   if (keys.length > 0) return interpolateClipFrameKeys(keys, elapsedSec);
   const off = getClipFrameOffsetPct(clip, ratio);
@@ -3521,6 +3551,16 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     return Math.max(0, Math.min(Math.max(0, clip.duration), Math.round((currentTime - clipStart) * 100) / 100));
   };
   const FRAME_KEY_SNAP_SEC = 0.15;
+  /** 9:16 focus (0..100) at `elapsedSec` into the clip: from its framing points, else from its own pan. */
+  const getClipLiveFocusX = (clip: TimelineClipItem, elapsedSec: number): number => {
+    const fromKeys = getClipFrameAt(clip, '9:16', elapsedSec).f;
+    if (fromKeys !== undefined) return fromKeys;
+    const fStart = typeof clip.reframeFocusXStart === 'number' ? clip.reframeFocusXStart : 50;
+    const fEnd = typeof clip.reframeFocusXEnd === 'number' ? clip.reframeFocusXEnd : fStart;
+    const prog = clip.duration > 0.1 ? Math.max(0, Math.min(1, elapsedSec / clip.duration)) : 0;
+    const panProg = fEnd >= 96 ? Math.min(1, prog / 0.6) : prog;
+    return fStart + (fEnd - fStart) * panProg;
+  };
 
   // Saves a patch of framing fields for one clip (timeline copy in this browser + the documentary)
   const saveClipFramePatch = (clip: TimelineClipItem, patch: Record<string, any>, commit: boolean) => {
@@ -3546,7 +3586,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   // point at the playhead (a new point is created there if none is close).
   const handleUpdateClipFrameTransform = (
     clipId: string,
-    next: { zoomPct?: number; offsetX?: number; offsetY?: number },
+    next: { zoomPct?: number; offsetX?: number; offsetY?: number; focusX?: number; focusY?: number },
     commit: boolean
   ) => {
     const is916 = aspectRatio === '9:16';
@@ -3563,18 +3603,80 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     const lim = (v: number) => Math.max(-maxOffset, Math.min(maxOffset, Math.round(v * 10) / 10));
     const x = lim(typeof next.offsetX === 'number' ? next.offsetX : current.x);
     const y = lim(typeof next.offsetY === 'number' ? next.offsetY : current.y);
+    // 9:16 focus: where the vertical frame sits over the 16:9 clip (0 = left edge, 100 = right edge)
+    const limFocus = (v: number) => Math.max(0, Math.min(100, Math.round(v * 10) / 10));
+    const hasFocusChange = is916 && (typeof next.focusX === 'number' || typeof next.focusY === 'number');
+    const focusYPatch =
+      is916 && typeof next.focusY === 'number' ? { reframeFocusY: limFocus(next.focusY) } : {};
     const keys = getClipFrameKeys(matchedClip, aspectRatio);
     if (keys.length > 0) {
+      const clipStartFocus =
+        typeof matchedClip.reframeFocusXStart === 'number' ? matchedClip.reframeFocusXStart : 50;
+      const focusNow = limFocus(
+        typeof next.focusX === 'number' ? next.focusX : current.f ?? clipStartFocus
+      );
+      // Once the focus is moved on a clip with points, every point carries a focus of its own
+      const withFocus = (k: ClipFrameKey): ClipFrameKey =>
+        is916 && (hasFocusChange || keys.some((kk) => kk.f !== undefined))
+          ? { ...k, f: k.f ?? clipStartFocus }
+          : k;
+      const point: ClipFrameKey = withFocus({
+        t: elapsed,
+        z: zoomPct,
+        x,
+        y,
+        ...(is916 && (typeof next.focusX === 'number' || current.f !== undefined) ? { f: focusNow } : {}),
+      });
       const nearIdx = keys.findIndex((k) => Math.abs(k.t - elapsed) <= FRAME_KEY_SNAP_SEC);
       const nextKeys =
         nearIdx >= 0
-          ? keys.map((k, i) => (i === nearIdx ? { ...k, z: zoomPct, x, y } : k))
-          : [...keys, { t: elapsed, z: zoomPct, x, y }].sort((a, b) => a.t - b.t).slice(0, MAX_CLIP_FRAME_KEYS);
+          ? keys.map((k, i) => (i === nearIdx ? { ...point, t: k.t } : withFocus(k)))
+          : [...keys.map(withFocus), point].sort((a, b) => a.t - b.t).slice(0, MAX_CLIP_FRAME_KEYS);
       saveClipFramePatch(
         matchedClip,
-        is916 ? { frameKeys9x16: nextKeys, frameZoomInSec9x16: 0 } : { frameKeys16x9: nextKeys, frameZoomInSec16x9: 0 },
+        is916
+          ? {
+              frameKeys9x16: nextKeys,
+              frameZoomInSec9x16: 0,
+              ...focusYPatch,
+              ...(hasFocusChange ? { userReframed9x16: true, reframe9x16Mode: 'manual' } : {}),
+            }
+          : { frameKeys16x9: nextKeys, frameZoomInSec16x9: 0 },
         commit
       );
+      return;
+    }
+    if (hasFocusChange) {
+      const fx = limFocus(
+        typeof next.focusX === 'number'
+          ? next.focusX
+          : typeof matchedClip.reframeFocusXStart === 'number'
+          ? matchedClip.reframeFocusXStart
+          : 50
+      );
+      if (commit) {
+        // Same save path as the 9:16 framing bar (also updates the server's reframe record)
+        handleUpdateClipReframe9x16(clipId, {
+          reframe9x16Mode: 'manual',
+          reframeFocusXStart: fx,
+          reframeFocusXEnd: fx,
+          ...focusYPatch,
+          reframeReason: `Enfoque manual elegido en el visor (${Math.round(fx)}%)`,
+          ...({ frameZoom9x16: zoomPct, frameTransformAt: Date.now() } as any),
+        });
+      } else {
+        saveClipFramePatch(
+          matchedClip,
+          {
+            frameZoom9x16: zoomPct,
+            reframe9x16Mode: 'manual',
+            reframeFocusXStart: fx,
+            reframeFocusXEnd: fx,
+            ...focusYPatch,
+          },
+          false
+        );
+      }
       return;
     }
     saveClipFramePatch(
@@ -3592,12 +3694,25 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     const elapsed = getClipElapsedAtPlayhead(clip);
     const cur = getClipFrameAt(clip, aspectRatio, elapsed);
     const keys = getClipFrameKeys(clip, aspectRatio);
-    const point = { t: elapsed, z: Math.round(cur.z), x: Math.round(cur.x * 10) / 10, y: Math.round(cur.y * 10) / 10 };
+    // In 9:16 (crop mode) every point also fixes where the vertical frame sits over the 16:9 clip
+    const usesFocus = aspectRatio === '9:16' && clip.reframe9x16Mode !== 'fit_blur';
+    const focusNow = usesFocus ? getClipLiveFocusX(clip, elapsed) : undefined;
+    const point: ClipFrameKey = {
+      t: elapsed,
+      z: Math.round(cur.z),
+      x: Math.round(cur.x * 10) / 10,
+      y: Math.round(cur.y * 10) / 10,
+      ...(focusNow !== undefined ? { f: Math.round(focusNow * 10) / 10 } : {}),
+    };
+    const fillFocus = (k: ClipFrameKey): ClipFrameKey =>
+      focusNow !== undefined && k.f === undefined
+        ? { ...k, f: typeof clip.reframeFocusXStart === 'number' ? clip.reframeFocusXStart : 50 }
+        : k;
     const nearIdx = keys.findIndex((k) => Math.abs(k.t - elapsed) <= FRAME_KEY_SNAP_SEC);
     const nextKeys =
       nearIdx >= 0
-        ? keys.map((k, i) => (i === nearIdx ? point : k))
-        : [...keys, point].sort((a, b) => a.t - b.t).slice(0, MAX_CLIP_FRAME_KEYS);
+        ? keys.map((k, i) => (i === nearIdx ? point : fillFocus(k)))
+        : [...keys.map(fillFocus), point].sort((a, b) => a.t - b.t).slice(0, MAX_CLIP_FRAME_KEYS);
     saveClipFramePatch(
       clip,
       aspectRatio === '9:16'
@@ -3661,7 +3776,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     centerX: number;
     centerY: number;
     startDist: number;
-    last: { zoomPct?: number; offsetX?: number; offsetY?: number };
+    /** 9:16 crop mode: moving the clip chooses the focus instead of shifting the picture off the frame. */
+    focusMode: boolean;
+    startFocusX: number;
+    startFocusY: number;
+    last: { zoomPct?: number; offsetX?: number; offsetY?: number; focusX?: number; focusY?: number };
   } | null>(null);
   const beginClipTransformDrag = (
     e: React.PointerEvent<HTMLElement>,
@@ -3678,7 +3797,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     const centerY = rect.top + (rect.height * boxCenterPct.y) / 100;
     const frameNow = getClipFrameAt(clip, aspectRatio, getClipElapsedAtPlayhead(clip));
     const off = { x: frameNow.x, y: frameNow.y };
+    const boxNow = getClipTransformBoxPct(clip);
     clipTransformDragRef.current = {
+      focusMode: boxNow.focusMode,
+      startFocusX: boxNow.focusX,
+      startFocusY: boxNow.focusY,
       mode,
       clipId: clip.id,
       startX: e.clientX,
@@ -3703,7 +3826,18 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     e.preventDefault();
     e.stopPropagation();
     const rect = canvasEl.getBoundingClientRect();
-    if (drag.mode === 'move') {
+    if (drag.mode === 'move' && drag.focusMode) {
+      // The 16:9 picture slides under the fixed vertical frame. Pulling it right shows more of its left side.
+      const z = drag.startZoom / 100;
+      const dxPct = ((e.clientX - drag.startX) / Math.max(1, rect.width)) * 100;
+      const dyPct = ((e.clientY - drag.startY) / Math.max(1, rect.height)) * 100;
+      const perFocusX = 1 - z - (z * (SOURCE_16X9_WIDTH_IN_9X16_FRAME_PCT - 100)) / 100;
+      drag.last = {
+        focusX: Math.max(0, Math.min(100, drag.startFocusX + dxPct / perFocusX)),
+        // Vertical room only exists once the clip is enlarged
+        ...(z > 1.01 ? { focusY: Math.max(0, Math.min(100, drag.startFocusY + dyPct / (1 - z))) } : {}),
+      };
+    } else if (drag.mode === 'move') {
       drag.last = {
         offsetX: drag.startOffX + ((e.clientX - drag.startX) / Math.max(1, rect.width)) * 100,
         offsetY: drag.startOffY + ((e.clientY - drag.startY) / Math.max(1, rect.height)) * 100,
@@ -10156,19 +10290,55 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     Boolean(activeClipAtPlayhead) &&
     activeClipAtPlayhead!.clipNumber !== 0 &&
     activeClipAtPlayhead!.clipNumber !== 999;
-  /** Box of the clip in percent of the frame (0..100 = the frame itself). */
+  /**
+   * Box of the clip in percent of the frame (0..100 = the frame itself).
+   * In 9:16 crop mode the clip is the whole 16:9 picture, about 3.16 frames wide: `focusMode` is true and
+   * dragging it sideways chooses which part of it the vertical frame shows.
+   */
   const getClipTransformBoxPct = (clip: TimelineClipItem) => {
-    const f = getClipFrameAt(clip, aspectRatio, getClipElapsedAtPlayhead(clip));
+    const elapsed = getClipElapsedAtPlayhead(clip);
+    const f = getClipFrameAt(clip, aspectRatio, elapsed);
     const z = f.z / 100;
     const usesFocus = aspectRatio === '9:16' && clip.reframe9x16Mode !== 'fit_blur';
-    const originX = usesFocus ? (typeof clip.reframeFocusXStart === 'number' ? clip.reframeFocusXStart : 50) : 50;
-    const originY = usesFocus && z > 1 ? (typeof clip.reframeFocusY === 'number' ? clip.reframeFocusY : 50) : 50;
+    const hasOffset = Math.abs(f.x) > 0.05 || Math.abs(f.y) > 0.05;
+    const focusX = usesFocus ? getClipLiveFocusX(clip, elapsed) : 50;
+    const focusY = typeof clip.reframeFocusY === 'number' ? clip.reframeFocusY : 50;
+    const originX = usesFocus ? focusX : 50;
+    const originY = usesFocus && z > 1 ? focusY : 50;
+    if (usesFocus && !hasOffset) {
+      const srcW = SOURCE_16X9_WIDTH_IN_9X16_FRAME_PCT;
+      return {
+        focusMode: true,
+        left: originX * (1 - z) - z * ((srcW - 100) * focusX) / 100,
+        top: originY * (1 - z),
+        w: srcW * z,
+        h: 100 * z,
+        z,
+        x: f.x,
+        y: f.y,
+        focusX,
+        focusY,
+        centerPct: { x: originX, y: originY },
+      };
+    }
     // An enlarged AND moved 9:16 crop is trimmed to the frame first (same as the export): its box is the frame, moved
-    const trimmed = usesFocus && z > 1.004 && (Math.abs(f.x) > 0.05 || Math.abs(f.y) > 0.05);
+    const trimmed = usesFocus && z > 1.004 && hasOffset;
     const size = trimmed ? 100 : z * 100;
     const left = (trimmed ? 0 : originX * (1 - z)) + f.x;
     const top = (trimmed ? 0 : originY * (1 - z)) + f.y;
-    return { left, top, size, z, x: f.x, y: f.y };
+    return {
+      focusMode: false,
+      left,
+      top,
+      w: size,
+      h: size,
+      z,
+      x: f.x,
+      y: f.y,
+      focusX,
+      focusY,
+      centerPct: { x: left + size / 2, y: top + size / 2 },
+    };
   };
   const [isClipTransformDragging, setIsClipTransformDragging] = useState<boolean>(false);
   const [clipViewScale, setClipViewScale] = useState<number>(1);
@@ -10183,9 +10353,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     const extent = Math.max(
       1,
       Math.abs(b.left - 50) / 50,
-      Math.abs(b.left + b.size - 50) / 50,
+      Math.abs(b.left + b.w - 50) / 50,
       Math.abs(b.top - 50) / 50,
-      Math.abs(b.top + b.size - 50) / 50
+      Math.abs(b.top + b.h - 50) / 50
     );
     // A fixed zoom-out leaves working room around the frame, so the frame keeps its size on screen while the
     // clip grows or shrinks around it; only a clip larger than that room zooms the viewer out further.
@@ -11377,11 +11547,24 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         if (zoomVid && zoomAnim) {
           const [startStr, keysStr] = zoomAnim.split('#');
           const animKeys = keysStr.split(';').map((part) => {
-            const [t, z, x, y] = part.split(',').map(Number);
-            return { t, z, x, y };
+            const [tS, zS, xS, yS, fS] = part.split(',');
+            return {
+              t: Number(tS),
+              z: Number(zS),
+              x: Number(xS),
+              y: Number(yS),
+              ...(fS !== undefined && fS !== '' ? { f: Number(fS) } : {}),
+            };
           });
           const f = interpolateClipFrameKeys(animKeys, next - Number(startStr));
           zoomVid.style.transform = `translate(${f.x.toFixed(3)}%, ${f.y.toFixed(3)}%) scale(${(f.z / 100).toFixed(4)})`;
+          // 9:16 focus points: slide the vertical crop over the 16:9 picture
+          const focusYStr = zoomVid.dataset.focusY;
+          if (f.f !== undefined && focusYStr) {
+            const originY = f.z > 100 ? focusYStr : '50';
+            zoomVid.style.objectPosition = `${f.f.toFixed(2)}% ${focusYStr}%`;
+            zoomVid.style.transformOrigin = `${f.f.toFixed(2)}% ${originY}%`;
+          }
         }
       } catch {}
 
@@ -17373,7 +17556,12 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                           )
                         : 0;
                     const panProg = fEnd >= 96 ? Math.min(1, clipProg / 0.6) : clipProg;
-                    const liveFocusX = fStart + (fEnd - fStart) * panProg;
+                    // Framing points that carry a focus decide it; otherwise the clip's own focus / pan
+                    const slotKeyFocus =
+                      aspectRatio === '9:16' && slotClip && !isSlotIntro && !isSlotOutro
+                        ? getClipFrameAt(slotClip, aspectRatio, isDeckActive ? currentTime - slotClip.start : 0).f
+                        : undefined;
+                    const liveFocusX = slotKeyFocus ?? fStart + (fEnd - fStart) * panProg;
                     const videoObjPos =
                       aspectRatio === '9:16' && !isFitBlur
                         ? `${liveFocusX.toFixed(2)}% ${fY.toFixed(1)}%`
@@ -17399,8 +17587,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     const hasSlotOffset = Math.abs(slotOffset.x) > 0.05 || Math.abs(slotOffset.y) > 0.05;
                     const slotZoomAnimData =
                       slotFrameKeys.length > 1 && isDeckActive && slotClip
-                        ? `${slotClip.start}#${slotFrameKeys.map((k) => [k.t, k.z, k.x, k.y].join(',')).join(';')}`
+                        ? `${slotClip.start}#${slotFrameKeys
+                            .map((k) => [k.t, k.z, k.x, k.y, k.f ?? ''].join(','))
+                            .join(';')}`
                         : undefined;
+                    // Clip selected in 9:16 crop mode: lay the whole 16:9 picture out (same pixels inside the
+                    // frame as the crop), so it can be dragged sideways to choose the focus
+                    const showFullSource =
+                      clipTransformOn && isDeckActive && zoomUsesFocus && !hasSlotOffset && !isSlotIntro;
                     const slotTrimToFrame = hasSlotOffset && zoomUsesFocus && slotZoom > 1.004;
                     const slotTrimK = slotTrimToFrame ? 1 - 1 / slotZoom : 0;
                     const slotClipPath = slotTrimToFrame
@@ -17425,7 +17619,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                           }
                         }}
                         src={slotSrc || undefined}
+                        data-focus-y={zoomUsesFocus ? fY.toFixed(1) : undefined}
                         data-pan={
+                          slotKeyFocus === undefined &&
                           aspectRatio === '9:16' && !isFitBlur && isDeckActive && slotClip && Math.abs(fEnd - fStart) > 0.01
                             ? `${fStart}|${fEnd}|${fY}|${slotClip.start}|${slotClip.duration}`
                             : undefined
@@ -17450,6 +17646,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                             : undefined,
                           transformOrigin: hasSlotZoom || slotZoomAnimData ? zoomOrigin : undefined,
                           clipPath: slotClipPath,
+                          ...(showFullSource
+                            ? {
+                                left: `${(-((SOURCE_16X9_WIDTH_IN_9X16_FRAME_PCT - 100) * liveFocusX) / 100).toFixed(3)}%`,
+                                right: 'auto',
+                                width: `${SOURCE_16X9_WIDTH_IN_9X16_FRAME_PCT.toFixed(3)}%`,
+                                maxWidth: 'none',
+                              }
+                            : {}),
                           filter:
                             isSlotOutro && previewQuality !== 'low'
                               ? 'contrast(1.12) brightness(0.92)'
@@ -17790,9 +17994,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   // The box is the whole clip, not clamped to the frame
                   const left = tBox.left;
                   const top = tBox.top;
-                  const right = tBox.left + tBox.size;
-                  const bottom = tBox.top + tBox.size;
-                  const centerPct = { x: tBox.left + tBox.size / 2, y: tBox.top + tBox.size / 2 };
+                  const right = tBox.left + tBox.w;
+                  const bottom = tBox.top + tBox.h;
+                  const centerPct = tBox.centerPct;
                   const corners: Array<{ key: string; style: React.CSSProperties; cursor: string }> = [
                     // Inset so the handles stay whole inside the frame (the viewer clips anything outside it)
                     { key: 'tl', style: { left: 3, top: 3 }, cursor: 'nwse-resize' },
@@ -17812,7 +18016,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                         borderWidth: Math.min(8, 2 / clipViewScale),
                         boxShadow: '0 0 0 1px rgba(0,0,0,0.6)',
                       }}
-                      title="Arrastra para mover el clip. Arrastra una esquina para agrandarlo o achicarlo."
+                      title={
+                        tBox.focusMode
+                          ? 'Arrastra el video de lado para elegir qué parte muestra el cuadro vertical. Arrastra una esquina para agrandarlo o achicarlo.'
+                          : 'Arrastra para mover el clip. Arrastra una esquina para agrandarlo o achicarlo.'
+                      }
                       onClick={(e) => e.stopPropagation()}
                       onMouseDown={(e) => e.stopPropagation()}
                       onPointerDown={(e) => beginClipTransformDrag(e, 'move', tClip, centerPct)}
@@ -17839,14 +18047,17 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                         />
                       ))}
                       <span
-                        className="absolute left-1/2 top-1 px-1.5 py-0.5 rounded bg-amber-500 text-slate-950 font-black text-[11px] whitespace-nowrap shadow pointer-events-none"
+                        className="absolute top-1 px-1.5 py-0.5 rounded bg-amber-500 text-slate-950 font-black text-[11px] whitespace-nowrap shadow pointer-events-none"
                         style={{
+                          left: `${Math.max(4, Math.min(96, ((50 - left) / Math.max(1, right - left)) * 100)).toFixed(2)}%`,
                           transform: `translateX(-50%) scale(${Math.min(3, 1 / clipViewScale).toFixed(3)})`,
                           transformOrigin: 'top center',
                         }}
                       >
-                        Clip {String(tClip.clipNumber).padStart(2, '0')} • {Math.round(z * 100)}% • X {off.x.toFixed(0)} Y{' '}
-                        {off.y.toFixed(0)}
+                        Clip {String(tClip.clipNumber).padStart(2, '0')} • {Math.round(z * 100)}% •{' '}
+                        {tBox.focusMode
+                          ? `Enfoque ${Math.round(tBox.focusX)}%`
+                          : `X ${off.x.toFixed(0)} Y ${off.y.toFixed(0)}`}
                       </span>
                     </div>
                   );
