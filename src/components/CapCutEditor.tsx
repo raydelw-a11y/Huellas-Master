@@ -3691,6 +3691,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       startDist: Math.max(8, Math.hypot(e.clientX - centerX, e.clientY - centerY)),
       last: {},
     };
+    setIsClipTransformDragging(true);
     try {
       e.currentTarget.setPointerCapture(e.pointerId);
     } catch {}
@@ -3719,6 +3720,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     e.preventDefault();
     e.stopPropagation();
     clipTransformDragRef.current = null;
+    setIsClipTransformDragging(false);
     try {
       e.currentTarget.releasePointerCapture(e.pointerId);
     } catch {}
@@ -10144,6 +10146,50 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       return distCap < distBest ? cap : best;
     }, captions[0]);
   }, [activeCaptionAtPlayhead, captions, currentTime]);
+
+  // ---- Clip move / resize in the viewer (CapCut style) ----
+  // The box IS the clip: it grows and shrinks with it, also beyond the frame. While a clip is selected the
+  // viewer is zoomed out just enough to keep the whole clip (and its four corners) in view.
+  const clipTransformOn =
+    !isViewerFullscreen &&
+    selectedCanvasObject === 'clip' &&
+    Boolean(activeClipAtPlayhead) &&
+    activeClipAtPlayhead!.clipNumber !== 0 &&
+    activeClipAtPlayhead!.clipNumber !== 999;
+  /** Box of the clip in percent of the frame (0..100 = the frame itself). */
+  const getClipTransformBoxPct = (clip: TimelineClipItem) => {
+    const f = getClipFrameAt(clip, aspectRatio, getClipElapsedAtPlayhead(clip));
+    const z = f.z / 100;
+    const usesFocus = aspectRatio === '9:16' && clip.reframe9x16Mode !== 'fit_blur';
+    const originX = usesFocus ? (typeof clip.reframeFocusXStart === 'number' ? clip.reframeFocusXStart : 50) : 50;
+    const originY = usesFocus && z > 1 ? (typeof clip.reframeFocusY === 'number' ? clip.reframeFocusY : 50) : 50;
+    // An enlarged AND moved 9:16 crop is trimmed to the frame first (same as the export): its box is the frame, moved
+    const trimmed = usesFocus && z > 1.004 && (Math.abs(f.x) > 0.05 || Math.abs(f.y) > 0.05);
+    const size = trimmed ? 100 : z * 100;
+    const left = (trimmed ? 0 : originX * (1 - z)) + f.x;
+    const top = (trimmed ? 0 : originY * (1 - z)) + f.y;
+    return { left, top, size, z, x: f.x, y: f.y };
+  };
+  const [isClipTransformDragging, setIsClipTransformDragging] = useState<boolean>(false);
+  const [clipViewScale, setClipViewScale] = useState<number>(1);
+  useEffect(() => {
+    if (!clipTransformOn || !activeClipAtPlayhead) {
+      if (clipViewScale !== 1) setClipViewScale(1);
+      return;
+    }
+    // Frozen while dragging: changing the zoom under the pointer would distort the drag
+    if (isClipTransformDragging) return;
+    const b = getClipTransformBoxPct(activeClipAtPlayhead);
+    const extent = Math.max(
+      1,
+      Math.abs(b.left - 50) / 50,
+      Math.abs(b.left + b.size - 50) / 50,
+      Math.abs(b.top - 50) / 50,
+      Math.abs(b.top + b.size - 50) / 50
+    );
+    const next = Math.max(0.22, Math.min(0.9, 0.9 / extent));
+    if (Math.abs(next - clipViewScale) > 0.004) setClipViewScale(next);
+  });
 
   const activeMusicAtPlayhead = useMemo(() => {
     if (
@@ -17226,7 +17272,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     ? 'w-full max-h-full aspect-video rounded-lg'
                     : 'h-full max-w-full aspect-[9/16] rounded-lg'
                 }`}
-                style={
+                style={{
+                  ...((
                   isViewerFullscreen
                     ? {
                         width:
@@ -17252,15 +17299,27 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                         };
                       })()
                     : undefined
-                }
+                  ) || {}),
+                  // Clip selected: zoom the viewer out and let the clip show beyond the frame
+                  ...(clipTransformOn
+                    ? {
+                        overflow: 'visible',
+                        transform: `scale(${clipViewScale.toFixed(4)})`,
+                        transformOrigin: 'center center',
+                        transition: isClipTransformDragging ? undefined : 'transform 140ms ease-out',
+                      }
+                    : {}),
+                }}
               >
               {/* Layer 1: True Dual-Deck (A/B Ping-Pong) Hardware Video Engine with 85ms Pre-Roll (0ms Decoder Swap, Zero Frozen Last Frame) */}
               {activeClipEffectiveUrl ? (
                 <div
                   className="relative w-full h-full overflow-hidden bg-black"
                   style={{
-                    contain:
-                      previewQuality === 'low'
+                    overflow: clipTransformOn ? 'visible' : undefined,
+                    contain: clipTransformOn
+                      ? undefined
+                      : previewQuality === 'low'
                         ? 'strict'
                         : previewQuality === 'medium'
                         ? 'layout paint'
@@ -17698,6 +17757,16 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               })()}
 
               {/* Canonical 520p WYSIWYG Overlay Stage: guarantees 100% identical text size, line wrapping & distribution in Normal Mode, Fullscreen & Exported Video */}
+              {/* Clip selected: everything outside the frame is dimmed, so it is clear what will be exported */}
+              {clipTransformOn && (
+                <div
+                  className="absolute inset-0 pointer-events-none z-[19]"
+                  style={{
+                    boxShadow: '0 0 0 4000px rgba(5,4,3,0.72)',
+                    outline: '1px dashed rgba(255,255,255,0.55)',
+                  }}
+                />
+              )}
               <div
                 className="absolute top-0 left-0 pointer-events-none select-none overflow-hidden z-20"
                 style={{
@@ -17705,37 +17774,23 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   height: `${CANONICAL_STAGE_HEIGHT}px`,
                   transform: `scale(${viewerScaleX}, ${viewerScaleY})`,
                   transformOrigin: 'top left',
+                  overflow: clipTransformOn ? 'visible' : undefined,
                 }}
               >
               {/* Clip move / resize box: drag inside to move the clip, drag a corner to enlarge or shrink it */}
-              {!isViewerFullscreen &&
-                selectedCanvasObject === 'clip' &&
+              {clipTransformOn &&
                 activeClipAtPlayhead &&
-                activeClipAtPlayhead.clipNumber !== 0 &&
-                activeClipAtPlayhead.clipNumber !== 999 &&
                 (() => {
                   const tClip = activeClipAtPlayhead;
-                  const tFrame = getClipFrameAt(tClip, aspectRatio, getClipElapsedAtPlayhead(tClip));
-                  const z = tFrame.z / 100;
-                  const off = { x: tFrame.x, y: tFrame.y };
-                  const usesFocus = aspectRatio === '9:16' && tClip.reframe9x16Mode !== 'fit_blur';
-                  const originX = usesFocus
-                    ? typeof tClip.reframeFocusXStart === 'number'
-                      ? tClip.reframeFocusXStart
-                      : 50
-                    : 50;
-                  const originY =
-                    usesFocus && z > 1 ? (typeof tClip.reframeFocusY === 'number' ? tClip.reframeFocusY : 50) : 50;
-                  // Box of the clip in percent of the frame (an enlarged 9:16 crop is trimmed to the frame first)
-                  const trimmed = usesFocus && z > 1;
-                  const rawLeft = (trimmed ? 0 : originX * (1 - z)) + off.x;
-                  const rawTop = (trimmed ? 0 : originY * (1 - z)) + off.y;
-                  const rawSize = trimmed ? 100 : z * 100;
-                  const centerPct = { x: rawLeft + rawSize / 2, y: rawTop + rawSize / 2 };
-                  const left = Math.max(0, rawLeft);
-                  const top = Math.max(0, rawTop);
-                  const right = Math.min(100, rawLeft + rawSize);
-                  const bottom = Math.min(100, rawTop + rawSize);
+                  const tBox = getClipTransformBoxPct(tClip);
+                  const z = tBox.z;
+                  const off = { x: tBox.x, y: tBox.y };
+                  // The box is the whole clip, not clamped to the frame
+                  const left = tBox.left;
+                  const top = tBox.top;
+                  const right = tBox.left + tBox.size;
+                  const bottom = tBox.top + tBox.size;
+                  const centerPct = { x: tBox.left + tBox.size / 2, y: tBox.top + tBox.size / 2 };
                   const corners: Array<{ key: string; style: React.CSSProperties; cursor: string }> = [
                     // Inset so the handles stay whole inside the frame (the viewer clips anything outside it)
                     { key: 'tl', style: { left: 3, top: 3 }, cursor: 'nwse-resize' },
@@ -17752,6 +17807,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                         width: `${Math.max(4, right - left)}%`,
                         height: `${Math.max(4, bottom - top)}%`,
                         touchAction: 'none',
+                        borderWidth: Math.min(8, 2 / clipViewScale),
                         boxShadow: '0 0 0 1px rgba(0,0,0,0.6)',
                       }}
                       title="Arrastra para mover el clip. Arrastra una esquina para agrandarlo o achicarlo."
@@ -17768,8 +17824,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                           className="absolute rounded-full bg-amber-400 border-2 border-slate-950 shadow pointer-events-auto"
                           style={{
                             ...corner.style,
-                            width: 26,
-                            height: 26,
+                            // Same size on screen however far the viewer is zoomed out
+                            width: Math.min(80, 26 / clipViewScale),
+                            height: Math.min(80, 26 / clipViewScale),
                             cursor: corner.cursor,
                             touchAction: 'none',
                           }}
@@ -17779,7 +17836,13 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                           onPointerCancel={endClipTransformDrag}
                         />
                       ))}
-                      <span className="absolute left-1/2 -translate-x-1/2 top-1 px-1.5 py-0.5 rounded bg-amber-500 text-slate-950 font-black text-[11px] whitespace-nowrap shadow pointer-events-none">
+                      <span
+                        className="absolute left-1/2 top-1 px-1.5 py-0.5 rounded bg-amber-500 text-slate-950 font-black text-[11px] whitespace-nowrap shadow pointer-events-none"
+                        style={{
+                          transform: `translateX(-50%) scale(${Math.min(3, 1 / clipViewScale).toFixed(3)})`,
+                          transformOrigin: 'top center',
+                        }}
+                      >
                         Clip {String(tClip.clipNumber).padStart(2, '0')} • {Math.round(z * 100)}% • X {off.x.toFixed(0)} Y{' '}
                         {off.y.toFixed(0)}
                       </span>
