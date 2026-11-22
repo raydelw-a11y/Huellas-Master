@@ -1750,21 +1750,25 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                   const webPrompt = `Act as OpusClip Pro and an expert viral short-form video editor. From the following timestamped Spanish transcript of "${
                     (ctxDoc?.publishTitle as string) || sourceTitle
                   }",${docContextBlock} ${desiredClipCount > 0 ? `select the ${desiredClipCount} most viral standalone clips` : 'decide yourself how many standalone clips this transcript genuinely supports with strong viral potential (at most about one per 75 seconds of narration, so a longer documentary can give more, never fewer than 3, and never a weak one just to reach a number), and select them'}, each lasting between ${minDur}s and ${maxDur}s IN TOTAL. CLIP STRUCTURE: a clip is built from 1 to 4 pieces ("segments") of the transcript, ALWAYS in chronological order (never a flash-forward, hook teaser or any later moment placed before an earlier one). Use several pieces only when cutting out filler, a tangent or a slow passage makes the clip stronger: skip what is in between and keep the best lines. Every piece starts at the beginning of a phrase and ends at the end of a phrase (never in the middle of a sentence), is at least 4 seconds long, and the pieces together must read as one clear, self-contained story. The first piece opens with the strongest possible line, because the first 3 seconds decide whether people keep watching. If the moment already works as one continuous stretch, use a single piece. The clip length is the SUM of its pieces. CRITICAL OUTPUT LANGUAGE REQUIREMENT: Return ONLY a valid JSON object (no markdown commentary) where all audience-facing text fields ("title", "viralityReason", "hookBannerText", "socialCaption", "hashtags") are written in Neutral Spanish: {"clips":[{"title":"...","viralityScore":96,"viralityReason":"...","segments":[{"startSec":120.5,"endSec":138.2},{"startSec":146.0,"endSec":171.4}],"hookBannerText":"...","socialCaption":"...","hashtags":"#Uno #Dos #Tres #Cuatro #Cinco"}]}. EVERY clip has its OWN publication text, written for that clip only, for a COLD VIEWER who has never seen the channel or the documentary and scrolls past in 2 seconds: every text must say WHERE and WHEN (or WHO) it happens and why it matters, never vague abstractions like "El lujo mortal" or "La gran paradoja", never pronouns or references that only make sense inside the documentary ("él", "esto", "la fortaleza" without naming it). "hookBannerText" is the on-screen title shown during the first 8 seconds (UPPERCASE, max 55 characters): it names the concrete place/era or protagonist AND the intrigue, e.g. "PARÍS, AÑO 1200: EL LUJO QUE ENVENENABA A LOS REYES". "title" is a clear headline for that clip (max 70 characters), also with place/era or protagonist, used only as the clip name and NEVER repeated inside the description. "socialCaption" is 2 or 3 short sentences in this order: (1) the context in one line (where, when, who, e.g. "En el París del año 1200, dentro de la fortaleza del Louvre…"), (2) the specific fact or revelation this clip shows, (3) an open question or curiosity gap about what the full documentary explains, so the viewer wants to watch it; it must not start with or contain the title, and it must NOT include links or invitations like "mira el video completo" or "enlace en la bio" (a fixed closing paragraph with that invitation is added automatically). "hashtags" holds EXACTLY 5 hashtags specific to that clip (no generic repeats across all clips, never more than 5, never fewer), and EVERY hashtag is made of EXACTLY TWO Spanish words joined in CamelCase with no spaces or accents (e.g. #HistoriaMedieval #EdadMedia #DatosCuriosos), never a single-word hashtag like #Historia or #Reels. TIMESTAMPED TRANSCRIPT: ${formattedTranscript}`;
+                  // A documentary's order goes to ITS Gemini chat (same conversation as its stages, so Gemini
+                  // knows the documentary); other sources (MP4, YouTube link) use a new chat. The answer comes back
+                  // to this screen (VIRAL_CLIPS_GEMINI_STAGE), never into a stage.
+                  const docChatUrl = String(ctxDoc?.geminiChatUrl || ctxDoc?.promptConfig?.GEMINI_CHAT_URL || '').trim();
+                  const useDocChat = Boolean(ctxDoc && docChatUrl);
                   const geminiViralPayload = {
                     action: 'SEND_PROMPT',
                     prompt: webPrompt,
-                    // Pedido suelto en un chat nuevo: su respuesta vuelve a esta pantalla, no a una etapa
                     stageNumber: VIRAL_CLIPS_GEMINI_STAGE,
                     taskType: 'VIRAL_CLIPS',
                     // The answer comes back tagged with it and is stored under this documentary
                     docId: sourceMode === 'doc' ? selectedDocId : '',
-                    videoName: '',
+                    videoName: useDocChat ? String(ctxDoc?.geminiChatTitle || ctxDoc?.title || '') : '',
                     deepResearchVideoName: '',
-                    geminiChatUrl: '',
+                    geminiChatUrl: useDocChat ? docChatUrl : '',
                     geminiDeepResearchChatUrl: '',
-                    notebookName: '',
-                    standaloneNewChat: true,
-                    noNotebook: true,
+                    notebookName: useDocChat ? 'Huellas de la Humanidad' : '',
+                    standaloneNewChat: !useDocChat,
+                    noNotebook: !useDocChat,
                     enableHighModel: false,
                     enableArgonLow: true,
                     enableCarbonLow: true,
