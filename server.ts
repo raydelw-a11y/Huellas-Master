@@ -22066,11 +22066,13 @@ app.post('/api/viral-clips/preview-proxy', async (req, res) => {
       new Promise<void>((resolve, reject) => {
         const args = [
           '-y',
-          ...(hardware ? ['-hwaccel', 'videotoolbox', '-hwaccel_output_format', 'videotoolbox_vld'] : []),
+          // Hardware decode + encode; the scale runs on the CPU because a final video can change pixel format
+          // mid-stream (intro vs body), which the all-GPU scaler (scale_vt) rejects.
+          ...(hardware ? ['-hwaccel', 'videotoolbox'] : []),
           '-i',
           filePath,
           '-vf',
-          hardware ? 'scale_vt=w=1280:h=720' : 'scale=-2:720:flags=fast_bilinear',
+          'scale=-2:720:flags=fast_bilinear',
           '-c:v',
           hardware ? 'h264_videotoolbox' : 'libx264',
           ...(hardware ? ['-b:v', '3M'] : ['-preset', 'veryfast', '-crf', '26']),
