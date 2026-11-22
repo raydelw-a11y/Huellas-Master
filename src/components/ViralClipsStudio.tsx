@@ -1030,6 +1030,47 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
   const hasBurnedDocCaptions = /[\\/]06_Video_Final[\\/]/i.test(String(sourceLocalPath || ''));
 
   // Compute current active word chunk for the live 9:16 preview player
+  // Caption clock: 'timeupdate' only fires ~4 times a second, so captions changed up to 0.25 s late.
+  // While playing, a frame loop reads the video time and re-renders only when it crosses a word start/end
+  // (same precision as the 9:16 editor, without re-rendering the studio every frame).
+  const [captionSec, setCaptionSec] = useState<number>(0);
+  const captionBoundaries = useMemo(() => {
+    const out: number[] = [];
+    for (const w of selectedClip?.words || []) {
+      out.push(w.start - 0.08, w.start, w.end, w.end + 0.15);
+    }
+    return out.sort((a, b) => a - b);
+  }, [selectedClip?.words]);
+  useEffect(() => {
+    setCaptionSec(playheadSec);
+  }, [playheadSec]);
+  useEffect(() => {
+    if (!isPlaying) return;
+    let raf = 0;
+    let lastBucket = -2;
+    const tick = () => {
+      const vid = videoRef.current;
+      if (vid) {
+        const t = vid.currentTime;
+        // index of the last boundary already passed
+        let lo = 0;
+        let hi = captionBoundaries.length;
+        while (lo < hi) {
+          const mid = (lo + hi) >> 1;
+          if (captionBoundaries[mid] <= t) lo = mid + 1;
+          else hi = mid;
+        }
+        if (lo !== lastBucket) {
+          lastBucket = lo;
+          setCaptionSec(t);
+        }
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [isPlaying, captionBoundaries]);
+
   const activeCaptionChunk = useMemo(() => {
     if (!selectedClip || !Array.isArray(selectedClip.words) || selectedClip.words.length === 0) {
       return null;
@@ -1058,10 +1099,10 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
     for (const chunk of chunks) {
       const chunkStart = chunk[0].start;
       const chunkEnd = chunk[chunk.length - 1].end;
-      if (playheadSec >= chunkStart - 0.08 && playheadSec <= chunkEnd + 0.15) {
+      if (captionSec >= chunkStart - 0.08 && captionSec <= chunkEnd + 0.15) {
         let activeIdx = 0;
         for (let j = 0; j < chunk.length; j++) {
-          if (playheadSec >= chunk[j].start) {
+          if (captionSec >= chunk[j].start) {
             activeIdx = j;
           }
         }
@@ -1069,7 +1110,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
       }
     }
     return null;
-  }, [selectedClip, playheadSec, wordsPerLine]);
+  }, [selectedClip, captionSec, wordsPerLine]);
 
   // Render Clip to 9:16 MP4 (Reel)
   const handleRenderViralClip = async (clip: ViralClipSuggestion) => {
