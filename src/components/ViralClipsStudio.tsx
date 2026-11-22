@@ -222,6 +222,8 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
   // Video maestro que está solo en iCloud (sin descargar en la Mac): no se puede ver ni renderizar hasta bajarlo
   const [cloudOnlyMaster, setCloudOnlyMaster] = useState<{ path: string; sizeMB: number } | null>(null);
   const [isRequestingCloudMaster, setIsRequestingCloudMaster] = useState<boolean>(false);
+  // After asking iCloud for the master video the source reloads by itself until the file is on the Mac
+  const [cloudMasterRequested, setCloudMasterRequested] = useState<boolean>(false);
   const [isWaitingGeminiClips, setIsWaitingGeminiClips] = useState<boolean>(false);
 
   // YouTube input
@@ -416,10 +418,25 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
 
   useEffect(() => {
     if (sourceMode !== 'doc') setCloudOnlyMaster(null);
+    setCloudMasterRequested(false);
     if (sourceMode === 'doc' && selectedDocId) {
       handleLoadDocumentarySource(selectedDocId);
     }
   }, [sourceMode, selectedDocId]);
+
+  // Automatic reload (no button): while iCloud downloads the requested master, check again every 20 s
+  const loadDocSourceRef = useRef(handleLoadDocumentarySource);
+  loadDocSourceRef.current = handleLoadDocumentarySource;
+  useEffect(() => {
+    if (!cloudMasterRequested || !cloudOnlyMaster || sourceMode !== 'doc' || !selectedDocId) {
+      if (cloudMasterRequested && !cloudOnlyMaster) setCloudMasterRequested(false);
+      return;
+    }
+    const timer = window.setInterval(() => {
+      void loadDocSourceRef.current(selectedDocId);
+    }, 20000);
+    return () => window.clearInterval(timer);
+  }, [cloudMasterRequested, cloudOnlyMaster, sourceMode, selectedDocId]);
 
   // Detected clips are kept per documentary on the Mac: they come back after a reload or a restart.
   // `viralClipsDocIdRef` is the documentary the list on screen belongs to (never saved under another one).
@@ -718,10 +735,12 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
       });
       const data = await resp.json().catch(() => ({}));
       if (resp.ok && data.ok) {
+        setCloudMasterRequested(true);
+        if (data.alreadyLocal) void handleLoadDocumentarySource(selectedDocId);
         setActionToast(
           data.alreadyLocal
-            ? '✅ El video maestro ya está en la Mac. Pulsa "Recargar".'
-            : `☁️ Descarga pedida a iCloud (${(cloudOnlyMaster.sizeMB / 1024).toFixed(1)} GB). Tarda varios minutos; pulsa "Recargar" cuando termine.`
+            ? '✅ El video maestro ya está en la Mac. Cargándolo...'
+            : `☁️ Descarga pedida a iCloud (${(cloudOnlyMaster.sizeMB / 1024).toFixed(1)} GB). Tarda varios minutos; se cargará solo cuando termine.`
         );
       } else {
         setActionToast(`⚠️ ${data.error || 'No se pudo pedir la descarga a iCloud.'}`);
@@ -1060,10 +1079,20 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
         )
       );
 
+      // Same as the video editor: one button renders and saves. With a documentary the file goes to its
+      // 07_Viral_Clips folder; without one (uploaded MP4 / YouTube link) it is saved as a download.
+      if (!data.savedInDocFolderPath && data.publicServeUrl) {
+        const a = document.createElement('a');
+        a.href = viralMedia(data.publicServeUrl);
+        a.download = String(data.publicServeUrl).split('/').pop() || 'Reel_9x16.mp4';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      }
       setActionToast(
         data.savedInDocFolderPath
-          ? `✅ Guardado en 07_Viral_Clips: ${data.savedInDocFolderPath.split('/').pop()}`
-          : `✅ Clip renderizado con éxito (${formatMMSS(data.durationSec)})`
+          ? `✅ Renderizado y guardado en 07_Viral_Clips: ${data.savedInDocFolderPath.split('/').pop()}`
+          : `✅ Renderizado y guardado en Descargas (${formatMMSS(data.durationSec)})`
       );
     } catch (err: any) {
       alert('Error al renderizar clip: ' + (err?.message || 'Error desconocido'));
@@ -1182,15 +1211,9 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                       </option>
                     ))}
                   </select>
-                  <button
-                    type="button"
-                    onClick={() => handleLoadDocumentarySource(selectedDocId)}
-                    disabled={isLoadingSource}
-                    className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-bold text-amber-300 flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <RefreshCw className={`w-3.5 h-3.5 ${isLoadingSource ? 'animate-spin' : ''}`} />
-                    Recargar
-                  </button>
+                  {isLoadingSource && (
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-300 self-center" />
+                  )}
                 </div>
               </div>
             )}
@@ -1983,27 +2006,13 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                     <Download className="w-3.5 h-3.5" />
                     <span>
                       {isRenderingClipId === `${selectedClip.id}_reel`
-                        ? 'Renderizando Reel 9:16...'
-                        : '💾 Renderizar Reel (07_Viral_Clips)'}
+                        ? 'Renderizando y guardando Reel 9:16...'
+                        : sourceMode === 'doc' && docRootFolder
+                        ? '🚀 Renderizar y Guardar (07_Viral_Clips)'
+                        : '🚀 Renderizar y Guardar'}
                     </span>
                   </button>
-
                 </div>
-
-                {/* Download Links if already rendered */}
-                {selectedClip.renderedReelUrl && (
-                  <div className="flex flex-wrap items-center gap-2 pt-1">
-                    {selectedClip.renderedReelUrl && (
-                      <a
-                        href={viralMedia(selectedClip.renderedReelUrl)}
-                        download
-                        className="px-3 py-1 rounded-lg bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-[11px] font-bold"
-                      >
-                        ⬇ Descargar Reel .MP4
-                      </a>
-                    )}
-                  </div>
-                )}
               </div>
             </div>
           </div>
