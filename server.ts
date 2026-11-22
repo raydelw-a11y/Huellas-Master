@@ -23592,7 +23592,35 @@ async function renderViralClipMp4Internal(params: {
   };
 }
 
+// Renders run as background jobs when the page asks for it (async: true): through the Cloudflare tunnel
+// (iPhone) a request that stays open more than 100 s is cut, and a 2K render from the 8K master takes longer.
+const viralRenderJobs = new Map<
+  string,
+  { status: 'running' | 'done' | 'error'; startedAt: number; result?: any; error?: string }
+>();
 app.post('/api/viral-clips/render', async (req, res) => {
+  if (req.body?.async) {
+    const jobId = `vr-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const job: { status: 'running' | 'done' | 'error'; startedAt: number; result?: any; error?: string } = {
+      status: 'running',
+      startedAt: Date.now(),
+    };
+    viralRenderJobs.set(jobId, job);
+    for (const [k, j] of viralRenderJobs) {
+      if (j.status !== 'running' && Date.now() - j.startedAt > 6 * 3600 * 1000) viralRenderJobs.delete(k);
+    }
+    renderViralClipMp4Internal(req.body || {})
+      .then((result) => {
+        job.status = 'done';
+        job.result = result;
+      })
+      .catch((err: any) => {
+        console.error('[ViralClips] render error:', err);
+        job.status = 'error';
+        job.error = err?.message || 'Error al renderizar el clip viral.';
+      });
+    return res.json({ ok: true, jobId });
+  }
   try {
     const result = await renderViralClipMp4Internal(req.body || {});
     res.json({
@@ -23606,6 +23634,18 @@ app.post('/api/viral-clips/render', async (req, res) => {
       error: err?.message || 'Error al renderizar el clip viral.',
     });
   }
+});
+
+app.get('/api/viral-clips/render-job', (req, res) => {
+  const job = viralRenderJobs.get(String(req.query.jobId || ''));
+  if (!job) {
+    return res.status(404).json({ ok: false, error: 'No se encontró el render (¿se reinició la Mac?). Vuelve a pulsar Renderizar.' });
+  }
+  if (job.status === 'running') {
+    return res.json({ ok: true, running: true, elapsedSec: Math.round((Date.now() - job.startedAt) / 1000) });
+  }
+  if (job.status === 'error') return res.json({ ok: false, error: job.error });
+  return res.json({ ok: true, done: true, ...job.result });
 });
 
 // ============================================================================

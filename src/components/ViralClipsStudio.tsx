@@ -100,6 +100,10 @@ const stripCaptionPunctuation = (w: string) =>
     .replace(/^-+|-+$/g, '')
     .trim();
 
+/** True when the page is not running on the Mac itself (iPhone / GitHub Pages through the tunnel). */
+const isRemoteViralDevice =
+  typeof window !== 'undefined' && !/^(localhost|127\.0\.0\.1|\[::1\])$/i.test(window.location.hostname);
+
 /** Closing paragraph of every clip description (its own paragraph, after the description). */
 const VIRAL_DESCRIPTION_CTA =
   '¡Para ver el documental completo, visita nuestro canal de YouTube, el enlace está en la biografía!';
@@ -1146,11 +1150,36 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
           words: clip.words,
           hookBannerText: clip.hookBannerText,
           showHookBanner,
+          // Background job + polling: through the tunnel (iPhone) a request open more than 100 s is cut
+          async: true,
         }),
       });
-      const data = await resp.json();
-      if (!resp.ok || !data.ok) {
-        throw new Error(data.error || 'Error en FFmpeg al renderizar el clip.');
+      const started = await resp.json().catch(() => ({}));
+      if (!resp.ok || !started.ok || !started.jobId) {
+        throw new Error(started.error || 'No se pudo iniciar el render del clip.');
+      }
+      let data: any = null;
+      for (;;) {
+        await new Promise((r) => setTimeout(r, 3000));
+        let st: any = null;
+        try {
+          const sr = await fetch(
+            viralApi(`/api/viral-clips/render-job?jobId=${encodeURIComponent(String(started.jobId))}`)
+          );
+          st = await sr.json().catch(() => null);
+          if (sr.status === 404) throw new Error(st?.error || 'No se encontró el render.');
+        } catch (pollErr: any) {
+          if (/no se encontr/i.test(String(pollErr?.message || ''))) throw pollErr;
+          continue; // momentary network hiccup: keep waiting
+        }
+        if (!st) continue;
+        if (st.running) {
+          setActionToast(`🎬 Renderizando Reel 9:16 "${clip.title}"... ${st.elapsedSec || 0}s`);
+          continue;
+        }
+        if (!st.ok) throw new Error(st.error || 'Error en FFmpeg al renderizar el clip.');
+        data = st;
+        break;
       }
 
       setViralClips((prev) =>
@@ -1167,7 +1196,8 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
 
       // Same as the video editor: one button renders and saves. With a documentary the file goes to its
       // 07_Viral_Clips folder; without one (uploaded MP4 / YouTube link) it is saved as a download.
-      if (!data.savedInDocFolderPath && data.publicServeUrl) {
+      // Downloads always land on the Mac (the iPhone reaches the Mac's files remotely)
+      if (!data.savedInDocFolderPath && data.publicServeUrl && !isRemoteViralDevice) {
         const a = document.createElement('a');
         a.href = viralMedia(data.publicServeUrl);
         a.download = String(data.publicServeUrl).split('/').pop() || 'Reel_9x16.mp4';
@@ -1178,6 +1208,8 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
       setActionToast(
         data.savedInDocFolderPath
           ? `✅ Renderizado y guardado en 07_Viral_Clips: ${data.savedInDocFolderPath.split('/').pop()}`
+          : isRemoteViralDevice
+          ? `✅ Renderizado y guardado en la Mac (data/viral-clips/exports, ${formatMMSS(data.durationSec)})`
           : `✅ Renderizado y guardado en Descargas (${formatMMSS(data.durationSec)})`
       );
     } catch (err: any) {
