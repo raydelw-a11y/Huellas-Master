@@ -42,6 +42,6 @@ Antes de dar por terminado cualquier cambio de código o subir a GitHub/Render, 
   - `max`: solo lo crítico y muy complejo; gasta unas 3,5× o más.
   - **Ultracode** (interruptor del menú Effort: xhigh + subagentes en paralelo): solo para tareas muy grandes que se pueden repartir en partes independientes; gasta los límites más rápido, así que se recomienda activarlo solo para esa tarea.
 - **Si coincide con el effort de la sesión, continúa.** Si la tarea pide más, **detente antes de hacer el trabajo** y avisa al usuario para que lo suba en el selector (una sesión no puede cambiar su propio effort).
-- **Si la tarea pide menos que el effort de la sesión**, avísalo en una línea al empezar ("esta tarea es `low` y la sesión está en `medium`; puedes bajarlo") y continúa sin esperar respuesta.
+- **Si la tarea pide menos que el effort de la sesión**, también **detente antes de hacer el trabajo** y pide al usuario que lo baje en el selector ("esta tarea es `low` y la sesión está en `medium`; bájalo y te sigo"); espera su respuesta antes de empezar. Si el usuario dice que siga así, continúa con el effort actual.
 - **Al lanzar otra sesión para una tarea**, pásale el `effort` explícito según esa clasificación.
 - Niveles: `low`, `medium`, `high`, `extra` y `max`, más el interruptor Ultracode; el valor por defecto es `low`. **Nunca cambies el modelo.**
