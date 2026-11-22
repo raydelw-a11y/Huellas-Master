@@ -23087,6 +23087,8 @@ function buildOpusClipAssSubtitles(params: {
   hookBannerText?: string;
   showHookBanner?: boolean;
   totalClipDurSec: number;
+  /** A caption line never spans this time (the cut between the hook teaser and the main part) */
+  chunkBreakSec?: number;
 }): string {
   const {
     outW,
@@ -23100,6 +23102,7 @@ function buildOpusClipAssSubtitles(params: {
     hookBannerText,
     showHookBanner,
     totalClipDurSec,
+    chunkBreakSec = 0,
   } = params;
 
   const formatAssTime = (sec: number): string => {
@@ -23219,7 +23222,12 @@ function buildOpusClipAssSubtitles(params: {
       .filter((w) => w.word);
     for (const w of cleanWords) {
       const wl = String(w.word || '').replace(/[{}]/g, '').length;
-      if (cur.length > 0 && (cur.length >= safeWordsPerChunk || curLen + 1 + wl > VIRAL_CAPTION_MAX_CHARS)) {
+      const crossesBreak =
+        chunkBreakSec > 0 && cur.length > 0 && cur[cur.length - 1].start < chunkBreakSec && w.start >= chunkBreakSec;
+      if (
+        cur.length > 0 &&
+        (crossesBreak || cur.length >= safeWordsPerChunk || curLen + 1 + wl > VIRAL_CAPTION_MAX_CHARS)
+      ) {
         wordChunks.push(cur);
         cur = [];
         curLen = 0;
@@ -23346,8 +23354,10 @@ async function renderViralClipMp4Internal(params: {
   // Shift words to local clip timeline [0, totalClipDurSec]
   const localWords: WordTimestamp[] = [];
   if (useHookTeaser) {
+    // Only the words actually inside the teaser cut (teaserSpanDur); later ones overlapped the main part
+    const teaserCutEnd = hookTeaserStartSec + teaserSpanDur;
     for (const w of words) {
-      if (w.end > hookTeaserStartSec && w.start < hookTeaserEndSec) {
+      if (w.end > hookTeaserStartSec && w.start < teaserCutEnd - 0.05) {
         localWords.push({
           word: w.word,
           start: Math.max(0, w.start - hookTeaserStartSec),
@@ -23378,6 +23388,7 @@ async function renderViralClipMp4Internal(params: {
     hookBannerText,
     showHookBanner,
     totalClipDurSec,
+    chunkBreakSec: teaserSpanDur,
   });
 
   const stamp = Date.now();
