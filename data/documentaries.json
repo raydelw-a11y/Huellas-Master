@@ -1540,7 +1540,13 @@
         "reviewedUpdatedAt": 1795110380036,
         "promptUpdatedAt": 1795178010837,
         "userReframed9x16": true,
-        "reframeUpdatedAt": 1795309070262
+        "reframeUpdatedAt": 1795309070262,
+        "frameZoom9x16": 100,
+        "frameOffsetX9x16": 0,
+        "frameOffsetY9x16": 0,
+        "frameTransformAt": 1795309062099,
+        "frameZoomInSec9x16": 0,
+        "frameKeys9x16": []
       },
       {
         "id": "clip-25-1794891908303-d72h",
@@ -1883,7 +1889,13 @@
         "reframeFocusXEnd": 50,
         "reframeFocusY": 50,
         "reframeConfidence": 0.55,
-        "reframeReason": "Encuadre central simétrico IA (50%)"
+        "reframeReason": "Encuadre central simétrico IA (50%)",
+        "frameZoom9x16": 100,
+        "frameOffsetX9x16": 0,
+        "frameOffsetY9x16": 0,
+        "frameTransformAt": 1795310295351,
+        "frameZoomInSec9x16": 0,
+        "frameKeys9x16": []
       },
       {
         "id": "clip-36-1794891908329-jl3c",
@@ -2040,7 +2052,28 @@
         "reframeConfidence": 0.7,
         "reframeReason": "Enfoque inteligente IA en tercio derecho (74%)",
         "videoAuditReason": "",
-        "videoAuditIssues": []
+        "videoAuditIssues": [],
+        "frameZoom9x16": 100,
+        "frameOffsetX9x16": 0,
+        "frameOffsetY9x16": 0,
+        "frameTransformAt": 1795311659669,
+        "frameZoomInSec9x16": 0,
+        "frameKeys9x16": [
+          {
+            "t": 0.75,
+            "z": 100,
+            "x": 0,
+            "y": 0,
+            "f": 74
+          },
+          {
+            "t": 9.49,
+            "z": 100,
+            "x": 0,
+            "y": 0,
+            "f": 25.5
+          }
+        ]
       },
       {
         "id": "clip-41-1794891908346-cev8",
@@ -2136,7 +2169,26 @@
         "videoAuditReason": "",
         "videoAuditIssues": [],
         "userReframed9x16": true,
-        "reframeUpdatedAt": 1795311827093
+        "reframeUpdatedAt": 1795311827093,
+        "frameZoom9x16": 100,
+        "frameTransformAt": 1795311848297,
+        "frameZoomInSec9x16": 0,
+        "frameKeys9x16": [
+          {
+            "t": 0.43,
+            "z": 100,
+            "x": 0,
+            "y": 0,
+            "f": 100
+          },
+          {
+            "t": 9.74,
+            "z": 100,
+            "x": 0,
+            "y": 0,
+            "f": 19.4
+          }
+        ]
       },
       {
         "id": "clip-44-1794891908477-09as",
