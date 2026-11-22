@@ -10749,7 +10749,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         const progress = Math.min(1, Math.max(0, safeT / Math.max(1, totalDurationSecRef.current)));
         offsetX = totalW * progress;
       } else {
-        offsetX = safeT * timelineZoomRef.current;
+        offsetX = (safeT - tlShiftSecRef.current) * timelineZoomRef.current;
       }
       needleEl.style.transform = `translate3d(${offsetX.toFixed(2)}px, 0, 0)`;
     }
@@ -10761,8 +10761,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     const decima = Math.floor(safeT * 10);
     if (decima !== lastDecimaRef.current) {
       lastDecimaRef.current = decima;
-      const mmss = formatTimeMMSS(safeT);
-      const d = Math.floor((safeT % 1) * 10);
+      const shownT = Math.max(0, safeT - tlLeadSecRef.current);
+      const mmss = formatTimeMMSS(shownT);
+      const d = Math.floor((shownT % 1) * 10);
       if (playheadBadgeTextRef.current) {
         playheadBadgeTextRef.current.textContent = `${mmss}.${d}`;
       }
@@ -10788,10 +10789,12 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     if (secInt !== lastSecIntRef.current) {
       lastSecIntRef.current = secInt;
       if (viewerTimecodeRef.current) {
-        viewerTimecodeRef.current.textContent = formatViewerTimecode(safeT);
+        viewerTimecodeRef.current.textContent = formatViewerTimecode(Math.max(0, safeT - tlLeadSecRef.current));
       }
       if (viewerTotalDurationRef.current) {
-        viewerTotalDurationRef.current.textContent = formatViewerTimecode(totalDurationSecRef.current);
+        viewerTotalDurationRef.current.textContent = formatViewerTimecode(
+          Math.max(0, totalDurationSecRef.current - tlHiddenTotalSecRef.current)
+        );
       }
     }
   }, []);
@@ -10841,7 +10844,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       const container = timelineScrollContainerRef.current;
       const viewWidth = container && container.clientWidth > 240 ? container.clientWidth : 960;
       const trackHeaderOffsetPx = 152;
-      const playheadX = trackHeaderOffsetPx + target.start * timelineZoom;
+      const playheadX = trackHeaderOffsetPx + (target.start - tlShiftSecRef.current) * timelineZoom;
       const targetLeft = Math.max(0, Math.round(playheadX - viewWidth * 0.3));
       savedTimelineScrollRef.current.left = targetLeft;
       if (container) {
@@ -11237,12 +11240,30 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   }, [aspectRatio, showIntroOutro916, clipsWithTimelineBounds]);
   const hiddenIntroOutroRanges916Ref = useRef(hiddenIntroOutroRanges916);
   hiddenIntroOutroRanges916Ref.current = hiddenIntroOutroRanges916;
+  // 9:16 without intro/outro: the Reel starts at its first real clip, so the timeline and every time readout
+  // count from there. `tlLeadSec` = seconds of hidden intro at the very start; `tlHiddenTotalSec` = all hidden time.
+  const tlLeadSec =
+    hiddenIntroOutroRanges916[0] && hiddenIntroOutroRanges916[0].start <= 0.05 ? hiddenIntroOutroRanges916[0].end : 0;
+  const tlHiddenTotalSec = hiddenIntroOutroRanges916.reduce((acc, r) => acc + (r.end - r.start), 0);
+  const tlVisibleTotalSec = Math.max(0, totalDurationSec - tlHiddenTotalSec);
+  // The tracks are slid left by the hidden intro (not in "see everything" mode, which lays tracks out in percent)
+  const tlShiftSec = isFitEntireProject ? 0 : tlLeadSec;
+  const tlShiftPx = tlShiftSec * timelineZoom;
+  const tlLeadSecRef = useRef(tlLeadSec);
+  tlLeadSecRef.current = tlLeadSec;
+  const tlShiftSecRef = useRef(tlShiftSec);
+  tlShiftSecRef.current = tlShiftSec;
+  const tlHiddenTotalSecRef = useRef(tlHiddenTotalSec);
+  tlHiddenTotalSecRef.current = tlHiddenTotalSec;
 
   useEffect(() => {
     if (viewerTotalDurationRef.current) {
-      viewerTotalDurationRef.current.textContent = formatViewerTimecode(totalDurationSec);
+      viewerTotalDurationRef.current.textContent = formatViewerTimecode(tlVisibleTotalSec);
     }
-  }, [totalDurationSec]);
+    lastSecIntRef.current = -1;
+    lastDecimaRef.current = -1;
+    syncPlayheadDomImperatively(currentTimeRef.current);
+  }, [totalDurationSec, tlVisibleTotalSec, tlLeadSec, tlShiftSec]);
   const clipsWithTimelineBoundsRef = useRef(clipsWithTimelineBounds);
   clipsWithTimelineBoundsRef.current = clipsWithTimelineBounds;
   const captionsRef = useRef(captions);
@@ -11441,7 +11462,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       const container = timelineScrollContainerRef.current;
       if (container && !isFitEntireProjectRef.current && !isScrubbingRulerRef.current) {
         const trackHeaderOffsetPx = 152;
-        const playheadX = trackHeaderOffsetPx + next * timelineZoomRef.current;
+        const playheadX = trackHeaderOffsetPx + (next - tlShiftSecRef.current) * timelineZoomRef.current;
         const viewLeft = container.scrollLeft;
         const viewWidth = container.clientWidth;
         if (viewWidth > 240) {
@@ -11653,7 +11674,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       if (!container) return;
       const viewWidth = container.clientWidth > 240 ? container.clientWidth : 960;
       const trackHeaderOffsetPx = 152;
-      const playheadX = trackHeaderOffsetPx + sec * timelineZoom;
+      const playheadX = trackHeaderOffsetPx + (sec - tlShiftSecRef.current) * timelineZoom;
       const maxLeft = Math.max(0, container.scrollWidth - container.clientWidth);
       const targetLeft = Math.max(0, Math.min(maxLeft, Math.round(playheadX - viewWidth * 0.5)));
       savedTimelineScrollRef.current.left = targetLeft;
@@ -11670,7 +11691,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     const container = timelineScrollContainerRef.current;
     if (!container) return;
     const trackHeaderOffsetPx = 152; // w-36 (144px) + gap-2 (8px) = 9.5rem
-    const playheadX = trackHeaderOffsetPx + currentTime * timelineZoom;
+    const playheadX = trackHeaderOffsetPx + (currentTime - tlShiftSecRef.current) * timelineZoom;
     const viewLeft = container.scrollLeft;
     const viewWidth = container.clientWidth;
     if (viewWidth <= 240) return;
@@ -11707,7 +11728,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         );
         zoomPlayheadViewportOffsetRef.current = trackHeaderOffsetPx + fitTrackWidth * progress;
       } else {
-        const oldPlayheadX = trackHeaderOffsetPx + currentTimeRef.current * timelineZoom;
+        const oldPlayheadX = trackHeaderOffsetPx + (currentTimeRef.current - tlShiftSecRef.current) * timelineZoom;
         const currentViewportOffset = oldPlayheadX - container.scrollLeft;
         // Keep the playhead locked at its exact current visual offset on screen if visible;
         // otherwise bring it into a comfortable visible position.
@@ -11751,7 +11772,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     }
     const trackHeaderOffsetPx = 152; // w-36 (144px) + gap-2 (8px) = 9.5rem
     const viewWidth = container.clientWidth;
-    const newPlayheadX = trackHeaderOffsetPx + currentTimeRef.current * timelineZoom;
+    const newPlayheadX = trackHeaderOffsetPx + (currentTimeRef.current - tlShiftSecRef.current) * timelineZoom;
     const targetViewportOffset =
       zoomPlayheadViewportOffsetRef.current !== null
         ? zoomPlayheadViewportOffsetRef.current
@@ -18492,15 +18513,15 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               {/* Left: CapCut Cyan/Teal Timecode (Current / Total Duration) */}
               <div className="flex items-center gap-1 font-mono tabular-nums text-[11px] shrink-0 select-none">
                 <span ref={viewerTimecodeRef} className="text-teal-300 font-bold">
-                  {formatViewerTimecode(currentTime)}
+                  {formatViewerTimecode(Math.max(0, currentTime - tlLeadSec))}
                 </span>
                 <span className="text-slate-500 font-normal">/</span>
                 <span
                   ref={viewerTotalDurationRef}
                   className="text-slate-400 font-semibold"
-                  title={`Duración total del video: ${formatViewerTimecode(totalDurationSec)} (${Math.round(totalDurationSec)}s)`}
+                  title={`Duración total del video: ${formatViewerTimecode(tlVisibleTotalSec)} (${Math.round(tlVisibleTotalSec)}s)`}
                 >
-                  {formatViewerTimecode(totalDurationSec)}
+                  {formatViewerTimecode(tlVisibleTotalSec)}
                 </span>
               </div>
 
@@ -21506,7 +21527,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 )}
               </span>
               <span ref={timelineToolbarTimeRef} className="shrink-0 tabular-nums">
-                • {formatTimeMMSS(currentTime)}.{Math.floor((currentTime % 1) * 10)}
+                • {formatTimeMMSS(Math.max(0, currentTime - tlLeadSec))}.{Math.floor((Math.max(0, currentTime - tlLeadSec) % 1) * 10)}
               </span>
             </span>
             {/* Quick Timeline Cut / Split / Delete Toolbar */}
@@ -21682,7 +21703,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                       1,
                       Math.max(0, currentTime / Math.max(1, totalDurationSec))
                     ).toFixed(6)}), 0, 0)`
-                  : `translate3d(${(currentTime * timelineZoom).toFixed(2)}px, 0, 0)`,
+                  : `translate3d(${((currentTime - tlShiftSec) * timelineZoom).toFixed(2)}px, 0, 0)`,
                 willChange: 'transform',
               }}
               className="pointer-events-none absolute top-0 bottom-0 z-40 w-0"
@@ -21700,7 +21721,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   ref={playheadBadgeTextRef}
                   className="px-1.5 py-0.5 rounded bg-rose-600 border border-amber-300 text-[9px] font-mono font-black text-white shadow-md whitespace-nowrap leading-none"
                 >
-                  {formatTimeMMSS(currentTime)}.{Math.floor((currentTime % 1) * 10)}
+                  {formatTimeMMSS(Math.max(0, currentTime - tlLeadSec))}.{Math.floor((Math.max(0, currentTime - tlLeadSec) % 1) * 10)}
                 </div>
                 <div className="w-0 h-0 border-l-[5px] border-l-transparent border-r-[5px] border-r-transparent border-t-[6px] border-t-amber-300" />
               </div>
@@ -21725,7 +21746,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 style={
                   isFitEntireProject
                     ? { touchAction: 'none' }
-                    : { width: `${Math.max(300, totalDurationSec * timelineZoom)}px`, touchAction: 'none' }
+                    : { width: `${Math.max(300, totalDurationSec * timelineZoom)}px`, touchAction: 'none', marginLeft: tlShiftPx > 0 ? -tlShiftPx : undefined }
                 }
                 title="Haz clic o arrastra sobre la regla para mover el guion vertical al segundo exacto"
                 className={`relative h-6 bg-[#090806] border border-slate-800 rounded cursor-ew-resize select-none overflow-hidden ${
@@ -21763,9 +21784,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
                 {/* Major Labeled Ticks (Seconds, Minutes, or Hours) */}
                 {timelineRulerData.majorTicks.map((tick) => {
+                  // Labels count from the first real clip when the intro is hidden
                   const leftPos = isFitEntireProject
-                    ? `${(tick.sec / Math.max(1, totalDurationSec)) * 100}%`
-                    : `${tick.sec * timelineZoom}px`;
+                    ? `${((tick.sec + tlLeadSec) / Math.max(1, totalDurationSec)) * 100}%`
+                    : `${(tick.sec + tlLeadSec) * timelineZoom}px`;
                   return (
                     <div
                       key={`tick-${tick.sec}`}
@@ -21807,7 +21829,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 style={
                   isFitEntireProject
                     ? undefined
-                    : { width: `${Math.max(300, totalDurationSec * timelineZoom)}px` }
+                    : { width: `${Math.max(300, totalDurationSec * timelineZoom)}px`, marginLeft: tlShiftPx > 0 ? -tlShiftPx : undefined }
                 }
                 className={`flex items-center bg-slate-950/80 border border-slate-800/80 rounded py-0.5 px-0 overflow-hidden ${
                   isFitEntireProject ? 'flex-1 min-w-0' : 'shrink-0'
@@ -21978,7 +22000,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 style={
                   isFitEntireProject
                     ? undefined
-                    : { width: `${Math.max(300, totalDurationSec * timelineZoom)}px` }
+                    : { width: `${Math.max(300, totalDurationSec * timelineZoom)}px`, marginLeft: tlShiftPx > 0 ? -tlShiftPx : undefined }
                 }
                 className={`relative h-6 bg-slate-950/80 border border-slate-800/80 rounded overflow-hidden ${
                   isFitEntireProject ? 'flex-1 min-w-0' : 'shrink-0'
@@ -22060,7 +22082,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 style={
                   isFitEntireProject
                     ? undefined
-                    : { width: `${Math.max(300, totalDurationSec * timelineZoom)}px` }
+                    : { width: `${Math.max(300, totalDurationSec * timelineZoom)}px`, marginLeft: tlShiftPx > 0 ? -tlShiftPx : undefined }
                 }
                 className={`flex items-stretch bg-slate-950 border border-slate-800 rounded-lg py-1 px-0 overflow-hidden ${
                   isFitEntireProject ? 'flex-1 min-w-0' : 'shrink-0'
@@ -22331,7 +22353,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                                 </span>
                               ) : null}
                               <span className="px-0.5 py-0.5 rounded bg-black/75 text-[8px] font-mono text-slate-200 leading-none truncate max-w-full">
-                                {formatTimeMMSS(clip.start)}
+                                {formatTimeMMSS(Math.max(0, clip.start - tlLeadSec))}
                               </span>
                             </div>
                           </>
@@ -22359,7 +22381,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
                               </span>
                               <span className="text-[10px] font-mono text-slate-200 shrink-0">
-                                {formatTimeMMSS(clip.start)}-{formatTimeMMSS(clip.end)}
+                                {formatTimeMMSS(Math.max(0, clip.start - tlLeadSec))}-{formatTimeMMSS(Math.max(0, clip.end - tlLeadSec))}
                               </span>
                             </div>
 
@@ -22541,7 +22563,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 style={
                   isFitEntireProject
                     ? undefined
-                    : { width: `${Math.max(300, totalDurationSec * timelineZoom)}px` }
+                    : { width: `${Math.max(300, totalDurationSec * timelineZoom)}px`, marginLeft: tlShiftPx > 0 ? -tlShiftPx : undefined }
                 }
                 className={`flex items-center bg-slate-950/80 border border-slate-800/80 rounded py-0.5 px-0 overflow-hidden ${
                   isFitEntireProject ? 'flex-1 min-w-0' : 'shrink-0'
@@ -22650,7 +22672,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   style={
                     isFitEntireProject
                       ? undefined
-                      : { width: `${Math.max(300, totalDurationSec * timelineZoom)}px` }
+                      : { width: `${Math.max(300, totalDurationSec * timelineZoom)}px`, marginLeft: tlShiftPx > 0 ? -tlShiftPx : undefined }
                 }
                   className={`relative h-7 bg-slate-950/80 border border-slate-800/80 rounded overflow-hidden flex items-center ${
                     isFitEntireProject ? 'flex-1 min-w-0' : 'shrink-0'
