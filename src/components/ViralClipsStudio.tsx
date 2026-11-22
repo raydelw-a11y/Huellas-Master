@@ -1683,21 +1683,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                         );
                       })}
                     </div>
-                  ) : (
-                    <div
-                      className="px-3 py-1.5 text-center font-black uppercase text-white/90 text-xs drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)]"
-                      style={{ fontSize: `${Math.round(15 * fontSizeScale)}px` }}
-                    >
-                      {selectedClip.words.slice(0, wordsPerLine).map((w, idx) => (
-                        <span
-                          key={idx}
-                          className={idx === 0 ? 'text-yellow-300 mr-1.5' : 'text-white mr-1.5'}
-                        >
-                          {w.word}
-                        </span>
-                      ))}
-                    </div>
-                  )}
+                  ) : null /* Pausa de la voz: sin caption, igual que el render (antes volvían a salir las primeras palabras) */}
                 </div>
 
               </div>
