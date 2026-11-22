@@ -178,3 +178,29 @@ export function viralClipTimeToSource(
 export function viralSegmentsDurationSec(segments: ViralClipSegment[]): number {
   return segments.reduce((acc, s) => acc + Math.max(0, s.endSec - s.startSec), 0);
 }
+
+/**
+ * The clean 9:16 master is the 9:16 export, which leaves out the intro/outro ranges of the timeline
+ * (skipRanges916). Viral clips keep their times on the documentary's timeline (the 16:9 one, with intro), so a
+ * timeline second is moved back by every skipped range before it (a second inside a skipped range lands where
+ * that range was cut).
+ */
+export function timelineToMasterTime(t: number, skipRanges: Array<{ start: number; end: number }> = []): number {
+  let shift = 0;
+  for (const r of [...skipRanges].sort((a, b) => a.start - b.start)) {
+    if (!(r.end > r.start)) continue;
+    if (t >= r.end) shift += r.end - r.start;
+    else if (t > r.start) return Math.max(0, r.start - shift);
+  }
+  return Math.max(0, t - shift);
+}
+
+/** Inverse of timelineToMasterTime (a master second back on the documentary's timeline). */
+export function masterToTimelineTime(m: number, skipRanges: Array<{ start: number; end: number }> = []): number {
+  let t = m;
+  for (const r of [...skipRanges].sort((a, b) => a.start - b.start)) {
+    if (!(r.end > r.start)) continue;
+    if (t >= r.start) t += r.end - r.start;
+  }
+  return t;
+}

@@ -43,6 +43,7 @@ import {
   viralCutTimes,
   normalizeViralSegments,
   viralSegmentsDurationSec,
+  timelineToMasterTime,
 } from './src/utils/viralClipCuts';
 import {
   extractCleanPcmFromGeminiAudio,
@@ -6562,7 +6563,22 @@ app.post('/api/editor/voice-diagnostic', (req, res) => {
   res.json({ ok: true });
 });
 
+// Background exports (the clean 9:16 master that Viral Clips cuts from) run through this same exporter, but the
+// editor never sees them: while one runs, render-status keeps answering what the user's last export left, and a
+// user export stops the background one at once (stopBackgroundRenderForUser) instead of being refused.
+const INTERNAL_RENDER_TOKEN = crypto.randomBytes(16).toString('hex');
+let activeRenderIsBackground = false;
+let activeBackgroundRenderDocId = '';
+let visibleRenderStateDuringBackground: typeof activeRenderJobState | null = null;
+function isInternalRenderRequest(req: express.Request): boolean {
+  return isDirectLocalRequest(req) && req.headers['x-huellas-internal-render'] === INTERNAL_RENDER_TOKEN;
+}
+
 app.get('/api/editor/render-status', (_req, res) => {
+  if (activeRenderIsBackground && visibleRenderStateDuringBackground) {
+    res.json({ ok: true, ...visibleRenderStateDuringBackground });
+    return;
+  }
   res.json({ ok: true, ...activeRenderJobState });
 });
 
@@ -6574,10 +6590,7 @@ let renderCancelRequested = false;
 let renderCancelHook: (() => void) | null = null;
 const renderChildProcs = new Set<ChildProcess>();
 
-app.post('/api/editor/render-cancel', (_req, res) => {
-  if (!activeRenderJobState.running) {
-    return res.json({ ok: true, wasRunning: false });
-  }
+function cancelActiveRender() {
   renderCancelRequested = true;
   activeRenderJobState = {
     ...activeRenderJobState,
@@ -6592,8 +6605,43 @@ app.post('/api/editor/render-cancel', (_req, res) => {
       proc.kill('SIGKILL');
     } catch {}
   }
+}
+app.post('/api/editor/render-cancel', (req, res) => {
+  // The editor's cancel button belongs to the user's export; a background master is not theirs to see or stop
+  if (!activeRenderJobState.running || (activeRenderIsBackground && !isInternalRenderRequest(req))) {
+    return res.json({ ok: true, wasRunning: false });
+  }
+  cancelActiveRender();
   res.json({ ok: true, wasRunning: true });
 });
+
+/** A user export arrived while a background master runs: stop the master and give the exporter to the user. */
+let backgroundRenderPreemptedAt = 0;
+async function stopBackgroundRenderForUser(): Promise<boolean> {
+  backgroundRenderPreemptedAt = Date.now();
+  cancelActiveRender();
+  for (let i = 0; i < 300 && activeRenderJobState.running; i++) {
+    await new Promise((r) => setTimeout(r, 200));
+  }
+  if (activeRenderJobState.running) return false;
+  finishBackgroundRenderState();
+  return true;
+}
+/** Back to what the user saw before the background export (its final state is never shown in the editor). */
+function finishBackgroundRenderState() {
+  if (!activeRenderIsBackground) return;
+  activeRenderJobState = visibleRenderStateDuringBackground || {
+    running: false,
+    progressPct: 0,
+    currentStep: 0,
+    totalSteps: 0,
+    stageLabel: '',
+    startedAt: 0,
+  };
+  activeRenderIsBackground = false;
+  activeBackgroundRenderDocId = '';
+  visibleRenderStateDuringBackground = null;
+}
 
 const clipRoomToneAnalysisCache = new Map<
   string,
@@ -6920,12 +6968,28 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
   const startedAt = Date.now();
   let render8KRequested = false;
   const workDir = path.join(os.tmpdir(), `huellas_ffmpeg_render_${startedAt}`);
+  // Background export of the clean 9:16 master for Viral Clips (only the server itself can ask for it)
+  const isBackgroundMaster = Boolean(req.body?.viralMasterExport) && isInternalRenderRequest(req);
   // One export at a time: the editor can be minimized while rendering, so a second request must be refused.
+  // A background master is the exception: it gives way to the user's export at once.
   if (activeRenderJobState.running) {
-    return res.status(409).json({
-      ok: false,
-      error: 'Ya hay una exportación en curso. Espera a que termine antes de iniciar otra.',
-    });
+    const stopped =
+      activeRenderIsBackground && !isBackgroundMaster ? await stopBackgroundRenderForUser() : false;
+    if (!stopped) {
+      return res.status(409).json({
+        ok: false,
+        error: 'Ya hay una exportación en curso. Espera a que termine antes de iniciar otra.',
+      });
+    }
+  }
+  if (isBackgroundMaster) {
+    visibleRenderStateDuringBackground = { ...activeRenderJobState };
+    activeRenderIsBackground = true;
+    activeBackgroundRenderDocId = String(req.body?.docId || '');
+  } else {
+    activeRenderIsBackground = false;
+    activeBackgroundRenderDocId = '';
+    visibleRenderStateDuringBackground = null;
   }
   activeRenderJobState = {
     running: true,
@@ -8739,9 +8803,13 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         fs.mkdirSync(videoFinalSubdir, { recursive: true });
       } catch {}
     }
-    const finalOutputPath = fs.existsSync(videoFinalSubdir)
-      ? path.join(videoFinalSubdir, finalFileName)
-      : path.join(targetRoot, finalFileName);
+    // A background Viral Clips master goes to the app's own folder (never over the user's 06_Video_Final files)
+    const finalOutputPath =
+      isBackgroundMaster && typeof req.body?.viralMasterOutputPath === 'string' && req.body.viralMasterOutputPath
+        ? String(req.body.viralMasterOutputPath)
+        : fs.existsSync(videoFinalSubdir)
+        ? path.join(videoFinalSubdir, finalFileName)
+        : path.join(targetRoot, finalFileName);
     // Write to local /tmp workDir while FFmpeg is muxing so iCloud Drive (bird) never attempts to upload an incomplete growing file
     const tempMuxOutputPath = path.join(workDir, `mux_master_${Date.now()}.mp4`);
 
@@ -8752,7 +8820,7 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       } catch {}
     }
 
-    if (srtContent) {
+    if (srtContent && !isBackgroundMaster) {
       const srtFileName = aspectRatio === '9:16' ? 'Subtitulos_9x16.srt' : 'Subtitulos.srt';
       fs.writeFileSync(path.join(targetRoot, srtFileName), String(srtContent), 'utf8');
       const seoDir = path.join(targetRoot, '01_Guion_y_SEO');
@@ -9172,6 +9240,15 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       outputPath: finalOutputPath,
       fileName: finalFileName,
     };
+
+    if (!isBackgroundMaster && aspectRatio === '9:16' && docId) {
+      try {
+        saveViralMasterRecipe(String(docId), req.body, 'export');
+        viralMasterWanted.set(String(docId), Date.now());
+      } catch (e) {
+        console.warn('[ViralMaster] No se pudo guardar la receta del master tras la exportación 9:16:', e);
+      }
+    }
 
     res.json({
       ok: true,
@@ -22109,7 +22186,10 @@ app.post('/api/viral-clips/preview-proxy', async (req, res) => {
       '0YouTube',
       'Huellas de la Humanidad'
     );
-    if (!filePath.startsWith(channelRoot + path.sep) || !/\.(mp4|mov|m4v)$/i.test(filePath) || !fs.existsSync(filePath)) {
+    // Channel videos, or the clean 9:16 masters Viral Clips keeps on the Mac
+    const isChannelVideo = filePath.startsWith(channelRoot + path.sep);
+    const isViralMaster = filePath.startsWith(VIRAL_MASTERS_DIR + path.sep);
+    if ((!isChannelVideo && !isViralMaster) || !/\.(mp4|mov|m4v)$/i.test(filePath) || !fs.existsSync(filePath)) {
       return res.status(400).json({ ok: false, error: 'Ese archivo no es un video del canal.' });
     }
     const st = fs.statSync(filePath);
@@ -22746,6 +22826,8 @@ app.post('/api/viral-clips/resolve-doc-source', async (req, res) => {
       masterVideoCloudOnly,
       clipsNewerThanMaster,
       masterExportedAt,
+      // Clean 9:16 master the viral clips are cut from (prepared by itself, see VIRAL CLIPS — CLEAN 9:16 MASTER)
+      viralMaster: viralMasterPublicStatus(String(doc.id || '')),
       masterVideoSizeMB,
       masterVideoUrl:
         masterVideoPath && !masterVideoCloudOnly
@@ -23335,6 +23417,10 @@ async function renderViralClipMp4Internal(params: {
   clipNumber?: number;
   /** Called with 0–100 while ffmpeg encodes */
   onProgress?: (pct: number) => void;
+  /** The source is the documentary's clean 9:16 master: already framed and with its logo */
+  sourceIsViralMaster?: boolean;
+  /** Timeline ranges the 9:16 master leaves out (intro/outro), to move the clip's times onto the master */
+  viralMasterSkipRanges?: Array<{ start: number; end: number }>;
 }): Promise<{
   outputFilePath: string;
   savedInDocFolderPath?: string;
@@ -23359,6 +23445,8 @@ async function renderViralClipMp4Internal(params: {
     showHookBanner = true,
     docId = '',
     clipNumber = 0,
+    sourceIsViralMaster = false,
+    viralMasterSkipRanges = [],
   } = params;
   const look916 = getViral916Look(docId);
 
@@ -23411,11 +23499,11 @@ async function renderViralClipMp4Internal(params: {
   fs.writeFileSync(assPath, assContent, 'utf8');
   const escapedAssPath = assPath.replace(/\\/g, '/').replace(/:/g, '\\:');
 
-  // Official logo, same size and place as in the documentary's 9:16 Reel
+  // Official logo, same size and place as in the documentary's 9:16 Reel (the 9:16 master already has it)
   let logoOverlaySuffix = '';
   let logoPngPath = '';
   try {
-    const logoDataUrl = resolveOfficialLogoPayloadServer().logoDataUrl || '';
+    const logoDataUrl = sourceIsViralMaster ? '' : resolveOfficialLogoPayloadServer().logoDataUrl || '';
     if (/^data:image\//.test(logoDataUrl)) {
       const rawLogo = path.join(os.tmpdir(), `viral_logo_raw_${stamp}.png`);
       fs.writeFileSync(rawLogo, Buffer.from(logoDataUrl.replace(/^data:[^;]+;base64,/, ''), 'base64'));
@@ -23469,13 +23557,17 @@ async function renderViralClipMp4Internal(params: {
 
   // El video final del documental (06_Video_Final) ya trae subtítulos 16:9 grabados abajo:
   // se descarta la franja inferior antes del recorte vertical para que no salgan subtítulos dobles.
-  const hasBurnedDocCaptions = /[\\/]06_Video_Final[\\/]/i.test(String(sourceVideoPath || ''));
+  const hasBurnedDocCaptions =
+    !sourceIsViralMaster && /[\\/]06_Video_Final[\\/]/i.test(String(sourceVideoPath || ''));
   const preCropVf = hasBurnedDocCaptions ? 'crop=iw:trunc(ih*0.78/2)*2:0:0,' : '';
 
   // Build 9:16 Reframe filter
   const fX = Math.max(0, Math.min(1, (Number(focusX) || 50) / 100));
   let reframeVf = '';
-  if (reframeMode === 'fit_blur') {
+  if (sourceIsViralMaster) {
+    // Clean 9:16 master: the editor's framing per scene is already in the picture
+    reframeVf = `scale=${outW}:${outH}:flags=lanczos,setsar=1,ass='${escapedAssPath}'`;
+  } else if (reframeMode === 'fit_blur') {
     reframeVf = `${preCropVf}split=2[bg][fg];[bg]scale=${outW}:${outH}:force_original_aspect_ratio=increase:flags=lanczos,crop=${outW}:${outH},boxblur=24:4,eq=brightness=-0.18[bgblur];[fg]scale=${outW}:${outH}:force_original_aspect_ratio=decrease:flags=lanczos[fgscaled];[bgblur][fgscaled]overlay=(W-w)/2:(H-h)/2,ass='${escapedAssPath}'${logoOverlaySuffix}`;
   } else if (reframeMode === 'auto_pan') {
     reframeVf = `${preCropVf}scale=${outW}:${outH}:force_original_aspect_ratio=increase:flags=lanczos,crop=${outW}:${outH}:'(iw-ow)*(0.25+0.5*min(1,t/${Math.max(1, totalClipDurSec).toFixed(
@@ -23503,7 +23595,9 @@ async function renderViralClipMp4Internal(params: {
     const chains: string[] = [];
     let concatIn = '';
     cuts.parts.forEach((part, i) => {
-      inputArgs.push('-ss', part.srcStart.toFixed(3), '-t', part.dur.toFixed(3), '-i', sourceVideoPath);
+      // Times are on the documentary's timeline; the 9:16 master leaves the intro/outro out
+      const inputStart = sourceIsViralMaster ? timelineToMasterTime(part.srcStart, viralMasterSkipRanges) : part.srcStart;
+      inputArgs.push('-ss', inputStart.toFixed(3), '-t', part.dur.toFixed(3), '-i', sourceVideoPath);
       chains.push(`[${i}:v]setpts=PTS-STARTPTS[v${i}]`);
       if (sourceHasAudio) {
         const fades: string[] = [];
@@ -23610,6 +23704,302 @@ async function renderViralClipMp4Internal(params: {
   };
 }
 
+// ============================================================================
+// VIRAL CLIPS — CLEAN 9:16 MASTER (automatic, no buttons)
+// Viral clips are cut from a 9:16 version of the documentary made by the editor's own exporter: the user's
+// framing and focus per scene, the clips as they are now, voice, music and logo, but WITHOUT the documentary's
+// captions or clip-1 title (each viral clip draws its own). Its "recipe" is the 9:16 export request: the editor
+// on the Mac sends it by itself while the documentary is open, and every 9:16 export the user makes refreshes it.
+// The master rebuilds itself when it is missing or out of date (recipe changed, or a clip file newer than the
+// master): right away when a viral clip waits for it or a 9:16 export just ended, otherwise after 10 quiet
+// minutes. It is kept on the Mac (not in iCloud) and never blocks the user: their exports stop it at once.
+// ============================================================================
+const VIRAL_MASTERS_DIR = path.join(VIRAL_CLIPS_DIR, 'masters');
+const VIRAL_MASTER_QUIET_MS = 10 * 60 * 1000;
+const viralMasterWanted = new Map<string, number>();
+const viralMasterFailures = new Map<string, { at: number; fingerprint: string; error: string }>();
+let viralMasterBuilding: { docId: string; startedAt: number; fingerprint: string } | null = null;
+
+function viralMasterFiles(docId: string) {
+  const safe = String(docId || 'doc').replace(/[^a-zA-Z0-9_-]+/g, '_');
+  return {
+    video: path.join(VIRAL_MASTERS_DIR, `${safe}_9x16_limpio.mp4`),
+    next: path.join(VIRAL_MASTERS_DIR, `${safe}_9x16_limpio.next.mp4`),
+    meta: path.join(VIRAL_MASTERS_DIR, `${safe}_9x16_limpio.json`),
+    recipe: path.join(VIRAL_MASTERS_DIR, `${safe}_9x16_receta.json`),
+  };
+}
+function readJsonSafe(file: string): any {
+  try {
+    return fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : null;
+  } catch {
+    return null;
+  }
+}
+function writeJsonAtomicSafe(file: string, data: any) {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const tmp = `${file}.${process.pid}.${Date.now()}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(data), 'utf8');
+  fs.renameSync(tmp, file);
+}
+/** The 9:16 export request turned into the clean master's: no captions, no clip-1 title, 2K, 30 fps. */
+function toViralMasterBody(body: any): any {
+  const b = JSON.parse(JSON.stringify(body || {}));
+  delete b.viralMasterExport;
+  delete b.viralMasterOutputPath;
+  b.aspectRatio = '9:16';
+  b.resolution = '2K_1440P';
+  b.fps = 30;
+  b.bitrateMbps = 35;
+  b.srtContent = '';
+  b.overlays = { ...(b.overlays || {}), burnInCaptions: false, burnInHook: false, hookSegments: [] };
+  delete b.overlays.captionWordStarts;
+  delete b.overlays.captionSegments;
+  return b;
+}
+/** What makes two masters different (page-only URLs that change from one session to another are left out). */
+function viralMasterFingerprint(body: any): string {
+  const clean = JSON.parse(JSON.stringify(body || {}));
+  for (const c of Array.isArray(clean.clips) ? clean.clips : []) {
+    delete c.videoUrl;
+    delete c.videoDataUrl;
+    delete c.opticalFlowUrl;
+  }
+  delete clean.voiceoverDataUrl;
+  for (const m of Array.isArray(clean.musicTracks) ? clean.musicTracks : []) delete m.audioDataUrl;
+  return crypto.createHash('sha1').update(JSON.stringify(clean)).digest('hex');
+}
+function saveViralMasterRecipe(docId: string, rawBody: any, source: 'editor' | 'export') {
+  if (!docId || !rawBody || !Array.isArray(rawBody.clips) || rawBody.clips.length === 0) {
+    return { changed: false, fingerprint: '' };
+  }
+  const body = toViralMasterBody(rawBody);
+  const fingerprint = viralMasterFingerprint(body);
+  const files = viralMasterFiles(docId);
+  const prev = readJsonSafe(files.recipe);
+  const changed = !prev || prev.fingerprint !== fingerprint;
+  writeJsonAtomicSafe(files.recipe, {
+    docId,
+    source,
+    fingerprint,
+    changedAt: changed ? Date.now() : Number(prev?.changedAt) || Date.now(),
+    savedAt: Date.now(),
+    body,
+  });
+  return { changed, fingerprint };
+}
+function newestClipFileMtime(rootFolder: string): number {
+  let newest = 0;
+  try {
+    const dir = path.join(rootFolder, '05_Clips_Video');
+    if (!rootFolder || !fs.existsSync(dir)) return 0;
+    for (const name of fs.readdirSync(dir)) {
+      if (!/\.(mp4|mov|m4v|webm)$/i.test(name)) continue;
+      try {
+        newest = Math.max(newest, fs.statSync(path.join(dir, name)).mtimeMs);
+      } catch {}
+    }
+  } catch {}
+  return newest;
+}
+function viralMasterState(docId: string) {
+  const files = viralMasterFiles(docId);
+  const recipe = readJsonSafe(files.recipe);
+  const meta = readJsonSafe(files.meta);
+  const exists = !!meta && fs.existsSync(files.video);
+  const rootFolder = recipe?.body
+    ? resolveLocalDocumentaryFolder(
+        String(recipe.body.folderPath || ''),
+        String(recipe.body.folderName || ''),
+        String(recipe.body.docTitle || '')
+      ) || ''
+    : '';
+  const clipsChangedAt = rootFolder ? newestClipFileMtime(rootFolder) : 0;
+  const reasons: string[] = [];
+  if (!recipe) reasons.push('sin_receta');
+  if (!exists) reasons.push('sin_master');
+  else {
+    if (recipe && meta.fingerprint !== recipe.fingerprint) reasons.push('receta_cambiada');
+    if (clipsChangedAt > Number(meta.createdAt || 0)) reasons.push('clips_nuevos');
+  }
+  const building = viralMasterBuilding?.docId === docId;
+  const failure = viralMasterFailures.get(docId);
+  return {
+    docId,
+    files,
+    recipe,
+    meta,
+    exists,
+    fresh: exists && reasons.length === 0,
+    reasons,
+    clipsChangedAt,
+    building,
+    progressPct:
+      building && activeRenderIsBackground && activeBackgroundRenderDocId === docId
+        ? Number(activeRenderJobState.progressPct) || 0
+        : 0,
+    waitingForUserExport: building && !activeRenderIsBackground && activeRenderJobState.running,
+    lastError: failure && recipe && failure.fingerprint === recipe.fingerprint ? failure.error : '',
+  };
+}
+/** What the page needs to know about a documentary's master. */
+function viralMasterPublicStatus(docId: string) {
+  const st = viralMasterState(docId);
+  return {
+    state: st.building ? 'building' : st.fresh ? 'ready' : !st.recipe ? 'no_recipe' : st.exists ? 'stale' : 'missing',
+    reasons: st.reasons,
+    building: st.building,
+    progressPct: st.progressPct,
+    exists: st.exists,
+    fresh: st.fresh,
+    lastError: st.lastError,
+    path: st.exists ? st.files.video : '',
+    url: st.exists
+      ? `/viral-clips-media/masters/${encodeURIComponent(path.basename(st.files.video))}?v=${Number(st.meta?.builtAt || 0)}`
+      : '',
+    skipRanges916: st.exists && Array.isArray(st.meta?.skipRanges916) ? st.meta.skipRanges916 : [],
+    builtAt: Number(st.meta?.builtAt || 0),
+  };
+}
+function postInternalJson(pathname: string, body: any): Promise<{ status: number; json: any }> {
+  return new Promise((resolve) => {
+    const payload = Buffer.from(JSON.stringify(body));
+    const r = http.request(
+      {
+        host: '127.0.0.1',
+        port: PORT,
+        path: pathname,
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': payload.length,
+          'X-Huellas-Internal-Render': INTERNAL_RENDER_TOKEN,
+        },
+      },
+      (resp) => {
+        const chunks: Buffer[] = [];
+        resp.on('data', (c) => chunks.push(Buffer.from(c)));
+        resp.on('end', () => {
+          let json: any = null;
+          try {
+            json = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+          } catch {}
+          resolve({ status: resp.statusCode || 0, json });
+        });
+      }
+    );
+    r.setTimeout(0);
+    r.on('error', (e) => resolve({ status: 0, json: { ok: false, error: String(e?.message || e) } }));
+    r.end(payload);
+  });
+}
+async function buildViralMaster(docId: string) {
+  const st = viralMasterState(docId);
+  if (!st.recipe?.body || viralMasterBuilding) return;
+  const files = st.files;
+  fs.mkdirSync(VIRAL_MASTERS_DIR, { recursive: true });
+  try {
+    if (fs.existsSync(files.next)) fs.unlinkSync(files.next);
+  } catch {}
+  const startedAt = Date.now();
+  const fingerprint = String(st.recipe.fingerprint || '');
+  viralMasterBuilding = { docId, startedAt, fingerprint };
+  console.log(`[ViralMaster] Preparando el master 9:16 limpio de ${docId} (${st.reasons.join(', ')})...`);
+  try {
+    const result = await postInternalJson('/api/editor/render-ffmpeg', {
+      ...st.recipe.body,
+      docId,
+      viralMasterExport: true,
+      viralMasterOutputPath: files.next,
+    });
+    finishBackgroundRenderState();
+    if (result.status === 200 && result.json?.ok && fs.existsSync(files.next)) {
+      fs.renameSync(files.next, files.video);
+      const skipRanges916 = (Array.isArray(st.recipe.body.skipRanges916) ? st.recipe.body.skipRanges916 : [])
+        .map((r: any) => ({ start: Number(r?.start), end: Number(r?.end) }))
+        .filter((r: any) => Number.isFinite(r.start) && Number.isFinite(r.end) && r.end > r.start + 0.05);
+      writeJsonAtomicSafe(files.meta, {
+        docId,
+        fingerprint,
+        // Clip files changed after the build started make it out of date
+        createdAt: startedAt,
+        builtAt: Date.now(),
+        skipRanges916,
+      });
+      viralMasterWanted.delete(docId);
+      viralMasterFailures.delete(docId);
+      console.log(`[ViralMaster] Master 9:16 limpio listo (${docId}) en ${Math.round((Date.now() - startedAt) / 1000)} s.`);
+    } else if (result.json?.cancelled) {
+      // The user started an export: the master starts again when the exporter is free
+      console.log(`[ViralMaster] Master de ${docId} pausado por una exportación del usuario; se retoma después.`);
+    } else {
+      viralMasterFailures.set(docId, {
+        at: Date.now(),
+        fingerprint,
+        error: String(result.json?.error || `HTTP ${result.status}`).slice(0, 600),
+      });
+      console.warn(`[ViralMaster] No se pudo preparar el master de ${docId}:`, result.json?.error || result.status);
+    }
+  } catch (e: any) {
+    finishBackgroundRenderState();
+    viralMasterFailures.set(docId, { at: Date.now(), fingerprint, error: String(e?.message || e).slice(0, 600) });
+    console.warn('[ViralMaster] Error preparando el master:', e);
+  } finally {
+    try {
+      if (fs.existsSync(files.next)) fs.unlinkSync(files.next);
+    } catch {}
+    viralMasterBuilding = null;
+    pumpViralRenderQueue();
+  }
+}
+function tickViralMasters() {
+  if (viralMasterBuilding || activeRenderJobState.running) return;
+  let recipeFiles: string[] = [];
+  try {
+    recipeFiles = fs.existsSync(VIRAL_MASTERS_DIR)
+      ? fs.readdirSync(VIRAL_MASTERS_DIR).filter((f) => f.endsWith('_9x16_receta.json'))
+      : [];
+  } catch {
+    return;
+  }
+  const candidates: Array<{ docId: string; wantedAt: number }> = [];
+  for (const f of recipeFiles) {
+    const docId = String(readJsonSafe(path.join(VIRAL_MASTERS_DIR, f))?.docId || '');
+    if (!docId) continue;
+    const st = viralMasterState(docId);
+    if (st.fresh || !st.recipe) continue;
+    const wantedAt = viralMasterWanted.get(docId) || 0;
+    // Only documentaries that have viral clips (or a viral clip waiting) get a master
+    if (!wantedAt && !fs.existsSync(viralSavedFileFor(docId))) continue;
+    const failure = viralMasterFailures.get(docId);
+    if (failure && failure.fingerprint === st.recipe.fingerprint && Date.now() - failure.at < 30 * 60 * 1000) continue;
+    const quietSince = Math.max(Number(st.recipe.changedAt) || 0, st.clipsChangedAt);
+    if (wantedAt || Date.now() - quietSince >= VIRAL_MASTER_QUIET_MS) candidates.push({ docId, wantedAt });
+  }
+  if (candidates.length === 0) return;
+  candidates.sort((a, b) => b.wantedAt - a.wantedAt);
+  void buildViralMaster(candidates[0].docId);
+}
+setInterval(tickViralMasters, 20000);
+
+// The editor on the Mac sends the 9:16 recipe by itself while a documentary is open (never from another device:
+// its local settings could differ from the Mac's)
+app.post('/api/viral-clips/master-recipe', (req, res) => {
+  if (!isDirectLocalRequest(req)) return res.json({ ok: true, ignored: true });
+  try {
+    const docId = String(req.body?.docId || '').trim();
+    const r = saveViralMasterRecipe(docId, req.body?.body, 'editor');
+    res.json({ ok: true, ...r, master: viralMasterPublicStatus(docId) });
+  } catch (e: any) {
+    res.status(500).json({ ok: false, error: e?.message || 'No se pudo guardar la receta del master.' });
+  }
+});
+app.get('/api/viral-clips/master-status', (req, res) => {
+  const docId = String(req.query.docId || '').trim();
+  if (!docId) return res.json({ ok: true, master: null });
+  res.json({ ok: true, master: viralMasterPublicStatus(docId) });
+});
+
 // Renders run as background jobs when the page asks for it (async: true): through the Cloudflare tunnel
 // (iPhone) a request that stays open more than 100 s is cut, and a 2K render from the 8K master takes longer.
 // Several clips can be sent at once: they wait in a queue and at most VIRAL_RENDER_PARALLEL encode together
@@ -23620,7 +24010,8 @@ type ViralRenderJob = {
   clipId: string;
   clipNumber: number;
   title: string;
-  status: 'queued' | 'running' | 'done' | 'error';
+  /** waiting_master: a documentary clip waits for its clean 9:16 master to be ready (or up to date) */
+  status: 'waiting_master' | 'queued' | 'running' | 'done' | 'error';
   progressPct: number;
   createdAt: number;
   startedAt: number;
@@ -23632,6 +24023,22 @@ type ViralRenderJob = {
 const VIRAL_RENDER_PARALLEL = 2;
 const viralRenderJobs = new Map<string, ViralRenderJob>();
 function pumpViralRenderQueue() {
+  // Clips of a documentary are cut from its clean 9:16 master: they wait until it is ready and up to date
+  for (const job of viralRenderJobs.values()) {
+    if (job.status !== 'queued' && job.status !== 'waiting_master') continue;
+    if (!job.docId || !job.body) continue;
+    const st = viralMasterState(job.docId);
+    if (!st.fresh) {
+      job.status = 'waiting_master';
+      if (!viralMasterWanted.has(job.docId)) viralMasterWanted.set(job.docId, Date.now());
+      continue;
+    }
+    job.status = 'queued';
+    job.body.sourceVideoPath = st.files.video;
+    job.body.sourceIsViralMaster = true;
+    job.body.viralMasterSkipRanges = Array.isArray(st.meta?.skipRanges916) ? st.meta.skipRanges916 : [];
+  }
+  if ([...viralRenderJobs.values()].some((j) => j.status === 'waiting_master')) tickViralMasters();
   const running = [...viralRenderJobs.values()].filter((j) => j.status === 'running').length;
   let free = VIRAL_RENDER_PARALLEL - running;
   const queued = [...viralRenderJobs.values()]
@@ -23682,6 +24089,12 @@ function publicViralRenderJob(j: ViralRenderJob) {
     savedInDocFolderPath: j.result?.savedInDocFolderPath || '',
     durationSec: j.result?.durationSec || 0,
     error: j.error || '',
+    ...(j.status === 'waiting_master' && j.docId
+      ? (() => {
+          const m = viralMasterPublicStatus(j.docId);
+          return { masterState: m.state, masterProgressPct: m.progressPct, masterError: m.lastError };
+        })()
+      : {}),
   };
 }
 app.post('/api/viral-clips/render', async (req, res) => {
@@ -23699,7 +24112,7 @@ app.post('/api/viral-clips/render', async (req, res) => {
     // The same clip already waiting or encoding: do not start it twice (both would write the same file)
     const dup = [...viralRenderJobs.values()].find(
       (j) =>
-        (j.status === 'queued' || j.status === 'running') &&
+        (j.status === 'queued' || j.status === 'running' || j.status === 'waiting_master') &&
         j.docId === docId &&
         ((clipId && j.clipId === clipId) || (!clipId && clipNumber > 0 && j.clipNumber === clipNumber))
     );
@@ -23741,7 +24154,7 @@ app.get('/api/viral-clips/render-job', (req, res) => {
   if (!job) {
     return res.status(404).json({ ok: false, error: 'No se encontró el render (¿se reinició la Mac?). Vuelve a pulsar Guardar Clip.' });
   }
-  if (job.status === 'queued' || job.status === 'running') {
+  if (job.status === 'queued' || job.status === 'running' || job.status === 'waiting_master') {
     return res.json({ ok: true, running: true, ...publicViralRenderJob(job) });
   }
   if (job.status === 'error') return res.json({ ok: false, error: job.error });

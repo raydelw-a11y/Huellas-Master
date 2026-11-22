@@ -14353,6 +14353,272 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     }
   };
 
+  // One clip of an export request. Shared by the user's export and the Viral Clips master recipe (9:16 without
+  // captions), so both always describe the same clip the same way.
+  const buildExportClipEntry = (c: (typeof clipsWithTimelineBounds)[number], ratio: EditorAspectRatio) => {
+    const savedAudio = getSavedAudioEditForClip(
+      c,
+      readSavedClipAudioEdits(activeDoc.id)
+    );
+    const clipAudioMuted =
+      savedAudio?.audioMuted !== undefined
+        ? Boolean(savedAudio.audioMuted)
+        : Boolean(c.audioMuted);
+    const clipCustomVolSet =
+      savedAudio?.customVolumeSet !== undefined
+        ? Boolean(savedAudio.customVolumeSet)
+        : Boolean(c.customVolumeSet);
+    const clipFoleyVolume =
+      typeof savedAudio?.foleyVolume === 'number'
+        ? savedAudio.foleyVolume
+        : c.foleyVolume;
+    const isIntroOrOutroClip =
+      c.id === 'fixed-doc-intro' ||
+      c.id === 'fixed-doc-outro' ||
+      c.clipNumber === 0 ||
+      c.clipNumber === 999;
+    const isNarratedClip =
+      !isIntroOrOutroClip &&
+      c.clipNumber !== 1 &&
+      c.end > voiceStartOffsetSec + 0.5;
+    const rawClipVolPct =
+      typeof clipFoleyVolume === 'number'
+        ? clipFoleyVolume
+        : isIntroOrOutroClip
+        ? 100
+        : isNarratedClip
+        ? foleyDuckedVolume
+        : foleyHighVolume;
+    const isExplicitClipVol =
+      clipCustomVolSet ||
+      (typeof clipFoleyVolume === 'number' &&
+        clipFoleyVolume !== (isIntroOrOutroClip ? 100 : c.clipNumber === 1 ? 80 : 20));
+    const effectiveClipFoleyPct =
+      clipAudioMuted || rawClipVolPct <= 0
+        ? 0
+        : isIntroOrOutroClip
+        ? rawClipVolPct
+        : isExplicitClipVol || !autoDuckingEnabled
+        ? rawClipVolPct
+        : isNarratedClip
+        ? Math.min(rawClipVolPct, foleyDuckedVolume)
+        : rawClipVolPct;
+    return {
+      clipNumber: c.clipNumber,
+      fileName: c.fileName,
+      start: c.start,
+      end: c.end,
+      durationSec: c.duration,
+      sourceDuration: c.sourceDuration,
+      trimStart: c.trimStart || 0,
+      trimEnd: c.trimEnd,
+      speed: c.speed,
+      smoothSlowMo:
+        c.smoothSlowMo !== undefined ? c.smoothSlowMo : Boolean(c.speed && c.speed < 1),
+      opticalFlowUrl: c.opticalFlowUrl || '',
+      videoUrl: c.videoUrl || '',
+      foleyOnlyIsolated: Boolean(c.foleyOnlyIsolated),
+      foleyOnlyDisabled: Boolean(c.foleyOnlyDisabled),
+      vocalsSeparated: Boolean(c.vocalsSeparated),
+      musicSeparated: Boolean(c.musicSeparated),
+      foleyVolume: Math.max(0, Math.min(1, effectiveClipFoleyPct / 100)),
+      customVolumeSet: Boolean(isExplicitClipVol || clipAudioMuted),
+      audioMuted: Boolean(clipAudioMuted || effectiveClipFoleyPct <= 0),
+      audioFadeInSec: savedAudio?.audioFadeInSec ?? c.audioFadeInSec,
+      audioFadeOutSec: savedAudio?.audioFadeOutSec ?? c.audioFadeOutSec,
+      transition: c.transition,
+      reframe9x16Mode: c.reframe9x16Mode || 'auto_center',
+      reframeFocusXStart: typeof c.reframeFocusXStart === 'number' ? c.reframeFocusXStart : 50,
+      reframeFocusXEnd:
+        typeof c.reframeFocusXEnd === 'number'
+          ? c.reframeFocusXEnd
+          : typeof c.reframeFocusXStart === 'number'
+          ? c.reframeFocusXStart
+          : 50,
+      reframeFocusY: typeof c.reframeFocusY === 'number' ? c.reframeFocusY : 50,
+      userReframed9x16: Boolean(c.userReframed9x16),
+      // With framing points the fixed framing sent is the last point (used if the export cannot animate)
+      frameZoom: getClipFrameAt(c, ratio, Number.MAX_SAFE_INTEGER).z,
+      frameOffsetX: getClipFrameAt(c, ratio, Number.MAX_SAFE_INTEGER).x,
+      frameOffsetY: getClipFrameAt(c, ratio, Number.MAX_SAFE_INTEGER).y,
+      frameKeys: getClipFrameKeys(c, ratio),
+      videoDataUrl: c.videoUrl && c.videoUrl.startsWith('data:') ? c.videoUrl : '',
+    };
+  };
+
+  // Music tracks of an export request (shared by the user's export and the Viral Clips master recipe)
+  const buildExportMusicEntries = () =>
+    musicTracks.map((mt) => ({
+      trackNumber: mt.trackNumber,
+      title: mt.title,
+      startSec: mt.start,
+      durationSec: mt.duration,
+      volume: (typeof mt.volume === 'number' ? mt.volume : masterMusicVolume) / 100,
+      fadeInSec: mt.fadeInSec ?? 5,
+      fadeOutSec: mt.fadeOutSec ?? 5,
+      ...(mt.trackNumber === 1 && (clipsWithTimelineBounds.find((c) => c.clipNumber === 1)?.end ?? 0) > 0
+        ? {
+            clip1BoostVolume: CLIP1_SONG_BOOST_PCT / 100,
+            clip1BoostRampStartSec: (clipsWithTimelineBounds.find((c) => c.clipNumber === 1)?.end ?? 0) - CLIP1_BOOST_RAMP_BEFORE_SEC,
+            clip1BoostRampEndSec: (clipsWithTimelineBounds.find((c) => c.clipNumber === 1)?.end ?? 0) + CLIP1_BOOST_RAMP_AFTER_SEC,
+          }
+        : {}),
+      audioDataUrl: mt.audioUrl && mt.audioUrl.startsWith('data:') ? mt.audioUrl : '',
+    }));
+
+  // Viral Clips master recipe: this documentary's 9:16 export request WITHOUT captions or clip-1 title. The page on
+  // the Mac sends it by itself a little after the timeline settles (never another device: its local settings could
+  // differ); the Mac rebuilds the clean 9:16 master the viral clips are cut from whenever it changes. It works in
+  // 16:9 mode too: it uses the 9:16 logo settings and each clip's 9:16 framing.
+  const viralRecipeLastSentRef = useRef<string>('');
+  useEffect(() => {
+    if (!activeDoc?.id || typeof window === 'undefined') return;
+    if (!/^(localhost|127\.0\.0\.1|\[::1\])$/i.test(window.location.hostname)) return;
+    const realClips = clipsWithTimelineBounds.filter(
+      (c) => c.clipNumber > 0 && c.clipNumber !== 999 && (c.fileName || c.videoUrl)
+    );
+    if (realClips.length < 3) return;
+    const docAtSchedule = activeDoc;
+    const timer = window.setTimeout(async () => {
+      try {
+        let profile916: any = null;
+        try {
+          profile916 = JSON.parse(localStorage.getItem('huellas_editor_format_profiles_v1') || '{}')?.['9:16'] || null;
+        } catch {}
+        const in916 = aspectRatio === '9:16';
+        const lPosX = in916 ? logoPosX : typeof profile916?.logoPosX === 'number' ? profile916.logoPosX : 10;
+        const lPosY = in916 ? logoPosY : typeof profile916?.logoPosY === 'number' ? profile916.logoPosY : 3;
+        const lScale = in916 ? logoScalePct : Number(profile916?.logoScalePct) || 12;
+        const lOpacity = in916
+          ? logoOpacity
+          : typeof profile916?.logoOpacity === 'number'
+          ? profile916.logoOpacity
+          : 95;
+        const stageW916 = (CANONICAL_STAGE_HEIGHT * 9) / 16;
+        // Logo picture with its opacity baked in, exactly as the export prepares it
+        let logoPng = '';
+        if (burnInLogo && officialLogoUrl) {
+          const img = await new Promise<HTMLImageElement | null>((resolve) => {
+            const im = new Image();
+            im.crossOrigin = 'anonymous';
+            im.onload = () => resolve(im);
+            im.onerror = () => resolve(null);
+            im.src = officialLogoUrl;
+          });
+          if (img) {
+            const natW = img.naturalWidth || img.width || 300;
+            const natH = img.naturalHeight || img.height || 300;
+            const lw = Math.max(64, Math.min(800, natW));
+            const lh = Math.max(1, Math.round((natH / natW) * lw));
+            const cv = document.createElement('canvas');
+            cv.width = lw;
+            cv.height = lh;
+            const cx = cv.getContext('2d');
+            if (cx) {
+              cx.globalAlpha = Math.max(0.05, Math.min(1, lOpacity / 100));
+              cx.drawImage(img, 0, 0, lw, lh);
+              logoPng = cv.toDataURL('image/png');
+            }
+          }
+        }
+        const skip916 = showIntroOutro916
+          ? []
+          : clipsWithTimelineBounds
+              .filter(
+                (c) =>
+                  c.id === 'fixed-doc-intro' ||
+                  c.id === 'fixed-doc-outro' ||
+                  c.clipNumber === 0 ||
+                  c.clipNumber === 999
+              )
+              .map((c) => ({ start: c.start, end: c.end }))
+              .filter((r) => r.end > r.start + 0.05)
+              .sort((x, y) => x.start - y.start);
+        const body = {
+          docId: docAtSchedule.id,
+          folderPath: downloadFolderPath || docAtSchedule.downloadFolderPath || '',
+          folderName: downloadFolderName || docAtSchedule.downloadFolderName || '',
+          docTitle: docAtSchedule.title,
+          aspectRatio: '9:16',
+          resolution: '2K_1440P',
+          fps: 30,
+          bitrateMbps: 35,
+          clips: clipsWithTimelineBounds.map((c) => buildExportClipEntry(c, '9:16')),
+          voiceoverStartSec: voiceStartOffsetSec,
+          voiceoverVolume: voiceVolume / 100,
+          voiceoverGainDb: voiceGainDb,
+          voiceoverDataUrl:
+            docAtSchedule.masterAudioUrl && docAtSchedule.masterAudioUrl.startsWith('data:')
+              ? docAtSchedule.masterAudioUrl
+              : '',
+          sunoSilenceGapSec: 15,
+          sunoMasterVolume: masterMusicVolume / 100,
+          musicTracks: buildExportMusicEntries(),
+          skipRanges916: skip916,
+          srtContent: '',
+          srtCoordinateSpace: 'timeline',
+          overlays: {
+            parityV2: true,
+            clipAnim: { animIn: clipAnimIn, animOut: clipAnimOut, dur: clipAnimDur },
+            burnInLogo,
+            logo: {
+              pngDataUrl: logoPng,
+              xPct: lPosX + (4 / stageW916) * 100,
+              yPct: lPosY + (4 / CANONICAL_STAGE_HEIGHT) * 100,
+              wPct: ((Math.max(46, (lScale / 100) * stageW916) - 8) / stageW916) * 100,
+              opacity: lOpacity,
+              animIn: logoAnimIn,
+              animInDur: logoAnimInDur,
+              animOut: logoAnimOut,
+              animOutDur: logoAnimOutDur,
+            },
+            burnInHook: false,
+            hookSegments: [],
+            hookText: null,
+            burnInCaptions: false,
+            captionSegments: [],
+          },
+        };
+        const key = JSON.stringify(body);
+        if (key === viralRecipeLastSentRef.current) return;
+        const resp = await fetch('/api/viral-clips/master-recipe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ docId: docAtSchedule.id, body }),
+        });
+        if (resp.ok) viralRecipeLastSentRef.current = key;
+      } catch {}
+    }, 15000);
+    return () => window.clearTimeout(timer);
+  }, [
+    activeDoc?.id,
+    clipsWithTimelineBounds,
+    musicTracks,
+    voiceStartOffsetSec,
+    voiceVolume,
+    voiceGainDb,
+    masterMusicVolume,
+    burnInLogo,
+    officialLogoUrl,
+    logoPosX,
+    logoPosY,
+    logoScalePct,
+    logoOpacity,
+    aspectRatio,
+    showIntroOutro916,
+    clipAnimIn,
+    clipAnimOut,
+    clipAnimDur,
+    logoAnimIn,
+    logoAnimInDur,
+    logoAnimOut,
+    logoAnimOutDur,
+    foleyDuckedVolume,
+    autoDuckingEnabled,
+    downloadFolderPath,
+    downloadFolderName,
+  ]);
+
   const handleExportMasterVideo = async () => {
     // Ask once (needs a user gesture) for permission to show the "8K export stopped" browser notification.
     try {
@@ -14960,96 +15226,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               resolution: exportResolution,
               fps: exportFps,
               bitrateMbps: exportBitrateMbps,
-              clips: clipsWithTimelineBounds.map((c) => {
-                const savedAudio = getSavedAudioEditForClip(
-                  c,
-                  readSavedClipAudioEdits(activeDoc.id)
-                );
-                const clipAudioMuted =
-                  savedAudio?.audioMuted !== undefined
-                    ? Boolean(savedAudio.audioMuted)
-                    : Boolean(c.audioMuted);
-                const clipCustomVolSet =
-                  savedAudio?.customVolumeSet !== undefined
-                    ? Boolean(savedAudio.customVolumeSet)
-                    : Boolean(c.customVolumeSet);
-                const clipFoleyVolume =
-                  typeof savedAudio?.foleyVolume === 'number'
-                    ? savedAudio.foleyVolume
-                    : c.foleyVolume;
-                const isIntroOrOutroClip =
-                  c.id === 'fixed-doc-intro' ||
-                  c.id === 'fixed-doc-outro' ||
-                  c.clipNumber === 0 ||
-                  c.clipNumber === 999;
-                const isNarratedClip =
-                  !isIntroOrOutroClip &&
-                  c.clipNumber !== 1 &&
-                  c.end > voiceStartOffsetSec + 0.5;
-                const rawClipVolPct =
-                  typeof clipFoleyVolume === 'number'
-                    ? clipFoleyVolume
-                    : isIntroOrOutroClip
-                    ? 100
-                    : isNarratedClip
-                    ? foleyDuckedVolume
-                    : foleyHighVolume;
-                const isExplicitClipVol =
-                  clipCustomVolSet ||
-                  (typeof clipFoleyVolume === 'number' &&
-                    clipFoleyVolume !== (isIntroOrOutroClip ? 100 : c.clipNumber === 1 ? 80 : 20));
-                const effectiveClipFoleyPct =
-                  clipAudioMuted || rawClipVolPct <= 0
-                    ? 0
-                    : isIntroOrOutroClip
-                    ? rawClipVolPct
-                    : isExplicitClipVol || !autoDuckingEnabled
-                    ? rawClipVolPct
-                    : isNarratedClip
-                    ? Math.min(rawClipVolPct, foleyDuckedVolume)
-                    : rawClipVolPct;
-                return {
-                  clipNumber: c.clipNumber,
-                  fileName: c.fileName,
-                  start: c.start,
-                  end: c.end,
-                  durationSec: c.duration,
-                  sourceDuration: c.sourceDuration,
-                  trimStart: c.trimStart || 0,
-                  trimEnd: c.trimEnd,
-                  speed: c.speed,
-                  smoothSlowMo:
-                    c.smoothSlowMo !== undefined ? c.smoothSlowMo : Boolean(c.speed && c.speed < 1),
-                  opticalFlowUrl: c.opticalFlowUrl || '',
-                  videoUrl: c.videoUrl || '',
-                  foleyOnlyIsolated: Boolean(c.foleyOnlyIsolated),
-                  foleyOnlyDisabled: Boolean(c.foleyOnlyDisabled),
-                  vocalsSeparated: Boolean(c.vocalsSeparated),
-                  musicSeparated: Boolean(c.musicSeparated),
-                  foleyVolume: Math.max(0, Math.min(1, effectiveClipFoleyPct / 100)),
-                  customVolumeSet: Boolean(isExplicitClipVol || clipAudioMuted),
-                  audioMuted: Boolean(clipAudioMuted || effectiveClipFoleyPct <= 0),
-                  audioFadeInSec: savedAudio?.audioFadeInSec ?? c.audioFadeInSec,
-                  audioFadeOutSec: savedAudio?.audioFadeOutSec ?? c.audioFadeOutSec,
-                  transition: c.transition,
-                  reframe9x16Mode: c.reframe9x16Mode || 'auto_center',
-                  reframeFocusXStart: typeof c.reframeFocusXStart === 'number' ? c.reframeFocusXStart : 50,
-                  reframeFocusXEnd:
-                    typeof c.reframeFocusXEnd === 'number'
-                      ? c.reframeFocusXEnd
-                      : typeof c.reframeFocusXStart === 'number'
-                      ? c.reframeFocusXStart
-                      : 50,
-                  reframeFocusY: typeof c.reframeFocusY === 'number' ? c.reframeFocusY : 50,
-                  userReframed9x16: Boolean(c.userReframed9x16),
-                  // With framing points the fixed framing sent is the last point (used if the export cannot animate)
-                  frameZoom: getClipFrameAt(c, aspectRatio, Number.MAX_SAFE_INTEGER).z,
-                  frameOffsetX: getClipFrameAt(c, aspectRatio, Number.MAX_SAFE_INTEGER).x,
-                  frameOffsetY: getClipFrameAt(c, aspectRatio, Number.MAX_SAFE_INTEGER).y,
-                  frameKeys: getClipFrameKeys(c, aspectRatio),
-                  videoDataUrl: c.videoUrl && c.videoUrl.startsWith('data:') ? c.videoUrl : '',
-                };
-              }),
+              clips: clipsWithTimelineBounds.map((c) => buildExportClipEntry(c, aspectRatio)),
               voiceoverStartSec: voiceStartOffsetSec,
               voiceoverVolume: voiceVolume / 100,
               voiceoverGainDb: voiceGainDb,
@@ -15059,23 +15236,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   : '',
               sunoSilenceGapSec: 15,
               sunoMasterVolume: masterMusicVolume / 100,
-              musicTracks: musicTracks.map((mt) => ({
-                trackNumber: mt.trackNumber,
-                title: mt.title,
-                startSec: mt.start,
-                durationSec: mt.duration,
-                volume: (typeof mt.volume === 'number' ? mt.volume : masterMusicVolume) / 100,
-                fadeInSec: mt.fadeInSec ?? 5,
-                fadeOutSec: mt.fadeOutSec ?? 5,
-                ...(mt.trackNumber === 1 && (clipsWithTimelineBounds.find((c) => c.clipNumber === 1)?.end ?? 0) > 0
-                  ? {
-                      clip1BoostVolume: CLIP1_SONG_BOOST_PCT / 100,
-                      clip1BoostRampStartSec: (clipsWithTimelineBounds.find((c) => c.clipNumber === 1)?.end ?? 0) - CLIP1_BOOST_RAMP_BEFORE_SEC,
-                      clip1BoostRampEndSec: (clipsWithTimelineBounds.find((c) => c.clipNumber === 1)?.end ?? 0) + CLIP1_BOOST_RAMP_AFTER_SEC,
-                    }
-                  : {}),
-                audioDataUrl: mt.audioUrl && mt.audioUrl.startsWith('data:') ? mt.audioUrl : '',
-              })),
+              musicTracks: buildExportMusicEntries(),
               skipRanges916: aspectRatio === '9:16' ? hiddenIntroOutroRanges916 : [],
               srtContent: srtText,
               srtCoordinateSpace: 'timeline',
