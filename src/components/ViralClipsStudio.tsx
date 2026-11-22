@@ -81,7 +81,6 @@ export interface ViralClipSuggestion {
   hookTeaserStartSec: number;
   hookTeaserEndSec: number;
   hookBannerText: string;
-  storyTeaserDurationSec: number;
   socialCaption: string;
   hashtags: string;
   transcriptExcerpt: string;
@@ -90,7 +89,6 @@ export interface ViralClipSuggestion {
   focusX: number;
   captionStyle: 'yellow_white' | 'opus_gold' | 'hormozi_green' | 'viral_box' | 'huellas_cinema';
   renderedReelUrl?: string;
-  renderedStoryUrl?: string;
   savedDocFolderPath?: string;
   /** Who picked this clip: Gemini Web or the local engine (lists saved before this field count as local). */
   origin?: 'gemini' | 'local';
@@ -264,10 +262,6 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
   const previewFrameRef = useRef<HTMLDivElement | null>(null);
   const [previewFrameH, setPreviewFrameH] = useState<number>(551);
   const [showHookBanner, setShowHookBanner] = useState<boolean>(true);
-  const [previewStoryCta, setPreviewStoryCta] = useState<boolean>(false);
-  const [storyPublishMode, setStoryPublishMode] = useState<'story_teaser' | 'story_full'>(
-    'story_teaser'
-  );
 
   // 5. Video Preview Player State
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -604,7 +598,6 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
         hookTeaserStartSec: Number(c.hookTeaserStartSec) || st,
         hookTeaserEndSec: Number(c.hookTeaserEndSec) || st + 3.5,
         hookBannerText: String(c.hookBannerText || c.title || '').toUpperCase(),
-        storyTeaserDurationSec: 20,
         socialCaption: c.socialCaption || '',
         hashtags: limitToFiveHashtags(c.hashtags || '#Historia #Documental #Reels #EdadMedia #Curiosidades'),
         transcriptExcerpt: overlapping.map((o) => o.text).join(' '),
@@ -1021,28 +1014,17 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
     return null;
   }, [selectedClip, playheadSec, wordsPerLine]);
 
-  // Render Clip to 9:16 MP4 (Reel or Story)
-  const handleRenderViralClip = async (
-    clip: ViralClipSuggestion,
-    renderVariant: 'reel' | 'story_full' | 'story_teaser' = 'reel'
-  ) => {
+  // Render Clip to 9:16 MP4 (Reel)
+  const handleRenderViralClip = async (clip: ViralClipSuggestion) => {
     if (!sourceLocalPath) {
       alert(
         'Para renderizar el MP4, primero exporta el video del documental en 06_Video_Final, o sube un archivo MP4, o usa un enlace de YouTube.'
       );
       return;
     }
-    setIsRenderingClipId(`${clip.id}_${renderVariant}`);
-    setActionToast(
-      renderVariant === 'reel'
-        ? `🎬 Renderizando Reel 9:16 "${clip.title}" con Captions OpusClip...`
-        : `📱 Renderizando Historia 9:16 "${clip.title}" con llamado a la acción...`
-    );
+    setIsRenderingClipId(`${clip.id}_reel`);
+    setActionToast(`🎬 Renderizando Reel 9:16 "${clip.title}" con Captions OpusClip...`);
     try {
-      const ctaText = igConfig.autoDm.enabled
-        ? `💬 Responde "${igConfig.autoDm.keyword || 'HUELLAS'}" y te envio el link directo por DM`
-        : '🔥 Mira el Reel completo en nuestro perfil';
-
       const resp = await fetch(viralApi('/api/viral-clips/render'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1065,9 +1047,6 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
           words: clip.words,
           hookBannerText: clip.hookBannerText,
           showHookBanner,
-          renderVariant,
-          storyTeaserDurationSec: clip.storyTeaserDurationSec,
-          storyCtaBannerText: ctaText,
         }),
       });
       const data = await resp.json();
@@ -1080,10 +1059,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
           c.id === clip.id
             ? {
                 ...c,
-                renderedReelUrl:
-                  renderVariant === 'reel' ? data.publicServeUrl : c.renderedReelUrl,
-                renderedStoryUrl:
-                  renderVariant !== 'reel' ? data.publicServeUrl : c.renderedStoryUrl,
+                renderedReelUrl: data.publicServeUrl,
                 savedDocFolderPath: data.savedInDocFolderPath || c.savedDocFolderPath,
               }
             : c
@@ -1103,11 +1079,8 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
     }
   };
 
-  // Direct Publish to Instagram (Reel / Story / Combo Reel + Story)
-  const handlePublishInstagram = async (
-    clip: ViralClipSuggestion,
-    publishMode: 'reel' | 'story' | 'combo_reel_story'
-  ) => {
+  // Direct Publish to Instagram (Reel)
+  const handlePublishInstagram = async (clip: ViralClipSuggestion) => {
     if (!igConfig.igUserId || !igConfig.hasToken) {
       setShowIgModal(true);
       return;
@@ -1116,22 +1089,15 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
       alert('Primero asegúrate de tener un archivo de video origen cargado para renderizar y publicar.');
       return;
     }
-    setIsPublishingClipId(`${clip.id}_${publishMode}`);
-    setActionToast(
-      publishMode === 'combo_reel_story'
-        ? `🚀 Publicando Reel + Story en Instagram (@${igConfig.accountUsername || igConfig.igUserId})...`
-        : publishMode === 'story'
-        ? `📱 Publicando Story en Instagram...`
-        : `🎬 Publicando Reel en Instagram...`
-    );
+    setIsPublishingClipId(`${clip.id}_reel`);
+    setActionToast(`🎬 Publicando Reel en Instagram...`);
 
     try {
       const resp = await fetch(viralApi('/api/viral-clips/publish-instagram'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          publishMode,
-          storyMode: storyPublishMode,
+          publishMode: 'reel',
           // The Reel already rendered for this clip is published as is (no second render)
           renderedReelUrl: clip.renderedReelUrl || '',
           // Instagram description: the clip's title, its own description and its 5 hashtags
@@ -1158,7 +1124,6 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
             words: clip.words,
             hookBannerText: clip.hookBannerText,
             showHookBanner,
-            storyTeaserDurationSec: clip.storyTeaserDurationSec,
           },
         }),
       });
@@ -1167,13 +1132,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
         throw new Error(data.error || 'Error publicando en Instagram Graph API.');
       }
 
-      setActionToast(
-        publishMode === 'combo_reel_story'
-          ? '🎉 ¡Reel + Story publicados directamente en tu Instagram y Auto-DM activado!'
-          : publishMode === 'story'
-          ? '🎉 ¡Story publicada directamente en tu Instagram!'
-          : '🎉 ¡Reel publicado directamente en tu Instagram!'
-      );
+      setActionToast('🎉 ¡Reel publicado directamente en tu Instagram!');
 
       // Refresh Instagram history
       const cfgResp = await fetch(viralApi('/api/viral-clips/instagram-config'));
@@ -1266,11 +1225,11 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                 VIRAL CLIPS STUDIO
               </h2>
               <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-500/20 border border-amber-400/40 text-amber-300">
-                OpusClip IA + Instagram Reels/Stories + Auto-DM Link
+                OpusClip IA + Instagram Reels + Auto-DM Link
               </span>
             </div>
             <p className="text-xs text-slate-400">
-              Detecta los momentos con mayor retención, agrega captions dinámicos palabra por palabra y publica en Reels + Stories con auto-envío de link por DM.
+              Detecta los momentos con mayor retención, agrega captions dinámicos palabra por palabra y publica en Reels con auto-envío de link por DM.
             </p>
           </div>
         </div>
@@ -1303,7 +1262,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                 ? `📲 Instagram Conectado ${
                     igConfig.accountUsername ? `(@${igConfig.accountUsername})` : ''
                   } • Auto-DM "${igConfig.autoDm.keyword}"`
-                : '📲 Conectar Instagram (Reels + Stories + Auto-DM Link)'}
+                : '📲 Conectar Instagram (Reels + Auto-DM Link)'}
             </span>
           </button>
         </div>
@@ -1965,7 +1924,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
               </div>
             </div>
 
-            {/* RIGHT 5 COLS: Virality Score Breakdown + Social Copy + Render & Publish to Instagram (Reel + Story) */}
+            {/* RIGHT 5 COLS: Virality Score Breakdown + Social Copy + Render & Publish to Instagram (Reel) */}
             <div className="lg:col-span-5 space-y-3.5">
               {/* Virality Score Card */}
               <div className="bg-[#14110d] border border-amber-500/25 rounded-2xl p-4 space-y-3">
@@ -2150,7 +2109,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                 </div>
               </div>
 
-              {/* EXPORT TO 07_VIRAL_CLIPS & DIRECT PUBLISH TO INSTAGRAM (REEL + STORY) */}
+              {/* EXPORT TO 07_VIRAL_CLIPS & DIRECT PUBLISH TO INSTAGRAM (REEL) */}
               <div className="bg-gradient-to-br from-[#19130e] to-slate-950 border border-amber-500/40 rounded-2xl p-4 space-y-3 shadow-xl">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-black text-amber-300 uppercase">
@@ -2168,7 +2127,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                   <button
                     type="button"
                     disabled={Boolean(isRenderingClipId)}
-                    onClick={() => handleRenderViralClip(selectedClip, 'reel')}
+                    onClick={() => handleRenderViralClip(selectedClip)}
                     className="py-2.5 px-3 rounded-xl bg-teal-400 hover:bg-teal-300 text-slate-950 font-black text-xs cursor-pointer flex items-center justify-center gap-1.5 shadow disabled:opacity-50"
                   >
                     <Download className="w-3.5 h-3.5" />
@@ -2182,7 +2141,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                 </div>
 
                 {/* Download Links if already rendered */}
-                {(selectedClip.renderedReelUrl || selectedClip.renderedStoryUrl) && (
+                {selectedClip.renderedReelUrl && (
                   <div className="flex flex-wrap items-center gap-2 pt-1">
                     {selectedClip.renderedReelUrl && (
                       <a
@@ -2201,7 +2160,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                   <button
                     type="button"
                     disabled={Boolean(isPublishingClipId)}
-                    onClick={() => handlePublishInstagram(selectedClip, 'reel')}
+                    onClick={() => handlePublishInstagram(selectedClip)}
                     className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-pink-600 via-rose-500 to-amber-500 hover:from-pink-500 hover:to-amber-400 text-white font-black text-xs cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
                   >
                     <Share2 className="w-4 h-4" />
@@ -2249,10 +2208,10 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <div>
                 <h3 className="text-sm font-black text-pink-300 flex items-center gap-2">
-                  📲 Conexión Oficial de Instagram (Reels + Stories) y Auto-DM con Link Clicable
+                  📲 Conexión Oficial de Instagram (Reels) y Auto-DM con Link Clicable
                 </h3>
                 <p className="text-[11px] text-slate-400 mt-0.5">
-                  Publica Reels y Stories directamente por la API Oficial de Meta y envía links clicables por DM automáticamente cuando comenten o respondan tu Story.
+                  Publica Reels directamente por la API Oficial de Meta y envía links clicables por DM automáticamente cuando comenten tu Reel.
                 </p>
               </div>
               <button
@@ -2336,7 +2295,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
             <div className="bg-slate-950 border border-pink-500/30 rounded-xl p-3.5 space-y-3">
               <div className="flex items-center justify-between">
                 <span className="font-black text-pink-300 uppercase text-[11px]">
-                  2. Auto-Respuesta por DM con Link Clicable (Para Stories y Reels)
+                  2. Auto-Respuesta por DM con Link Clicable (Para Reels)
                 </span>
                 <label className="flex items-center gap-1.5 cursor-pointer font-bold text-emerald-300">
                   <input

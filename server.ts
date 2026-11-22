@@ -21688,7 +21688,7 @@ app.post('/api/flow/repair-choppy-zoom', async (req, res) => {
 });
 
 // ============================================================================
-// VIRAL CLIPS STUDIO (OPUSCLIP ENGINE) + INSTAGRAM REELS/STORIES + AUTO-DM LINK
+// VIRAL CLIPS STUDIO (OPUSCLIP ENGINE) + INSTAGRAM REELS + AUTO-DM LINK
 // ============================================================================
 const VIRAL_CLIPS_DIR = path.join(DATA_DIR, 'viral-clips');
 const VIRAL_UPLOADS_DIR = path.join(VIRAL_CLIPS_DIR, 'uploads');
@@ -22853,7 +22853,6 @@ app.post('/api/viral-clips/analyze', async (req, res) => {
         hookTeaserStartSec: p.bestTeaserSeg.start,
         hookTeaserEndSec: Math.min(p.endSec, Math.max(p.bestTeaserSeg.start + 2.8, Math.min(p.bestTeaserSeg.end, p.bestTeaserSeg.start + 4.5))),
         hookBannerText: bannerWords || cleanWords.toUpperCase(),
-        storyTeaserDurationSec: 20,
         socialCaption: `🔥 ${p.bestTeaserSeg.text.trim()}\n\nUn episodio fascinante de "${
           title || 'Huellas de la Humanidad'
         }".`,
@@ -22915,10 +22914,6 @@ app.post('/api/viral-clips/analyze', async (req, res) => {
         hookTeaserStartSec: Number(hookStart.toFixed(2)),
         hookTeaserEndSec: Number(hookEnd.toFixed(2)),
         hookBannerText: String(c.hookBannerText || c.title || '').toUpperCase(),
-        storyTeaserDurationSec: Math.min(
-          28,
-          Math.max(15, Number(c.storyTeaserDurationSec) || 20)
-        ),
         socialCaption: String(c.socialCaption || ''),
         hashtags: String(c.hashtags || '#Historia #Documental #Reels #Viral #HuellasDeLaHumanidad'),
         transcriptExcerpt,
@@ -22956,7 +22951,6 @@ function buildOpusClipAssSubtitles(params: {
   captionEmOfHeight?: number;
   hookBannerText?: string;
   showHookBanner?: boolean;
-  storyCtaBannerText?: string;
   totalClipDurSec: number;
 }): string {
   const {
@@ -22970,7 +22964,6 @@ function buildOpusClipAssSubtitles(params: {
     captionEmOfHeight,
     hookBannerText,
     showHookBanner,
-    storyCtaBannerText,
     totalClipDurSec,
   } = params;
 
@@ -22999,7 +22992,6 @@ function buildOpusClipAssSubtitles(params: {
       ? Math.round(outH * captionEmOfHeight * captionFontHeightRatio * fontSizeScale)
       : Math.round(outH * 0.041 * fontSizeScale);
   const hookBannerFontSize = Math.round(outH * 0.042);
-  const storyCtaFontSize = Math.round(outH * 0.025);
   const posY = Math.round((Math.max(20, Math.min(88, captionYPercent)) / 100) * outH);
   const centerX = Math.round(outW / 2);
 
@@ -23035,9 +23027,6 @@ function buildOpusClipAssSubtitles(params: {
     `Style: HookBanner,Arial Black,${hookBannerFontSize},&H00101010,&H0000FFFF,&H0015CCFA,&H0015CCFA,-1,0,0,0,100,100,1,0,3,${Math.round(
       hookBannerFontSize * 0.36
     )},0,8,50,50,180,1`,
-    `Style: StoryCta,Arial Black,${storyCtaFontSize},&H00FFFFFF,&H0000FFFF,&H00155E75,&H00155E75,-1,0,0,0,100,100,1,0,3,${Math.round(
-      storyCtaFontSize * 0.42
-    )},0,2,40,40,95,1`,
     '',
     '[Events]',
     'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
@@ -23059,18 +23048,6 @@ function buildOpusClipAssSubtitles(params: {
       )},HookBanner,,${bannerSideMargin},${bannerSideMargin},0,,{\\q0\\fad(180,280)\\an8\\pos(${centerX},${Math.round(
         outH * 0.135
       )})}${cleanHook}`
-    );
-  }
-
-  // 2) Optional Story CTA Banner at the bottom (e.g. "💬 Responde HUELLAS para enviarte el link por DM")
-  if (storyCtaBannerText && storyCtaBannerText.trim()) {
-    const cleanCta = storyCtaBannerText.trim().replace(/[{}]/g, '');
-    assLines.push(
-      `Dialogue: 3,${formatAssTime(0.2)},${formatAssTime(
-        totalClipDurSec
-      )},StoryCta,,0,0,0,,{\\fad(250,250)\\pos(${centerX},${Math.round(
-        outH * 0.91
-      )})}  ${cleanCta}  `
     );
   }
 
@@ -23144,9 +23121,6 @@ async function renderViralClipMp4Internal(params: {
   words: WordTimestamp[];
   hookBannerText?: string;
   showHookBanner?: boolean;
-  renderVariant?: 'reel' | 'story_full' | 'story_teaser';
-  storyTeaserDurationSec?: number;
-  storyCtaBannerText?: string;
   docId?: string;
 }): Promise<{
   outputFilePath: string;
@@ -23172,9 +23146,6 @@ async function renderViralClipMp4Internal(params: {
     words = [],
     hookBannerText = '',
     showHookBanner = true,
-    renderVariant = 'reel',
-    storyTeaserDurationSec = 20,
-    storyCtaBannerText = '',
     docId = '',
   } = params;
   const look916 = getViral916Look(docId);
@@ -23195,22 +23166,15 @@ async function renderViralClipMp4Internal(params: {
   }
 
   const ffmpegBin = getFfmpegPath();
-  // Reels / Stories in 2K (1440×2560): the same file is downloaded and published
+  // Reels in 2K (1440×2560): the same file is downloaded and published
   const outW = 1440;
   const outH = 2560;
 
-  // Adjust effective duration based on variant ('reel' vs 'story_full' <=58s vs 'story_teaser' ~20s)
-  let effectiveEndSec = endSec;
-  if (renderVariant === 'story_full') {
-    effectiveEndSec = Math.min(endSec, startSec + 58);
-  } else if (renderVariant === 'story_teaser') {
-    effectiveEndSec = Math.min(endSec, startSec + Math.max(12, storyTeaserDurationSec));
-  }
+  const effectiveEndSec = endSec;
   const mainSpanDur = Math.max(3, effectiveEndSec - startSec);
 
   const useHookTeaser =
     structureMode === 'hook_teaser' &&
-    renderVariant === 'reel' &&
     hookTeaserStartSec > startSec + 1.5 &&
     hookTeaserEndSec > hookTeaserStartSec + 1.5 &&
     hookTeaserEndSec <= endSec;
@@ -23252,10 +23216,6 @@ async function renderViralClipMp4Internal(params: {
     captionEmOfHeight: look916.captionEmOfHeight,
     hookBannerText,
     showHookBanner,
-    storyCtaBannerText:
-      renderVariant === 'story_full' || renderVariant === 'story_teaser'
-        ? storyCtaBannerText
-        : '',
     totalClipDurSec,
   });
 
@@ -23301,12 +23261,7 @@ async function renderViralClipMp4Internal(params: {
     .replace(/^_+|_+$/g, '')
     .slice(0, 48);
 
-  const variantSuffix =
-    renderVariant === 'story_teaser'
-      ? '_Story_Teaser'
-      : renderVariant === 'story_full'
-      ? '_Story'
-      : '_Reel_9x16';
+  const variantSuffix = '_Reel_9x16';
 
   const fileName = `${safeSlug}${variantSuffix}_${stamp}.mp4`;
   const outputFilePath = path.join(VIRAL_EXPORTS_DIR, fileName);
@@ -23496,68 +23451,8 @@ app.post('/api/viral-clips/render', async (req, res) => {
 });
 
 // ============================================================================
-// INSTAGRAM GRAPH API DIRECT PUBLISHER (REELS + STORIES) & AUTO-DM ENGINE
+// INSTAGRAM GRAPH API DIRECT PUBLISHER (REELS) & AUTO-DM ENGINE
 // ============================================================================
-
-async function uploadMp4ToTemporaryPublicHttps(localFilePath: string): Promise<string> {
-  const store = loadViralStore();
-  if (
-    store.publicServerBaseUrl &&
-    /^https:\/\//i.test(store.publicServerBaseUrl.trim()) &&
-    !store.publicServerBaseUrl.includes('localhost')
-  ) {
-    const base = store.publicServerBaseUrl.trim().replace(/\/+$/, '');
-    return `${base}/viral-clips-media/exports/${encodeURIComponent(path.basename(localFilePath))}`;
-  }
-
-  const fileBytes = fs.readFileSync(localFilePath);
-  const fileName = path.basename(localFilePath);
-
-  // Fallback 1: litterbox.catbox.moe (1h temporary direct HTTPS MP4 link, fast & reliable for Meta Graph API ingestion)
-  try {
-    const form = new FormData();
-    form.append('reqtype', 'fileupload');
-    form.append('time', '1h');
-    form.append('fileToUpload', new Blob([fileBytes], { type: 'video/mp4' }), fileName);
-    const resp = await fetch('https://litterbox.catbox.moe/resources/internals/api.php', {
-      method: 'POST',
-      body: form,
-    });
-    if (resp.ok) {
-      const urlText = (await resp.text()).trim();
-      if (/^https:\/\/[^\s]+\.mp4$/i.test(urlText)) {
-        return urlText;
-      }
-    }
-  } catch (e) {
-    console.warn('[IG Publisher] litterbox fallback warning:', e);
-  }
-
-  // Fallback 2: tmpfiles.org direct download link
-  try {
-    const form = new FormData();
-    form.append('file', new Blob([fileBytes], { type: 'video/mp4' }), fileName);
-    const resp = await fetch('https://tmpfiles.org/api/v1/upload', {
-      method: 'POST',
-      body: form,
-    });
-    if (resp.ok) {
-      const data: any = await resp.json();
-      const rawUrl = String(data?.data?.url || '');
-      if (rawUrl.startsWith('http')) {
-        return rawUrl
-          .replace('http://tmpfiles.org/', 'https://tmpfiles.org/dl/')
-          .replace('https://tmpfiles.org/', 'https://tmpfiles.org/dl/');
-      }
-    }
-  } catch (e) {
-    console.warn('[IG Publisher] tmpfiles fallback warning:', e);
-  }
-
-  throw new Error(
-    'No se pudo generar una URL pública HTTPS temporal para que los servidores de Meta descarguen el video.'
-  );
-}
 
 // Reels go up straight from the Mac with Instagram's resumable upload (graph container + rupload.facebook.com),
 // so the video never has to sit on a public third-party file host for Meta to download it.
@@ -23630,90 +23525,6 @@ async function publishReelToInstagramResumable(params: {
   return { mediaId, permalink };
 }
 
-async function publishSingleMediaToInstagramGraphApi(params: {
-  igUserId: string;
-  accessToken: string;
-  videoPublicUrl: string;
-  mediaType: 'REELS' | 'STORIES';
-  caption?: string;
-}): Promise<{ mediaId: string; permalink?: string }> {
-  const { igUserId, accessToken, videoPublicUrl, mediaType, caption } = params;
-  const createUrl = new URL(`https://graph.facebook.com/v21.0/${encodeURIComponent(igUserId)}/media`);
-  createUrl.searchParams.set('media_type', mediaType);
-  createUrl.searchParams.set('video_url', videoPublicUrl);
-  if (mediaType === 'REELS') {
-    createUrl.searchParams.set('share_to_feed', 'true');
-    if (caption) {
-      createUrl.searchParams.set('caption', caption);
-    }
-  }
-  createUrl.searchParams.set('access_token', accessToken);
-
-  const createResp = await fetch(createUrl.toString(), { method: 'POST' });
-  const createJson: any = await createResp.json();
-  if (!createResp.ok || !createJson?.id) {
-    throw new Error(
-      createJson?.error?.message ||
-        `Error creando contenedor ${mediaType} en Instagram Graph API.`
-    );
-  }
-
-  const creationId = String(createJson.id);
-
-  // Poll container status until FINISHED (up to ~90s)
-  for (let attempt = 0; attempt < 30; attempt++) {
-    await new Promise((r) => setTimeout(r, 3000));
-    const statusUrl = new URL(
-      `https://graph.facebook.com/v21.0/${encodeURIComponent(creationId)}`
-    );
-    statusUrl.searchParams.set('fields', 'status_code,status');
-    statusUrl.searchParams.set('access_token', accessToken);
-    const stResp = await fetch(statusUrl.toString());
-    const stJson: any = await stResp.json();
-    const code = String(stJson?.status_code || '');
-    if (code === 'FINISHED') {
-      break;
-    }
-    if (code === 'ERROR' || code === 'EXPIRED') {
-      throw new Error(
-        `Instagram rechazó el procesamiento del video (${code}): ${
-          stJson?.status || 'Verifica el formato MP4 H.264.'
-        }`
-      );
-    }
-  }
-
-  // Publish container
-  const pubUrl = new URL(
-    `https://graph.facebook.com/v21.0/${encodeURIComponent(igUserId)}/media_publish`
-  );
-  pubUrl.searchParams.set('creation_id', creationId);
-  pubUrl.searchParams.set('access_token', accessToken);
-
-  const pubResp = await fetch(pubUrl.toString(), { method: 'POST' });
-  const pubJson: any = await pubResp.json();
-  if (!pubResp.ok || !pubJson?.id) {
-    throw new Error(
-      pubJson?.error?.message || `Error publicando ${mediaType} en Instagram.`
-    );
-  }
-
-  const publishedMediaId = String(pubJson.id);
-  let permalink: string | undefined;
-  try {
-    const infoUrl = new URL(
-      `https://graph.facebook.com/v21.0/${encodeURIComponent(publishedMediaId)}`
-    );
-    infoUrl.searchParams.set('fields', 'permalink');
-    infoUrl.searchParams.set('access_token', accessToken);
-    const infoResp = await fetch(infoUrl.toString());
-    const infoJson: any = await infoResp.json();
-    if (infoJson?.permalink) permalink = String(infoJson.permalink);
-  } catch {}
-
-  return { mediaId: publishedMediaId, permalink };
-}
-
 // Get Instagram & Auto-DM settings
 app.get('/api/viral-clips/instagram-config', (_req, res) => {
   const store = loadViralStore();
@@ -23776,7 +23587,7 @@ app.post('/api/viral-clips/instagram-config', async (req, res) => {
   }
 });
 
-// Publish Reel, Story, or Combo Reel + Story directly to Instagram
+// Publish the Reel directly to Instagram
 app.post('/api/viral-clips/publish-instagram', async (req, res) => {
   try {
     const store = loadViralStore();
@@ -23788,9 +23599,8 @@ app.post('/api/viral-clips/publish-instagram', async (req, res) => {
       });
     }
 
+    const publishMode = 'reel' as const;
     const {
-      publishMode = 'combo_reel_story', // 'reel' | 'story' | 'combo_reel_story'
-      storyMode = 'story_teaser', // 'story_teaser' | 'story_full'
       caption = '',
       hashtags = '',
       autoDmDestinationUrl = '',
@@ -23807,44 +23617,23 @@ app.post('/api/viral-clips/publish-instagram', async (req, res) => {
     }
     saveViralStore(store);
 
-    const activeKeyword = store.autoDm.keyword || 'HUELLAS';
     // Instagram text: title + the clip's description + its 5 hashtags (no "comment a word" call to action)
     const fullCaption = `${String(caption || '').trim()}\n\n${String(hashtags || '').trim()}`.trim();
 
     let reelResult: { mediaId: string; permalink?: string } | undefined;
-    let storyResult: { mediaId: string; permalink?: string } | undefined;
-
-    if (publishMode === 'reel' || publishMode === 'combo_reel_story') {
+    {
       // Reuse the Reel already rendered for this clip (same 2K file that was downloaded); render it only if missing
       const renderedName = String(req.body?.renderedReelUrl || '').match(/\/viral-clips-media\/exports\/([^/?#]+\.mp4)/i)?.[1];
       const renderedPath = renderedName ? path.join(VIRAL_EXPORTS_DIR, path.basename(renderedName)) : '';
       const reelPath =
         renderedPath && fs.existsSync(renderedPath)
           ? renderedPath
-          : (await renderViralClipMp4Internal({ ...renderParams, renderVariant: 'reel' })).outputFilePath;
+          : (await renderViralClipMp4Internal({ ...renderParams })).outputFilePath;
       reelResult = await publishReelToInstagramResumable({
         igUserId: store.igUserId,
         accessToken: store.accessToken,
         filePath: reelPath,
         caption: fullCaption,
-      });
-    }
-
-    if (publishMode === 'story' || publishMode === 'combo_reel_story') {
-      const ctaText = store.autoDm.enabled
-        ? `💬 Responde "${activeKeyword}" y te envio el link directo por DM`
-        : '🔥 Mira el Reel completo en nuestro perfil';
-      const renderedStory = await renderViralClipMp4Internal({
-        ...renderParams,
-        renderVariant: storyMode === 'story_full' ? 'story_full' : 'story_teaser',
-        storyCtaBannerText: ctaText,
-      });
-      const publicStoryUrl = await uploadMp4ToTemporaryPublicHttps(renderedStory.outputFilePath);
-      storyResult = await publishSingleMediaToInstagramGraphApi({
-        igUserId: store.igUserId,
-        accessToken: store.accessToken,
-        videoPublicUrl: publicStoryUrl,
-        mediaType: 'STORIES',
       });
     }
 
@@ -23854,7 +23643,6 @@ app.post('/api/viral-clips/publish-instagram', async (req, res) => {
       publishMode,
       reelMediaId: reelResult?.mediaId,
       reelPermalink: reelResult?.permalink,
-      storyMediaId: storyResult?.mediaId,
       publishedAt: new Date().toISOString(),
     });
     saveViralStore(store);
@@ -23863,7 +23651,6 @@ app.post('/api/viral-clips/publish-instagram', async (req, res) => {
       ok: true,
       publishMode,
       reelResult,
-      storyResult,
     });
   } catch (err: any) {
     console.error('[IG Publisher] publish-instagram error:', err);
