@@ -8336,11 +8336,25 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
           : Number(logoAnimCfg.animOutDur) > 0
           ? Number(logoAnimCfg.animOutDur)
           : 2.5;
-        if (i === 0 && logoInDur > 0) {
+        // 9:16 without intro/outro: those two clips are cut from the final file, so the logo fades in on the
+        // first real clip and fades out on the last one (otherwise both fades were cut away with them).
+        const logoSkipsBrandClips =
+          aspectRatio === '9:16' && Array.isArray(skipRanges916) && skipRanges916.length > 0;
+        const isBrandClipEntry = (cc: any) =>
+          Number(cc?.clipNumber) === 0 ||
+          Number(cc?.clipNumber) === 999 ||
+          cc?.id === 'fixed-doc-intro' ||
+          cc?.id === 'fixed-doc-outro';
+        const bodyClipIdx = logoSkipsBrandClips
+          ? clips.map((cc: any, ix: number) => (isBrandClipEntry(cc) ? -1 : ix)).filter((ix: number) => ix >= 0)
+          : [];
+        const logoFadeInIdx = bodyClipIdx.length > 0 ? bodyClipIdx[0] : 0;
+        const logoFadeOutIdx = bodyClipIdx.length > 0 ? bodyClipIdx[bodyClipIdx.length - 1] : clips.length - 1;
+        if (i === logoFadeInIdx && logoInDur > 0) {
           overlayFilterSteps.push(
             `[__INP_${inpIdx}__:v]loop=loop=-1:size=1:start=0,fps=${safeFps},trim=duration=${effectiveClipDur.toFixed(3)},setpts=PTS-STARTPTS,format=rgba,fade=t=in:st=0:d=${logoInDur.toFixed(3)}:alpha=1[lg_${ovrCounter}];[${currentVLabel}][lg_${ovrCounter}]overlay=${logoOverlayInfo.xPx}:${logoOverlayInfo.yPx}:format=auto[${nextVLbl}]`
           );
-        } else if ((i === clips.length - 1 || (!exportParityV2 && isOutroClip)) && logoOutDur > 0) {
+        } else if ((i === logoFadeOutIdx || (!exportParityV2 && isOutroClip)) && logoOutDur > 0) {
           const logoFadeOutStart = Math.max(0, effectiveClipDur - logoOutDur);
           overlayFilterSteps.push(
             `[__INP_${inpIdx}__:v]loop=loop=-1:size=1:start=0,fps=${safeFps},trim=duration=${effectiveClipDur.toFixed(3)},setpts=PTS-STARTPTS,format=rgba,fade=t=out:st=${logoFadeOutStart.toFixed(2)}:d=${Math.min(logoOutDur, effectiveClipDur).toFixed(3)}:alpha=1[lg_${ovrCounter}];[${currentVLabel}][lg_${ovrCounter}]overlay=${logoOverlayInfo.xPx}:${logoOverlayInfo.yPx}:format=auto[${nextVLbl}]`

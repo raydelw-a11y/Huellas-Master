@@ -15773,11 +15773,19 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       )
     : { visible: true, opacity: 1, translateX: 0, translateY: 0, scale: 1, blurPx: 0 };
 
-  const logoOverlayEndSec = totalDurationSec;
+  // 9:16 without intro/outro: the logo fades in on the first real clip and out on the last one, because the
+  // intro and the outro (where it used to fade) are skipped in the preview and cut from the export.
+  const firstHidden916 = hiddenIntroOutroRanges916[0];
+  const lastHidden916 = hiddenIntroOutroRanges916[hiddenIntroOutroRanges916.length - 1];
+  const logoOverlayStartSec = firstHidden916 && firstHidden916.start <= 0.05 ? firstHidden916.end : 0;
+  const logoOverlayEndSec =
+    lastHidden916 && lastHidden916.end >= totalDurationSec - 0.05 && lastHidden916.start > logoOverlayStartSec
+      ? lastHidden916.start
+      : totalDurationSec;
 
   const liveLogoAnim = computeElementAnimationState(
     currentTime,
-    0,
+    logoOverlayStartSec,
     logoOverlayEndSec,
     logoAnimIn,
     logoAnimInDur,
