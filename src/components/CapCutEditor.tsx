@@ -16742,7 +16742,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               >
                 <Download className="w-3.5 h-3.5" />
                 {isRenderingVideo
-                  ? `Renderizando ${renderProgressPct}% • Restante ~${formatTimeMMSS(renderRemainingSec)}`
+                  ? `Renderizando ${renderProgressPct}%`
                   : `🚀 Renderizar y Exportar (${activePreset.badge.split(' ')[0]} • ${exportFps} FPS)`}
               </button>
             </div>
