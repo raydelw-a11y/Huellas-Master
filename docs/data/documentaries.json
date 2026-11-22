@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-10-27T02:05:48.997Z",
-    "updatedAt": "2026-11-22T21:33:28.161Z",
+    "updatedAt": "2026-11-22T21:37:24.778Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -20,7 +20,7 @@
       "TEMA_DEL_VIDEO": "Video 74 Castillo Louvre Parte II",
       "UBICACION_INTRO_MARCA": "INTRO_INICIO_00",
       "FIELD_CLEARED_AT_voiceoverScript": "0",
-      "PROMPTS_RESTORED_AT": "1795383208161",
+      "PROMPTS_RESTORED_AT": "1795383444778",
       "FIELD_CLEARED_AT_rawClipsText": "0",
       "FIELD_CLEARED_AT_pinnedComment": "1795091965654",
       "FIELD_CLEARED_AT_correctedSrt": "0",
@@ -2926,8 +2926,26 @@
     "selectedStyle": "dramatic",
     "selectedSpeed": "medium",
     "selectedLanguage": "es-la",
-    "audioTracks": [],
-    "masterAudioUrl": "",
+    "audioTracks": [
+      {
+        "id": "tts-portable-doc-1795222673241-r5vg",
+        "text": "Año 1209, Puente de Londres, Inglaterra. Tras 33 años de obras, la ciudad inaugura el primer puente de piedra sobre el Támesis, una calle habitada que flotará sobre el río durante más de 600 años. [pausa: 1.5s]\n\nEn los próximos minutos descubrirás cómo un puente medieval se convirtió en barrio, mercado, fortaleza y patíbulo, y por qué Londres terminó derribando su monumento más famoso. Cada historia deja una huella. Aquí seguimos sus rastros. [pausa: 2s]\n\nTodo comienza en 1176, cuando el sacerdote Peter de Colechurch recibe el encargo de sustituir el viejo puente de madera, quemado y reconstruido una y otra vez. Durante tres décadas, cientos de obreros hincan estacas de olmo en el lecho del río y levantan sobre ellas 19 arcos de piedra desiguales. [pausa: 1.5s]\n\nLos pilares son tan anchos que estrechan el cauce a la mitad. El agua se acelera entre ellos como en una presa, y cruzar bajo los arcos en bote se vuelve una apuesta mortal que los barqueros llaman disparar el puente. [pausa: 1.5s]\n\nEn el centro se alza una capilla dedicada a Tomás Becket, donde los peregrinos rezan antes de partir hacia Canterbury. Y muy pronto, sobre la calzada de apenas 4 metros de ancho, empiezan a levantarse casas. [pausa: 2s]\n\nMantenerlo cuesta una fortuna. La corona crea una institución propia, la Casa del Puente, que administra rentas, peajes y donaciones de fieles que dejan dinero en su testamento a Dios y al puente. En 1281 el hielo del invierno arranca cinco arcos de golpe, y la reina Leonor es acusada de gastar los fondos en sus propios asuntos. [pausa: 1.5s]\n\nCada pilar descansa sobre una isla artificial de estacas y escombros con forma de barca, llamada tajamar. Con la marea baja, la diferencia de nivel entre un lado y otro alcanza casi 2 metros. Bajo dos de los arcos giran enormes ruedas de madera que muelen grano y, desde 1581, bombean agua del río hacia las casas de la ciudad. [pausa: 2s]\n\nHacia 1358 el puente sostiene 138 tiendas. Merceros, guanteros, libreros y fabricantes de agujas pagan alquileres que financian las reparaciones. Los edificios crecen hasta cinco pisos y se unen por arriba con vigas, de modo que quien cruza camina por un túnel oscuro de madera y voces. [pausa: 1.5s]\n\nLa vida ahí arriba tiene ventajas inesperadas. El río se lleva la basura, el viento barre el humo, y durante la gran peste de 1665 los vecinos del puente mueren mucho menos que los de las calles vecinas. Las letrinas cuelgan directamente sobre el agua, y los barqueros aprenden pronto a no pasar por debajo sin mirar. [pausa: 1.5s]\n\nA mitad del recorrido, un puente levadizo permite el paso de los barcos de mástil alto y corta el acceso en caso de ataque. En 1381, durante la revuelta campesina, alguien lo baja desde dentro y miles de rebeldes entran en Londres sin encontrar resistencia. [pausa: 2s]\n\nEn la puerta sur aparece la costumbre más siniestra. Desde 1305, la cabeza del rebelde escocés William Wallace, hervida y bañada en alquitrán, queda clavada en una pica sobre la entrada. Durante 350 años, traidores y condenados compartirán ese lugar frente a los viajeros. [pausa: 2s]\n\nEn 1450 los rebeldes de Jack Cade toman el puente y combaten de noche entre las casas. Muchos vecinos caen al río con sus armaduras. Poco después, en 1577, se levanta la casa de Nonsuch, un palacio de madera traído en piezas desde Holanda y ensamblado sin un solo clavo de hierro. [pausa: 1.5s]\n\nEn 1212 ocurre la primera gran tragedia. Un incendio estalla en la orilla sur y la multitud corre al puente para ayudar o para mirar. El viento lleva las chispas hasta el extremo norte y la gente queda atrapada entre dos frentes de fuego. Las crónicas hablan de 3 mil muertos, una cifra que hoy los historiadores consideran exagerada. [pausa: 1.5s]\n\nUn siglo y medio después, en 1390, el puente es escenario de un torneo. Un caballero escocés y un lord inglés se enfrentan a lanza sobre la calzada ante el rey Ricardo II. Y en 1536, la hija pequeña de un mercader cae por una ventana al río y es rescatada por un aprendiz que años más tarde se casará con ella y llegará a ser alcalde de Londres. [pausa: 2s]\n\nEl fuego es la amenaza constante. En 1633 un incendio destruye un tercio de las viviendas del extremo norte. Ese hueco vacío salvará al resto en 1666, cuando el Gran Incendio de Londres devora la ciudad y las llamas se detienen justo donde ya no quedaba nada que quemar. [pausa: 2s]\n\nLos inviernos traen otro espectáculo. Los pilares frenan tanto la corriente que, aguas arriba, el Támesis llega a congelarse por completo. En 1683 el hielo aguanta dos meses, y sobre él se levanta una ciudad de tiendas con imprentas, tabernas, carreras de caballos y un buey asado entero. Las llaman ferias de la escarcha. [pausa: 1.5s]\n\nLa última se celebra en febrero de 1814. Un elefante cruza el río helado junto al puente de Blackfriars mientras los impresores venden recuerdos estampados sobre el hielo. Cuando el viejo puente desaparezca, la corriente volverá a correr libre y el Támesis no se congelará nunca más en Londres. [pausa: 2s]\n\nEn el siglo XVIII el puente es un estorbo. Los carruajes tardan una hora en cruzarlo y en 1722 el alcalde ordena, por primera vez en Inglaterra, que el tráfico circule por la izquierda. Entre 1758 y 1762 se derriban todas las casas y se ensancha el arco central. [pausa: 1.5s]\n\nPero la estructura medieval ya no resiste. En 1799 se convoca un concurso para reemplazarla y el ingeniero John Rennie diseña cinco arcos de granito. Su hijo dirige las obras desde 1824, a 30 metros río arriba del viejo puente, que sigue en uso mientras tanto. [pausa: 1.5s]\n\nLa construcción dura siete años y cuesta la vida a unos 40 obreros. Cada bloque de granito llega por mar desde Dartmoor y Escocia. Para abrir los accesos se derriban calles enteras y la iglesia de San Miguel, y el coste final supera los 2 millones de libras, una suma descomunal para la época. [pausa: 1.5s]\n\nEl primero de agosto de 1831, el rey Guillermo IV inaugura el nuevo Puente de Londres con un banquete bajo una carpa. Semanas después comienzan a desmontar piedra por piedra los arcos de 1209, tras 622 años de servicio. [pausa: 2s]\n\nEl puente de Rennie tampoco será eterno. En 1968 se vende a un empresario estadounidense, que lo traslada bloque a bloque hasta el desierto de Arizona, donde todavía cruza un lago artificial. [pausa: 1.5s]\n\nDel puente habitado solo quedan algunos sillares en un patio de iglesia y los grabados de quienes lo dibujaron. Déjanos saber en los comentarios si te habrías atrevido a vivir en una casa suspendida sobre el río. [pausa: 1.5s] Cada historia deja una huella. Aquí seguimos sus rastros.",
+        "voice": "Charon",
+        "style": "dramatic",
+        "speed": "medium",
+        "language": "es-la",
+        "consistencyMode": true,
+        "filename": "tts-1793104267935-147.wav",
+        "audioUrl": "tts-files/tts-1793104267935-147.mp3",
+        "duration": 10.2,
+        "wordCount": 1108,
+        "pauseCount": 23,
+        "createdAt": "2026-11-21T02:02:00.231Z",
+        "label": "Voz Narrativa Video",
+        "providerUsed": "Carpeta 02_Audio"
+      }
+    ],
+    "masterAudioUrl": "tts-files/tts-1793104267935-147.mp3",
     "timelineSentences": [
       {
         "text": "[SIN VOZ NARRATIVA — Intro Oficial de Marca (8s)]",
@@ -3226,7 +3244,8 @@
         "videoSavedAt": 1795223135658,
         "reviewedUpdatedAt": 1795306275776,
         "discardedVideoFileName": "01_create_a_cinematic_6_second_4bcd0a45_4K.mp4",
-        "videoDiscardedAt": 1795306275776
+        "videoDiscardedAt": 1795306275776,
+        "videoFrames": []
       },
       {
         "id": "clip-2-1795229017000-2",
@@ -3250,7 +3269,8 @@
         "videoSavedAt": 1795223135658,
         "reviewedUpdatedAt": 1795306275776,
         "discardedVideoFileName": "02_Ano_1941_Enfermeria_Radcliffe_Oxford_Inglaterra_4K.mp4",
-        "videoDiscardedAt": 1795306275776
+        "videoDiscardedAt": 1795306275776,
+        "videoFrames": []
       },
       {
         "id": "clip-3-1795229017000-3",
@@ -3274,7 +3294,8 @@
         "videoSavedAt": 1795223135658,
         "reviewedUpdatedAt": 1795306275776,
         "discardedVideoFileName": "03_create_a_cinematic_8_second_d8115b23_4K.mp4",
-        "videoDiscardedAt": 1795306275776
+        "videoDiscardedAt": 1795306275776,
+        "videoFrames": []
       },
       {
         "id": "clip-4-1795229017000-4",
@@ -3299,7 +3320,8 @@
         "promptUpdatedAt": 1795306275776,
         "reviewedUpdatedAt": 1795306275776,
         "discardedVideoFileName": "04_Clip_04_65_Create_an_image_in_16_Broll_4K.mp4",
-        "videoDiscardedAt": 1795306275776
+        "videoDiscardedAt": 1795306275776,
+        "videoFrames": []
       },
       {
         "id": "clip-5-1795229017000-5",
@@ -3323,7 +3345,8 @@
         "videoSavedAt": 1795223135658,
         "reviewedUpdatedAt": 1795306275776,
         "discardedVideoFileName": "05_create_a_cinematic_8_second_77a1f962_4K.mp4",
-        "videoDiscardedAt": 1795306275776
+        "videoDiscardedAt": 1795306275776,
+        "videoFrames": []
       },
       {
         "id": "clip-6-1795229017000-6",
@@ -3359,6 +3382,7 @@
         "reviewedUpdatedAt": 1795306275776,
         "discardedVideoFileName": "06_create_a_cinematic_8_second_fe849478_4K.mp4",
         "videoDiscardedAt": 1795306275776,
+        "videoFrames": [],
         "reframe9x16Mode": "manual",
         "reframeFocusXStart": 16.2,
         "reframeFocusXEnd": 16.2,
@@ -3388,7 +3412,8 @@
         "videoSavedAt": 1795223135658,
         "reviewedUpdatedAt": 1795306275776,
         "discardedVideoFileName": "07_create_a_cinematic_8_second_8a0e5be8_4K.mp4",
-        "videoDiscardedAt": 1795306275776
+        "videoDiscardedAt": 1795306275776,
+        "videoFrames": []
       },
       {
         "id": "clip-8-1795229017000-8",
@@ -3412,7 +3437,8 @@
         "videoSavedAt": 1795223135658,
         "reviewedUpdatedAt": 1795306275776,
         "discardedVideoFileName": "08_create_a_cinematic_8_second_3d797e03_4K.mp4",
-        "videoDiscardedAt": 1795306275776
+        "videoDiscardedAt": 1795306275776,
+        "videoFrames": []
       },
       {
         "id": "clip-9-1795229017001-9",
@@ -3436,7 +3462,8 @@
         "videoSavedAt": 1795223135658,
         "reviewedUpdatedAt": 1795306275776,
         "discardedVideoFileName": "09_create_a_cinematic_8_second_0cf4c630_4K.mp4",
-        "videoDiscardedAt": 1795306275776
+        "videoDiscardedAt": 1795306275776,
+        "videoFrames": []
       },
       {
         "id": "clip-10-1795229017001-10",
@@ -3460,7 +3487,8 @@
         "videoSavedAt": 1795223135658,
         "reviewedUpdatedAt": 1795306275776,
         "discardedVideoFileName": "10_create_a_cinematic_8_second_1fff4388_4K.mp4",
-        "videoDiscardedAt": 1795306275776
+        "videoDiscardedAt": 1795306275776,
+        "videoFrames": []
       },
       {
         "id": "clip-11-1795229017001-11",
@@ -3484,7 +3512,8 @@
         "videoSavedAt": 1795223135658,
         "reviewedUpdatedAt": 1795306275776,
         "discardedVideoFileName": "11_create_a_cinematic_8_second_02b868e8_4K.mp4",
-        "videoDiscardedAt": 1795306275776
+        "videoDiscardedAt": 1795306275776,
+        "videoFrames": []
       },
       {
         "id": "clip-12-1795229017001-12",
@@ -3510,7 +3539,8 @@
         "videoSavedAt": 1795223135658,
         "reviewedUpdatedAt": 1795306275776,
         "discardedVideoFileName": "12_Physician_studies_chart_67a33dd3_4K.mp4",
-        "videoDiscardedAt": 1795306275776
+        "videoDiscardedAt": 1795306275776,
+        "videoFrames": []
       },
       {
         "id": "clip-13-1795229017001-13",
@@ -3534,7 +3564,8 @@
         "videoSavedAt": 1795223135658,
         "reviewedUpdatedAt": 1795306275776,
         "discardedVideoFileName": "13_Physician_using_glass_pipette_c91e1e39_4K.mp4",
-        "videoDiscardedAt": 1795306275776
+        "videoDiscardedAt": 1795306275776,
+        "videoFrames": []
       },
       {
         "id": "clip-14-1795229017001-14",
@@ -3558,7 +3589,8 @@
         "videoSavedAt": 1795223135658,
         "reviewedUpdatedAt": 1795306275776,
         "discardedVideoFileName": "14_create_a_cinematic_8_second_38fa30f9_4K.mp4",
-        "videoDiscardedAt": 1795306275776
+        "videoDiscardedAt": 1795306275776,
+        "videoFrames": []
       },
       {
         "id": "clip-15-1795229017001-15",
@@ -3582,7 +3614,8 @@
         "videoSavedAt": 1795223135658,
         "reviewedUpdatedAt": 1795306275776,
         "discardedVideoFileName": "15_create_a_cinematic_8_second_6ae2fc0d_4K.mp4",
-        "videoDiscardedAt": 1795306275776
+        "videoDiscardedAt": 1795306275776,
+        "videoFrames": []
       },
       {
         "id": "clip-16-1795229017001-16",
@@ -3606,7 +3639,8 @@
         "videoSavedAt": 1795223135658,
         "reviewedUpdatedAt": 1795306275776,
         "discardedVideoFileName": "16_create_a_cinematic_8_second_video_698399b1_4K.mp4",
-        "videoDiscardedAt": 1795306275776
+        "videoDiscardedAt": 1795306275776,
+        "videoFrames": []
       },
       {
         "id": "clip-17-1795229017001-17",
@@ -3630,7 +3664,8 @@
         "videoSavedAt": 1795223135658,
         "reviewedUpdatedAt": 1795306275776,
         "discardedVideoFileName": "17_create_a_cinematic_8_second_7c7428d8_4K.mp4",
-        "videoDiscardedAt": 1795306275776
+        "videoDiscardedAt": 1795306275776,
+        "videoFrames": []
       },
       {
         "id": "clip-18-1795229017001-18",
@@ -3655,7 +3690,8 @@
         "promptUpdatedAt": 1795306275776,
         "reviewedUpdatedAt": 1795306275776,
         "discardedVideoFileName": "18_Create_an_image_in_16_Broll_4K.mp4",
-        "videoDiscardedAt": 1795306275776
+        "videoDiscardedAt": 1795306275776,
+        "videoFrames": []
       },
       {
         "id": "clip-19-1795229017001-19",
@@ -3679,7 +3715,8 @@
         "videoSavedAt": 1795223135658,
         "reviewedUpdatedAt": 1795306275776,
         "discardedVideoFileName": "19_create_a_cinematic_8_second_49483cb1_4K.mp4",
-        "videoDiscardedAt": 1795306275776
+        "videoDiscardedAt": 1795306275776,
+        "videoFrames": []
       },
       {
         "id": "clip-20-1795229017001-20",
@@ -3703,7 +3740,8 @@
         "videoSavedAt": 1795223135658,
         "reviewedUpdatedAt": 1795306275776,
         "discardedVideoFileName": "20_create_a_cinematic_8_second_da4c71cf_4K.mp4",
-        "videoDiscardedAt": 1795306275776
+        "videoDiscardedAt": 1795306275776,
+        "videoFrames": []
       },
       {
         "id": "clip-21-1795229017001-21",
@@ -3727,7 +3765,8 @@
         "videoSavedAt": 1795223135658,
         "reviewedUpdatedAt": 1795306275776,
         "discardedVideoFileName": "21_create_a_cinematic_8_second_video_4db99d4b_4K.mp4",
-        "videoDiscardedAt": 1795306275776
+        "videoDiscardedAt": 1795306275776,
+        "videoFrames": []
       },
       {
         "id": "clip-22-1795229017001-22",
@@ -3751,7 +3790,8 @@
         "videoSavedAt": 1795223135658,
         "reviewedUpdatedAt": 1795306275776,
         "discardedVideoFileName": "22_create_a_cinematic_8_second_video_751661e8_4K.mp4",
-        "videoDiscardedAt": 1795306275776
+        "videoDiscardedAt": 1795306275776,
+        "videoFrames": []
       },
       {
         "id": "clip-23-1795229017001-23",
@@ -3775,7 +3815,8 @@
         "videoSavedAt": 1795223135658,
         "reviewedUpdatedAt": 1795306275776,
         "discardedVideoFileName": "23_create_a_cinematic_8_second_video_de5f3c8a_4K.mp4",
-        "videoDiscardedAt": 1795306275776
+        "videoDiscardedAt": 1795306275776,
+        "videoFrames": []
       },
       {
         "id": "clip-24-1795229017001-24",
@@ -3799,7 +3840,8 @@
         "videoSavedAt": 1795223135658,
         "reviewedUpdatedAt": 1795306275776,
         "discardedVideoFileName": "24_create_a_cinematic_8_second_video_39bc2cfa_4K.mp4",
-        "videoDiscardedAt": 1795306275776
+        "videoDiscardedAt": 1795306275776,
+        "videoFrames": []
       },
       {
         "id": "clip-25-1795229017001-25",
@@ -3825,7 +3867,8 @@
         "videoSavedAt": 1795223135658,
         "reviewedUpdatedAt": 1795306275776,
         "discardedVideoFileName": "25_create_a_cinematic_8_second_video_29287299_4K.mp4",
-        "videoDiscardedAt": 1795306275776
+        "videoDiscardedAt": 1795306275776,
+        "videoFrames": []
       },
       {
         "id": "clip-26-1795229017001-26",
@@ -3849,7 +3892,8 @@
         "videoSavedAt": 1795223135658,
         "reviewedUpdatedAt": 1795306275776,
         "discardedVideoFileName": "26_create_a_cinematic_8_second_video_a13cda38_4K.mp4",
-        "videoDiscardedAt": 1795306275776
+        "videoDiscardedAt": 1795306275776,
+        "videoFrames": []
       },
       {
         "id": "clip-27-1795229017001-27",
@@ -3873,7 +3917,8 @@
         "videoSavedAt": 1795223135658,
         "reviewedUpdatedAt": 1795306275776,
         "discardedVideoFileName": "27_create_a_cinematic_8_second_video_a1ebeddd_4K.mp4",
-        "videoDiscardedAt": 1795306275776
+        "videoDiscardedAt": 1795306275776,
+        "videoFrames": []
       },
       {
         "id": "clip-28-1795229017001-28",
@@ -3898,7 +3943,8 @@
         "promptUpdatedAt": 1795306275776,
         "reviewedUpdatedAt": 1795306275776,
         "discardedVideoFileName": "28_Create_an_image_in_16_Broll_4K.mp4",
-        "videoDiscardedAt": 1795306275776
+        "videoDiscardedAt": 1795306275776,
+        "videoFrames": []
       },
       {
         "id": "clip-29-1795229017001-29",
@@ -3922,7 +3968,8 @@
         "videoSavedAt": 1795223135658,
         "reviewedUpdatedAt": 1795306275776,
         "discardedVideoFileName": "29_create_a_cinematic_8_second_video_530d5f28_4K.mp4",
-        "videoDiscardedAt": 1795306275776
+        "videoDiscardedAt": 1795306275776,
+        "videoFrames": []
       },
       {
         "id": "clip-30-1795229017002-30",
@@ -3946,7 +3993,8 @@
         "videoSavedAt": 1795223135658,
         "reviewedUpdatedAt": 1795306275776,
         "discardedVideoFileName": "30_Director_examining_flask_in_office_4c723756_4K.mp4",
-        "videoDiscardedAt": 1795306275776
+        "videoDiscardedAt": 1795306275776,
+        "videoFrames": []
       },
       {
         "id": "clip-31-1795229017002-31",
@@ -3970,7 +4018,8 @@
         "videoSavedAt": 1795223135658,
         "reviewedUpdatedAt": 1795306275776,
         "discardedVideoFileName": "31_create_a_cinematic_8_second_video_fcbeeefd_4K.mp4",
-        "videoDiscardedAt": 1795306275776
+        "videoDiscardedAt": 1795306275776,
+        "videoFrames": []
       },
       {
         "id": "clip-32-1795229017002-32",
@@ -3994,7 +4043,8 @@
         "videoSavedAt": 1795223135658,
         "reviewedUpdatedAt": 1795306275776,
         "discardedVideoFileName": "32_create_a_cinematic_8_second_cde23c68_4K.mp4",
-        "videoDiscardedAt": 1795306275776
+        "videoDiscardedAt": 1795306275776,
+        "videoFrames": []
       },
       {
         "id": "clip-33-1795229017002-33",
@@ -4018,7 +4068,8 @@
         "videoSavedAt": 1795223135658,
         "reviewedUpdatedAt": 1795306275776,
         "discardedVideoFileName": "33_create_a_cinematic_8_second_a164be7a_4K.mp4",
-        "videoDiscardedAt": 1795306275776
+        "videoDiscardedAt": 1795306275776,
+        "videoFrames": []
       },
       {
         "id": "clip-34-1795229017002-34",
@@ -4042,7 +4093,8 @@
         "videoSavedAt": 1795223135658,
         "reviewedUpdatedAt": 1795306275776,
         "discardedVideoFileName": "34_create_a_cinematic_8_second_video_3d55e994_4K.mp4",
-        "videoDiscardedAt": 1795306275776
+        "videoDiscardedAt": 1795306275776,
+        "videoFrames": []
       },
       {
         "id": "clip-35-1795229017002-35",
@@ -4066,7 +4118,8 @@
         "videoSavedAt": 1795223135658,
         "reviewedUpdatedAt": 1795306275776,
         "discardedVideoFileName": "35_create_a_cinematic_8_second_video_0edf6ca0_4K.mp4",
-        "videoDiscardedAt": 1795306275776
+        "videoDiscardedAt": 1795306275776,
+        "videoFrames": []
       },
       {
         "id": "clip-36-1795229017002-36",
@@ -4090,7 +4143,8 @@
         "videoSavedAt": 1795223135658,
         "reviewedUpdatedAt": 1795306275776,
         "discardedVideoFileName": "36_create_a_cinematic_8_second_video_4c1eb370_4K.mp4",
-        "videoDiscardedAt": 1795306275776
+        "videoDiscardedAt": 1795306275776,
+        "videoFrames": []
       },
       {
         "id": "clip-37-1795229017002-37",
@@ -4116,7 +4170,8 @@
         "videoSavedAt": 1795223135658,
         "reviewedUpdatedAt": 1795306275776,
         "discardedVideoFileName": "37_create_a_cinematic_8_second_video_579ee378_4K.mp4",
-        "videoDiscardedAt": 1795306275776
+        "videoDiscardedAt": 1795306275776,
+        "videoFrames": []
       },
       {
         "id": "clip-38-1795229017002-38",
@@ -4140,7 +4195,8 @@
         "videoSavedAt": 1795223135658,
         "reviewedUpdatedAt": 1795306275776,
         "discardedVideoFileName": "38_create_a_cinematic_8_second_video_85509bae_4K.mp4",
-        "videoDiscardedAt": 1795306275776
+        "videoDiscardedAt": 1795306275776,
+        "videoFrames": []
       },
       {
         "id": "clip-39-1795229017002-39",
@@ -4165,7 +4221,8 @@
         "promptUpdatedAt": 1795306275776,
         "reviewedUpdatedAt": 1795306275776,
         "discardedVideoFileName": "39_Create_an_image_in_16_Broll_4K.mp4",
-        "videoDiscardedAt": 1795306275776
+        "videoDiscardedAt": 1795306275776,
+        "videoFrames": []
       },
       {
         "id": "clip-40-1795229017002-40",
@@ -4189,7 +4246,8 @@
         "videoSavedAt": 1795223135658,
         "reviewedUpdatedAt": 1795306275776,
         "discardedVideoFileName": "40_create_a_cinematic_8_second_video_dd7e8aef_4K.mp4",
-        "videoDiscardedAt": 1795306275776
+        "videoDiscardedAt": 1795306275776,
+        "videoFrames": []
       },
       {
         "id": "clip-41-1795229017002-41",
@@ -4213,7 +4271,8 @@
         "videoSavedAt": 1795223135658,
         "reviewedUpdatedAt": 1795306275776,
         "discardedVideoFileName": "41_create_a_cinematic_8_second_video_db2bd31c_4K.mp4",
-        "videoDiscardedAt": 1795306275776
+        "videoDiscardedAt": 1795306275776,
+        "videoFrames": []
       },
       {
         "id": "clip-42-1795229017002-42",
@@ -4237,7 +4296,8 @@
         "videoSavedAt": 1795223135658,
         "reviewedUpdatedAt": 1795306275776,
         "discardedVideoFileName": "42_create_a_cinematic_8_second_video_2fde4ec1_4K.mp4",
-        "videoDiscardedAt": 1795306275776
+        "videoDiscardedAt": 1795306275776,
+        "videoFrames": []
       },
       {
         "id": "clip-43-1795229017002-43",
@@ -4262,7 +4322,8 @@
         "promptUpdatedAt": 1795306275776,
         "reviewedUpdatedAt": 1795306275776,
         "discardedVideoFileName": "43_Create_an_image_in_16_Broll_4K.mp4",
-        "videoDiscardedAt": 1795306275776
+        "videoDiscardedAt": 1795306275776,
+        "videoFrames": []
       },
       {
         "id": "clip-44-1795229017002-44",
@@ -4286,7 +4347,8 @@
         "videoSavedAt": 1795223135658,
         "reviewedUpdatedAt": 1795306275776,
         "discardedVideoFileName": "44_create_a_cinematic_8_second_video_c3f588ba_4K.mp4",
-        "videoDiscardedAt": 1795306275776
+        "videoDiscardedAt": 1795306275776,
+        "videoFrames": []
       },
       {
         "id": "clip-45-1795229017002-45",
@@ -4310,7 +4372,8 @@
         "videoSavedAt": 1795223135658,
         "reviewedUpdatedAt": 1795306275776,
         "discardedVideoFileName": "45_create_a_cinematic_8_second_video_7e360369_4K.mp4",
-        "videoDiscardedAt": 1795306275776
+        "videoDiscardedAt": 1795306275776,
+        "videoFrames": []
       },
       {
         "id": "clip-46-1795229017002-46",
@@ -4334,7 +4397,8 @@
         "videoSavedAt": 1795223135658,
         "reviewedUpdatedAt": 1795306275776,
         "discardedVideoFileName": "46_create_a_cinematic_8_second_video_ab0c9aae_4K.mp4",
-        "videoDiscardedAt": 1795306275776
+        "videoDiscardedAt": 1795306275776,
+        "videoFrames": []
       },
       {
         "id": "clip-47-1795229017002-47",
@@ -4359,7 +4423,8 @@
         "promptUpdatedAt": 1795306275776,
         "reviewedUpdatedAt": 1795306275776,
         "discardedVideoFileName": "47_Create_an_image_in_16_Broll_4K.mp4",
-        "videoDiscardedAt": 1795306275776
+        "videoDiscardedAt": 1795306275776,
+        "videoFrames": []
       },
       {
         "id": "clip-48-1795229017002-48",
@@ -5746,6 +5811,7 @@
         "reframeReason": "Paneo dinámico IA (78% → 28%) desde sujeto derecho hacia escena izquierda (Der → Izq)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -5776,6 +5842,7 @@
         "reframeConfidence": 0.55,
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -5804,6 +5871,7 @@
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -5832,6 +5900,7 @@
         "reframeReason": "Paneo dinámico IA (34% → 78%) entre dos sujetos (Izq → Der)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -5860,6 +5929,7 @@
         "reframeReason": "Paneo dinámico IA (67% → 54%) siguiendo acción/sujeto",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -5888,6 +5958,7 @@
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -5916,6 +5987,7 @@
         "reframeReason": "Paneo dinámico IA (31% → 16%) siguiendo acción/sujeto",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -5944,6 +6016,7 @@
         "reframeReason": "Paneo dinámico IA (24% → 76%) desde escena izquierda hacia sujeto derecho (Izq → Der)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -5972,6 +6045,7 @@
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6000,6 +6074,7 @@
         "reframeReason": "Paneo dinámico IA (18% → 76%) desde sujeto izquierdo hacia escena derecha (Izq → Der)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6028,6 +6103,7 @@
         "reframeReason": "Paneo dinámico IA (58% → 32%) siguiendo acción/sujeto",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6058,6 +6134,7 @@
         "reframeReason": "Paneo dinámico IA (78% → 24%) desde sujeto derecho hacia escena izquierda (Der → Izq)",
         "videoDiscardOverriddenAt": 1794830501989,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6088,6 +6165,7 @@
         "reframeConfidence": 0.55,
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6116,6 +6194,7 @@
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6144,6 +6223,7 @@
         "reframeReason": "Paneo dinámico IA (69% → 50%) siguiendo acción/sujeto",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6174,6 +6254,7 @@
         "reframeConfidence": 0.55,
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6202,6 +6283,7 @@
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6233,6 +6315,7 @@
         "reframeReason": "Paneo dinámico IA (18% → 76%) desde sujeto izquierdo hacia escena derecha (Izq → Der)",
         "previousVideoPrompt": "Clip 18 (02:24 - 02:32): Create a cinematic 8-second static B-roll video executing ONLY a smooth, continuous, ultra-steady optical Ken Burns zoom-in over the frozen scene: ONLY a slow, steady optical Ken Burns zoom-in (gradual push-in from wide to tight framing with zero lens distortion) across the 100% still archival photograph plate of the open 1929 scientific bulletin with monochrome bacterial agar illustrations resting motionless on @Mesa_Historiador, keeping the entire starting image 100% frozen as a still documentary B-roll plate from 0s to 8s with zero internal object animation, with no people present. STATIC B-ROLL PLATE LOCK (CAMERA MOTION ONLY): Treat the starting image as a 100% frozen, motionless archival B-roll still plate from 0s to 8s with strictly zero internal object animation, zero morphing, and zero lighting shifts—ONLY the virtual optical rostrum camera performs the zoom in movement. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: subtle archival library room tone, faint dry paper stillness, single continuous shot, strictly no shot changes, no music, no speech, no text. [B-Roll: STATIC_ZOOM_IN] [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6261,6 +6344,7 @@
         "reframeReason": "Paneo dinámico IA (22% → 81%) entre dos sujetos (Izq → Der)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6291,6 +6375,7 @@
         "reframeConfidence": 0.62,
         "reframeReason": "Paneo dinámico IA (39% → 58%) siguiendo acción/sujeto",
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6319,6 +6404,7 @@
         "reframeReason": "Paneo manual (76% → 53%): termina con el hombre centrado",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "userReframed9x16": true,
         "reframeUpdatedAt": 1795055359917,
         "videoAuditReason": "",
@@ -6349,6 +6435,7 @@
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6377,6 +6464,7 @@
         "reframeReason": "Paneo dinámico IA (82% → 24%) desde sujeto derecho hacia escena izquierda (Der → Izq)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6405,6 +6493,7 @@
         "reframeReason": "Paneo dinámico IA (66% → 46%) siguiendo acción/sujeto",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6433,6 +6522,7 @@
         "reframeReason": "Paneo dinámico IA (22% → 78%) entre dos sujetos (Izq → Der)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6463,6 +6553,7 @@
         "reframeConfidence": 0.55,
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6491,6 +6582,7 @@
         "reframeReason": "Paneo dinámico IA (22% → 76%) desde sujeto izquierdo hacia escena derecha (Izq → Der)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6522,6 +6614,7 @@
         "reframeReason": "Enfoque inteligente IA en tercio derecho (63%)",
         "previousVideoPrompt": "Clip 28 (03:44 - 03:52): Create a cinematic 8-second static B-roll video executing ONLY a smooth, continuous, ultra-steady optical Ken Burns zoom-out over the frozen scene: ONLY a slow, steady optical Ken Burns zoom-out (gradual pull-back from close detail to wide framing revealing full context) across the 100% still archival photograph plate of the preserved 1928 Petri dish, cloth-bound notebook, and brass fountain pen frozen in slanting light on the wooden bench of @Laboratorio_St_Mary, keeping the entire starting image 100% frozen as a still documentary B-roll plate from 0s to 8s with zero internal object animation, with no people present. STATIC B-ROLL PLATE LOCK (CAMERA MOTION ONLY): Treat the starting image as a 100% frozen, motionless archival B-roll still plate from 0s to 8s with strictly zero internal object animation, zero morphing, and zero lighting shifts—ONLY the virtual optical rostrum camera performs the zoom out movement. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: quiet regulator wall clock ticking in the basement laboratory, calm room tone, single continuous shot, strictly no shot changes, no music, no speech, no text. [B-Roll: STATIC_ZOOM_OUT] [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6550,6 +6643,7 @@
         "reframeReason": "Enfoque inteligente IA en tercio derecho (64%)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6578,6 +6672,7 @@
         "reframeReason": "Paneo dinámico IA (82% → 24%) desde sujeto derecho hacia escena izquierda (Der → Izq)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6606,6 +6701,7 @@
         "reframeReason": "Paneo dinámico IA (22% → 82%) entre dos sujetos (Izq → Der)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6637,6 +6733,7 @@
         "reframeReason": "Enfoque inteligente IA en tercio izquierdo (17%)",
         "promptUpdatedAt": 1794572688032,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6667,6 +6764,7 @@
         "reframeConfidence": 0.66,
         "reframeReason": "Enfoque inteligente IA en tercio izquierdo (21%)",
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6695,6 +6793,7 @@
         "reframeReason": "Enfoque inteligente IA en tercio derecho (66%)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6723,6 +6822,7 @@
         "reframeReason": "Paneo dinámico IA (22% → 72%) entre dos sujetos (Izq → Der)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6751,6 +6851,7 @@
         "reframeReason": "Paneo dinámico IA (84% → 66%) siguiendo acción/sujeto",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6779,6 +6880,7 @@
         "reframeReason": "Paneo dinámico IA (22% → 76%) desde sujeto izquierdo hacia escena derecha (Izq → Der)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6807,6 +6909,7 @@
         "reframeReason": "Paneo dinámico IA (46% → 62%) siguiendo acción/sujeto",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6872,6 +6975,7 @@
         "reframeReason": "Paneo dinámico IA (22% → 76%) desde sujeto izquierdo hacia escena derecha (Izq → Der)",
         "promptUpdatedAt": 1794572688032,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6900,6 +7004,7 @@
         "reframeReason": "Paneo dinámico IA (24% → 76%) desde escena izquierda hacia sujeto derecho (Izq → Der)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6928,6 +7033,7 @@
         "reframeReason": "Paneo dinámico IA (24% → 76%) desde escena izquierda hacia sujeto derecho (Izq → Der)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6959,6 +7065,7 @@
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "previousVideoPrompt": "Clip 43 (05:44 - 05:52): Create a cinematic 8-second static B-roll video executing ONLY a smooth, continuous vertical rostrum camera tilt upward from bottom to top over the frozen scene: ONLY a slow, controlled vertical pedestal tilt upward from the base of the still archival frame to the top across the 100% still documentary photograph plate ascending from the lower glass milk bottles up the reclaimed oak shelving, hand-blown glass spirals, and copper coils inside @Escuela_Dunn_Oxford, keeping the entire starting image 100% frozen as a still documentary B-roll plate from 0s to 8s with zero internal object animation, with no people present. STATIC B-ROLL PLATE LOCK (CAMERA MOTION ONLY): Treat the starting image as a 100% frozen, motionless archival B-roll still plate from 0s to 8s with strictly zero internal object animation, zero morphing, and zero lighting shifts—ONLY the virtual optical rostrum camera performs the tilt arriba movement. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: soft resonant glass-and-oak laboratory room tone, distant faint condenser hum, single continuous shot, strictly no shot changes, no music, no speech, no text. [B-Roll: STATIC_TILT_UP] [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6989,6 +7096,7 @@
         "reframeConfidence": 0.82,
         "reframeReason": "Paneo dinámico IA (78% → 24%) desde sujeto derecho hacia escena izquierda (Der → Izq)",
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7017,6 +7125,7 @@
         "reframeReason": "Enfoque inteligente IA en tercio izquierdo (32%)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7045,6 +7154,7 @@
         "reframeReason": "Paneo dinámico IA (50% → 30%) siguiendo acción/sujeto",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7079,6 +7189,7 @@
         "previousVideoPrompt": "Clip 47 (06:16 - 06:24): Create a cinematic 8-second video showing a smooth gentle arc shot inside the vintage Oxford research laboratory as the dark-haired mustachioed male biochemist in his white lab coat exchanges a quiet triumphant look with the bespectacled male pathology professor in his white lab coat over a brown tweed waistcoat beside him over the open printed medical journal pages bathed in warm late-summer daylight across the full 8 seconds, holding a natural composed frame through the final second. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous action across the full 8 seconds, holding a natural composed posture through the final frame. Fixed subject count from 0s to 8s (no new people appearing out of nowhere, vanishing, or morphing; background figures stationary in shallow optical bokeh). Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects. Cinematic historical drama reenactment featuring anonymous fictionalized theatre actors in period costume (no real public figures or prominent people, steady continuous lighting with zero sudden flashes). Ambient Foley: crisp rustle of freshly printed journal pages, distant cheerful chime of Oxford college bells, single continuous shot, strictly no shot changes, no music, no speech, no text. [Duration: 8s] [Model: Omni 1.1 Flash] fix the name",
         "promptUpdatedAt": 1794572688032,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7110,6 +7221,7 @@
         "reframeReason": "Paneo dinámico IA (28% → 64%) siguiendo acción/sujeto",
         "previousVideoPrompt": "Clip 48 (06:24 - 06:32): Create a cinematic 8-second video showing a sweeping slow crane glide down the center aisle of @Escuela_Dunn_Oxford revealing row after row of white enameled hospital bedpans and improvised tin vessels stacked neatly from floor to ceiling, with no people present across the full 8 seconds, holding a natural composed frame through the final second. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: warm steady hum of steam heating pipes, subtle metallic creak of heavily loaded wooden racks, single continuous shot, strictly no shot changes, no music, no speech, no text. [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7138,6 +7250,7 @@
         "reframeReason": "Enfoque inteligente IA en tercio derecho (68%)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7166,6 +7279,7 @@
         "reframeReason": "Paneo dinámico IA (42% → 60%) siguiendo acción/sujeto",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7194,6 +7308,7 @@
         "reframeReason": "Enfoque inteligente IA en tercio izquierdo (17%)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7222,6 +7337,7 @@
         "reframeReason": "Paneo dinámico IA (78% → 24%) desde sujeto derecho hacia escena izquierda (Der → Izq)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7250,6 +7366,7 @@
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7278,6 +7395,7 @@
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7308,6 +7426,7 @@
         "reframeConfidence": 0.61,
         "reframeReason": "Enfoque inteligente IA en tercio izquierdo (16%)",
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7336,6 +7455,7 @@
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7364,6 +7484,7 @@
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7392,6 +7513,7 @@
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7420,6 +7542,7 @@
         "reframeReason": "Enfoque inteligente IA en tercio izquierdo (22%)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7448,6 +7571,7 @@
         "reframeReason": "Paneo dinámico IA (78% → 24%) desde sujeto derecho hacia escena izquierda (Der → Izq)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7479,6 +7603,7 @@
         "reframeReason": "Paneo dinámico IA (82% → 28%) desde sujeto derecho hacia escena izquierda (Der → Izq)",
         "previousVideoPrompt": "Clip 61 (08:08 - 08:16): Create a cinematic 8-second static B-roll video executing ONLY a smooth, continuous, ultra-steady optical Ken Burns zoom-in over the frozen scene: ONLY a slow, steady optical Ken Burns zoom-in (gradual push-in from wide to tight framing with zero lens distortion) across the 100% still macro photograph plate of the vintage syringe needle tip touching the completely dry empty glass medicine vial on sterile gauze inside @Enfermeria_Radcliffe, keeping the entire starting image 100% frozen as a still documentary B-roll plate from 0s to 8s with zero internal object animation, with no people present. STATIC B-ROLL PLATE LOCK (CAMERA MOTION ONLY): Treat the starting image as a 100% frozen, motionless archival B-roll still plate from 0s to 8s with strictly zero internal object animation, zero morphing, and zero lighting shifts—ONLY the virtual optical rostrum camera performs the zoom in movement. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: heavy solemn hospital ward silence, faint distant radiator tone, single continuous shot, strictly no shot changes, no music, no speech, no text. [B-Roll: STATIC_ZOOM_IN] [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7507,6 +7632,7 @@
         "reframeReason": "Paneo dinámico IA (54% → 24%) siguiendo acción/sujeto",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7535,6 +7661,7 @@
         "reframeReason": "Paneo dinámico IA (18% → 76%) desde sujeto izquierdo hacia escena derecha (Izq → Der)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7569,6 +7696,7 @@
         "previousVideoPrompt": "Clip 64 (08:32 - 08:40): Create a cinematic 8-second video showing a slow tense dolly pull-back away from the tightly shut heavy mahogany and brass boardroom doors as cold shadow falls across the polished marble corridor floor, with no people present across the full 8 seconds, holding a natural composed frame through the final second. Strictly zero people or human figures appearing anywhere in the frame from 0s to 8s. All furniture, tables, and props remain 100% physically solid and non-deforming from 0s to 8s, with zero self-moving, floating, morphing, mutating, vanishing, or shape-shifting objects. Cinematic historical documentary still-life cinematography (no real public figures or prominent people, steady continuous lighting with zero sudden flashes). Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects, steady continuous lighting with zero sudden flashes. Ambient Foley: deep resonant thud of heavy mahogany boardroom doors latching shut, echoing silence in marble hallway, single continuous shot, strictly no shot changes, no music, no speech, no text. [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
         "promptUpdatedAt": 1794784316977,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7633,6 +7761,7 @@
         "reframeConfidence": 0.55,
         "reframeReason": "Paneo dinámico IA (56% → 39%) siguiendo acción/sujeto",
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7661,6 +7790,7 @@
         "reframeReason": "Paneo dinámico IA (22% → 77%) entre dos sujetos (Izq → Der)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794573067176,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7690,6 +7820,7 @@
         "reframeReason": "Enfoque inteligente IA en tercio izquierdo (16%)",
         "videoDiscardOverriddenAt": 1794830501989,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7724,6 +7855,7 @@
         "previousVideoPrompt": "Clip 69 (09:12 - 09:20): Create a cinematic 8-second video showing a slow lateral dolly shot across the drafting table as a senior British engineer runs his hand incredulously over the massive bottle-count calculation sheet and closes the blueprint portfolio across the full 8 seconds, holding a natural composed frame through the final second. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous action across the full 8 seconds, holding a natural composed posture through the final frame. Fixed subject count from 0s to 8s (no new people appearing out of nowhere, vanishing, or morphing; background figures stationary in shallow optical bokeh). Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects. Cinematic historical drama reenactment featuring anonymous fictionalized theatre actors in period costume (no real public figures or prominent people, steady continuous lighting with zero sudden flashes). Ambient Foley: heavy rustle of rolled blueprint sheets closing, quiet sigh in dim 1940s period office, single continuous shot, strictly no shot changes, no music, no speech, no text. [Duration: 8s] [Model: Omni 1.1 Flash] fix the name",
         "promptUpdatedAt": 1794785728722,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7752,6 +7884,7 @@
         "reframeReason": "Paneo dinámico IA (43% → 68%) siguiendo acción/sujeto",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794573067176,
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7816,6 +7949,7 @@
         "reframeConfidence": 0.55,
         "reframeReason": "Paneo dinámico IA (65% → 38%) siguiendo acción/sujeto",
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7883,6 +8017,7 @@
         "reframeReason": "Paneo dinámico IA (18% → 76%) desde sujeto izquierdo hacia escena derecha (Izq → Der)",
         "previousVideoPrompt": "Clip 74 (09:52 - 10:00): Create a cinematic 8-second static B-roll video executing ONLY a smooth, continuous horizontal rostrum camera pan from left to right over the frozen scene: ONLY a slow, level horizontal fluid-head pan from left to right across the still archival frame across the 100% still archival photograph plate gliding laterally from the crossed-out chalk molecular ring diagrams on the slate blackboard across the row of cold inert synthesis flasks, keeping the entire starting image 100% frozen as a still documentary B-roll plate from 0s to 8s with zero internal object animation, with no people present. STATIC B-ROLL PLATE LOCK (CAMERA MOTION ONLY): Treat the starting image as a 100% frozen, motionless archival B-roll still plate from 0s to 8s with strictly zero internal object animation, zero morphing, and zero lighting shifts—ONLY the virtual optical rostrum camera performs the pan derecha movement. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: quiet ticking of a laboratory stopwatch, distant muffled wartime night stillness, single continuous shot, strictly no shot changes, no music, no speech, no text. [B-Roll: STATIC_PAN_RIGHT] [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7913,6 +8048,7 @@
         "reframeConfidence": 0.96,
         "reframeReason": "Paneo dinámico IA (18% → 72%) desde sujeto izquierdo hacia escena derecha (Izq → Der)",
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7943,6 +8079,7 @@
         "reframeConfidence": 0.82,
         "reframeReason": "Paneo dinámico IA (82% → 24%) desde sujeto derecho hacia escena izquierda (Der → Izq)",
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7972,6 +8109,7 @@
         "reframeConfidence": 0.55,
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8001,6 +8139,7 @@
         "reframeConfidence": 0.55,
         "reframeReason": "Enfoque inteligente IA en tercio izquierdo (41%)",
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8030,6 +8169,7 @@
         "reframeConfidence": 0.55,
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8059,6 +8199,7 @@
         "reframeConfidence": 0.84,
         "reframeReason": "Paneo dinámico IA (24% → 76%) desde escena izquierda hacia sujeto derecho (Izq → Der)",
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8088,6 +8229,7 @@
         "reframeConfidence": 0.55,
         "reframeReason": "Paneo dinámico IA (39% → 21%) siguiendo acción/sujeto",
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8117,6 +8259,7 @@
         "reframeConfidence": 0.82,
         "reframeReason": "Paneo dinámico IA (78% → 28%) desde sujeto derecho hacia escena izquierda (Der → Izq)",
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8146,6 +8289,7 @@
         "reframeConfidence": 0.62,
         "reframeReason": "Paneo dinámico IA (84% → 67%) siguiendo acción/sujeto",
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8175,6 +8319,7 @@
         "reframeConfidence": 0.55,
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8204,6 +8349,7 @@
         "reframeConfidence": 0.62,
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8234,6 +8380,7 @@
         "videoDiscardOverriddenAt": 1794830501989,
         "videoSavedAt": 1794830501989,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8263,6 +8410,7 @@
         "videoSavedFileName": "87_generate_a_video_in_16_9_68ccc0a1_4K.mp4",
         "videoSavedAt": 1794831222323,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8293,6 +8441,7 @@
         "videoDiscardOverriddenAt": 1794830501883,
         "videoSavedAt": 1794830501883,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8326,6 +8475,7 @@
         "videoSavedAt": 1794830501989,
         "previousVideoPrompt": "Clip 89 (11:52 - 12:00): Create a cinematic 8-second static B-roll video executing ONLY a smooth, continuous, ultra-steady optical Ken Burns zoom-in over the frozen scene: ONLY a slow, steady optical Ken Burns zoom-in (gradual push-in from wide to tight framing with zero lens distortion) across the 100% still macro photograph plate of the netted cantaloupe rind on the steel tray inside @Laboratorio_Peoria centering tightly on the luminous golden-yellow mold scar, keeping the entire starting image 100% frozen as a still documentary B-roll plate from 0s to 8s with zero internal object animation, with no people present. STATIC B-ROLL PLATE LOCK (CAMERA MOTION ONLY): Treat the starting image as a 100% frozen, motionless archival B-roll still plate from 0s to 8s with strictly zero internal object animation, zero morphing, and zero lighting shifts—ONLY the virtual optical rostrum camera performs the zoom in movement. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: hushed laboratory room tone, faint sterile ventilation hum, single continuous shot, strictly no shot changes, no music, no speech, no text. [B-Roll: STATIC_ZOOM_IN] [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8356,6 +8506,7 @@
         "videoDiscardOverriddenAt": 1794830668929,
         "videoSavedAt": 1794830668929,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8386,6 +8537,7 @@
         "videoDiscardOverriddenAt": 1794830768488,
         "videoSavedAt": 1794830768488,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8419,6 +8571,7 @@
         "videoSavedAt": 1794830768977,
         "previousVideoPrompt": "Clip 92 (12:16 - 12:24): Create a cinematic 8-second video showing a slow solemn wide tracking glide across the wet sand of @Playas_Normandia_1944 past the olive-drab medical crates toward gray Atlantic waves breaking against dark steel beach obstacles, with no people present across the full 8 seconds, holding a natural composed frame through the final second. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: rolling crash of cold English Channel waves on wet sand, sea wind snapping canvas tent ropes, single continuous shot, strictly no shot changes, no music, no speech, no text. [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8453,6 +8606,7 @@
         "previousVideoPrompt": "Clip 93: Generate a video in 16-9 horizontal aspect ratio across 8 seconds showing a slow tense push-in across the green baize conference table as a military medical officer closes a heavy leather dispatch portfolio beside a small rack of golden amber botanical solution ampoules across the full 8 seconds, holding a natural composed frame through the final second, with no people present and zero human figures, all background furniture, architectural fixtures, and tabletop props remain 100% gravity-locked and stationary while any held object moves smoothly under natural hand control, fixed subject count from 0s to 8s, single continuous shot, strictly no shot changes, with subtle ambient foley of quiet period room tone and natural atmospheric acoustics. cinematic documentary realism, safe framing composition, 8k resolution, sharp focus, no modern objects, no CGI look, no text, no spoken voice, no human speech, no music. fix the name to Clip_93_generate_a_video_in_16_9",
         "promptUpdatedAt": 1794831962791,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8483,6 +8637,7 @@
         "videoDiscardOverriddenAt": 1794830848719,
         "videoSavedAt": 1794830848719,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8547,6 +8702,7 @@
         "videoDiscardOverriddenAt": 1794830848719,
         "videoSavedAt": 1794830848719,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8611,6 +8767,7 @@
         "videoDiscardOverriddenAt": 1794830848621,
         "videoSavedAt": 1794830896464,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8641,6 +8798,7 @@
         "videoDiscardOverriddenAt": 1794830848621,
         "videoSavedAt": 1794830896464,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8670,6 +8828,7 @@
         "videoSavedFileName": "100_generate_a_video_in_16_9_a78a4b78_4K.mp4",
         "videoSavedAt": 1794830896464,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8700,6 +8859,7 @@
         "videoDiscardOverriddenAt": 1794833523145,
         "videoSavedAt": 1794833770519,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8730,6 +8890,7 @@
         "videoDiscardOverriddenAt": 1794833540414,
         "videoSavedAt": 1794833770519,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8763,6 +8924,7 @@
         "videoSavedAt": 1794833770519,
         "previousVideoPrompt": "Clip 103 (13:44 - 13:52): Create a cinematic 8-second static B-roll video executing ONLY a smooth, continuous, ultra-steady optical Ken Burns zoom-out over the frozen scene: ONLY a slow, steady optical Ken Burns zoom-out (gradual pull-back from close detail to wide framing revealing full context) across the 100% still high-angle archival photograph plate pulling back from a tight cluster of golden penicillin ampoules to reveal the vast 1944 Allied supply depot filled wall-to-wall with crates, keeping the entire starting image 100% frozen as a still documentary B-roll plate from 0s to 8s with zero internal object animation, with no people present. STATIC B-ROLL PLATE LOCK (CAMERA MOTION ONLY): Treat the starting image as a 100% frozen, motionless archival B-roll still plate from 0s to 8s with strictly zero internal object animation, zero morphing, and zero lighting shifts—ONLY the virtual optical rostrum camera performs the zoom out movement. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: deep cavernous warehouse echo, faint wooden crate stillness, single continuous shot, strictly no shot changes, no music, no speech, no text. [B-Roll: STATIC_ZOOM_OUT] [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8793,6 +8955,7 @@
         "videoDiscardOverriddenAt": 1794833737161,
         "videoSavedAt": 1794833770519,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8823,6 +8986,7 @@
         "videoDiscardOverriddenAt": 1794833737161,
         "videoSavedAt": 1794833770519,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8857,6 +9021,7 @@
         "previousVideoPrompt": "Clip 106 (14:08 - 14:16): Create a cinematic 8-second video showing a slow graceful macro slider shot across the marble counter from the humble vintage coins toward the abundant gleaming glass vials bathed in warm afternoon sunlight, with no people present across the full 8 seconds, holding a natural composed frame through the final second. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: warm peaceful afternoon street murmur muffled behind shop glass, quiet clock tick, single continuous shot, strictly no shot changes, no music, no speech, no text. [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
         "promptUpdatedAt": 1794834092912,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8887,6 +9052,7 @@
         "videoDiscardOverriddenAt": 1794833737161,
         "videoSavedAt": 1794833770519,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8917,6 +9083,7 @@
         "videoDiscardOverriddenAt": 1794833737161,
         "videoSavedAt": 1794833770519,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8947,6 +9114,7 @@
         "videoDiscardOverriddenAt": 1794833737161,
         "videoSavedAt": 1794833770519,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -9011,6 +9179,7 @@
         "videoDiscardOverriddenAt": 1794833880030,
         "videoSavedAt": 1794833880030,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -9041,6 +9210,7 @@
         "videoDiscardOverriddenAt": 1794833880030,
         "videoSavedAt": 1794833880030,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -9071,6 +9241,7 @@
         "videoDiscardOverriddenAt": 1794833880030,
         "videoSavedAt": 1794833880030,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -9101,6 +9272,7 @@
         "videoDiscardOverriddenAt": 1794833880030,
         "videoSavedAt": 1794833880030,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -9131,6 +9303,7 @@
         "videoDiscardOverriddenAt": 1794833880030,
         "videoSavedAt": 1794833880030,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -9161,6 +9334,7 @@
         "videoDiscardOverriddenAt": 1794834839299,
         "videoSavedAt": 1794834839299,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -9225,6 +9399,7 @@
         "videoDiscardOverriddenAt": 1794834883252,
         "videoSavedAt": 1794834883252,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -9255,6 +9430,7 @@
         "videoDiscardOverriddenAt": 1794835144268,
         "videoSavedAt": 1794835203918,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -9288,6 +9464,7 @@
         "videoSavedAt": 1794835003300,
         "previousVideoPrompt": "Clip 120 (16:00 - 16:08): Create a cinematic 8-second static B-roll video executing ONLY a smooth, continuous horizontal rostrum camera pan from right to left over the frozen scene: ONLY a slow, level horizontal fluid-head pan from right to left across the still archival frame across the 100% still archival photograph plate panning smoothly from the closed neoclassical stone ministry facade leftward toward the misty iron harbor cranes along the Rio de la Plata in 1944 Buenos Aires, keeping the entire starting image 100% frozen as a still documentary B-roll plate from 0s to 8s with zero internal object animation, with no people present. STATIC B-ROLL PLATE LOCK (CAMERA MOTION ONLY): Treat the starting image as a 100% frozen, motionless archival B-roll still plate from 0s to 8s with strictly zero internal object animation, zero morphing, and zero lighting shifts—ONLY the virtual optical rostrum camera performs the pan izquierda movement. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: distant ship foghorn echoing across river mist, cold wind over wet granite, single continuous shot, strictly no shot changes, no music, no speech, no text. [B-Roll: STATIC_PAN_LEFT] [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -9352,6 +9529,7 @@
         "videoDiscardOverriddenAt": 1794835172529,
         "videoSavedAt": 1794835203918,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -9382,6 +9560,7 @@
         "videoDiscardOverriddenAt": 1794954475626,
         "videoSavedAt": 1794954475626,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "userReframed9x16": true,
         "reframeUpdatedAt": 1795057123761,
         "videoAuditReason": "",
@@ -9414,6 +9593,7 @@
         "videoDiscardOverriddenAt": 1794835214531,
         "videoSavedAt": 1794835215441,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -9444,6 +9624,7 @@
         "videoDiscardOverriddenAt": 1794835225209,
         "videoSavedAt": 1794835226645,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -9474,6 +9655,7 @@
         "videoDiscardOverriddenAt": 1794835248432,
         "videoSavedAt": 1794835312992,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -9540,6 +9722,7 @@
         "videoDiscardOverriddenAt": 1794835071960,
         "videoSavedAt": 1794835203918,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -9570,6 +9753,7 @@
         "videoDiscardOverriddenAt": 1794835087120,
         "videoSavedAt": 1794835203918,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -9600,6 +9784,7 @@
         "videoDiscardOverriddenAt": 1794835263417,
         "videoSavedAt": 1794835312992,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -9630,6 +9815,7 @@
         "videoDiscardOverriddenAt": 1794836340448,
         "videoSavedAt": 1794836402971,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "userReframed9x16": true,
         "reframeUpdatedAt": 1795057310443,
         "videoAuditReason": "",
@@ -9662,6 +9848,7 @@
         "videoDiscardOverriddenAt": 1794836366907,
         "videoSavedAt": 1794836402971,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -9691,6 +9878,7 @@
         "videoSavedFileName": "133_generate_a_video_in_16_9_90b71187_4K.mp4",
         "videoSavedAt": 1794839803726,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -9757,6 +9945,7 @@
         "videoDiscardOverriddenAt": 1794836406278,
         "videoSavedAt": 1794836494024,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "userReframed9x16": true,
         "reframeUpdatedAt": 1795057358371,
         "videoAuditReason": "",
@@ -9789,6 +9978,7 @@
         "videoDiscardOverriddenAt": 1794836700830,
         "videoSavedAt": 1794836700830,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "userReframed9x16": true,
         "reframeUpdatedAt": 1795057376889,
         "videoAuditReason": "",
@@ -9821,6 +10011,7 @@
         "videoDiscardOverriddenAt": 1794837016438,
         "videoSavedAt": 1794837074425,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "userReframed9x16": true,
         "reframeUpdatedAt": 1795057396376,
         "videoAuditReason": "",
@@ -9856,6 +10047,7 @@
         "videoSavedAt": 1794836700983,
         "previousVideoPrompt": "Clip 138 (18:24 - 18:32): Create a cinematic 8-second static B-roll video executing ONLY a smooth, continuous vertical rostrum camera tilt downward from top to bottom over the frozen scene: ONLY a slow, controlled vertical pedestal tilt downward from the top of the still archival frame to the base detail across the 100% still overhead documentary photograph plate tilting downward across the slate bench grid of ten Petri dishes onto the four plates overrun by golden resistant bacterial colonies, keeping the entire starting image 100% frozen as a still documentary B-roll plate from 0s to 8s with zero internal object animation, with no people present. STATIC B-ROLL PLATE LOCK (CAMERA MOTION ONLY): Treat the starting image as a 100% frozen, motionless archival B-roll still plate from 0s to 8s with strictly zero internal object animation, zero morphing, and zero lighting shifts—ONLY the virtual optical rostrum camera performs the tilt abajo movement. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: quiet hum of laboratory lighting ballast, cold clinical glass stillness, single continuous shot, strictly no shot changes, no music, no speech, no text. [B-Roll: STATIC_TILT_DOWN] [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -9886,6 +10078,7 @@
         "videoDiscardOverriddenAt": 1794836700830,
         "videoSavedAt": 1794836700830,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -9916,6 +10109,7 @@
         "videoDiscardOverriddenAt": 1794837076411,
         "videoSavedAt": 1794837111382,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -9946,6 +10140,7 @@
         "videoDiscardOverriddenAt": 1794837087507,
         "videoSavedAt": 1794837111382,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -9976,6 +10171,7 @@
         "videoDiscardOverriddenAt": 1794837119656,
         "videoSavedAt": 1794837119656,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "userReframed9x16": true,
         "reframeUpdatedAt": 1795057490839,
         "videoAuditReason": "",
@@ -10007,6 +10203,7 @@
         "videoSavedFileName": "143_generate_a_video_in_16_9_c4991e65_4K.mp4",
         "videoSavedAt": 1794839561116,
         "videoAuditStatus": "approved",
+        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       }
