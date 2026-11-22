@@ -23093,7 +23093,7 @@ function buildOpusClipAssSubtitles(params: {
     outH,
     words,
     captionStyle,
-    wordsPerLine = 3,
+    wordsPerLine = 2,
     fontSizeScale = 1.0,
     captionYPercent = 75,
     captionEmOfHeight,
@@ -23200,7 +23200,8 @@ function buildOpusClipAssSubtitles(params: {
 
   // 3) Group words into chunks of `wordsPerLine` and emit word-by-word active highlight events
   //    Each line also stops at VIRAL_CAPTION_MAX_CHARS characters (a single longer word still gets its own line).
-  const safeWordsPerChunk = Math.max(1, Math.min(6, Number(wordsPerLine) || 3));
+  // Viral Clips: at most 2 words per caption line
+  const safeWordsPerChunk = Math.max(1, Math.min(2, Number(wordsPerLine) || 2));
   const VIRAL_CAPTION_MAX_CHARS = 16;
   const wordChunks: WordTimestamp[][] = [];
   {
@@ -23297,7 +23298,7 @@ async function renderViralClipMp4Internal(params: {
     reframeMode = 'center_fill',
     focusX = 50,
     captionStyle = 'yellow_white',
-    wordsPerLine = 3,
+    wordsPerLine = 2,
     fontSizeScale = 1.0,
     captionYPercent = 75,
     words = [],

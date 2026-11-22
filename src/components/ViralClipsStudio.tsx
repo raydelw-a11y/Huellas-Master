@@ -258,7 +258,8 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
   const [copiedField, setCopiedField] = useState<string>('');
 
   // 4. Global Caption & Overlay Customization
-  const [wordsPerLine, setWordsPerLine] = useState<number>(3);
+  // Viral Clips: como máximo 2 palabras por línea de caption
+  const [wordsPerLine, setWordsPerLine] = useState<number>(2);
   const [fontSizeScale, setFontSizeScale] = useState<number>(1.0);
   const [captionYPercent, setCaptionYPercent] = useState<number>(75);
   // The documentary's 9:16 look (logo + captions), mirrored by the preview and used by the render
@@ -1075,7 +1076,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
     if (!selectedClip || !Array.isArray(selectedClip.words) || selectedClip.words.length === 0) {
       return null;
     }
-    const safePerLine = Math.max(1, Math.min(6, wordsPerLine));
+    const safePerLine = Math.max(1, Math.min(2, wordsPerLine));
     // Sin puntos, comas ni otros signos (igual que el render); un signo suelto no ocupa palabra
     const words = selectedClip.words
       .map((w) => ({ ...w, word: stripCaptionPunctuation(w.word) }))
@@ -1841,10 +1842,8 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                         onChange={(e) => setWordsPerLine(Number(e.target.value))}
                         className="w-full bg-slate-900 border border-slate-700 rounded px-1.5 py-0.5 text-[11px]"
                       >
-                        <option value={2}>2 palabras</option>
-                        <option value={3}>3 palabras (Opus)</option>
-                        <option value={4}>4 palabras</option>
-                        <option value={5}>5 palabras</option>
+                        <option value={1}>1 palabra</option>
+                        <option value={2}>2 palabras (máximo)</option>
                       </select>
                     </div>
                     <div>
