@@ -472,7 +472,8 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
             setPendingGeminiTick((t) => t + 1);
           }
           if (saved.length > 0) {
-            setViralClips(saved);
+            // Lists saved before the 5-hashtag rule can carry 6 or more: keep exactly 5
+            setViralClips(saved.map((c: any) => ({ ...c, hashtags: limitToFiveHashtags(c?.hashtags || '') })));
             const sel = saved.find((c: any) => c.id === data.selectedClipId) || saved[0];
             setSelectedClipId(sel.id);
             setPlayheadSec(Number(sel.startSec) || 0);
@@ -610,7 +611,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
         hookTeaserEndSec: Number(c.hookTeaserEndSec) || st + 3.5,
         hookBannerText: String(c.hookBannerText || c.title || '').toUpperCase(),
         socialCaption: c.socialCaption || '',
-        hashtags: limitToFiveHashtags(c.hashtags || '#Historia #Documental #Reels #EdadMedia #Curiosidades'),
+        hashtags: limitToFiveHashtags(c.hashtags || '#HistoriaMedieval #DatosCuriosos #CulturaGeneral #EdadMedia #HistoriaUniversal'),
         transcriptExcerpt: overlapping.map((o) => o.text).join(' '),
         words,
         reframeMode: 'center_fill',
@@ -790,7 +791,13 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
       if (resp.ok) {
         const data = await resp.json();
         if (data.ok && Array.isArray(data.clips) && data.clips.length > 0) {
-          setViralClips(data.clips.map((c: ViralClipSuggestion) => ({ ...c, origin: 'local' as const })));
+          setViralClips(
+            data.clips.map((c: ViralClipSuggestion) => ({
+              ...c,
+              hashtags: limitToFiveHashtags(c.hashtags || ''),
+              origin: 'local' as const,
+            }))
+          );
           setSelectedClipId(data.clips[0].id);
           setPlayheadSec(data.clips[0].startSec);
           if (data.autoCountReason) setActionToast(`🤖 Auto: ${data.autoCountReason}`);
@@ -843,7 +850,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
           hookTeaserEndSec: Math.min(en, st + 3.5),
           hookBannerText: firstWords.toUpperCase(),
           socialCaption: `${startSeg.text} — Una historia real que marcó a toda una generación.`,
-          hashtags: '#Historia #Documental #Reels #Viral #HuellasDeLaHumanidad',
+          hashtags: '#HistoriaUniversal #DatosCuriosos #CulturaGeneral #DocumentalHistorico #ViajeEnElTiempo',
         });
       }
       const built = buildViralClipsFromList(list, 'local');
@@ -1379,7 +1386,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                         )}s): ${s.text}`
                     )
                     .join(' // ');
-                  const webPrompt = `Act as OpusClip Pro and an expert viral short-form video editor. From the following timestamped Spanish transcript of "${sourceTitle}", ${desiredClipCount > 0 ? `select the ${desiredClipCount} most viral standalone segments` : 'decide yourself how many standalone segments this transcript genuinely supports with strong viral potential (at most about one per 75 seconds of narration, so a longer documentary can give more, never fewer than 3, and never a weak one just to reach a number), and select them'} lasting between ${minDur}s and ${maxDur}s. CRITICAL OUTPUT LANGUAGE REQUIREMENT: Return ONLY a valid JSON object (no markdown commentary) where all audience-facing text fields ("title", "viralityReason", "hookBannerText", "socialCaption", "hashtags") are written in Neutral Spanish: {"clips":[{"title":"...","viralityScore":96,"viralityReason":"...","structureMode":"hook_teaser","startSec":0,"endSec":42,"hookTeaserStartSec":10,"hookTeaserEndSec":14,"hookBannerText":"...","socialCaption":"...","hashtags":"#Uno #Dos #Tres #Cuatro #Cinco"}]}. EVERY clip has its OWN publication text, written for that clip only: "title" is a short catchy headline (max 60 characters) used only as the clip name and NEVER repeated inside the description, "socialCaption" is a 1-3 sentence description of what that clip shows (it must not start with or contain the title), and "hashtags" holds EXACTLY 5 hashtags specific to that clip (no generic repeats across all clips, never more than 5). TIMESTAMPED TRANSCRIPT: ${formattedTranscript}`;
+                  const webPrompt = `Act as OpusClip Pro and an expert viral short-form video editor. From the following timestamped Spanish transcript of "${sourceTitle}", ${desiredClipCount > 0 ? `select the ${desiredClipCount} most viral standalone segments` : 'decide yourself how many standalone segments this transcript genuinely supports with strong viral potential (at most about one per 75 seconds of narration, so a longer documentary can give more, never fewer than 3, and never a weak one just to reach a number), and select them'} lasting between ${minDur}s and ${maxDur}s. CRITICAL OUTPUT LANGUAGE REQUIREMENT: Return ONLY a valid JSON object (no markdown commentary) where all audience-facing text fields ("title", "viralityReason", "hookBannerText", "socialCaption", "hashtags") are written in Neutral Spanish: {"clips":[{"title":"...","viralityScore":96,"viralityReason":"...","structureMode":"hook_teaser","startSec":0,"endSec":42,"hookTeaserStartSec":10,"hookTeaserEndSec":14,"hookBannerText":"...","socialCaption":"...","hashtags":"#Uno #Dos #Tres #Cuatro #Cinco"}]}. EVERY clip has its OWN publication text, written for that clip only: "title" is a short catchy headline (max 60 characters) used only as the clip name and NEVER repeated inside the description, "socialCaption" is a 1-3 sentence description of what that clip shows (it must not start with or contain the title), and "hashtags" holds EXACTLY 5 hashtags specific to that clip (no generic repeats across all clips, never more than 5, never fewer), and EVERY hashtag is made of EXACTLY TWO Spanish words joined in CamelCase with no spaces or accents (e.g. #HistoriaMedieval #EdadMedia #DatosCuriosos), never a single-word hashtag like #Historia or #Reels. TIMESTAMPED TRANSCRIPT: ${formattedTranscript}`;
                   const geminiViralPayload = {
                     action: 'SEND_PROMPT',
                     prompt: webPrompt,

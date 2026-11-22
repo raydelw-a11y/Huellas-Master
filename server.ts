@@ -22856,7 +22856,7 @@ app.post('/api/viral-clips/analyze', async (req, res) => {
         socialCaption: `🔥 ${p.bestTeaserSeg.text.trim()}\n\nUn episodio fascinante de "${
           title || 'Huellas de la Humanidad'
         }".`,
-        hashtags: '#Historia #Documental #Reels #Viral #HuellasDeLaHumanidad #Cultura',
+        hashtags: '#HistoriaUniversal #DatosCuriosos #CulturaGeneral #DocumentalHistorico #ViajeEnElTiempo',
       };
     });
 
@@ -22915,7 +22915,7 @@ app.post('/api/viral-clips/analyze', async (req, res) => {
         hookTeaserEndSec: Number(hookEnd.toFixed(2)),
         hookBannerText: String(c.hookBannerText || c.title || '').toUpperCase(),
         socialCaption: String(c.socialCaption || ''),
-        hashtags: String(c.hashtags || '#Historia #Documental #Reels #Viral #HuellasDeLaHumanidad'),
+        hashtags: String(c.hashtags || '#HistoriaUniversal #DatosCuriosos #CulturaGeneral #DocumentalHistorico #ViajeEnElTiempo'),
         transcriptExcerpt,
         words,
         reframeMode: 'center_fill' as 'center_fill' | 'fit_blur' | 'auto_pan',
