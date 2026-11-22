@@ -22008,6 +22008,123 @@ async function transcribeVideoFileWithTimestamps(
 }
 
 // 1. Upload local video file for Viral Clips
+// Light 720p preview copy of a documentary's final video for the Viral Clips player. The final video is
+// 8K HEVC at ~140 Mb/s, which the browser cannot play smoothly. Made once per file (in the background,
+// hardware decode + scale + encode on the Mac) and reused; the render always uses the original file.
+const VIRAL_PROXY_DIR = path.join(VIRAL_CLIPS_DIR, 'proxies');
+const viralProxyJobs = new Map<string, { pct: number; error?: string; startedAt: number }>();
+const viralProxyNameFor = (filePath: string, st: fs.Stats) =>
+  `${crypto
+    .createHash('sha1')
+    .update(`${filePath}|${st.size}|${Math.round(st.mtimeMs)}`)
+    .digest('hex')
+    .slice(0, 20)}_720p.mp4`;
+
+app.post('/api/viral-clips/preview-proxy', async (req, res) => {
+  try {
+    const filePath = path.resolve(String(req.body?.filePath || ''));
+    const channelRoot = path.join(
+      os.homedir(),
+      'Library',
+      'Mobile Documents',
+      'com~apple~CloudDocs',
+      '0YouTube',
+      'Huellas de la Humanidad'
+    );
+    if (!filePath.startsWith(channelRoot + path.sep) || !/\.(mp4|mov|m4v)$/i.test(filePath) || !fs.existsSync(filePath)) {
+      return res.status(400).json({ ok: false, error: 'Ese archivo no es un video del canal.' });
+    }
+    const st = fs.statSync(filePath);
+    if (isDatalessIcloudStub(path.basename(filePath), st)) {
+      return res.json({ ok: true, ready: false, cloudOnly: true });
+    }
+    // Small files play fine as they are
+    if (st.size < 400 * 1024 * 1024) return res.json({ ok: true, ready: true, notNeeded: true });
+    fs.mkdirSync(VIRAL_PROXY_DIR, { recursive: true });
+    const name = viralProxyNameFor(filePath, st);
+    const finalPath = path.join(VIRAL_PROXY_DIR, name);
+    if (fs.existsSync(finalPath)) {
+      return res.json({ ok: true, ready: true, url: `/viral-clips-media/proxies/${name}` });
+    }
+    const job = viralProxyJobs.get(name);
+    if (job) {
+      if (job.error) {
+        viralProxyJobs.delete(name);
+        return res.json({ ok: true, ready: false, failed: true, error: job.error });
+      }
+      return res.json({ ok: true, ready: false, progressPct: job.pct });
+    }
+    // Never compete with an export for the Mac's video engine
+    if (activeRenderJobState.running) return res.json({ ok: true, ready: false, waitingForExport: true });
+
+    const { durationSec } = await probeVideoDurationAndDims(filePath);
+    const tmpPath = `${finalPath}.part.mp4`;
+    const state = { pct: 0, startedAt: Date.now() } as { pct: number; error?: string; startedAt: number };
+    viralProxyJobs.set(name, state);
+    const ffmpegBin = getFfmpegPath();
+    const runOnce = (hardware: boolean) =>
+      new Promise<void>((resolve, reject) => {
+        const args = [
+          '-y',
+          ...(hardware ? ['-hwaccel', 'videotoolbox', '-hwaccel_output_format', 'videotoolbox_vld'] : []),
+          '-i',
+          filePath,
+          '-vf',
+          hardware ? 'scale_vt=w=1280:h=720' : 'scale=-2:720:flags=fast_bilinear',
+          '-c:v',
+          hardware ? 'h264_videotoolbox' : 'libx264',
+          ...(hardware ? ['-b:v', '3M'] : ['-preset', 'veryfast', '-crf', '26']),
+          '-g',
+          '30',
+          '-c:a',
+          'aac',
+          '-b:a',
+          '128k',
+          '-movflags',
+          '+faststart',
+          '-progress',
+          'pipe:1',
+          '-nostats',
+          tmpPath,
+        ];
+        const child = spawn(ffmpegBin, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+        let stderrTail = '';
+        child.stdout.on('data', (buf: Buffer) => {
+          const m = String(buf).match(/out_time_(?:ms|us)=(\d+)/g);
+          if (m && durationSec > 0) {
+            const us = Number(m[m.length - 1].split('=')[1]);
+            state.pct = Math.max(state.pct, Math.min(99, Math.round((us / 1e6 / durationSec) * 100)));
+          }
+        });
+        child.stderr.on('data', (buf: Buffer) => {
+          stderrTail = (stderrTail + String(buf)).slice(-1500);
+        });
+        child.on('close', (code) => (code === 0 ? resolve() : reject(new Error(stderrTail || `ffmpeg ${code}`))));
+      });
+    (async () => {
+      try {
+        try {
+          await runOnce(true);
+        } catch {
+          state.pct = 0;
+          await runOnce(false);
+        }
+        fs.renameSync(tmpPath, finalPath);
+        viralProxyJobs.delete(name);
+      } catch (e: any) {
+        try {
+          fs.unlinkSync(tmpPath);
+        } catch {}
+        state.error = String(e?.message || e).slice(-300);
+        console.warn('[ViralClips] No se pudo crear la vista previa ligera:', state.error);
+      }
+    })();
+    res.json({ ok: true, ready: false, progressPct: 0, started: true });
+  } catch (err: any) {
+    res.status(500).json({ ok: false, error: err?.message || 'No se pudo preparar la vista previa.' });
+  }
+});
+
 // Detected viral clips of each documentary, so the list survives reloads, restarts and other devices.
 // Stored apart from documentaries.json (word timings are large and change often).
 const VIRAL_SAVED_DIR = path.join(VIRAL_CLIPS_DIR, 'saved');

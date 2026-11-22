@@ -749,6 +749,48 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
     }
   }, [selectedClip?.id]);
 
+  // Light 720p preview of the final video (the 8K original stutters in the browser). The player switches to
+  // it as soon as it is ready; renders keep using the original file.
+  const [previewProxyUrl, setPreviewProxyUrl] = useState<string>('');
+  const [previewProxyPct, setPreviewProxyPct] = useState<number | null>(null);
+  useEffect(() => {
+    setPreviewProxyUrl('');
+    setPreviewProxyPct(null);
+    if (!sourceLocalPath || cloudOnlyMaster) return;
+    let cancelled = false;
+    let timer: number | null = null;
+    const poll = async () => {
+      try {
+        const resp = await fetch(viralApi('/api/viral-clips/preview-proxy'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ filePath: sourceLocalPath }),
+        });
+        const data = resp.ok ? await resp.json() : null;
+        if (cancelled || !data?.ok) return;
+        if (data.ready) {
+          if (data.url) setPreviewProxyUrl(String(data.url));
+          setPreviewProxyPct(null);
+          return;
+        }
+        if (data.failed || data.cloudOnly) {
+          setPreviewProxyPct(null);
+          return;
+        }
+        setPreviewProxyPct(Number(data.progressPct) || 0);
+        timer = window.setTimeout(poll, 5000);
+      } catch {
+        if (!cancelled) timer = window.setTimeout(poll, 8000);
+      }
+    };
+    void poll();
+    return () => {
+      cancelled = true;
+      if (timer) window.clearTimeout(timer);
+    };
+  }, [sourceLocalPath, cloudOnlyMaster]);
+  const playerVideoUrl = previewProxyUrl || sourceVideoUrl;
+
   // Constrain playback to [selectedClip.startSec, selectedClip.endSec]
   const handleTimeUpdate = () => {
     const vid = videoRef.current;
@@ -1510,9 +1552,14 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
               <div className="relative w-full max-w-[310px] aspect-[9/16] rounded-2xl overflow-hidden bg-black border-2 border-amber-500/40 shadow-2xl">
                 {sourceVideoUrl ? (
                   <>
+                    {previewProxyPct !== null && (
+                      <div className="absolute top-2 inset-x-2 z-30 px-2 py-1 rounded-lg bg-black/75 text-[10px] font-bold text-amber-200 text-center pointer-events-none">
+                        ⚡ Preparando vista previa ligera (720p) {previewProxyPct}% — puede ir lenta hasta entonces
+                      </div>
+                    )}
                     {selectedClip.reframeMode === 'fit_blur' && (
                       <video
-                        src={viralMedia(sourceVideoUrl)}
+                        src={viralMedia(playerVideoUrl)}
                         muted
                         playsInline
                         className="absolute inset-0 w-full h-full object-cover blur-xl brightness-50 scale-110 pointer-events-none"
@@ -1520,8 +1567,12 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                     )}
                     <video
                       ref={videoRef}
-                      src={viralMedia(sourceVideoUrl)}
+                      src={viralMedia(playerVideoUrl)}
                       onTimeUpdate={handleTimeUpdate}
+                      onLoadedMetadata={(e) => {
+                        // Keep the place when the player switches to the light preview
+                        if (selectedClip) e.currentTarget.currentTime = Math.max(selectedClip.startSec, playheadSec);
+                      }}
                       onPlay={() => setIsPlaying(true)}
                       onPause={() => setIsPlaying(false)}
                       playsInline
