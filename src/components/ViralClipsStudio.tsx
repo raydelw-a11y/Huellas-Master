@@ -92,6 +92,15 @@ export interface ViralClipSuggestion {
   renderedReelUrl?: string;
   renderedStoryUrl?: string;
   savedDocFolderPath?: string;
+  /** Who picked this clip: Gemini Web or the local engine (lists saved before this field count as local). */
+  origin?: 'gemini' | 'local';
+}
+
+/** Where a clip list came from: Gemini Web, or the local engine (ids `viral-clip-…` come from the Mac's engine). */
+function viralClipsOrigin(clips: ViralClipSuggestion[]): 'gemini' | 'local' | '' {
+  if (clips.length === 0) return '';
+  if (clips[0].origin) return clips[0].origin;
+  return 'local';
 }
 
 interface InstagramConfigData {
@@ -198,6 +207,9 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
   const [cloudOnlyMaster, setCloudOnlyMaster] = useState<{ path: string; sizeMB: number } | null>(null);
   const [isRequestingCloudMaster, setIsRequestingCloudMaster] = useState<boolean>(false);
   const [isWaitingGeminiClips, setIsWaitingGeminiClips] = useState<boolean>(false);
+  // Pasted Gemini answer (from the Gemini chat history), for when the automatic answer was lost
+  const [showGeminiPaste, setShowGeminiPaste] = useState<boolean>(false);
+  const [geminiPasteText, setGeminiPasteText] = useState<string>('');
 
   // YouTube input
   const [youtubeUrlInput, setYoutubeUrlInput] = useState<string>('');
@@ -525,7 +537,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
     }
   };
 
-  const buildViralClipsFromList = (list: any[]): ViralClipSuggestion[] =>
+  const buildViralClipsFromList = (list: any[], origin: 'gemini' | 'local'): ViralClipSuggestion[] =>
     list.map((c: any, idx: number) => {
       const st = Math.max(0, Number(c.startSec) || 0);
       const en = Math.max(st + 15, Number(c.endSec) || st + 40);
@@ -559,6 +571,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
         reframeMode: 'center_fill',
         focusX: 50,
         captionStyle: 'yellow_white',
+        origin,
       };
     });
 
@@ -603,7 +616,8 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
     }
     geminiViralOrderRef.current = null;
     const built = buildViralClipsFromList(
-      valid.sort((a, b) => (Number(b.viralityScore) || 0) - (Number(a.viralityScore) || 0))
+      valid.sort((a, b) => (Number(b.viralityScore) || 0) - (Number(a.viralityScore) || 0)),
+      'gemini'
     );
     setViralClips(built);
     setSelectedClipId(built[0].id);
@@ -660,6 +674,15 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
       );
       return;
     }
+    // Gemini's list is the good one: never replace it with the local engine by accident
+    if (
+      viralClipsOrigin(viralClips) === 'gemini' &&
+      !window.confirm(
+        'Los clips de la lista los eligió Gemini Web. ¿Reemplazarlos por el análisis local (títulos con las primeras palabras de la narración)?'
+      )
+    ) {
+      return;
+    }
     setIsAnalyzingViral(true);
     // A new analysis belongs to the documentary selected now (it is saved under it)
     if (sourceMode === 'doc' && selectedDocId) viralClipsDocIdRef.current = selectedDocId;
@@ -681,7 +704,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
       if (resp.ok) {
         const data = await resp.json();
         if (data.ok && Array.isArray(data.clips) && data.clips.length > 0) {
-          setViralClips(data.clips);
+          setViralClips(data.clips.map((c: ViralClipSuggestion) => ({ ...c, origin: 'local' as const })));
           setSelectedClipId(data.clips[0].id);
           setPlayheadSec(data.clips[0].startSec);
           if (data.autoCountReason) setActionToast(`🤖 Auto: ${data.autoCountReason}`);
@@ -737,7 +760,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
           hashtags: '#Historia #Documental #Reels #Viral #HuellasDeLaHumanidad',
         });
       }
-      const built = buildViralClipsFromList(list);
+      const built = buildViralClipsFromList(list, 'local');
       setViralClips(built);
       if (built[0]) {
         setSelectedClipId(built[0].id);
@@ -1476,6 +1499,40 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                 <span>{isWaitingGeminiClips ? 'Esperando a Gemini…' : 'Gemini Web (Gratis)'}</span>
               </button>
             </div>
+
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={() => setShowGeminiPaste((v) => !v)}
+                className="text-[11px] font-bold text-emerald-300/90 hover:text-emerald-200 underline underline-offset-2 cursor-pointer"
+              >
+                {showGeminiPaste ? 'Cerrar' : '📋 Pegar respuesta de Gemini (desde tu historial de Gemini)'}
+              </button>
+              {showGeminiPaste && (
+                <div className="space-y-2">
+                  <textarea
+                    value={geminiPasteText}
+                    onChange={(e) => setGeminiPasteText(e.target.value)}
+                    rows={4}
+                    placeholder='Pega aquí la respuesta completa de Gemini (el JSON que empieza con {"clips":[...'
+                    className="w-full bg-black/40 border border-emerald-500/30 rounded-lg p-2 text-[11px] text-slate-200 outline-none focus:border-emerald-400"
+                  />
+                  <button
+                    type="button"
+                    disabled={!geminiPasteText.trim() || transcriptSegments.length === 0}
+                    onClick={() => {
+                      geminiViralOrderRef.current = null;
+                      applyGeminiViralResponseRef.current(geminiPasteText);
+                      setGeminiPasteText('');
+                      setShowGeminiPaste(false);
+                    }}
+                    className="py-2 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-black text-xs cursor-pointer disabled:opacity-50"
+                  >
+                    Cargar clips de Gemini
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -1488,6 +1545,11 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                 <span className="text-xs font-black text-amber-300 uppercase">
                   🏆 Clips Detectados ({viralClips.length})
                 </span>
+                {viralClipsOrigin(viralClips) === 'gemini' ? (
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-900/70 text-emerald-300">Gemini</span>
+                ) : (
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-800 text-slate-300">Análisis local</span>
+                )}
                 <span className="text-[10px] text-slate-400">Score Viral</span>
               </div>
 
