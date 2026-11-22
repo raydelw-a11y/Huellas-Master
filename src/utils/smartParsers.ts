@@ -6626,13 +6626,12 @@ export function cleanAndNormalizeStage5ThumbnailPrompt(
           .map((ln, idx) => `Line ${idx + 1}: "${ln}"`)
           .join(' / ')}).`;
 
-  // 9:16: the official HD badge (Video 30) is stamped afterwards, so the AI keeps that corner empty
-  const rightLogoSentence = isVert
-    ? 'The top-right corner is left completely clean and empty, with no text, no badge and no logo in that corner.'
-    : 'In the top-right corner, a small discreet 5% scale logo displays "8K" in metallic gold.';
+  // The HD/8K badge and the official logo are stamped afterwards by the app, so the AI keeps both corners empty
+  const rightLogoSentence =
+    'The top-right corner is left completely clean and empty, with no text, no badge and no logo in that corner.';
 
   const leftLogoSentence =
-    'In the top-left corner, the official page logo from the provided reference image is cleanly integrated at 5% scale, strictly preserving and visibly rendering both the logo emblem and the exact text underneath it "Huellas de la Humanidad" without cropping, blurring, or omitting the sub-text.';
+    'The top-left corner is left completely clean and empty, with no text, no emblem and no logo in that corner.';
 
   const closingSentence =
     'The scene has cinematic documentary realism, 8k resolution, sharp focus, safe framing composition, no modern objects, no CGI look, no unintended floating text, no music.';

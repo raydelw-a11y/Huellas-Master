@@ -199,11 +199,11 @@ import {
   verifyAndStoreStudioAccessPassword,
 } from './utils/mediaBridge';
 import { useNoticeStack } from './utils/noticeStack';
-import { stampHdBadgeOn9x16Thumbnail, HD_BADGE_EMPTY_CORNER_CLAUSE } from './utils/hdBadge';
+import { stampBrandMarksOnThumbnail, HD_BADGE_EMPTY_CORNER_CLAUSE, LOGO_EMPTY_CORNER_CLAUSE } from './utils/hdBadge';
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '12:16 PM - 11/22/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '12:25 PM - 11/22/2026';
 
 // PRODUCTION LOCK: while promptConfig.PRODUCTION_LOCKED === 'YES' these fields never change (the server
 // enforces the same list in protectLockedDocs). Metadata, thumbnails, review marks and reframes stay editable.
@@ -910,12 +910,10 @@ function buildOrUpdateThumbnailPrompt(
     ? 'centered and middle-justified right in the middle center of the image'
     : 'positioned in the bottom-left area of the image';
   const textPositionClause = formatThumbnailOverlayClause(overlayText, positionOnlyPhrase);
-  // 9:16: the official HD badge (Video 30) is stamped afterwards, so the AI leaves that corner empty
-  const rightLogoClause = isVertical
-    ? HD_BADGE_EMPTY_CORNER_CLAUSE
-    : 'a small discreet 5% scale logo in the top-right corner displaying "8K" in metallic gold';
-  const leftLogoClause =
-    'official page logo cleanly integrated in the top-left corner from provided reference image at 5% scale, strictly preserving and visibly rendering both the logo emblem and the exact text underneath it "Huellas de la Humanidad" without cropping, blurring, or omitting the sub-text';
+  // The official logo (top-left) and the HD/8K badge (top-right) are stamped afterwards by the app
+  // (src/utils/hdBadge.ts), so the AI leaves both top corners empty
+  const rightLogoClause = HD_BADGE_EMPTY_CORNER_CLAUSE;
+  const leftLogoClause = LOGO_EMPTY_CORNER_CLAUSE;
   const closingClause =
     'portrayed by an anonymous historical reenactment actor in authentic period attire (no real public figures or prominent people), cinematic documentary realism, 8k resolution, sharp focus, safe framing composition, no modern objects, no CGI look, no unintended floating text, no music.';
 
@@ -1041,12 +1039,10 @@ function buildPsychologicalThumbnailVariantPrompt(
     : 'positioned in the bottom-left area of the image';
   const textPositionClause = formatThumbnailOverlayClause(effectiveRawOverlay, positionOnlyPhrase);
   const textPart = textPositionClause ? `${textPositionClause}, ` : '';
-  // 9:16: the official HD badge (Video 30) is stamped afterwards, so the AI leaves that corner empty
-  const rightLogoClause = isVertical
-    ? HD_BADGE_EMPTY_CORNER_CLAUSE
-    : 'a small discreet 5% scale logo in the top-right corner displaying "8K" in metallic gold';
-  const leftLogoClause =
-    'official page logo cleanly integrated in the top-left corner from provided reference image at 5% scale, strictly preserving and visibly rendering both the logo emblem and the exact text underneath it "Huellas de la Humanidad" without cropping, blurring, or omitting the sub-text';
+  // The official logo (top-left) and the HD/8K badge (top-right) are stamped afterwards by the app
+  // (src/utils/hdBadge.ts), so the AI leaves both top corners empty
+  const rightLogoClause = HD_BADGE_EMPTY_CORNER_CLAUSE;
+  const leftLogoClause = LOGO_EMPTY_CORNER_CLAUSE;
   const closingClause =
     'portrayed by an anonymous historical reenactment actor in authentic period attire (no real public figures or prominent people), cinematic documentary realism, 8k resolution, sharp focus, safe framing composition, no modern objects, no CGI look, no unintended floating text, no music.';
 
@@ -13516,7 +13512,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       const remoteFullCmd = {
         ...remoteTrigger,
         prompt: promptText,
-        ...(mobileLogoCompact ? { logoDataUrl: mobileLogoCompact } : {}),
+        // No logo reference for Gemini: the official logo is stamped on the thumbnail afterwards
         taskType: 'THUMBNAIL_IMAGE_GENERATION',
         enableCreateImage: true,
         standaloneNewChat: true,
@@ -13700,7 +13696,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       standaloneNewChat: true,
       noNotebook: true,
       prompt: promptText,
-      logoDataUrl: resolvedLogoDataUrl,
+      // No logo reference for Gemini: the official logo is stamped on the thumbnail afterwards
+      logoDataUrl: '',
       aspectRatio: currentOrientation === 'VERTICAL_9X16' ? '9:16' : '16:9',
       stageNumber: 505,
       taskType: 'THUMBNAIL_IMAGE_GENERATION',
@@ -14641,7 +14638,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                 standaloneNewChat: true,
                 noNotebook: true,
                 prompt: safeThumbPrompt,
-                logoDataUrl: retryLogo,
+                // No logo reference for Gemini: the official logo is stamped on the thumbnail afterwards
+                logoDataUrl: '',
                 aspectRatio: retryOrientation === 'VERTICAL_9X16' ? '9:16' : '16:9',
                 stageNumber: 505,
                 taskType: 'THUMBNAIL_IMAGE_GENERATION',
@@ -14774,11 +14772,12 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         const opt: 'A' | 'B' | 'C' =
           rawCapOpt === 'B' ? 'B' : rawCapOpt === 'C' ? 'C' : 'A';
         const rawCapturedDataUrl = msg.imageDataUrl || msg.imageUrl || '';
-        // 9:16 thumbnails always carry the official HD badge (the one from Video 30), stamped top-right
-        const dataUrl =
-          curViewingDoc?.thumbnailOrientation === 'VERTICAL_9X16'
-            ? await stampHdBadgeOn9x16Thumbnail(rawCapturedDataUrl)
-            : rawCapturedDataUrl;
+        // Every thumbnail gets the official logo (top-left) and the HD (9:16) / 8K (16:9) badge (top-right)
+        const dataUrl = await stampBrandMarksOnThumbnail(
+          rawCapturedDataUrl,
+          curViewingDoc?.thumbnailOrientation === 'VERTICAL_9X16' ? 'vertical' : 'horizontal',
+          officialLogoUrl
+        );
         const sourceLabel = 'Gemini Web';
         if (dataUrl) {
           setCapturedThumbnailsMap((prev) => ({ ...prev, [opt]: dataUrl }));

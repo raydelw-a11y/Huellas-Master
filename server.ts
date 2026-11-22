@@ -4986,14 +4986,10 @@ MANDATORILY APPLY ALL 5 CTR NEUROPSYCHOLOGY PRINCIPLES IN THE IMAGE PROMPT:
        ? `Because this is HORIZONTAL (16:9), the Spanish on-screen text "${overlayText}" MUST be positioned in the BOTTOM-LEFT: include verbatim 'bold high-contrast cinematic documentary typography text overlay positioned in the bottom-left area of the image reading "${overlayText}"'.`
        : `Because this is VERTICAL (9:16), the Spanish on-screen text "${overlayText}" MUST be CENTERED AND MIDDLE-JUSTIFIED IN THE MIDDLE OF THE IMAGE: include verbatim 'bold high-contrast cinematic documentary typography text overlay centered and middle-justified right in the middle center of the image reading "${overlayText}"'.`
    }
-6. 5% METALLIC GOLD TOP-RIGHT BADGE:
-   ${
-     isThumbHorizontal
-       ? `Because this is HORIZONTAL (16:9), the top-right badge is "8K": include verbatim 'a small discreet 5% scale logo in the top-right corner displaying "8K" in metallic gold'.`
-       : `Because this is VERTICAL (9:16), the official "HD" badge is added afterwards by our app: include verbatim 'the top-right corner left completely clean and empty with no text, no badge and no logo in that corner'.`
-   }
-7. 5% OFFICIAL TOP-LEFT BRAND LOGO (FROM REFERENCE IMAGE):
-   Include verbatim: 'official page logo cleanly integrated in the top-left corner from provided reference image at 5% scale, strictly preserving and visibly rendering both the logo emblem and the exact text underneath it "Huellas de la Humanidad" without cropping, blurring, or omitting the sub-text'.
+6. EMPTY TOP-RIGHT CORNER (our app stamps the official "${isThumbHorizontal ? '8K' : 'HD'}" badge there afterwards):
+   Include verbatim: 'the top-right corner left completely clean and empty with no text, no badge and no logo in that corner'.
+7. EMPTY TOP-LEFT CORNER (our app stamps the official page logo there afterwards):
+   Include verbatim: 'the top-left corner left completely clean and empty with no text, no emblem and no logo in that corner'.
 8. Close with: 'cinematic documentary realism, 8k resolution, sharp focus, safe framing composition, no modern objects, no CGI look, no unintended floating text, no music.'
 Deliver ONLY the ready-to-paste image generation prompt written 100% in English (preserving the exact quoted Spanish text overlay "${overlayText}" and brand name "Huellas de la Humanidad").`;
     } else if (stageNumber === 6) {
@@ -11434,35 +11430,57 @@ function resolveLocalDocumentaryFolder(
 }
 
 // Automatically save captured Gemini Web thumbnail into the documentary's 03_Miniaturas folder & sync project state
-// Official "HD" badge of the 9:16 thumbnails (cut from the Video 30 thumbnail, 3072x5504): box 430 px wide,
-// left edge x=2550, top y=165. Same geometry as src/utils/hdBadge.ts (client side).
-const HD_BADGE_9X16_FILE = path.join(process.cwd(), 'src', 'assets', 'brand', 'hd_badge_9x16.png');
-function stampHdBadgeOn9x16ThumbnailServer(img: Buffer): Buffer {
-  if (!fs.existsSync(HD_BADGE_9X16_FILE)) return img;
-  const tmpBase = path.join(os.tmpdir(), `huellas_hd_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`);
+// Brand marks stamped on every captured thumbnail (same geometry as src/utils/hdBadge.ts, measured on the
+// Video 30 thumbnails: 9:16 = 3072x5504, 16:9 = 5504x3072): official page logo top-left, HD (9:16) / 8K (16:9)
+// gold badge top-right. The AI prompt leaves both corners empty.
+const THUMB_BADGE_FILES = {
+  vertical: path.join(process.cwd(), 'src', 'assets', 'brand', 'hd_badge_9x16.png'),
+  horizontal: path.join(process.cwd(), 'src', 'assets', 'brand', 'k8_badge_16x9.png'),
+};
+const THUMB_BRAND_GEOMETRY = {
+  vertical: { refW: 3072, refH: 5504, logo: { x: 100, y: 110, w: 515 }, badge: { x: 2550, y: 165, w: 430 } },
+  horizontal: { refW: 5504, refH: 3072, logo: { x: 205, y: 112, w: 660 }, badge: { x: 5065, y: 80, w: 370 } },
+};
+function stampBrandMarksOnThumbnailServer(img: Buffer, orientation: 'vertical' | 'horizontal'): Buffer {
+  const g = THUMB_BRAND_GEOMETRY[orientation];
+  const badgeFile = THUMB_BADGE_FILES[orientation];
+  const tmpBase = path.join(os.tmpdir(), `huellas_brand_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`);
   const tmpIn = `${tmpBase}_in`;
+  const tmpLogo = `${tmpBase}_logo.png`;
   const tmpOut = `${tmpBase}_out.png`;
   try {
     fs.writeFileSync(tmpIn, img);
-    execFileSync(
-      getFfmpegPath(),
-      [
-        '-loglevel', 'error', '-y', '-i', tmpIn, '-i', HD_BADGE_9X16_FILE,
-        '-filter_complex',
-        // scale2ref: iw = the thumbnail width, main_w/main_h = the badge
-        "[1:v][0:v]scale2ref=w='iw*430/3072':h='ow*main_h/main_w':flags=lanczos[bd][base];[base][bd]overlay=x='main_w*2550/3072':y='main_h*165/5504'",
-        '-frames:v', '1', tmpOut,
-      ],
-      { stdio: 'ignore', timeout: 60000 }
-    );
+    const marks: Array<{ file: string; box: { x: number; y: number; w: number } }> = [];
+    const logoDataUrl = resolveOfficialLogoPayloadServer().logoDataUrl;
+    if (logoDataUrl && logoDataUrl.startsWith('data:image/')) {
+      fs.writeFileSync(tmpLogo, Buffer.from(logoDataUrl.replace(/^data:[^;]+;base64,/, ''), 'base64'));
+      marks.push({ file: tmpLogo, box: g.logo });
+    }
+    if (fs.existsSync(badgeFile)) marks.push({ file: badgeFile, box: g.badge });
+    if (marks.length === 0) return img;
+    const args = ['-loglevel', 'error', '-y', '-i', tmpIn];
+    marks.forEach((m) => args.push('-i', m.file));
+    // scale2ref: iw = the thumbnail width, main_w/main_h = the mark being scaled
+    const parts: string[] = [];
+    let cur = '[0:v]';
+    marks.forEach((m, i) => {
+      parts.push(
+        `[${i + 1}:v]${cur}scale2ref=w='iw*${m.box.w}/${g.refW}':h='ow*main_h/main_w':flags=lanczos[m${i}][b${i}]`
+      );
+      parts.push(`[b${i}][m${i}]overlay=x='main_w*${m.box.x}/${g.refW}':y='main_h*${m.box.y}/${g.refH}'[o${i}]`);
+      cur = `[o${i}]`;
+    });
+    args.push('-filter_complex', parts.join(';'), '-map', cur, '-frames:v', '1', tmpOut);
+    execFileSync(getFfmpegPath(), args, { stdio: 'ignore', timeout: 60000 });
     const out = fs.existsSync(tmpOut) ? fs.readFileSync(tmpOut) : null;
     return out && out.length > 1000 ? out : img;
   } catch (e) {
-    console.warn('[HDBadge] No se pudo poner el logo HD en la miniatura 9:16:', e);
+    console.warn('[BrandMarks] No se pudieron poner el logo y el sello en la miniatura:', e);
     return img;
   } finally {
-    try { if (fs.existsSync(tmpIn)) fs.unlinkSync(tmpIn); } catch {}
-    try { if (fs.existsSync(tmpOut)) fs.unlinkSync(tmpOut); } catch {}
+    for (const f of [tmpIn, tmpLogo, tmpOut]) {
+      try { if (fs.existsSync(f)) fs.unlinkSync(f); } catch {}
+    }
   }
 }
 
@@ -11492,8 +11510,8 @@ app.post('/api/gemini-web/save-captured-thumbnail', async (req, res) => {
 
     const isVerticalCapture =
       String(req.body?.orientation || doc?.thumbnailOrientation || '').toUpperCase() === 'VERTICAL_9X16';
-    // 9:16 thumbnails always carry the official HD badge (cut from the Video 30 thumbnail), stamped top-right
-    if (isVerticalCapture) imgBuffer = stampHdBadgeOn9x16ThumbnailServer(imgBuffer);
+    // Every thumbnail carries the official logo (top-left) and the HD (9:16) / 8K (16:9) badge (top-right)
+    imgBuffer = stampBrandMarksOnThumbnailServer(imgBuffer, isVerticalCapture ? 'vertical' : 'horizontal');
 
     const savedPaths: string[] = [];
     if (resolvedRoot) {
@@ -11526,7 +11544,7 @@ app.post('/api/gemini-web/save-captured-thumbnail', async (req, res) => {
     }
 
     // Build a crisp lightweight JPEG preview (<=42,000 chars) so GitHub Cloud Sync preserves `thumbnailImageUrl` & A/B/C map for mobile!
-    let previewDataUrl = isVerticalCapture ? `data:image/png;base64,${imgBuffer.toString('base64')}` : imageDataUrl;
+    let previewDataUrl = `data:image/png;base64,${imgBuffer.toString('base64')}`;
     if (previewDataUrl.length > 42000) {
       const tmpBase = path.join(os.tmpdir(), `huellas_thumb_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`);
       const tmpIn = `${tmpBase}.png`;

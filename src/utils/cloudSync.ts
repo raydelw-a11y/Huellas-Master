@@ -54,7 +54,7 @@ import {
   cleanMasterWavEmbeddedC2paInPlace,
   trimDuplicatedTakeInPcm,
 } from './geminiTtsAudioClean';
-import { HD_BADGE_EMPTY_CORNER_CLAUSE } from './hdBadge';
+import { HD_BADGE_EMPTY_CORNER_CLAUSE, LOGO_EMPTY_CORNER_CLAUSE } from './hdBadge';
 
 export const GITHUB_OWNER = 'raydelw-a11y';
 export const GITHUB_REPO = 'Huellas-Master';
@@ -3832,12 +3832,8 @@ Strictly FORBIDDEN to use generic fixed labels like "Face + Shock (13ms)", "Curi
        ? `Include verbatim: '${userOverlayEnglishClause}'`
        : `Include that option's Spanish overlay text using verbatim: 'bold high-contrast cinematic documentary typography text overlay ${overlayPositionPhrase} reading "SINGLE LINE"' (or if TEXTO_PANTALLA has 2 lines separated by " / ", use: 'bold high-contrast cinematic documentary typography text overlay ${overlayPositionPhrase} stacked across 2 exact separate lines (Line 1: "FIRST" / Line 2: "SECOND")')`
    }
-   - Include verbatim: '${
-     isThumbHorizontal
-       ? `a small discreet 5% scale logo in the top-right corner displaying "${badgeLabel}" in metallic gold`
-       : HD_BADGE_EMPTY_CORNER_CLAUSE
-   }'
-   - Include verbatim: 'official page logo cleanly integrated in the top-left corner from provided reference image at 5% scale, strictly preserving and visibly rendering both the logo emblem and the exact text underneath it "Huellas de la Humanidad" without cropping, blurring, or omitting the sub-text'
+   - Include verbatim: '${HD_BADGE_EMPTY_CORNER_CLAUSE}' (our app stamps the official "${badgeLabel}" badge there afterwards)
+   - Include verbatim: '${LOGO_EMPTY_CORNER_CLAUSE}' (our app stamps the official page logo there afterwards)
    - ANTI-FILTER & ZERO PERSON NAMES SHIELD (MANDATORY): Strictly FORBIDDEN to write any real or fictional person's given name, surname, full name, alias, title + name, possessive (e.g., write "the inventor's", NEVER "Edison's"), or @Tag anywhere inside "PROMPT:". Always describe the character solely by physical traits, approximate adult age, historical role, and period attire as an anonymous historical reenactment actor ("portrayed by an anonymous historical reenactment actor in authentic period attire (no real public figures or prominent people)").
    - End verbatim with: 'cinematic documentary realism, 8k resolution, sharp focus, safe framing composition, no modern objects, no CGI look, no unintended floating text, no music.'
 
