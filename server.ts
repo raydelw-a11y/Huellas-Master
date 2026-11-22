@@ -23308,6 +23308,8 @@ async function renderViralClipMp4Internal(params: {
   docId?: string;
   /** Position of the clip in the documentary's list (1-based): used in the file name */
   clipNumber?: number;
+  /** Called with 0–100 while ffmpeg encodes */
+  onProgress?: (pct: number) => void;
 }): Promise<{
   outputFilePath: string;
   savedInDocFolderPath?: string;
@@ -23493,10 +23495,11 @@ async function renderViralClipMp4Internal(params: {
     };[vc]${reframeVf}[vout]`;
 
     await new Promise<void>((resolve, reject) => {
-      execFile(
-        ffmpegBin,
-        [
+      const args = [
           '-y',
+          '-progress',
+          'pipe:1',
+          '-nostats',
           ...inputArgs,
           '-filter_complex',
           complexFilter,
@@ -23517,13 +23520,38 @@ async function renderViralClipMp4Internal(params: {
           '-movflags',
           '+faststart',
           outputFilePath,
-        ],
-        { timeout: 1800000 },
-        (err, _stdout, stderr) => {
-          if (err) return reject(new Error(stderr || err.message));
-          resolve();
+        ];
+      // Progress: ffmpeg writes "out_time_us=…" lines to stdout (-progress pipe:1)
+      const proc = spawn(ffmpegBin, args);
+      let stderrTail = '';
+      let lastPct = -1;
+      const killTimer = setTimeout(() => {
+        try {
+          proc.kill('SIGKILL');
+        } catch {}
+      }, 1800000);
+      proc.stdout.on('data', (chunk: Buffer) => {
+        const m = String(chunk).match(/out_time_(?:us|ms)=(\d+)/g);
+        if (!m || !params.onProgress) return;
+        const us = Number(m[m.length - 1].split('=')[1]);
+        const pct = Math.max(0, Math.min(99, Math.floor((us / 1e6 / Math.max(1, totalClipDurSec)) * 100)));
+        if (pct !== lastPct) {
+          lastPct = pct;
+          params.onProgress(pct);
         }
-      );
+      });
+      proc.stderr.on('data', (chunk: Buffer) => {
+        stderrTail = (stderrTail + String(chunk)).slice(-4000);
+      });
+      proc.on('error', (err) => {
+        clearTimeout(killTimer);
+        reject(err);
+      });
+      proc.on('close', (code) => {
+        clearTimeout(killTimer);
+        if (code === 0) resolve();
+        else reject(new Error(stderrTail || `ffmpeg terminó con código ${code}`));
+      });
     });
   } finally {
     try {
@@ -23559,31 +23587,113 @@ async function renderViralClipMp4Internal(params: {
 
 // Renders run as background jobs when the page asks for it (async: true): through the Cloudflare tunnel
 // (iPhone) a request that stays open more than 100 s is cut, and a 2K render from the 8K master takes longer.
-const viralRenderJobs = new Map<
-  string,
-  { status: 'running' | 'done' | 'error'; startedAt: number; result?: any; error?: string }
->();
-app.post('/api/viral-clips/render', async (req, res) => {
-  if (req.body?.async) {
-    const jobId = `vr-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    const job: { status: 'running' | 'done' | 'error'; startedAt: number; result?: any; error?: string } = {
-      status: 'running',
-      startedAt: Date.now(),
-    };
-    viralRenderJobs.set(jobId, job);
-    for (const [k, j] of viralRenderJobs) {
-      if (j.status !== 'running' && Date.now() - j.startedAt > 6 * 3600 * 1000) viralRenderJobs.delete(k);
-    }
-    renderViralClipMp4Internal(req.body || {})
+// Several clips can be sent at once: they wait in a queue and at most VIRAL_RENDER_PARALLEL encode together
+// (each one decodes the 8K master). The page lists them under "Guardar Clip ##" with their progress.
+type ViralRenderJob = {
+  id: string;
+  docId: string;
+  clipId: string;
+  clipNumber: number;
+  title: string;
+  status: 'queued' | 'running' | 'done' | 'error';
+  progressPct: number;
+  createdAt: number;
+  startedAt: number;
+  finishedAt: number;
+  result?: any;
+  error?: string;
+  body: any;
+};
+const VIRAL_RENDER_PARALLEL = 2;
+const viralRenderJobs = new Map<string, ViralRenderJob>();
+function pumpViralRenderQueue() {
+  const running = [...viralRenderJobs.values()].filter((j) => j.status === 'running').length;
+  let free = VIRAL_RENDER_PARALLEL - running;
+  const queued = [...viralRenderJobs.values()]
+    .filter((j) => j.status === 'queued')
+    .sort((x, y) => x.createdAt - y.createdAt);
+  for (const job of queued) {
+    if (free <= 0) break;
+    free--;
+    job.status = 'running';
+    job.startedAt = Date.now();
+    renderViralClipMp4Internal({
+      ...(job.body || {}),
+      onProgress: (pct: number) => {
+        job.progressPct = pct;
+      },
+    })
       .then((result) => {
         job.status = 'done';
+        job.progressPct = 100;
         job.result = result;
       })
       .catch((err: any) => {
         console.error('[ViralClips] render error:', err);
         job.status = 'error';
-        job.error = err?.message || 'Error al renderizar el clip viral.';
+        job.error = String(err?.message || 'Error al renderizar el clip viral.').slice(-600);
+      })
+      .finally(() => {
+        job.finishedAt = Date.now();
+        job.body = undefined;
+        pumpViralRenderQueue();
       });
+  }
+}
+function publicViralRenderJob(j: ViralRenderJob) {
+  const now = Date.now();
+  return {
+    jobId: j.id,
+    docId: j.docId,
+    clipId: j.clipId,
+    clipNumber: j.clipNumber,
+    title: j.title,
+    status: j.status,
+    progressPct: j.progressPct,
+    elapsedSec: j.startedAt ? Math.round(((j.finishedAt || now) - j.startedAt) / 1000) : 0,
+    finishedAt: j.finishedAt || 0,
+    fileName: j.result?.publicServeUrl ? String(j.result.publicServeUrl).split('/').pop() : '',
+    publicServeUrl: j.result?.publicServeUrl || '',
+    savedInDocFolderPath: j.result?.savedInDocFolderPath || '',
+    durationSec: j.result?.durationSec || 0,
+    error: j.error || '',
+  };
+}
+app.post('/api/viral-clips/render', async (req, res) => {
+  if (req.body?.async) {
+    for (const [k, j] of viralRenderJobs) {
+      if ((j.status === 'done' || j.status === 'error') && Date.now() - j.createdAt > 12 * 3600 * 1000) {
+        viralRenderJobs.delete(k);
+      }
+    }
+    const body = { ...(req.body || {}) };
+    delete body.async;
+    const docId = String(body.docId || '');
+    const clipId = String(body.clipId || '');
+    const clipNumber = Math.max(0, Math.round(Number(body.clipNumber) || 0));
+    // The same clip already waiting or encoding: do not start it twice (both would write the same file)
+    const dup = [...viralRenderJobs.values()].find(
+      (j) =>
+        (j.status === 'queued' || j.status === 'running') &&
+        j.docId === docId &&
+        ((clipId && j.clipId === clipId) || (!clipId && clipNumber > 0 && j.clipNumber === clipNumber))
+    );
+    if (dup) return res.json({ ok: true, jobId: dup.id, alreadyQueued: true });
+    const jobId = `vr-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    viralRenderJobs.set(jobId, {
+      id: jobId,
+      docId,
+      clipId,
+      clipNumber,
+      title: String(body.hookBannerText || body.clipTitle || '').slice(0, 120),
+      status: 'queued',
+      progressPct: 0,
+      createdAt: Date.now(),
+      startedAt: 0,
+      finishedAt: 0,
+      body,
+    });
+    pumpViralRenderQueue();
     return res.json({ ok: true, jobId });
   }
   try {
@@ -23604,13 +23714,24 @@ app.post('/api/viral-clips/render', async (req, res) => {
 app.get('/api/viral-clips/render-job', (req, res) => {
   const job = viralRenderJobs.get(String(req.query.jobId || ''));
   if (!job) {
-    return res.status(404).json({ ok: false, error: 'No se encontró el render (¿se reinició la Mac?). Vuelve a pulsar Renderizar.' });
+    return res.status(404).json({ ok: false, error: 'No se encontró el render (¿se reinició la Mac?). Vuelve a pulsar Guardar Clip.' });
   }
-  if (job.status === 'running') {
-    return res.json({ ok: true, running: true, elapsedSec: Math.round((Date.now() - job.startedAt) / 1000) });
+  if (job.status === 'queued' || job.status === 'running') {
+    return res.json({ ok: true, running: true, ...publicViralRenderJob(job) });
   }
   if (job.status === 'error') return res.json({ ok: false, error: job.error });
   return res.json({ ok: true, done: true, ...job.result });
+});
+
+// Every export of a documentary (queued, encoding, finished or failed) for the list under "Guardar Clip ##"
+app.get('/api/viral-clips/render-jobs', (req, res) => {
+  const docId = String(req.query.docId || '');
+  const jobs = [...viralRenderJobs.values()]
+    .filter((j) => !docId || j.docId === docId)
+    .sort((x, y) => y.createdAt - x.createdAt)
+    .slice(0, 30)
+    .map(publicViralRenderJob);
+  res.json({ ok: true, jobs });
 });
 
 // ============================================================================

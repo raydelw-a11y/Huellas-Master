@@ -299,7 +299,6 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [playheadSec, setPlayheadSec] = useState<number>(0);
-  const [isRenderingClipId, setIsRenderingClipId] = useState<string>('');
   const [actionToast, setActionToast] = useState<string>('');
 
   // 6. Instagram settings kept only for the analyze request (no Instagram UI: clips are published by hand)
@@ -1214,27 +1213,126 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
     return null;
   }, [clipCuts, clipLocalWords, captionSec, wordsPerLine]);
 
-  // Render Clip to 9:16 MP4 (Reel)
+  // Exports ("Guardar Clip ##"): each click queues a render on the Mac; several can run at once (the Mac
+  // encodes two at a time, the rest wait). The list under the button comes from the Mac, so it survives a
+  // reload and is the same from the iPhone.
+  type ViralRenderJobRow = {
+    jobId: string;
+    docId: string;
+    clipId: string;
+    clipNumber: number;
+    title: string;
+    status: 'queued' | 'running' | 'done' | 'error';
+    progressPct: number;
+    elapsedSec: number;
+    finishedAt: number;
+    fileName: string;
+    publicServeUrl: string;
+    savedInDocFolderPath: string;
+    durationSec: number;
+    error: string;
+  };
+  const [renderJobs, setRenderJobs] = useState<ViralRenderJobRow[]>([]);
+  const renderJobsDocId = sourceMode === 'doc' ? selectedDocId : '';
+  const seenFinishedJobsRef = useRef<Set<string>>(new Set());
+  const firstJobsLoadRef = useRef<boolean>(true);
+  const [renderJobsTick, setRenderJobsTick] = useState<number>(0);
+  const hasActiveRenderJobs = renderJobs.some((j) => j.status === 'queued' || j.status === 'running');
+  useEffect(() => {
+    firstJobsLoadRef.current = true;
+    seenFinishedJobsRef.current = new Set();
+    setRenderJobs([]);
+  }, [renderJobsDocId]);
+  useEffect(() => {
+    let cancelled = false;
+    let timer: number | null = null;
+    const load = async () => {
+      try {
+        const r = await fetch(viralApi(`/api/viral-clips/render-jobs?docId=${encodeURIComponent(renderJobsDocId)}`), {
+          cache: 'no-store',
+        });
+        const data = r.ok ? await r.json() : null;
+        if (cancelled || !data?.ok || !Array.isArray(data.jobs)) return;
+        const jobs: ViralRenderJobRow[] = data.jobs;
+        setRenderJobs(jobs);
+        const justFinished = jobs.filter(
+          (j) => (j.status === 'done' || j.status === 'error') && !seenFinishedJobsRef.current.has(j.jobId)
+        );
+        justFinished.forEach((j) => seenFinishedJobsRef.current.add(j.jobId));
+        // On the first load only remember what was already finished (no toasts / downloads again)
+        if (firstJobsLoadRef.current) {
+          firstJobsLoadRef.current = false;
+          const done = jobs.filter((j) => j.status === 'done' && j.clipId);
+          if (done.length > 0) {
+            setViralClips((prev) =>
+              prev.map((c) => {
+                const d = done.find((j) => j.clipId === c.id);
+                return d && !c.renderedReelUrl ? { ...c, renderedReelUrl: d.publicServeUrl } : c;
+              })
+            );
+          }
+          return;
+        }
+        for (const j of justFinished) {
+          if (j.status === 'done') {
+            setViralClips((prev) =>
+              prev.map((c) =>
+                c.id === j.clipId
+                  ? {
+                      ...c,
+                      renderedReelUrl: j.publicServeUrl,
+                      savedDocFolderPath: j.savedInDocFolderPath || c.savedDocFolderPath,
+                    }
+                  : c
+              )
+            );
+            // Without a documentary folder (uploaded MP4 / YouTube link) the file is downloaded on the Mac
+            if (!j.savedInDocFolderPath && j.publicServeUrl && !isRemoteViralDevice) {
+              const a = document.createElement('a');
+              a.href = viralMedia(j.publicServeUrl);
+              a.download = j.fileName || 'Reel_9x16.mp4';
+              document.body.appendChild(a);
+              a.click();
+              a.remove();
+            }
+            setActionToast(`✅ Clip ${String(j.clipNumber).padStart(2, '0')} guardado: ${j.fileName}`);
+          } else {
+            setActionToast(`⚠️ El Clip ${String(j.clipNumber).padStart(2, '0')} no se pudo guardar.`);
+          }
+        }
+      } catch {}
+    };
+    const loop = async () => {
+      await load();
+      if (!cancelled) timer = window.setTimeout(loop, hasActiveRenderJobs ? 3000 : 20000);
+    };
+    void loop();
+    return () => {
+      cancelled = true;
+      if (timer) window.clearTimeout(timer);
+    };
+  }, [renderJobsDocId, hasActiveRenderJobs, renderJobsTick]);
+
   const handleRenderViralClip = async (clip: ViralClipSuggestion) => {
     if (!sourceLocalPath) {
       alert(
-        'Para renderizar el MP4, primero exporta el video del documental en 06_Video_Final, o sube un archivo MP4, o usa un enlace de YouTube.'
+        'Para guardar el clip, primero exporta el video del documental en 06_Video_Final, o sube un archivo MP4, o usa un enlace de YouTube.'
       );
       return;
     }
-    setIsRenderingClipId(`${clip.id}_reel`);
-    setActionToast(`🎬 Renderizando Reel 9:16 "${clip.title}" con Captions OpusClip...`);
+    const clipNumber = Math.max(1, viralClips.findIndex((c) => c.id === clip.id) + 1);
     try {
       const resp = await fetch(viralApi('/api/viral-clips/render'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           sourceVideoPath: sourceLocalPath,
-          docId: sourceMode === 'doc' ? selectedDocId : '',
+          docId: renderJobsDocId,
+          clipId: clip.id,
           docRootFolder,
           clipTitle: clip.title,
           // Its place in the list (#1, #2…): the file is named Video_##_Viral_Clip_##_<title>
-          clipNumber: Math.max(1, viralClips.findIndex((c) => c.id === clip.id) + 1),
+          clipNumber,
           startSec: clip.startSec,
           endSec: clip.endSec,
           segments: clip.segments,
@@ -1247,73 +1345,22 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
           words: clip.words,
           hookBannerText: clip.hookBannerText,
           showHookBanner,
-          // Background job + polling: through the tunnel (iPhone) a request open more than 100 s is cut
+          // Background job in the Mac's queue (through the tunnel a request open more than 100 s is cut)
           async: true,
         }),
       });
       const started = await resp.json().catch(() => ({}));
       if (!resp.ok || !started.ok || !started.jobId) {
-        throw new Error(started.error || 'No se pudo iniciar el render del clip.');
-      }
-      let data: any = null;
-      for (;;) {
-        await new Promise((r) => setTimeout(r, 3000));
-        let st: any = null;
-        try {
-          const sr = await fetch(
-            viralApi(`/api/viral-clips/render-job?jobId=${encodeURIComponent(String(started.jobId))}`)
-          );
-          st = await sr.json().catch(() => null);
-          if (sr.status === 404) throw new Error(st?.error || 'No se encontró el render.');
-        } catch (pollErr: any) {
-          if (/no se encontr/i.test(String(pollErr?.message || ''))) throw pollErr;
-          continue; // momentary network hiccup: keep waiting
-        }
-        if (!st) continue;
-        if (st.running) {
-          setActionToast(`🎬 Renderizando Reel 9:16 "${clip.title}"... ${st.elapsedSec || 0}s`);
-          continue;
-        }
-        if (!st.ok) throw new Error(st.error || 'Error en FFmpeg al renderizar el clip.');
-        data = st;
-        break;
-      }
-
-      setViralClips((prev) =>
-        prev.map((c) =>
-          c.id === clip.id
-            ? {
-                ...c,
-                renderedReelUrl: data.publicServeUrl,
-                savedDocFolderPath: data.savedInDocFolderPath || c.savedDocFolderPath,
-              }
-            : c
-        )
-      );
-
-      // Same as the video editor: one button renders and saves. With a documentary the file goes to its
-      // 07_Viral_Clips folder; without one (uploaded MP4 / YouTube link) it is saved as a download.
-      // Downloads always land on the Mac (the iPhone reaches the Mac's files remotely)
-      if (!data.savedInDocFolderPath && data.publicServeUrl && !isRemoteViralDevice) {
-        const a = document.createElement('a');
-        a.href = viralMedia(data.publicServeUrl);
-        a.download = String(data.publicServeUrl).split('/').pop() || 'Reel_9x16.mp4';
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
+        throw new Error(started.error || 'No se pudo poner el clip en la cola.');
       }
       setActionToast(
-        data.savedInDocFolderPath
-          ? `✅ Renderizado y guardado en 07_Viral_Clips: ${data.savedInDocFolderPath.split('/').pop()}`
-          : isRemoteViralDevice
-          ? `✅ Renderizado y guardado en la Mac (data/viral-clips/exports, ${formatMMSS(data.durationSec)})`
-          : `✅ Renderizado y guardado en Descargas (${formatMMSS(data.durationSec)})`
+        started.alreadyQueued
+          ? `⏳ El Clip ${String(clipNumber).padStart(2, '0')} ya se está guardando.`
+          : `⏳ Clip ${String(clipNumber).padStart(2, '0')} en la cola de exportación.`
       );
+      setRenderJobsTick((t) => t + 1);
     } catch (err: any) {
-      alert('Error al renderizar clip: ' + (err?.message || 'Error desconocido'));
-      setActionToast('');
-    } finally {
-      setIsRenderingClipId('');
+      alert('Error al guardar el clip: ' + (err?.message || 'Error desconocido'));
     }
   };
 
@@ -2178,21 +2225,81 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
 
                 {/* Local Render Buttons */}
                 <div className="grid grid-cols-1 gap-2">
-                  <button
-                    type="button"
-                    disabled={Boolean(isRenderingClipId)}
-                    onClick={() => handleRenderViralClip(selectedClip)}
-                    className="py-2.5 px-3 rounded-xl bg-teal-400 hover:bg-teal-300 text-slate-950 font-black text-xs cursor-pointer flex items-center justify-center gap-1.5 shadow disabled:opacity-50"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>
-                      {isRenderingClipId === `${selectedClip.id}_reel`
-                        ? 'Renderizando y guardando Reel 9:16...'
-                        : sourceMode === 'doc' && docRootFolder
-                        ? '🚀 Renderizar y Guardar (07_Viral_Clips)'
-                        : '🚀 Renderizar y Guardar'}
-                    </span>
-                  </button>
+                  {(() => {
+                    const clipNo = String(Math.max(1, viralClips.findIndex((c) => c.id === selectedClip.id) + 1)).padStart(2, '0');
+                    const myJob = renderJobs.find(
+                      (j) => j.clipId === selectedClip.id && (j.status === 'queued' || j.status === 'running')
+                    );
+                    return (
+                      <button
+                        type="button"
+                        disabled={Boolean(myJob)}
+                        onClick={() => handleRenderViralClip(selectedClip)}
+                        className="py-2.5 px-3 rounded-xl bg-teal-400 hover:bg-teal-300 text-slate-950 font-black text-xs cursor-pointer flex items-center justify-center gap-1.5 shadow disabled:opacity-50"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        <span>
+                          {myJob
+                            ? myJob.status === 'queued'
+                              ? `⏳ Clip ${clipNo} en cola...`
+                              : `Guardando Clip ${clipNo}... ${myJob.progressPct}%`
+                            : `💾 Guardar Clip ${clipNo}`}
+                        </span>
+                      </button>
+                    );
+                  })()}
+
+                  {/* Export status: every clip sent to the Mac's queue for this documentary */}
+                  {renderJobs.length > 0 && (
+                    <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-2 space-y-1.5">
+                      <div className="text-[10px] font-black uppercase text-slate-400">Estado de las exportaciones</div>
+                      {renderJobs.map((j) => (
+                        <div key={j.jobId} className="text-[11px] space-y-0.5">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-bold text-slate-200 truncate">
+                              Clip {String(j.clipNumber).padStart(2, '0')}
+                              {j.title ? ` · ${j.title}` : ''}
+                            </span>
+                            <span
+                              className={`shrink-0 font-bold ${
+                                j.status === 'done'
+                                  ? 'text-emerald-400'
+                                  : j.status === 'error'
+                                  ? 'text-rose-400'
+                                  : j.status === 'running'
+                                  ? 'text-amber-300'
+                                  : 'text-slate-400'
+                              }`}
+                            >
+                              {j.status === 'queued'
+                                ? '⏳ En cola'
+                                : j.status === 'running'
+                                ? `⚙️ ${j.progressPct}% · ${formatMMSS(j.elapsedSec)}`
+                                : j.status === 'done'
+                                ? `✅ Guardado · ${formatMMSS(j.elapsedSec)}`
+                                : '⚠️ Error'}
+                            </span>
+                          </div>
+                          {j.status === 'running' && (
+                            <div className="h-1 rounded bg-slate-800 overflow-hidden">
+                              <div className="h-full bg-amber-400 transition-all" style={{ width: `${j.progressPct}%` }} />
+                            </div>
+                          )}
+                          {j.status === 'done' && j.fileName && (
+                            <div className="text-[10px] text-slate-500 font-mono truncate" title={j.savedInDocFolderPath || j.fileName}>
+                              {j.savedInDocFolderPath ? '07_Viral_Clips/' : ''}
+                              {j.fileName}
+                            </div>
+                          )}
+                          {j.status === 'error' && (
+                            <div className="text-[10px] text-rose-300/80 truncate" title={j.error}>
+                              {j.error.split('\n').filter(Boolean).slice(-1)[0] || 'Error al guardar el clip'}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
