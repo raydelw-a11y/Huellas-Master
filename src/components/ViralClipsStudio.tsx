@@ -96,6 +96,25 @@ export interface ViralClipSuggestion {
   origin?: 'gemini' | 'local';
 }
 
+/** Each clip's description carries exactly 5 hashtags (extra ones are dropped, duplicates removed). */
+function limitToFiveHashtags(raw: string): string {
+  const tags = String(raw || '')
+    .split(/[\s,]+/)
+    .map((t) => t.trim())
+    .filter(Boolean)
+    .map((t) => (t.startsWith('#') ? t : `#${t}`));
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const t of tags) {
+    const k = t.toLowerCase();
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(t);
+    if (out.length >= 5) break;
+  }
+  return out.join(' ');
+}
+
 /** Where a clip list came from: Gemini Web, or the local engine (ids `viral-clip-…` come from the Mac's engine). */
 function viralClipsOrigin(clips: ViralClipSuggestion[]): 'gemini' | 'local' | '' {
   if (clips.length === 0) return '';
@@ -232,6 +251,18 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
   const [wordsPerLine, setWordsPerLine] = useState<number>(3);
   const [fontSizeScale, setFontSizeScale] = useState<number>(1.0);
   const [captionYPercent, setCaptionYPercent] = useState<number>(75);
+  // The documentary's 9:16 look (logo + captions), mirrored by the preview and used by the render
+  const [look916, setLook916] = useState<{
+    logoWPct: number;
+    logoXPct: number;
+    logoYPct: number;
+    logoOpacity: number;
+    captionBottomPct: number;
+    captionEmOfHeight: number;
+  } | null>(null);
+  const [officialLogoDataUrl, setOfficialLogoDataUrl] = useState<string>('');
+  const previewFrameRef = useRef<HTMLDivElement | null>(null);
+  const [previewFrameH, setPreviewFrameH] = useState<number>(551);
   const [showHookBanner, setShowHookBanner] = useState<boolean>(true);
   const [previewStoryCta, setPreviewStoryCta] = useState<boolean>(false);
   const [storyPublishMode, setStoryPublishMode] = useState<'story_teaser' | 'story_full'>(
@@ -575,7 +606,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
         hookBannerText: String(c.hookBannerText || c.title || '').toUpperCase(),
         storyTeaserDurationSec: 20,
         socialCaption: c.socialCaption || '',
-        hashtags: c.hashtags || '#Historia #Documental #Reels',
+        hashtags: limitToFiveHashtags(c.hashtags || '#Historia #Documental #Reels #EdadMedia #Curiosidades'),
         transcriptExcerpt: overlapping.map((o) => o.text).join(' '),
         words,
         reframeMode: 'center_fill',
@@ -873,6 +904,40 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
   }, [sourceLocalPath, cloudOnlyMaster]);
   const playerVideoUrl = previewProxyUrl || sourceVideoUrl;
 
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const lr = await fetch(
+          viralApi(`/api/viral-clips/look-916?docId=${encodeURIComponent(sourceMode === 'doc' ? selectedDocId : '')}`)
+        );
+        const look = lr.ok ? await lr.json() : null;
+        if (!cancelled && look?.ok) {
+          setLook916(look);
+          // Captions sit where the documentary's 9:16 captions sit (their bottom edge)
+          setCaptionYPercent(Math.round(100 - Number(look.captionBottomPct || 25)));
+        }
+      } catch {}
+      try {
+        if (!officialLogoDataUrl) {
+          const gr = await fetch(viralApi('/api/assets/official-logo'));
+          const g = gr.ok ? await gr.json() : null;
+          if (!cancelled && g?.logoDataUrl) setOfficialLogoDataUrl(String(g.logoDataUrl));
+        }
+      } catch {}
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [sourceMode, selectedDocId]);
+  useEffect(() => {
+    const el = previewFrameRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(() => setPreviewFrameH(el.clientHeight || 551));
+    ro.observe(el);
+    return () => ro.disconnect();
+  });
+
   // Constrain playback to [selectedClip.startSec, selectedClip.endSec]
   const handleTimeUpdate = () => {
     const vid = videoRef.current;
@@ -983,6 +1048,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           sourceVideoPath: sourceLocalPath,
+          docId: sourceMode === 'doc' ? selectedDocId : '',
           docRootFolder,
           clipTitle: clip.title,
           startSec: clip.startSec,
@@ -1066,12 +1132,14 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
         body: JSON.stringify({
           publishMode,
           storyMode: storyPublishMode,
-          caption: clip.socialCaption,
-          hashtags: clip.hashtags,
+          // Instagram description: the clip's title, its own description and its 5 hashtags
+          caption: [clip.title, clip.socialCaption].map((t) => String(t || '').trim()).filter(Boolean).join('\n\n'),
+          hashtags: limitToFiveHashtags(clip.hashtags),
           autoDmDestinationUrl: igConfig.autoDm.destinationUrl,
           autoDmKeyword: igConfig.autoDm.keyword,
           renderParams: {
             sourceVideoPath: sourceLocalPath,
+          docId: sourceMode === 'doc' ? selectedDocId : '',
             docRootFolder,
             clipTitle: clip.title,
             startSec: clip.startSec,
@@ -1480,22 +1548,6 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
             <div className="flex flex-col sm:flex-row gap-2">
               <button
                 type="button"
-                onClick={handleAnalyzeViralClips}
-                disabled={isAnalyzingViral || transcriptSegments.length === 0}
-                className="flex-1 py-2.5 px-4 rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-400 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black text-xs cursor-pointer shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 disabled:opacity-50 transition"
-              >
-                <Sparkles className={`w-4 h-4 ${isAnalyzingViral ? 'animate-spin' : ''}`} />
-                <span>
-                  {isAnalyzingViral
-                    ? 'Analizando Retención y Puntaje Viral...'
-                    : desiredClipCount > 0
-                    ? `⚡ Extraer Top ${desiredClipCount} Viral Clips (100% Gratis)`
-                    : '⚡ Extraer Viral Clips • Auto (100% Gratis)'}
-                </span>
-              </button>
-
-              <button
-                type="button"
                 disabled={transcriptSegments.length === 0}
                 onClick={() => {
                   const minDur =
@@ -1510,7 +1562,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                         )}s): ${s.text}`
                     )
                     .join(' // ');
-                  const webPrompt = `Act as OpusClip Pro and an expert viral short-form video editor. From the following timestamped Spanish transcript of "${sourceTitle}", ${desiredClipCount > 0 ? `select the ${desiredClipCount} most viral standalone segments` : 'decide yourself how many standalone segments this transcript genuinely supports with strong viral potential (at most about one per 75 seconds of narration, so a longer documentary can give more, never fewer than 3, and never a weak one just to reach a number), and select them'} lasting between ${minDur}s and ${maxDur}s. CRITICAL OUTPUT LANGUAGE REQUIREMENT: Return ONLY a valid JSON object (no markdown commentary) where all audience-facing text fields ("title", "viralityReason", "hookBannerText", "socialCaption", "hashtags") are written in Neutral Spanish: {"clips":[{"title":"...","viralityScore":96,"viralityReason":"...","structureMode":"hook_teaser","startSec":0,"endSec":42,"hookTeaserStartSec":10,"hookTeaserEndSec":14,"hookBannerText":"...","socialCaption":"...","hashtags":"#Historia #Documental #Reels"}]}. TIMESTAMPED TRANSCRIPT: ${formattedTranscript}`;
+                  const webPrompt = `Act as OpusClip Pro and an expert viral short-form video editor. From the following timestamped Spanish transcript of "${sourceTitle}", ${desiredClipCount > 0 ? `select the ${desiredClipCount} most viral standalone segments` : 'decide yourself how many standalone segments this transcript genuinely supports with strong viral potential (at most about one per 75 seconds of narration, so a longer documentary can give more, never fewer than 3, and never a weak one just to reach a number), and select them'} lasting between ${minDur}s and ${maxDur}s. CRITICAL OUTPUT LANGUAGE REQUIREMENT: Return ONLY a valid JSON object (no markdown commentary) where all audience-facing text fields ("title", "viralityReason", "hookBannerText", "socialCaption", "hashtags") are written in Neutral Spanish: {"clips":[{"title":"...","viralityScore":96,"viralityReason":"...","structureMode":"hook_teaser","startSec":0,"endSec":42,"hookTeaserStartSec":10,"hookTeaserEndSec":14,"hookBannerText":"...","socialCaption":"...","hashtags":"#Uno #Dos #Tres #Cuatro #Cinco"}]}. EVERY clip has its OWN publication text, written for that clip only: "title" is a short catchy headline (max 60 characters) that appears first in the Instagram description, "socialCaption" is a 1-3 sentence description of what that clip shows, and "hashtags" holds EXACTLY 5 hashtags specific to that clip (no generic repeats across all clips, never more than 5). TIMESTAMPED TRANSCRIPT: ${formattedTranscript}`;
                   const geminiViralPayload = {
                     action: 'SEND_PROMPT',
                     prompt: webPrompt,
@@ -1543,7 +1595,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                     '🌐 Enviado a Gemini Web. Cuando responda, los clips aparecerán aquí solos.'
                   );
                 }}
-                className="py-2.5 px-3 rounded-xl bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-500/40 text-emerald-300 font-bold text-xs cursor-pointer flex items-center justify-center gap-1.5 shrink-0 disabled:opacity-50 transition"
+                className="flex-1 py-2.5 px-3 rounded-xl bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-500/40 text-emerald-300 font-bold text-xs cursor-pointer flex items-center justify-center gap-1.5 shrink-0 disabled:opacity-50 transition"
                 title="Enviar la transcripción a tu pestaña abierta de Gemini Web (100% Gratis vía Extensión)"
               >
                 <Globe className={`w-3.5 h-3.5 ${isWaitingGeminiClips ? 'animate-spin' : ''}`} />
@@ -1627,19 +1679,27 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
             <div className="lg:col-span-4 bg-[#14110d] border border-amber-500/25 rounded-2xl p-4 flex flex-col items-center space-y-3">
               <div className="w-full flex items-center justify-between text-xs">
                 <span className="font-black text-amber-300">📱 Visor 9:16 en Vivo</span>
-                <label className="flex items-center gap-1.5 text-[11px] text-pink-300 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={previewStoryCta}
-                    onChange={(e) => setPreviewStoryCta(e.target.checked)}
-                    className="accent-pink-500"
-                  />
-                  Ver etiqueta de Story
-                </label>
               </div>
 
               {/* 9:16 Vertical Frame */}
-              <div className="relative w-full max-w-[310px] aspect-[9/16] rounded-2xl overflow-hidden bg-black border-2 border-amber-500/40 shadow-2xl">
+              <div
+                ref={previewFrameRef}
+                className="relative w-full max-w-[310px] aspect-[9/16] rounded-2xl overflow-hidden bg-black border-2 border-amber-500/40 shadow-2xl"
+              >
+                {/* Official logo: same size and place as in the documentary's 9:16 Reel */}
+                {officialLogoDataUrl && look916 && (
+                  <img
+                    src={officialLogoDataUrl}
+                    alt=""
+                    className="absolute z-20 pointer-events-none h-auto"
+                    style={{
+                      left: `${look916.logoXPct}%`,
+                      top: `${look916.logoYPct}%`,
+                      width: `${look916.logoWPct}%`,
+                      opacity: look916.logoOpacity,
+                    }}
+                  />
+                )}
                 {sourceVideoUrl ? (
                   <>
                     {previewProxyPct !== null && (
@@ -1713,14 +1773,17 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                 {/* Live Word-by-Word Karaoke Captions Overlay */}
                 <div
                   className="absolute inset-x-3 z-20 flex justify-center pointer-events-none"
-                  style={{ top: `${captionYPercent}%`, transform: 'translateY(-50%)' }}
+                  style={{ top: `${captionYPercent}%`, transform: 'translateY(-100%)' }}
                 >
                   {activeCaptionChunk ? (
                     <div
                       className="px-3 py-1.5 text-center leading-tight flex flex-wrap items-center justify-center gap-x-1.5 gap-y-0.5"
                       style={{
-                        fontSize: `${Math.round(17 * fontSizeScale)}px`,
+                        fontSize: `${(
+                          (look916 ? look916.captionEmOfHeight * previewFrameH : 17) * fontSizeScale
+                        ).toFixed(1)}px`,
                         fontWeight: 900,
+                        fontFamily: "'Arial Black', Impact, 'Helvetica Neue', sans-serif",
                       }}
                     >
                       {activeCaptionChunk.chunk.map((w, idx) => {
@@ -1768,15 +1831,6 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                   )}
                 </div>
 
-                {/* Story Bottom CTA Banner Preview */}
-                {previewStoryCta && (
-                  <div className="absolute bottom-[7%] inset-x-3 z-20 flex justify-center pointer-events-none">
-                    <div className="px-3 py-1.5 rounded-full bg-gradient-to-r from-pink-600/95 to-purple-600/95 text-white font-black text-[10px] text-center shadow-lg border border-white/30">
-                      💬 Responde &quot;{igConfig.autoDm.keyword || 'HUELLAS'}&quot; y te envío el
-                      link directo por DM
-                    </div>
-                  </div>
-                )}
               </div>
 
               {/* Playback & Trim Bar */}
@@ -1791,10 +1845,25 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                     <span>{isPlaying ? 'Pausar' : 'Reproducir Clip'}</span>
                   </button>
                   <span className="font-mono text-xs text-amber-300">
-                    {formatMMSS(playheadSec)} / {formatMMSS(selectedClip.endSec)} (
-                    {selectedClip.durationSec}s)
+                    {formatMMSS(Math.max(0, playheadSec - selectedClip.startSec))} /{' '}
+                    {formatMMSS(selectedClip.endSec - selectedClip.startSec)}
                   </span>
                 </div>
+                {/* Time bar: move through the clip */}
+                <input
+                  type="range"
+                  min={selectedClip.startSec}
+                  max={selectedClip.endSec}
+                  step={0.1}
+                  value={Math.max(selectedClip.startSec, Math.min(selectedClip.endSec, playheadSec))}
+                  onChange={(e) => {
+                    const t = Number(e.target.value);
+                    setPlayheadSec(t);
+                    if (videoRef.current) videoRef.current.currentTime = t;
+                  }}
+                  className="w-full accent-amber-400 cursor-pointer"
+                  aria-label="Posición dentro del clip"
+                />
 
                 {/* Reframe & Caption Controls */}
                 <div className="bg-slate-950 border border-slate-800 rounded-xl p-2.5 space-y-2 text-xs">
@@ -2052,11 +2121,11 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                       onClick={() =>
                         copyText(
                           'caption',
-                          `${selectedClip.socialCaption}\n\n💬 Comenta "${
+                          `${selectedClip.title}\n\n${selectedClip.socialCaption}\n\n💬 Comenta "${
                             igConfig.autoDm.keyword || 'HUELLAS'
-                          }" y te envío el link directo al documental completo por DM.\n\n${
+                          }" y te envío el link directo al documental completo por DM.\n\n${limitToFiveHashtags(
                             selectedClip.hashtags
-                          }`
+                          )}`
                         )
                       }
                       className="text-[11px] text-amber-300 hover:text-amber-200 flex items-center gap-1 cursor-pointer"
@@ -2069,6 +2138,13 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                       <span>{copiedField === 'caption' ? '¡Copiado!' : 'Copiar Todo'}</span>
                     </button>
                   </div>
+                  <input
+                    type="text"
+                    value={selectedClip.title}
+                    onChange={(e) => updateSelectedClip({ title: e.target.value })}
+                    placeholder="Título de este clip"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs font-bold text-amber-100 outline-none"
+                  />
                   <textarea
                     rows={3}
                     value={selectedClip.socialCaption}
@@ -2078,11 +2154,14 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                 </div>
 
                 <div className="space-y-1">
-                  <span className="text-[11px] font-bold text-slate-300 block">Hashtags:</span>
+                  <span className="text-[11px] font-bold text-slate-300 block">
+                    Hashtags (5): {limitToFiveHashtags(selectedClip.hashtags).split(' ').filter(Boolean).length}/5
+                  </span>
                   <input
                     type="text"
                     value={selectedClip.hashtags}
                     onChange={(e) => updateSelectedClip({ hashtags: e.target.value })}
+                    onBlur={(e) => updateSelectedClip({ hashtags: limitToFiveHashtags(e.target.value) })}
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-sky-300 font-mono"
                   />
                 </div>
@@ -2102,7 +2181,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                 </div>
 
                 {/* Local Render Buttons */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 gap-2">
                   <button
                     type="button"
                     disabled={Boolean(isRenderingClipId)}
@@ -2117,19 +2196,6 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                     </span>
                   </button>
 
-                  <button
-                    type="button"
-                    disabled={Boolean(isRenderingClipId)}
-                    onClick={() => handleRenderViralClip(selectedClip, storyPublishMode)}
-                    className="py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-200 font-bold text-xs cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>
-                      {isRenderingClipId.startsWith(`${selectedClip.id}_story`)
-                        ? 'Renderizando Story...'
-                        : '📱 Renderizar Versión Story con CTA'}
-                    </span>
-                  </button>
                 </div>
 
                 {/* Download Links if already rendered */}
@@ -2144,70 +2210,24 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                         ⬇ Descargar Reel .MP4
                       </a>
                     )}
-                    {selectedClip.renderedStoryUrl && (
-                      <a
-                        href={viralMedia(selectedClip.renderedStoryUrl)}
-                        download
-                        className="px-3 py-1 rounded-lg bg-pink-500/20 border border-pink-500/40 text-pink-300 text-[11px] font-bold"
-                      >
-                        ⬇ Descargar Story .MP4
-                      </a>
-                    )}
                   </div>
                 )}
 
                 {/* Direct Instagram Publishing Section */}
                 <div className="pt-2 border-t border-slate-800 space-y-2">
-                  <div className="flex items-center justify-between text-[11px]">
-                    <span className="font-bold text-pink-300">
-                      📲 Publicación Directa en Instagram (API Oficial):
-                    </span>
-                    <select
-                      value={storyPublishMode}
-                      onChange={(e) => setStoryPublishMode(e.target.value as any)}
-                      className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-0.5 text-[10px] text-slate-200"
-                    >
-                      <option value="story_teaser">
-                        Story Teaser ({selectedClip.storyTeaserDurationSec}s con intriga + CTA)
-                      </option>
-                      <option value="story_full">Story Completa (hasta 58s + CTA)</option>
-                    </select>
-                  </div>
-
                   <button
                     type="button"
                     disabled={Boolean(isPublishingClipId)}
-                    onClick={() => handlePublishInstagram(selectedClip, 'combo_reel_story')}
-                    className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-pink-600 via-rose-500 to-amber-500 hover:from-pink-500 hover:to-amber-400 text-white font-black text-xs cursor-pointer shadow-lg shadow-pink-500/20 flex items-center justify-center gap-2 disabled:opacity-50"
+                    onClick={() => handlePublishInstagram(selectedClip, 'reel')}
+                    className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-pink-600 via-rose-500 to-amber-500 hover:from-pink-500 hover:to-amber-400 text-white font-black text-xs cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
                   >
                     <Share2 className="w-4 h-4" />
                     <span>
-                      {isPublishingClipId === `${selectedClip.id}_combo_reel_story`
-                        ? 'Publicando Reel + Story en Instagram...'
-                        : `🚀 Publicar Combo: Reel + Impulsar en Story + Activar Auto-DM "${
-                            igConfig.autoDm.keyword || 'HUELLAS'
-                          }"`}
+                      {isPublishingClipId === `${selectedClip.id}_reel`
+                        ? 'Publicando el Reel en Instagram...'
+                        : '📲 Publicar Reel en Instagram'}
                     </span>
                   </button>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      disabled={Boolean(isPublishingClipId)}
-                      onClick={() => handlePublishInstagram(selectedClip, 'reel')}
-                      className="py-1.5 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 border border-pink-500/40 text-pink-200 font-bold text-xs cursor-pointer disabled:opacity-50"
-                    >
-                      🎬 Publicar Solo Reel
-                    </button>
-                    <button
-                      type="button"
-                      disabled={Boolean(isPublishingClipId)}
-                      onClick={() => handlePublishInstagram(selectedClip, 'story')}
-                      className="py-1.5 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 border border-purple-500/40 text-purple-200 font-bold text-xs cursor-pointer disabled:opacity-50"
-                    >
-                      📱 Publicar Solo en Stories
-                    </button>
-                  </div>
                 </div>
               </div>
             </div>
@@ -2223,7 +2243,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
             <p className="text-xs text-slate-400 max-w-xl mx-auto">
               Elige arriba uno de tus documentales de Huellas Master, sube cualquier video MP4 o pega un link de YouTube y pulsa{' '}
               <strong className="text-amber-300">
-                &quot;{desiredClipCount > 0 ? `Extraer Top ${desiredClipCount} Viral Clips` : 'Extraer Viral Clips'}&quot;
+                &quot;Gemini Web (Gratis)&quot;
               </strong>
               .
             </p>

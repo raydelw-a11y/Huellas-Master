@@ -44,7 +44,7 @@ import {
   cleanMasterWavEmbeddedC2paInPlace,
   trimDuplicatedTakeInPcm,
 } from './src/utils/geminiTtsAudioClean';
-import { buildSegmentAss, type ExportHookConfig } from './server/exportOverlayAss';
+import { buildSegmentAss, resolveExportFont, type ExportHookConfig } from './server/exportOverlayAss';
 
 // Ensure sufficient libuv I/O worker threads for local + iCloud operations
 process.env.UV_THREADPOOL_SIZE = process.env.UV_THREADPOOL_SIZE || '32';
@@ -22182,6 +22182,45 @@ app.post('/api/viral-clips/saved', (req, res) => {
   }
 });
 
+// The documentary's own 9:16 look (logo and captions), so viral clips match the Reel exported from the
+// editor: same logo size/position (as the editor draws it, never narrower than 46 px of its 520-px stage)
+// and the same caption height and size. Documentary settings win over the editor's saved 9:16 profile.
+function getViral916Look(docId?: string) {
+  let profile: any = {};
+  try {
+    profile = JSON.parse(fs.readFileSync(EDITOR_CLIENT_STATE_FILE, 'utf8'))?.formatProfiles?.['9:16'] || {};
+  } catch {}
+  let pc: any = {};
+  if (docId) {
+    try {
+      pc = (readDocumentaries() || []).find((d: any) => d.id === docId)?.promptConfig || {};
+    } catch {}
+  }
+  const num = (v: any, fb: number) => (Number.isFinite(Number(v)) && Number(v) > 0 ? Number(v) : fb);
+  const stageH = 520;
+  const stageW = (stageH * 9) / 16;
+  const logoScalePct = num(profile.logoScalePct, 12);
+  const logoPosX = Number.isFinite(Number(profile.logoPosX)) ? Number(profile.logoPosX) : 10;
+  const logoPosY = Number.isFinite(Number(profile.logoPosY)) ? Number(profile.logoPosY) : 3;
+  const bottomRaw = Number(pc.CAPTION_BOTTOM_PCT_9X16 ?? profile.captionBottomPct);
+  const captionBottomPct = Number.isFinite(bottomRaw) && bottomRaw >= 2 && bottomRaw <= 85 ? bottomRaw : 25;
+  const captionFontSize = num(pc.CAPTION_FONT_SIZE_9X16 ?? profile.captionFontSize, 21);
+  return {
+    logoWPct: ((Math.max(46, (logoScalePct / 100) * stageW) - 8) / stageW) * 100,
+    logoXPct: logoPosX + (4 / stageW) * 100,
+    logoYPct: logoPosY + (4 / stageH) * 100,
+    logoOpacity: Math.max(0.05, Math.min(1, num(profile.logoOpacity, 95) / 100)),
+    captionBottomPct,
+    captionFontSize,
+    // Caption em size as a fraction of the frame height (viewer: max(13, size*0.76) px on a 520-px stage)
+    captionEmOfHeight: Math.max(13, captionFontSize * 0.76) / stageH,
+  };
+}
+
+app.get('/api/viral-clips/look-916', (req, res) => {
+  res.json({ ok: true, ...getViral916Look(String(req.query.docId || '')) });
+});
+
 // Gemini Web's answer to a Viral Clips order. The page stores it here as soon as it arrives (whatever screen
 // is open), and the Viral Clips studio turns it into the clip list when it is (or next gets) opened.
 app.post('/api/viral-clips/gemini-answer', (req, res) => {
@@ -22912,7 +22951,9 @@ function buildOpusClipAssSubtitles(params: {
   captionStyle: 'yellow_white' | 'opus_gold' | 'hormozi_green' | 'viral_box' | 'huellas_cinema';
   wordsPerLine: number;
   fontSizeScale: number; // e.g., 1.0 default
-  captionYPercent: number; // e.g., 74 (74% from top)
+  captionYPercent: number; // bottom edge of the caption line, percent from the top (e.g. 80)
+  /** Caption em size as a fraction of the frame height (the documentary's 9:16 size); old 4.1% if absent. */
+  captionEmOfHeight?: number;
   hookBannerText?: string;
   showHookBanner?: boolean;
   storyCtaBannerText?: string;
@@ -22926,6 +22967,7 @@ function buildOpusClipAssSubtitles(params: {
     wordsPerLine = 3,
     fontSizeScale = 1.0,
     captionYPercent = 75,
+    captionEmOfHeight,
     hookBannerText,
     showHookBanner,
     storyCtaBannerText,
@@ -22943,7 +22985,19 @@ function buildOpusClipAssSubtitles(params: {
     ).padStart(2, '0')}`;
   };
 
-  const baseFontSize = Math.round(outH * 0.041 * fontSizeScale);
+  // Same size as the documentary's 9:16 captions: the viewer's em size, converted to an ASS font size
+  // (ASS sizes the full line height) with Arial Black's real proportions.
+  const captionFontHeightRatio = (() => {
+    try {
+      return resolveExportFont("'Arial Black'", path.join(process.cwd(), 'data', 'fonts')).heightRatio || 1.41;
+    } catch {
+      return 1.41;
+    }
+  })();
+  const baseFontSize =
+    captionEmOfHeight && captionEmOfHeight > 0
+      ? Math.round(outH * captionEmOfHeight * captionFontHeightRatio * fontSizeScale)
+      : Math.round(outH * 0.041 * fontSizeScale);
   const hookBannerFontSize = Math.round(outH * 0.042);
   const storyCtaFontSize = Math.round(outH * 0.025);
   const posY = Math.round((Math.max(20, Math.min(88, captionYPercent)) / 100) * outH);
@@ -23063,7 +23117,7 @@ function buildOpusClipAssSubtitles(params: {
       assLines.push(
         `Dialogue: 2,${formatAssTime(wStart)},${formatAssTime(
           wEnd
-        )},OpusMain,,0,0,0,,{\\pos(${centerX},${posY})\\1c${baseColorAss}}${lineStr}`
+        )},OpusMain,,0,0,0,,{\\an2\\pos(${centerX},${posY})\\1c${baseColorAss}}${lineStr}`
       );
     }
   }
@@ -23093,6 +23147,7 @@ async function renderViralClipMp4Internal(params: {
   renderVariant?: 'reel' | 'story_full' | 'story_teaser';
   storyTeaserDurationSec?: number;
   storyCtaBannerText?: string;
+  docId?: string;
 }): Promise<{
   outputFilePath: string;
   savedInDocFolderPath?: string;
@@ -23120,7 +23175,9 @@ async function renderViralClipMp4Internal(params: {
     renderVariant = 'reel',
     storyTeaserDurationSec = 20,
     storyCtaBannerText = '',
+    docId = '',
   } = params;
+  const look916 = getViral916Look(docId);
 
   if (!sourceVideoPath || !fs.existsSync(sourceVideoPath)) {
     throw new Error(
@@ -23192,6 +23249,7 @@ async function renderViralClipMp4Internal(params: {
     wordsPerLine,
     fontSizeScale,
     captionYPercent,
+    captionEmOfHeight: look916.captionEmOfHeight,
     hookBannerText,
     showHookBanner,
     storyCtaBannerText:
@@ -23205,6 +23263,36 @@ async function renderViralClipMp4Internal(params: {
   const assPath = path.join(os.tmpdir(), `viral_ass_${stamp}.ass`);
   fs.writeFileSync(assPath, assContent, 'utf8');
   const escapedAssPath = assPath.replace(/\\/g, '/').replace(/:/g, '\\:');
+
+  // Official logo, same size and place as in the documentary's 9:16 Reel
+  let logoOverlaySuffix = '';
+  let logoPngPath = '';
+  try {
+    const logoDataUrl = resolveOfficialLogoPayloadServer().logoDataUrl || '';
+    if (/^data:image\//.test(logoDataUrl)) {
+      const rawLogo = path.join(os.tmpdir(), `viral_logo_raw_${stamp}.png`);
+      fs.writeFileSync(rawLogo, Buffer.from(logoDataUrl.replace(/^data:[^;]+;base64,/, ''), 'base64'));
+      logoPngPath = path.join(os.tmpdir(), `viral_logo_${stamp}.png`);
+      const logoW = Math.max(24, 2 * Math.round((outW * look916.logoWPct) / 200));
+      execSync(
+        `"${getFfmpegPath()}" -y -v error -i "${rawLogo}" -vf "scale=${logoW}:-1:flags=lanczos,format=rgba,colorchannelmixer=aa=${look916.logoOpacity.toFixed(
+          2
+        )}" "${logoPngPath}"`,
+        { stdio: 'ignore' }
+      );
+      try {
+        fs.unlinkSync(rawLogo);
+      } catch {}
+      if (fs.existsSync(logoPngPath)) {
+        const lx = Math.round((outW * look916.logoXPct) / 100);
+        const ly = Math.round((outH * look916.logoYPct) / 100);
+        const escLogo = logoPngPath.replace(/\\/g, '/').replace(/:/g, '\\:');
+        logoOverlaySuffix = `[vnologo];movie=filename='${escLogo}'[vlogo];[vnologo][vlogo]overlay=${lx}:${ly}:format=auto`;
+      }
+    }
+  } catch (e) {
+    console.warn('[ViralClips] Logo no disponible para el clip:', e);
+  }
 
   const safeSlug = String(clipTitle || 'Viral_Clip')
     .normalize('NFD')
@@ -23232,15 +23320,15 @@ async function renderViralClipMp4Internal(params: {
   const fX = Math.max(0, Math.min(1, (Number(focusX) || 50) / 100));
   let reframeVf = '';
   if (reframeMode === 'fit_blur') {
-    reframeVf = `${preCropVf}split=2[bg][fg];[bg]scale=${outW}:${outH}:force_original_aspect_ratio=increase:flags=lanczos,crop=${outW}:${outH},boxblur=24:4,eq=brightness=-0.18[bgblur];[fg]scale=${outW}:${outH}:force_original_aspect_ratio=decrease:flags=lanczos[fgscaled];[bgblur][fgscaled]overlay=(W-w)/2:(H-h)/2,ass='${escapedAssPath}'`;
+    reframeVf = `${preCropVf}split=2[bg][fg];[bg]scale=${outW}:${outH}:force_original_aspect_ratio=increase:flags=lanczos,crop=${outW}:${outH},boxblur=24:4,eq=brightness=-0.18[bgblur];[fg]scale=${outW}:${outH}:force_original_aspect_ratio=decrease:flags=lanczos[fgscaled];[bgblur][fgscaled]overlay=(W-w)/2:(H-h)/2,ass='${escapedAssPath}'${logoOverlaySuffix}`;
   } else if (reframeMode === 'auto_pan') {
     reframeVf = `${preCropVf}scale=${outW}:${outH}:force_original_aspect_ratio=increase:flags=lanczos,crop=${outW}:${outH}:'(iw-ow)*(0.25+0.5*min(1,t/${mainSpanDur.toFixed(
       2
-    )}))':(ih-oh)/2,ass='${escapedAssPath}'`;
+    )}))':(ih-oh)/2,ass='${escapedAssPath}'${logoOverlaySuffix}`;
   } else {
     reframeVf = `${preCropVf}scale=${outW}:${outH}:force_original_aspect_ratio=increase:flags=lanczos,crop=${outW}:${outH}:(iw-ow)*${fX.toFixed(
       3
-    )}:(ih-oh)/2,ass='${escapedAssPath}'`;
+    )}:(ih-oh)/2,ass='${escapedAssPath}'${logoOverlaySuffix}`;
   }
 
   try {
@@ -23301,7 +23389,7 @@ async function renderViralClipMp4Internal(params: {
               3
             )}:end=${effectiveEndSec.toFixed(
               3
-            )},asetpts=PTS-STARTPTS[a1];[v0][a0][v1][a1]concat=n=2:v=1:a=1[vc][aout];[vc]${preCropVf}split=2[bg][fg];[bg]scale=${outW}:${outH}:force_original_aspect_ratio=increase:flags=lanczos,crop=${outW}:${outH},boxblur=24:4,eq=brightness=-0.18[bgblur];[fg]scale=${outW}:${outH}:force_original_aspect_ratio=decrease:flags=lanczos[fgscaled];[bgblur][fgscaled]overlay=(W-w)/2:(H-h)/2,ass='${escapedAssPath}'[vout]`
+            )},asetpts=PTS-STARTPTS[a1];[v0][a0][v1][a1]concat=n=2:v=1:a=1[vc][aout];[vc]${preCropVf}split=2[bg][fg];[bg]scale=${outW}:${outH}:force_original_aspect_ratio=increase:flags=lanczos,crop=${outW}:${outH},boxblur=24:4,eq=brightness=-0.18[bgblur];[fg]scale=${outW}:${outH}:force_original_aspect_ratio=decrease:flags=lanczos[fgscaled];[bgblur][fgscaled]overlay=(W-w)/2:(H-h)/2,ass='${escapedAssPath}'${logoOverlaySuffix ? `${logoOverlaySuffix}[vout]` : '[vout]'}`
           : `[0:v]trim=start=${hookTeaserStartSec.toFixed(3)}:end=${hookTeaserEndSec.toFixed(
               3
             )},setpts=PTS-STARTPTS[v0];[0:a]atrim=start=${hookTeaserStartSec.toFixed(
@@ -23318,7 +23406,7 @@ async function renderViralClipMp4Internal(params: {
               3
             )},asetpts=PTS-STARTPTS[a1];[v0][a0][v1][a1]concat=n=2:v=1:a=1[vc][aout];[vc]${preCropVf}scale=${outW}:${outH}:force_original_aspect_ratio=increase:flags=lanczos,crop=${outW}:${outH}:(iw-ow)*${fX.toFixed(
               3
-            )}:(ih-oh)/2,ass='${escapedAssPath}'[vout]`;
+            )}:(ih-oh)/2,ass='${escapedAssPath}'${logoOverlaySuffix ? `${logoOverlaySuffix}[vout]` : '[vout]'}`;
 
       await new Promise<void>((resolve, reject) => {
         execFile(
@@ -23362,6 +23450,9 @@ async function renderViralClipMp4Internal(params: {
   } finally {
     try {
       if (fs.existsSync(assPath)) fs.unlinkSync(assPath);
+    } catch {}
+    try {
+      if (logoPngPath && fs.existsSync(logoPngPath)) fs.unlinkSync(logoPngPath);
     } catch {}
   }
 
