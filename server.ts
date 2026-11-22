@@ -23280,6 +23280,8 @@ async function renderViralClipMp4Internal(params: {
   hookBannerText?: string;
   showHookBanner?: boolean;
   docId?: string;
+  /** Position of the clip in the documentary's list (1-based): used in the file name */
+  clipNumber?: number;
 }): Promise<{
   outputFilePath: string;
   savedInDocFolderPath?: string;
@@ -23305,6 +23307,7 @@ async function renderViralClipMp4Internal(params: {
     hookBannerText = '',
     showHookBanner = true,
     docId = '',
+    clipNumber = 0,
   } = params;
   const look916 = getViral916Look(docId);
 
@@ -23412,16 +23415,30 @@ async function renderViralClipMp4Internal(params: {
     console.warn('[ViralClips] Logo no disponible para el clip:', e);
   }
 
-  const safeSlug = String(clipTitle || 'Viral_Clip')
+  // File name: Video_##_Viral_Clip_##_<on-screen title> (the yellow title shown at the start of the clip),
+  // e.g. Video_30_Viral_Clip_01_EL_LUJO_MORTAL_DE_LA_NOBLEZA_MEDIEVAL.mp4. Rendering the same clip again
+  // replaces its file. Without a documentary number it keeps the old style.
+  const safeTitle = String(String(hookBannerText || '').trim() || clipTitle || 'Viral_Clip')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-zA-Z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '')
-    .slice(0, 48);
-
-  const variantSuffix = '_Reel_9x16';
-
-  const fileName = `${safeSlug}${variantSuffix}_${stamp}.mp4`;
+    .replace(/^_+|_+$/g, '');
+  const shortTitle = (() => {
+    if (safeTitle.length <= 90) return safeTitle;
+    const cut = safeTitle.slice(0, 90);
+    const lastSep = cut.lastIndexOf('_');
+    return lastSep > 40 ? cut.slice(0, lastSep) : cut;
+  })();
+  const docForName = docId ? readDocumentaries().find((d: any) => d && d.id === docId) : null;
+  const videoNumMatch =
+    String(docForName?.title || '').match(/\bvideo[_\-\s]*0*(\d+)/i) ||
+    String(docForName?.downloadFolderName || '').match(/\bvideo[_\-\s]*0*(\d+)/i) ||
+    String(docRootFolder || '').match(/\bvideo[_\-\s]*0*(\d+)/i);
+  const clipNum = Math.max(0, Math.round(Number(clipNumber) || 0));
+  const fileName =
+    videoNumMatch && clipNum > 0
+      ? `Video_${String(videoNumMatch[1]).padStart(2, '0')}_Viral_Clip_${String(clipNum).padStart(2, '0')}_${shortTitle}.mp4`
+      : `${shortTitle.slice(0, 48)}_Reel_9x16_${stamp}.mp4`;
   const outputFilePath = path.join(VIRAL_EXPORTS_DIR, fileName);
 
   // El video final del documental (06_Video_Final) ya trae subtítulos 16:9 grabados abajo:
@@ -23453,8 +23470,8 @@ async function renderViralClipMp4Internal(params: {
             '-y',
             '-ss',
             startSec.toFixed(3),
-            '-to',
-            effectiveEndSec.toFixed(3),
+            '-t',
+            mainSpanDur.toFixed(3),
             '-i',
             sourceVideoPath,
             '-vf',
@@ -23477,7 +23494,7 @@ async function renderViralClipMp4Internal(params: {
             '+faststart',
             outputFilePath,
           ],
-          { timeout: 600000 },
+          { timeout: 1800000 },
           (err, _stdout, stderr) => {
             if (err) return reject(new Error(stderr || err.message));
             resolve();
@@ -23488,36 +23505,8 @@ async function renderViralClipMp4Internal(params: {
       // Render Hook Teaser + Main Segment concatenated, then burn ASS subtitles
       const complexFilter =
         reframeMode === 'fit_blur'
-          ? `[0:v]trim=start=${hookTeaserStartSec.toFixed(3)}:end=${hookTeaserEndSec.toFixed(
-              3
-            )},setpts=PTS-STARTPTS[v0];[0:a]atrim=start=${hookTeaserStartSec.toFixed(
-              3
-            )}:end=${hookTeaserEndSec.toFixed(
-              3
-            )},asetpts=PTS-STARTPTS[a0];[0:v]trim=start=${startSec.toFixed(
-              3
-            )}:end=${effectiveEndSec.toFixed(
-              3
-            )},setpts=PTS-STARTPTS[v1];[0:a]atrim=start=${startSec.toFixed(
-              3
-            )}:end=${effectiveEndSec.toFixed(
-              3
-            )},asetpts=PTS-STARTPTS[a1];[v0][a0][v1][a1]concat=n=2:v=1:a=1[vc][aout];[vc]${preCropVf}split=2[bg][fg];[bg]scale=${outW}:${outH}:force_original_aspect_ratio=increase:flags=lanczos,crop=${outW}:${outH},boxblur=24:4,eq=brightness=-0.18[bgblur];[fg]scale=${outW}:${outH}:force_original_aspect_ratio=decrease:flags=lanczos[fgscaled];[bgblur][fgscaled]overlay=(W-w)/2:(H-h)/2,ass='${escapedAssPath}'${logoOverlaySuffix ? `${logoOverlaySuffix}[vout]` : '[vout]'}`
-          : `[0:v]trim=start=${hookTeaserStartSec.toFixed(3)}:end=${hookTeaserEndSec.toFixed(
-              3
-            )},setpts=PTS-STARTPTS[v0];[0:a]atrim=start=${hookTeaserStartSec.toFixed(
-              3
-            )}:end=${hookTeaserEndSec.toFixed(
-              3
-            )},asetpts=PTS-STARTPTS[a0];[0:v]trim=start=${startSec.toFixed(
-              3
-            )}:end=${effectiveEndSec.toFixed(
-              3
-            )},setpts=PTS-STARTPTS[v1];[0:a]atrim=start=${startSec.toFixed(
-              3
-            )}:end=${effectiveEndSec.toFixed(
-              3
-            )},asetpts=PTS-STARTPTS[a1];[v0][a0][v1][a1]concat=n=2:v=1:a=1[vc][aout];[vc]${preCropVf}scale=${outW}:${outH}:force_original_aspect_ratio=increase:flags=lanczos,crop=${outW}:${outH}:(iw-ow)*${fX.toFixed(
+          ? `[0:v]setpts=PTS-STARTPTS[v0];[0:a]asetpts=PTS-STARTPTS[a0];[1:v]setpts=PTS-STARTPTS[v1];[1:a]asetpts=PTS-STARTPTS[a1];[v0][a0][v1][a1]concat=n=2:v=1:a=1[vc][aout];[vc]${preCropVf}split=2[bg][fg];[bg]scale=${outW}:${outH}:force_original_aspect_ratio=increase:flags=lanczos,crop=${outW}:${outH},boxblur=24:4,eq=brightness=-0.18[bgblur];[fg]scale=${outW}:${outH}:force_original_aspect_ratio=decrease:flags=lanczos[fgscaled];[bgblur][fgscaled]overlay=(W-w)/2:(H-h)/2,ass='${escapedAssPath}'${logoOverlaySuffix ? `${logoOverlaySuffix}[vout]` : '[vout]'}`
+          : `[0:v]setpts=PTS-STARTPTS[v0];[0:a]asetpts=PTS-STARTPTS[a0];[1:v]setpts=PTS-STARTPTS[v1];[1:a]asetpts=PTS-STARTPTS[a1];[v0][a0][v1][a1]concat=n=2:v=1:a=1[vc][aout];[vc]${preCropVf}scale=${outW}:${outH}:force_original_aspect_ratio=increase:flags=lanczos,crop=${outW}:${outH}:(iw-ow)*${fX.toFixed(
               3
             )}:(ih-oh)/2,ass='${escapedAssPath}'${logoOverlaySuffix ? `${logoOverlaySuffix}[vout]` : '[vout]'}`;
 
@@ -23526,6 +23515,19 @@ async function renderViralClipMp4Internal(params: {
           ffmpegBin,
           [
             '-y',
+            // Input seeking: each part is read from its own point (before, the whole 8K master was decoded
+            // from 00:00 up to the clip, several minutes for a clip near the end). The teaser lasts exactly
+            // teaserSpanDur, the same length the captions use (it used to run longer and shift every caption).
+            '-ss',
+            hookTeaserStartSec.toFixed(3),
+            '-t',
+            teaserSpanDur.toFixed(3),
+            '-i',
+            sourceVideoPath,
+            '-ss',
+            startSec.toFixed(3),
+            '-t',
+            mainSpanDur.toFixed(3),
             '-i',
             sourceVideoPath,
             '-filter_complex',
@@ -23552,7 +23554,7 @@ async function renderViralClipMp4Internal(params: {
             '+faststart',
             outputFilePath,
           ],
-          { timeout: 600000 },
+          { timeout: 1800000 },
           (err, _stdout, stderr) => {
             if (err) return reject(new Error(stderr || err.message));
             resolve();

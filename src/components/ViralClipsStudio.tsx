@@ -1148,6 +1148,8 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
           docId: sourceMode === 'doc' ? selectedDocId : '',
           docRootFolder,
           clipTitle: clip.title,
+          // Its place in the list (#1, #2…): the file is named Video_##_Viral_Clip_##_<title>
+          clipNumber: Math.max(1, viralClips.findIndex((c) => c.id === clip.id) + 1),
           startSec: clip.startSec,
           endSec: clip.endSec,
           structureMode: clip.structureMode,
