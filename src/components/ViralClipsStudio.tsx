@@ -93,6 +93,10 @@ export interface ViralClipSuggestion {
   origin?: 'gemini' | 'local';
 }
 
+/** Closing paragraph of every clip description (its own paragraph, after the description). */
+const VIRAL_DESCRIPTION_CTA =
+  '¡Para ver el documental completo, visita nuestro canal de YouTube, el enlace está en la biografía!';
+
 /** Each clip's description carries exactly 5 hashtags (extra ones are dropped, duplicates removed). */
 function limitToFiveHashtags(raw: string): string {
   const tags = String(raw || '')
@@ -299,6 +303,29 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
     () => viralClips.find((c) => c.id === selectedClipId) || viralClips[0] || null,
     [viralClips, selectedClipId]
   );
+
+  // Each clip's caption words always come from the transcript loaded now (the final video's Subtitulos.srt),
+  // never from the copy saved with the clip: lists saved from an older, estimated script had words ~2 s off
+  // and missing the first phrase. Also follows start/end edits.
+  useEffect(() => {
+    if (isLoadingSource || transcriptSegments.length === 0 || viralClips.length === 0) return;
+    const sig = (ws: WordTimestamp[] = []) => ws.map((w) => `${w.word}@${Number(w.start).toFixed(2)}`).join(' ');
+    let changed = false;
+    const next = viralClips.map((c) => {
+      const st = Number(c.startSec) || 0;
+      const en = Number(c.endSec) || st;
+      const words: WordTimestamp[] = [];
+      for (const seg of transcriptSegments) {
+        if (!(seg.end > st && seg.start < en)) continue;
+        const wList = seg.words || buildWordsFromSegmentClient(seg.text, seg.start, seg.end);
+        for (const w of wList) if (w.end > st && w.start < en) words.push(w);
+      }
+      if (words.length === 0 || sig(words) === sig(c.words)) return c;
+      changed = true;
+      return { ...c, words, transcriptExcerpt: words.map((w) => w.word).join(' ') };
+    });
+    if (changed) setViralClips(next);
+  }, [transcriptSegments, viralClips, isLoadingSource]);
 
   // Load Instagram config on mount
   useEffect(() => {
@@ -1954,7 +1981,9 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                         copyText(
                           'caption',
                           // The title is not part of the description: only the description and its 5 hashtags
-                          `${selectedClip.socialCaption}\n\n${limitToFiveHashtags(selectedClip.hashtags)}`.trim()
+                          [String(selectedClip.socialCaption || '').trim(), VIRAL_DESCRIPTION_CTA, limitToFiveHashtags(selectedClip.hashtags)]
+                            .filter(Boolean)
+                            .join('\n\n')
                         )
                       }
                       className="text-[11px] text-amber-300 hover:text-amber-200 flex items-center gap-1 cursor-pointer"
@@ -1973,6 +2002,9 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                     onChange={(e) => updateSelectedClip({ socialCaption: e.target.value })}
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-200 outline-none"
                   />
+                  <p className="text-[11px] text-slate-400 italic px-1">
+                    + párrafo final fijo: {VIRAL_DESCRIPTION_CTA}
+                  </p>
                 </div>
 
                 <div className="space-y-1">
