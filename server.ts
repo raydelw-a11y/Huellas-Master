@@ -22432,7 +22432,65 @@ app.post('/api/viral-clips/ingest-youtube', async (req, res) => {
 // 3. Resolve Documentary Source Video + Transcript for Viral Clips
 // Convierte el SRT de la exportación (tiempos reales del video final) en oraciones completas con
 // palabras repartidas dentro de cada bloque SRT (bloques cortos => sincronía precisa).
-function buildSentenceSegmentsFromSrt(srtText: string): TranscriptSegmentItem[] {
+// Real per-word times for a subtitle file: the voice's Vosk alignment (<voice>.align.json, audio seconds) is
+// matched cue by cue to the SRT of the final video; each word gets its aligned time plus that cue's offset
+// (the intro and pauses shift the voice inside the video). Without it the words are spread by length.
+type AlignWordTuple = [string, number, number, ...unknown[]];
+function readVoiceAlignWordsForDoc(doc: any): AlignWordTuple[] {
+  try {
+    const stem = path
+      .basename(String(doc?.masterAudioUrl || '').split('?')[0])
+      .replace(/\.(mp3|wav|m4a)$/i, '');
+    if (!stem) return [];
+    for (const dir of [TTS_DIR, DOCS_TTS_DIR]) {
+      const f = path.join(dir, `${stem}.align.json`);
+      if (!fs.existsSync(f)) continue;
+      const parsed = JSON.parse(fs.readFileSync(f, 'utf8'));
+      const words = Array.isArray(parsed?.words) ? parsed.words : [];
+      if (words.length > 0) return words as AlignWordTuple[];
+    }
+  } catch (e) {
+    console.warn('[ViralClips] No se pudo leer la alineación de la voz:', e);
+  }
+  return [];
+}
+
+function makeSrtCueWordAligner(alignWords: AlignWordTuple[]) {
+  const norm = (w: string) =>
+    String(w || '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9ñ]/g, '');
+  let ptr = 0;
+  let matchedCues = 0;
+  const aligner = (text: string, start: number, end: number): WordTimestamp[] | null => {
+    const tokens = String(text || '').trim().split(/\s+/).filter(Boolean);
+    if (tokens.length === 0 || alignWords.length === 0) return null;
+    const first = norm(tokens[0]);
+    let q = ptr;
+    while (q < alignWords.length && q < ptr + 8 && norm(String(alignWords[q][0])) !== first) q++;
+    if (q >= alignWords.length || norm(String(alignWords[q][0])) !== first) return null;
+    const slice = alignWords.slice(q, q + tokens.length);
+    if (slice.length !== tokens.length || !slice.every((w, i) => norm(String(w[0])) === norm(tokens[i]))) {
+      return null;
+    }
+    ptr = q + tokens.length;
+    matchedCues++;
+    const offset = start - Number(slice[0][1]);
+    return tokens.map((tok, i) => {
+      const ws = Math.min(end, Math.max(start, Number(slice[i][1]) + offset));
+      const we = Math.min(end, Math.max(ws + 0.05, Number(slice[i][2]) + offset));
+      return { word: tok, start: Number(ws.toFixed(3)), end: Number(we.toFixed(3)) };
+    });
+  };
+  return { aligner, matched: () => matchedCues };
+}
+
+function buildSentenceSegmentsFromSrt(
+  srtText: string,
+  cueWordAligner?: (text: string, start: number, end: number) => WordTimestamp[] | null
+): TranscriptSegmentItem[] {
   const toSec = (t: string) => {
     const m = t.trim().match(/(\d+):(\d{2}):(\d{2})[,.](\d{1,3})/);
     return m ? +m[1] * 3600 + +m[2] * 60 + +m[3] + +m[4].padEnd(3, '0') / 1000 : NaN;
@@ -22449,7 +22507,7 @@ function buildSentenceSegmentsFromSrt(srtText: string): TranscriptSegmentItem[] 
     const end = toSec(z);
     const text = lines.slice(tIdx + 1).join(' ').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
     if (!text || !Number.isFinite(start) || !Number.isFinite(end) || end <= start) continue;
-    const words = buildWordsFromSegment(text, start, end);
+    const words = (cueWordAligner && cueWordAligner(text, start, end)) || buildWordsFromSegment(text, start, end);
     if (cur && start - cur.end > 1.5) {
       out.push(cur);
       cur = null;
@@ -22542,10 +22600,16 @@ app.post('/api/viral-clips/resolve-doc-source', async (req, res) => {
       ].filter((f) => fs.existsSync(f));
       if (srtCandidates.length > 0) {
         try {
-          const srtSegs = buildSentenceSegmentsFromSrt(fs.readFileSync(srtCandidates[0], 'utf8'));
+          const alignWords = readVoiceAlignWordsForDoc(doc);
+          const cueAligner = alignWords.length > 0 ? makeSrtCueWordAligner(alignWords) : null;
+          const srtSegs = buildSentenceSegmentsFromSrt(
+            fs.readFileSync(srtCandidates[0], 'utf8'),
+            cueAligner ? cueAligner.aligner : undefined
+          );
           if (srtSegs.length > 0) {
             transcriptSegments.push(...srtSegs);
-            transcriptSource = 'srt_video_final';
+            transcriptSource =
+              cueAligner && cueAligner.matched() > 0 ? 'srt_video_final_voice_aligned' : 'srt_video_final';
           }
         } catch (e) {
           console.warn('[ViralClips] No se pudo leer Subtitulos.srt:', e);
