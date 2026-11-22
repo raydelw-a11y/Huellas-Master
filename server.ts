@@ -23057,7 +23057,7 @@ function buildOpusClipAssSubtitles(params: {
       `Dialogue: 3,${formatAssTime(0)},${formatAssTime(
         bannerEnd
       )},HookBanner,,${bannerSideMargin},${bannerSideMargin},0,,{\\q0\\fad(180,280)\\an8\\pos(${centerX},${Math.round(
-        outH * 0.1
+        outH * 0.135
       )})}${cleanHook}`
     );
   }
@@ -23559,6 +23559,77 @@ async function uploadMp4ToTemporaryPublicHttps(localFilePath: string): Promise<s
   );
 }
 
+// Reels go up straight from the Mac with Instagram's resumable upload (graph container + rupload.facebook.com),
+// so the video never has to sit on a public third-party file host for Meta to download it.
+async function publishReelToInstagramResumable(params: {
+  igUserId: string;
+  accessToken: string;
+  filePath: string;
+  caption?: string;
+}): Promise<{ mediaId: string; permalink?: string }> {
+  const { igUserId, accessToken, filePath, caption } = params;
+  const graph = 'https://graph.facebook.com/v21.0';
+  const createUrl = new URL(`${graph}/${encodeURIComponent(igUserId)}/media`);
+  createUrl.searchParams.set('media_type', 'REELS');
+  createUrl.searchParams.set('upload_type', 'resumable');
+  createUrl.searchParams.set('share_to_feed', 'true');
+  if (caption) createUrl.searchParams.set('caption', caption);
+  createUrl.searchParams.set('access_token', accessToken);
+  const createResp = await fetch(createUrl.toString(), { method: 'POST' });
+  const createJson: any = await createResp.json().catch(() => ({}));
+  if (!createResp.ok || !createJson?.id) {
+    throw new Error(createJson?.error?.message || 'Instagram no aceptó crear el Reel.');
+  }
+  const creationId = String(createJson.id);
+  const uploadUri = String(createJson.uri || `https://rupload.facebook.com/ig-api-upload/v21.0/${creationId}`);
+  const bytes = fs.readFileSync(filePath);
+  const upResp = await fetch(uploadUri, {
+    method: 'POST',
+    headers: {
+      Authorization: `OAuth ${accessToken}`,
+      offset: '0',
+      file_size: String(bytes.length),
+    },
+    body: bytes,
+  });
+  const upJson: any = await upResp.json().catch(() => ({}));
+  if (!upResp.ok || upJson?.success === false) {
+    throw new Error(upJson?.debug_info?.message || upJson?.error?.message || 'No se pudo subir el video a Instagram.');
+  }
+  // Instagram processes the video before it can be published (a 2K Reel can take a few minutes)
+  for (let attempt = 0; attempt < 100; attempt++) {
+    await new Promise((r) => setTimeout(r, 4000));
+    const statusUrl = new URL(`${graph}/${encodeURIComponent(creationId)}`);
+    statusUrl.searchParams.set('fields', 'status_code,status');
+    statusUrl.searchParams.set('access_token', accessToken);
+    const stJson: any = await (await fetch(statusUrl.toString())).json().catch(() => ({}));
+    const code = String(stJson?.status_code || '');
+    if (code === 'FINISHED') break;
+    if (code === 'ERROR' || code === 'EXPIRED') {
+      throw new Error(`Instagram rechazó el video (${code}): ${stJson?.status || 'revisa el formato.'}`);
+    }
+    if (attempt === 99) throw new Error('Instagram tardó demasiado en procesar el video. Vuelve a intentarlo.');
+  }
+  const pubUrl = new URL(`${graph}/${encodeURIComponent(igUserId)}/media_publish`);
+  pubUrl.searchParams.set('creation_id', creationId);
+  pubUrl.searchParams.set('access_token', accessToken);
+  const pubResp = await fetch(pubUrl.toString(), { method: 'POST' });
+  const pubJson: any = await pubResp.json().catch(() => ({}));
+  if (!pubResp.ok || !pubJson?.id) {
+    throw new Error(pubJson?.error?.message || 'Instagram no publicó el Reel.');
+  }
+  const mediaId = String(pubJson.id);
+  let permalink: string | undefined;
+  try {
+    const infoUrl = new URL(`${graph}/${encodeURIComponent(mediaId)}`);
+    infoUrl.searchParams.set('fields', 'permalink');
+    infoUrl.searchParams.set('access_token', accessToken);
+    const infoJson: any = await (await fetch(infoUrl.toString())).json();
+    if (infoJson?.permalink) permalink = String(infoJson.permalink);
+  } catch {}
+  return { mediaId, permalink };
+}
+
 async function publishSingleMediaToInstagramGraphApi(params: {
   igUserId: string;
   accessToken: string;
@@ -23745,16 +23816,17 @@ app.post('/api/viral-clips/publish-instagram', async (req, res) => {
     let storyResult: { mediaId: string; permalink?: string } | undefined;
 
     if (publishMode === 'reel' || publishMode === 'combo_reel_story') {
-      const renderedReel = await renderViralClipMp4Internal({
-        ...renderParams,
-        renderVariant: 'reel',
-      });
-      const publicReelUrl = await uploadMp4ToTemporaryPublicHttps(renderedReel.outputFilePath);
-      reelResult = await publishSingleMediaToInstagramGraphApi({
+      // Reuse the Reel already rendered for this clip (same 2K file that was downloaded); render it only if missing
+      const renderedName = String(req.body?.renderedReelUrl || '').match(/\/viral-clips-media\/exports\/([^/?#]+\.mp4)/i)?.[1];
+      const renderedPath = renderedName ? path.join(VIRAL_EXPORTS_DIR, path.basename(renderedName)) : '';
+      const reelPath =
+        renderedPath && fs.existsSync(renderedPath)
+          ? renderedPath
+          : (await renderViralClipMp4Internal({ ...renderParams, renderVariant: 'reel' })).outputFilePath;
+      reelResult = await publishReelToInstagramResumable({
         igUserId: store.igUserId,
         accessToken: store.accessToken,
-        videoPublicUrl: publicReelUrl,
-        mediaType: 'REELS',
+        filePath: reelPath,
         caption: fullCaption,
       });
     }

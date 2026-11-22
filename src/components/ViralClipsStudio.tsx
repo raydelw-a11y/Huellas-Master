@@ -1132,6 +1132,8 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
         body: JSON.stringify({
           publishMode,
           storyMode: storyPublishMode,
+          // The Reel already rendered for this clip is published as is (no second render)
+          renderedReelUrl: clip.renderedReelUrl || '',
           // Instagram description: the clip's title, its own description and its 5 hashtags
           caption: [clip.title, clip.socialCaption].map((t) => String(t || '').trim()).filter(Boolean).join('\n\n'),
           hashtags: limitToFiveHashtags(clip.hashtags),
@@ -1763,7 +1765,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                   selectedClip.hookBannerText &&
                   playheadSec >= selectedClip.startSec - 0.2 &&
                   playheadSec < selectedClip.startSec + 8 && (
-                  <div className="absolute top-[10%] inset-x-[13%] z-20 flex justify-center pointer-events-none">
+                  <div className="absolute top-[13.5%] inset-x-[13%] z-20 flex justify-center pointer-events-none">
                     <div className="px-3 py-1.5 rounded-xl bg-amber-400 text-slate-950 font-black text-[14px] leading-tight text-center uppercase tracking-wide shadow-lg border border-white/40 leading-tight">
                       {selectedClip.hookBannerText}
                     </div>

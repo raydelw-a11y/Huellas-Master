@@ -10,3 +10,4 @@ data/flow_pc_*.local.json
 .DS_Store
 *.log
 data/viral-clips/
+data/viral_clips_store.json
