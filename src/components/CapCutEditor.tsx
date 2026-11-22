@@ -11645,6 +11645,25 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     }
   }, [activeClipAtPlayhead?.id, isPlaying]);
 
+  // Brings the timeline to a given instant (used by the "go to start" / "go to end" buttons)
+  const scrollTimelineToTime = (sec: number) => {
+    if (isFitEntireProject) return;
+    const apply = () => {
+      const container = timelineScrollContainerRef.current;
+      if (!container) return;
+      const viewWidth = container.clientWidth > 240 ? container.clientWidth : 960;
+      const trackHeaderOffsetPx = 152;
+      const playheadX = trackHeaderOffsetPx + sec * timelineZoom;
+      const maxLeft = Math.max(0, container.scrollWidth - container.clientWidth);
+      const targetLeft = Math.max(0, Math.min(maxLeft, Math.round(playheadX - viewWidth * 0.5)));
+      savedTimelineScrollRef.current.left = targetLeft;
+      container.scrollLeft = targetLeft;
+      if (timelineRulerScrollRef.current) timelineRulerScrollRef.current.scrollLeft = targetLeft;
+    };
+    apply();
+    window.requestAnimationFrame(apply);
+  };
+
   // Auto-scroll the multitrack timeline horizontally as playback advances so the vertical playhead & active clip stay in view
   useEffect(() => {
     if (!isPlaying || isFitEntireProject || isScrubbingRulerRef.current) return;
@@ -18489,9 +18508,15 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               <div className="flex items-center gap-1 shrink-0">
                 <button
                   type="button"
-                  onClick={() => seekToTime(0)}
+                  onClick={() => {
+                    // 9:16 without intro: the start is the first real clip
+                    const h0 = hiddenIntroOutroRanges916[0];
+                    const target = h0 && h0.start <= 0.05 ? h0.end : 0;
+                    seekToTime(target);
+                    scrollTimelineToTime(target);
+                  }}
                   className="p-1 rounded bg-slate-900 hover:bg-slate-800 text-slate-300 cursor-pointer shrink-0"
-                  title="Ir al inicio (00:00)"
+                  title="Ir al inicio"
                 >
                   <SkipBack className="w-3.5 h-3.5" />
                 </button>
@@ -18524,7 +18549,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 </button>
                 <button
                   type="button"
-                  onClick={() => seekToTime(Math.max(0, totalDurationSec - 1))}
+                  onClick={() => {
+                    // 9:16 without outro: the end is the last real clip
+                    const hN = hiddenIntroOutroRanges916[hiddenIntroOutroRanges916.length - 1];
+                    const endSec = hN && hN.end >= totalDurationSec - 0.05 ? hN.start : totalDurationSec;
+                    const target = Math.max(0, endSec - 1);
+                    seekToTime(target);
+                    scrollTimelineToTime(target);
+                  }}
                   className="p-1 rounded bg-slate-900 hover:bg-slate-800 text-slate-300 cursor-pointer shrink-0"
                   title="Ir al final"
                 >
@@ -21875,13 +21907,16 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                         seekToTime(0);
                         setSelectedClipId('fixed-doc-intro');
                       }}
-                      style={
-                        isFitEntireProject
+                      style={{
+                        ...(isFitEntireProject
                           ? {
                               width: `${(8 / Math.max(1, totalDurationSec)) * 100}%`,
                             }
-                          : { width: `${8 * timelineZoom}px` }
-                      }
+                          : { width: `${8 * timelineZoom}px` }),
+                        ...(hiddenIntroOutroRanges916.length > 0
+                          ? { visibility: 'hidden' as const, pointerEvents: 'none' as const }
+                          : {}),
+                      }}
                       className="px-2 py-0.5 rounded-l bg-amber-600/25 hover:bg-amber-600/35 border-r border-amber-500/40 text-[10px] text-amber-300 font-black truncate cursor-pointer shrink-0"
                       title="Ir al Intro Oficial de Huellas de la Humanidad (00:00 - 00:08)"
                     >
@@ -22143,13 +22178,22 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                       ).padStart(2, '0')}${clip.partLabel ? ` • ${clip.partLabel}` : ''}) • ${formatTimeMMSS(
                         clip.start
                       )} - ${formatTimeMMSS(clip.end)} • ${clip.duration}s (${clip.speed}x) • Clic derecho para opciones del clip`}
-                      style={
-                        isFitEntireProject
+                      style={{
+                        ...(isFitEntireProject
                           ? {
                               width: `${(clip.duration / Math.max(1, totalDurationSec)) * 100}%`,
                             }
-                          : { width: `${slotWidthPx}px` }
-                      }
+                          : { width: `${slotWidthPx}px` }),
+                        // 9:16 without intro/outro: they are not part of the Reel, so they are not shown here
+                        // either (their slot stays empty so every other clip keeps its place under the ruler)
+                        ...(hiddenIntroOutroRanges916.length > 0 &&
+                        (clip.id === 'fixed-doc-intro' ||
+                          clip.id === 'fixed-doc-outro' ||
+                          clip.clipNumber === 0 ||
+                          clip.clipNumber === 999)
+                          ? { visibility: 'hidden' as const, pointerEvents: 'none' as const }
+                          : {}),
+                      }}
                       className="shrink-0 px-[1px] select-none"
                     >
                       <div
