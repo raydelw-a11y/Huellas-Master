@@ -206,7 +206,8 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
   const [targetDurationRange, setTargetDurationRange] = useState<'15_30' | '30_60' | '60_90'>(
     '30_60'
   );
-  const [desiredClipCount, setDesiredClipCount] = useState<number>(5);
+  // 0 = Auto: the analysis decides how many clips the video supports
+  const [desiredClipCount, setDesiredClipCount] = useState<number>(0);
   const [structurePreference, setStructurePreference] = useState<
     'both' | 'hook_teaser' | 'continuous'
   >('both');
@@ -661,7 +662,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
           durationSec: sourceDurationSec,
           transcriptSegments,
           targetDurationRange,
-          clipCount: desiredClipCount,
+          clipCount: desiredClipCount > 0 ? desiredClipCount : 'auto',
           structurePreference,
           customTopicFilter,
           autoDmKeyword: igConfig.autoDm.keyword || 'HUELLAS',
@@ -673,6 +674,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
           setViralClips(data.clips);
           setSelectedClipId(data.clips[0].id);
           setPlayheadSec(data.clips[0].startSec);
+          if (data.autoCountReason) setActionToast(`🤖 Auto: ${data.autoCountReason}`);
           setIsAnalyzingViral(false);
           return;
         }
@@ -688,8 +690,10 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
         60,
         transcriptSegments[transcriptSegments.length - 1].end - transcriptSegments[0].start
       );
-      const stepSec = Math.max(15, (totalSpan - minDur) / Math.max(1, desiredClipCount));
-      for (let k = 0; k < desiredClipCount; k++) {
+      const fallbackCount =
+        desiredClipCount > 0 ? desiredClipCount : Math.max(3, Math.min(12, Math.floor(totalSpan / 75)));
+      const stepSec = Math.max(15, (totalSpan - minDur) / Math.max(1, fallbackCount));
+      for (let k = 0; k < fallbackCount; k++) {
         const approxStart = transcriptSegments[0].start + k * stepSec;
         const startSegIdx = Math.max(
           0,
@@ -1297,6 +1301,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                     onChange={(e) => setDesiredClipCount(Number(e.target.value))}
                     className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-xs font-bold text-slate-200"
                   >
+                    <option value={0}>Auto (recomendado)</option>
                     <option value={3}>Top 3 Virales</option>
                     <option value={5}>Top 5 Virales</option>
                     <option value={8}>Top 8 Virales</option>
@@ -1359,7 +1364,9 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                 <span>
                   {isAnalyzingViral
                     ? 'Analizando Retención y Puntaje Viral...'
-                    : `⚡ Extraer Top ${desiredClipCount} Viral Clips (100% Gratis)`}
+                    : desiredClipCount > 0
+                    ? `⚡ Extraer Top ${desiredClipCount} Viral Clips (100% Gratis)`
+                    : '⚡ Extraer Viral Clips • Auto (100% Gratis)'}
                 </span>
               </button>
 
@@ -1379,7 +1386,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                         )}s): ${s.text}`
                     )
                     .join(' // ');
-                  const webPrompt = `Act as OpusClip Pro and an expert viral short-form video editor. From the following timestamped Spanish transcript of "${sourceTitle}", select the ${desiredClipCount} most viral standalone segments lasting between ${minDur}s and ${maxDur}s. CRITICAL OUTPUT LANGUAGE REQUIREMENT: Return ONLY a valid JSON object (no markdown commentary) where all audience-facing text fields ("title", "viralityReason", "hookBannerText", "socialCaption", "hashtags") are written in Neutral Spanish: {"clips":[{"title":"...","viralityScore":96,"viralityReason":"...","structureMode":"hook_teaser","startSec":0,"endSec":42,"hookTeaserStartSec":10,"hookTeaserEndSec":14,"hookBannerText":"...","socialCaption":"...","hashtags":"#Historia #Documental #Reels"}]}. TIMESTAMPED TRANSCRIPT: ${formattedTranscript}`;
+                  const webPrompt = `Act as OpusClip Pro and an expert viral short-form video editor. From the following timestamped Spanish transcript of "${sourceTitle}", ${desiredClipCount > 0 ? `select the ${desiredClipCount} most viral standalone segments` : 'decide yourself how many standalone segments this transcript genuinely supports with strong viral potential (usually about one per 75 seconds of narration, never fewer than 3 nor more than 12, and never a weak one just to reach a number), and select them'} lasting between ${minDur}s and ${maxDur}s. CRITICAL OUTPUT LANGUAGE REQUIREMENT: Return ONLY a valid JSON object (no markdown commentary) where all audience-facing text fields ("title", "viralityReason", "hookBannerText", "socialCaption", "hashtags") are written in Neutral Spanish: {"clips":[{"title":"...","viralityScore":96,"viralityReason":"...","structureMode":"hook_teaser","startSec":0,"endSec":42,"hookTeaserStartSec":10,"hookTeaserEndSec":14,"hookBannerText":"...","socialCaption":"...","hashtags":"#Historia #Documental #Reels"}]}. TIMESTAMPED TRANSCRIPT: ${formattedTranscript}`;
                   const geminiViralPayload = {
                     action: 'SEND_PROMPT',
                     prompt: webPrompt,
@@ -2075,7 +2082,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
             <p className="text-xs text-slate-400 max-w-xl mx-auto">
               Elige arriba uno de tus documentales de Huellas Master, sube cualquier video MP4 o pega un link de YouTube y pulsa{' '}
               <strong className="text-amber-300">
-                &quot;Extraer Top {desiredClipCount} Viral Clips&quot;
+                &quot;{desiredClipCount > 0 ? `Extraer Top ${desiredClipCount} Viral Clips` : 'Extraer Viral Clips'}&quot;
               </strong>
               .
             </p>
