@@ -737,6 +737,10 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
     );
   };
 
+  // The documentary's final video (06_Video_Final) already has 16:9 subtitles burned in at the bottom;
+  // the render cuts that strip away, and the preview does the same.
+  const hasBurnedDocCaptions = /[\\/]06_Video_Final[\\/]/i.test(String(sourceLocalPath || ''));
+
   // Compute current active word chunk for the live 9:16 preview player
   const activeCaptionChunk = useMemo(() => {
     if (!selectedClip || !Array.isArray(selectedClip.words) || selectedClip.words.length === 0) {
@@ -1466,15 +1470,24 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                       onPlay={() => setIsPlaying(true)}
                       onPause={() => setIsPlaying(false)}
                       playsInline
-                      className={`relative z-10 w-full h-full ${
-                        selectedClip.reframeMode === 'fit_blur' ? 'object-contain' : 'object-cover'
+                      className={`absolute top-0 left-0 z-10 w-full ${
+                        selectedClip.reframeMode === 'fit_blur' ? 'h-full object-contain' : 'object-cover'
                       }`}
-                      style={{
-                        objectPosition:
-                          selectedClip.reframeMode === 'fit_blur'
-                            ? '50% 50%'
-                            : `${selectedClip.focusX}% 50%`,
-                      }}
+                      style={
+                        selectedClip.reframeMode === 'fit_blur'
+                          ? {
+                              objectPosition: '50% 50%',
+                              // Same as the render: the documentary's own 16:9 subtitles (bottom 22% of the
+                              // final video) are cut away, so they never show twice
+                              clipPath: hasBurnedDocCaptions ? 'inset(0 0 41.1% 0)' : undefined,
+                            }
+                          : {
+                              // Cover mode: the frame shows the top 78% of the picture when the final video
+                              // carries burned-in 16:9 subtitles (exactly what the render keeps)
+                              height: hasBurnedDocCaptions ? `${(100 / 0.78).toFixed(2)}%` : '100%',
+                              objectPosition: `${selectedClip.focusX}% ${hasBurnedDocCaptions ? '0%' : '50%'}`,
+                            }
+                      }
                     />
                   </>
                 ) : (
@@ -1489,10 +1502,13 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                   </div>
                 )}
 
-                {/* Top Hook Banner (First 4 seconds) */}
-                {showHookBanner && selectedClip.hookBannerText && (
-                  <div className="absolute top-[11%] inset-x-3 z-20 flex justify-center pointer-events-none">
-                    <div className="px-3 py-1.5 rounded-xl bg-amber-400 text-slate-950 font-black text-[11px] text-center uppercase tracking-wide shadow-lg border border-white/40 leading-tight">
+                {/* Top Hook Banner (first 8 seconds of the clip, same as the render) */}
+                {showHookBanner &&
+                  selectedClip.hookBannerText &&
+                  playheadSec >= selectedClip.startSec - 0.2 &&
+                  playheadSec < selectedClip.startSec + 8 && (
+                  <div className="absolute top-[10%] inset-x-[13%] z-20 flex justify-center pointer-events-none">
+                    <div className="px-3 py-1.5 rounded-xl bg-amber-400 text-slate-950 font-black text-[14px] leading-tight text-center uppercase tracking-wide shadow-lg border border-white/40 leading-tight">
                       {selectedClip.hookBannerText}
                     </div>
                   </div>
@@ -1505,11 +1521,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                 >
                   {activeCaptionChunk ? (
                     <div
-                      className={`px-3 py-1.5 rounded-xl text-center leading-tight flex flex-wrap items-center justify-center gap-x-1.5 gap-y-0.5 ${
-                        selectedClip.captionStyle === 'huellas_cinema'
-                          ? 'bg-black/35 backdrop-blur-[2px] shadow-[0_0_12px_4px_rgba(0,0,0,0.35)]'
-                          : 'bg-black/45'
-                      }`}
+                      className="px-3 py-1.5 text-center leading-tight flex flex-wrap items-center justify-center gap-x-1.5 gap-y-0.5"
                       style={{
                         fontSize: `${Math.round(17 * fontSizeScale)}px`,
                         fontWeight: 900,
@@ -1545,7 +1557,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                     </div>
                   ) : (
                     <div
-                      className="px-3 py-1.5 rounded-xl bg-black/45 text-center font-black uppercase text-white/90 text-xs"
+                      className="px-3 py-1.5 text-center font-black uppercase text-white/90 text-xs drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)]"
                       style={{ fontSize: `${Math.round(15 * fontSizeScale)}px` }}
                     >
                       {selectedClip.words.slice(0, wordsPerLine).map((w, idx) => (
@@ -1821,7 +1833,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                       onChange={(e) => setShowHookBanner(e.target.checked)}
                       className="accent-amber-400"
                     />
-                    Cartel Gancho Superior (Primeros 3.8s)
+                    Cartel Gancho Superior (Primeros 8s)
                   </label>
                 </div>
                 {showHookBanner && (

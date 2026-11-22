@@ -22724,7 +22724,7 @@ function buildOpusClipAssSubtitles(params: {
   };
 
   const baseFontSize = Math.round(outH * 0.041 * fontSizeScale);
-  const hookBannerFontSize = Math.round(outH * 0.032);
+  const hookBannerFontSize = Math.round(outH * 0.042);
   const storyCtaFontSize = Math.round(outH * 0.025);
   const posY = Math.round((Math.max(20, Math.min(88, captionYPercent)) / 100) * outH);
   const centerX = Math.round(outW / 2);
@@ -22769,19 +22769,22 @@ function buildOpusClipAssSubtitles(params: {
     'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
   ];
 
-  // 1) Optional Hook Banner at the top for the first 3.8s
+  // 1) Optional Hook Banner at the top for the first 8 seconds. It wraps inside wide side margins
+  //    (\q0 + MarginL/R) so a long title never runs to the edges of the vertical frame.
   if (showHookBanner && hookBannerText && hookBannerText.trim()) {
     const cleanHook = hookBannerText
       .trim()
       .replace(/[{}]/g, '')
-      .slice(0, 65);
-    const bannerEnd = Math.min(totalClipDurSec, 3.8);
+      .replace(/\s+/g, ' ')
+      .slice(0, 90);
+    const bannerEnd = Math.min(totalClipDurSec, 8);
+    const bannerSideMargin = Math.round(outW * 0.13);
     assLines.push(
       `Dialogue: 3,${formatAssTime(0)},${formatAssTime(
         bannerEnd
-      )},HookBanner,,0,0,0,,{\\fad(180,280)\\pos(${centerX},${Math.round(
-        outH * 0.14
-      )})}  ${cleanHook}  `
+      )},HookBanner,,${bannerSideMargin},${bannerSideMargin},0,,{\\q0\\fad(180,280)\\an8\\pos(${centerX},${Math.round(
+        outH * 0.1
+      )})}${cleanHook}`
     );
   }
 
