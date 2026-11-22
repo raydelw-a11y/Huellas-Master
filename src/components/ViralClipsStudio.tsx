@@ -392,6 +392,54 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
     }
   }, [sourceMode, selectedDocId]);
 
+  // Detected clips are kept per documentary on the Mac: they come back after a reload or a restart.
+  // `viralClipsDocIdRef` is the documentary the list on screen belongs to (never saved under another one).
+  const viralClipsDocIdRef = useRef<string>('');
+  const viralSaveTimerRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (sourceMode !== 'doc' || !selectedDocId) return;
+    let cancelled = false;
+    if (viralClipsDocIdRef.current && viralClipsDocIdRef.current !== selectedDocId) {
+      setViralClips([]);
+      setSelectedClipId('');
+    }
+    viralClipsDocIdRef.current = '';
+    (async () => {
+      try {
+        const resp = await fetch(viralApi(`/api/viral-clips/saved?docId=${encodeURIComponent(selectedDocId)}`), {
+          cache: 'no-store',
+        });
+        const data = resp.ok ? await resp.json() : null;
+        if (cancelled) return;
+        const saved = Array.isArray(data?.clips) ? data.clips : [];
+        viralClipsDocIdRef.current = selectedDocId;
+        if (saved.length > 0) {
+          setViralClips(saved);
+          const sel = saved.find((c: any) => c.id === data.selectedClipId) || saved[0];
+          setSelectedClipId(sel.id);
+          setPlayheadSec(Number(sel.startSec) || 0);
+        }
+      } catch {
+        if (!cancelled) viralClipsDocIdRef.current = selectedDocId;
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [sourceMode, selectedDocId]);
+  useEffect(() => {
+    const docId = viralClipsDocIdRef.current;
+    if (sourceMode !== 'doc' || !docId || docId !== selectedDocId) return;
+    if (viralSaveTimerRef.current) window.clearTimeout(viralSaveTimerRef.current);
+    viralSaveTimerRef.current = window.setTimeout(() => {
+      fetch(viralApi('/api/viral-clips/saved'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ docId, clips: viralClips, selectedClipId }),
+      }).catch(() => {});
+    }, 800);
+  }, [viralClips, selectedClipId]);
+
   // Upload Local Video Handler
   const handleUploadLocalVideo = async (file: File) => {
     setIsLoadingSource(true);

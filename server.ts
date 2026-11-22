@@ -22008,6 +22008,46 @@ async function transcribeVideoFileWithTimestamps(
 }
 
 // 1. Upload local video file for Viral Clips
+// Detected viral clips of each documentary, so the list survives reloads, restarts and other devices.
+// Stored apart from documentaries.json (word timings are large and change often).
+const VIRAL_SAVED_DIR = path.join(VIRAL_CLIPS_DIR, 'saved');
+const viralSavedFileFor = (docId: string) =>
+  path.join(VIRAL_SAVED_DIR, `${String(docId || '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 80)}.json`);
+
+app.get('/api/viral-clips/saved', (req, res) => {
+  try {
+    const docId = String(req.query.docId || '').trim();
+    if (!docId) return res.status(400).json({ ok: false, error: 'Falta el documental.' });
+    const f = viralSavedFileFor(docId);
+    if (!fs.existsSync(f)) return res.json({ ok: true, clips: [], selectedClipId: '', savedAt: 0 });
+    const data = JSON.parse(fs.readFileSync(f, 'utf8'));
+    res.json({
+      ok: true,
+      clips: Array.isArray(data?.clips) ? data.clips : [],
+      selectedClipId: String(data?.selectedClipId || ''),
+      savedAt: Number(data?.savedAt || 0),
+    });
+  } catch (err: any) {
+    res.status(500).json({ ok: false, error: err?.message || 'No se pudieron leer los clips guardados.' });
+  }
+});
+
+app.post('/api/viral-clips/saved', (req, res) => {
+  try {
+    const docId = String(req.body?.docId || '').trim();
+    const clips = Array.isArray(req.body?.clips) ? req.body.clips.slice(0, 30) : null;
+    if (!docId || !clips) return res.status(400).json({ ok: false, error: 'Faltan datos.' });
+    fs.mkdirSync(VIRAL_SAVED_DIR, { recursive: true });
+    writeFileAtomicUtf8(
+      viralSavedFileFor(docId),
+      JSON.stringify({ docId, clips, selectedClipId: String(req.body?.selectedClipId || ''), savedAt: Date.now() })
+    );
+    res.json({ ok: true });
+  } catch (err: any) {
+    res.status(500).json({ ok: false, error: err?.message || 'No se pudieron guardar los clips.' });
+  }
+});
+
 app.post('/api/viral-clips/upload-video', uploadViralVideo.single('video'), async (req, res) => {
   try {
     if (!req.file) {
