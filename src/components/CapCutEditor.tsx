@@ -22162,6 +22162,25 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                             : ''
                         }`}
                       >
+                        {/* Framing points of this clip (format being edited): a line and a diamond at each point's instant */}
+                        {clip.clipNumber !== 0 &&
+                          clip.clipNumber !== 999 &&
+                          getClipFrameKeys(clip, aspectRatio).map((k, keyIdx) => (
+                            <span
+                              key={`frame-key-${keyIdx}`}
+                              className="pointer-events-none absolute inset-y-0 z-20 w-px bg-amber-300/90"
+                              style={{
+                                left: `${Math.max(1, Math.min(99, (k.t / Math.max(0.1, clip.duration)) * 100)).toFixed(2)}%`,
+                              }}
+                            >
+                              <span
+                                className="absolute top-0 left-1/2 -translate-x-1/2 text-[10px] leading-none text-amber-300"
+                                style={{ textShadow: '0 0 2px #000, 0 0 2px #000' }}
+                              >
+                                ◆
+                              </span>
+                            </span>
+                          ))}
                         {/* Real-Time Progress Fill inside the active clip as the playhead sweeps across it */}
                         {isCurrent && (
                           <div
