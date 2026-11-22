@@ -23097,8 +23097,9 @@ async function renderViralClipMp4Internal(params: {
   }
 
   const ffmpegBin = getFfmpegPath();
-  const outW = 1080;
-  const outH = 1920;
+  // Reels / Stories in 2K (1440×2560): the same file is downloaded and published
+  const outW = 1440;
+  const outH = 2560;
 
   // Adjust effective duration based on variant ('reel' vs 'story_full' <=58s vs 'story_teaser' ~20s)
   let effectiveEndSec = endSec;
@@ -23190,13 +23191,13 @@ async function renderViralClipMp4Internal(params: {
   const fX = Math.max(0, Math.min(1, (Number(focusX) || 50) / 100));
   let reframeVf = '';
   if (reframeMode === 'fit_blur') {
-    reframeVf = `${preCropVf}split=2[bg][fg];[bg]scale=${outW}:${outH}:force_original_aspect_ratio=increase,crop=${outW}:${outH},boxblur=24:4,eq=brightness=-0.18[bgblur];[fg]scale=${outW}:${outH}:force_original_aspect_ratio=decrease[fgscaled];[bgblur][fgscaled]overlay=(W-w)/2:(H-h)/2,ass='${escapedAssPath}'`;
+    reframeVf = `${preCropVf}split=2[bg][fg];[bg]scale=${outW}:${outH}:force_original_aspect_ratio=increase:flags=lanczos,crop=${outW}:${outH},boxblur=24:4,eq=brightness=-0.18[bgblur];[fg]scale=${outW}:${outH}:force_original_aspect_ratio=decrease:flags=lanczos[fgscaled];[bgblur][fgscaled]overlay=(W-w)/2:(H-h)/2,ass='${escapedAssPath}'`;
   } else if (reframeMode === 'auto_pan') {
-    reframeVf = `${preCropVf}scale=${outW}:${outH}:force_original_aspect_ratio=increase,crop=${outW}:${outH}:'(iw-ow)*(0.25+0.5*min(1,t/${mainSpanDur.toFixed(
+    reframeVf = `${preCropVf}scale=${outW}:${outH}:force_original_aspect_ratio=increase:flags=lanczos,crop=${outW}:${outH}:'(iw-ow)*(0.25+0.5*min(1,t/${mainSpanDur.toFixed(
       2
     )}))':(ih-oh)/2,ass='${escapedAssPath}'`;
   } else {
-    reframeVf = `${preCropVf}scale=${outW}:${outH}:force_original_aspect_ratio=increase,crop=${outW}:${outH}:(iw-ow)*${fX.toFixed(
+    reframeVf = `${preCropVf}scale=${outW}:${outH}:force_original_aspect_ratio=increase:flags=lanczos,crop=${outW}:${outH}:(iw-ow)*${fX.toFixed(
       3
     )}:(ih-oh)/2,ass='${escapedAssPath}'`;
   }
@@ -23221,9 +23222,9 @@ async function renderViralClipMp4Internal(params: {
             '-c:v',
             'libx264',
             '-preset',
-            'ultrafast',
+            'veryfast',
             '-crf',
-            '20',
+            '18',
             '-pix_fmt',
             'yuv420p',
             '-c:a',
@@ -23259,7 +23260,7 @@ async function renderViralClipMp4Internal(params: {
               3
             )}:end=${effectiveEndSec.toFixed(
               3
-            )},asetpts=PTS-STARTPTS[a1];[v0][a0][v1][a1]concat=n=2:v=1:a=1[vc][aout];[vc]${preCropVf}split=2[bg][fg];[bg]scale=${outW}:${outH}:force_original_aspect_ratio=increase,crop=${outW}:${outH},boxblur=24:4,eq=brightness=-0.18[bgblur];[fg]scale=${outW}:${outH}:force_original_aspect_ratio=decrease[fgscaled];[bgblur][fgscaled]overlay=(W-w)/2:(H-h)/2,ass='${escapedAssPath}'[vout]`
+            )},asetpts=PTS-STARTPTS[a1];[v0][a0][v1][a1]concat=n=2:v=1:a=1[vc][aout];[vc]${preCropVf}split=2[bg][fg];[bg]scale=${outW}:${outH}:force_original_aspect_ratio=increase:flags=lanczos,crop=${outW}:${outH},boxblur=24:4,eq=brightness=-0.18[bgblur];[fg]scale=${outW}:${outH}:force_original_aspect_ratio=decrease:flags=lanczos[fgscaled];[bgblur][fgscaled]overlay=(W-w)/2:(H-h)/2,ass='${escapedAssPath}'[vout]`
           : `[0:v]trim=start=${hookTeaserStartSec.toFixed(3)}:end=${hookTeaserEndSec.toFixed(
               3
             )},setpts=PTS-STARTPTS[v0];[0:a]atrim=start=${hookTeaserStartSec.toFixed(
@@ -23274,7 +23275,7 @@ async function renderViralClipMp4Internal(params: {
               3
             )}:end=${effectiveEndSec.toFixed(
               3
-            )},asetpts=PTS-STARTPTS[a1];[v0][a0][v1][a1]concat=n=2:v=1:a=1[vc][aout];[vc]${preCropVf}scale=${outW}:${outH}:force_original_aspect_ratio=increase,crop=${outW}:${outH}:(iw-ow)*${fX.toFixed(
+            )},asetpts=PTS-STARTPTS[a1];[v0][a0][v1][a1]concat=n=2:v=1:a=1[vc][aout];[vc]${preCropVf}scale=${outW}:${outH}:force_original_aspect_ratio=increase:flags=lanczos,crop=${outW}:${outH}:(iw-ow)*${fX.toFixed(
               3
             )}:(ih-oh)/2,ass='${escapedAssPath}'[vout]`;
 
@@ -23296,9 +23297,9 @@ async function renderViralClipMp4Internal(params: {
             '-c:v',
             'libx264',
             '-preset',
-            'ultrafast',
+            'veryfast',
             '-crf',
-            '20',
+            '18',
             '-pix_fmt',
             'yuv420p',
             '-c:a',
