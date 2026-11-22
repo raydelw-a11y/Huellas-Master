@@ -23752,9 +23752,19 @@ function toViralMasterBody(body: any): any {
   b.fps = 30;
   b.bitrateMbps = 35;
   b.srtContent = '';
-  b.overlays = { ...(b.overlays || {}), burnInCaptions: false, burnInHook: false, hookSegments: [] };
-  delete b.overlays.captionWordStarts;
-  delete b.overlays.captionSegments;
+  // Only what shows in the clean master (the same recipe from the editor or from a 9:16 export must match)
+  const ov = b.overlays || {};
+  b.overlays = {
+    parityV2: ov.parityV2 === true,
+    clipAnim: ov.clipAnim || {},
+    burnInLogo: ov.burnInLogo !== false,
+    logo: ov.logo || {},
+    burnInHook: false,
+    hookSegments: [],
+    hookText: null,
+    burnInCaptions: false,
+    captionSegments: [],
+  };
   return b;
 }
 /** What makes two masters different (page-only URLs that change from one session to another are left out). */
@@ -23967,6 +23977,7 @@ function tickViralMasters() {
     const docId = String(readJsonSafe(path.join(VIRAL_MASTERS_DIR, f))?.docId || '');
     if (!docId) continue;
     const st = viralMasterState(docId);
+    if (st.fresh) viralMasterWanted.delete(docId);
     if (st.fresh || !st.recipe) continue;
     const wantedAt = viralMasterWanted.get(docId) || 0;
     // Only documentaries that have viral clips (or a viral clip waiting) get a master
