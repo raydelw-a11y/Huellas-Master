@@ -84,13 +84,28 @@ export async function stampBrandMarksOnThumbnail(
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(base, 0, 0);
-    const place = (img: HTMLImageElement | null, box: { x: number; y: number; w: number }) => {
+    const place = (
+      img: HTMLImageElement | null,
+      box: { x: number; y: number; w: number },
+      softShadow = false
+    ) => {
       if (!img || !img.naturalWidth) return;
       const w = (W * box.w) / g.refW;
       const h = (w * img.naturalHeight) / img.naturalWidth;
-      ctx.drawImage(img, (W * box.x) / g.refW, (H * box.y) / g.refH, w, h);
+      const x = (W * box.x) / g.refW;
+      const y = (H * box.y) / g.refH;
+      if (softShadow) {
+        // Soft dark shadow behind the logo so its text stays readable on light backgrounds (same as the server)
+        ctx.save();
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
+        ctx.shadowBlur = w * 0.028;
+        ctx.drawImage(img, x, y, w, h);
+        ctx.drawImage(img, x, y, w, h);
+        ctx.restore();
+      }
+      ctx.drawImage(img, x, y, w, h);
     };
-    place(logo, g.logo);
+    place(logo, g.logo, true);
     place(badge, g.badge);
     return canvas.toDataURL('image/png');
   } catch {

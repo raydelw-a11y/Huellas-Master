@@ -11450,11 +11450,11 @@ function stampBrandMarksOnThumbnailServer(img: Buffer, orientation: 'vertical' |
   const tmpOut = `${tmpBase}_out.png`;
   try {
     fs.writeFileSync(tmpIn, img);
-    const marks: Array<{ file: string; box: { x: number; y: number; w: number } }> = [];
+    const marks: Array<{ file: string; box: { x: number; y: number; w: number }; shadow?: boolean }> = [];
     const logoDataUrl = resolveOfficialLogoPayloadServer().logoDataUrl;
     if (logoDataUrl && logoDataUrl.startsWith('data:image/')) {
       fs.writeFileSync(tmpLogo, Buffer.from(logoDataUrl.replace(/^data:[^;]+;base64,/, ''), 'base64'));
-      marks.push({ file: tmpLogo, box: g.logo });
+      marks.push({ file: tmpLogo, box: g.logo, shadow: true });
     }
     if (fs.existsSync(badgeFile)) marks.push({ file: badgeFile, box: g.badge });
     if (marks.length === 0) return img;
@@ -11464,10 +11464,29 @@ function stampBrandMarksOnThumbnailServer(img: Buffer, orientation: 'vertical' |
     const parts: string[] = [];
     let cur = '[0:v]';
     marks.forEach((m, i) => {
-      parts.push(
-        `[${i + 1}:v]${cur}scale2ref=w='iw*${m.box.w}/${g.refW}':h='ow*main_h/main_w':flags=lanczos[m${i}][b${i}]`
-      );
-      parts.push(`[b${i}][m${i}]overlay=x='main_w*${m.box.x}/${g.refW}':y='main_h*${m.box.y}/${g.refH}'[o${i}]`);
+      if (m.shadow) {
+        // Soft dark shadow behind the logo so its text stays readable on light backgrounds:
+        // the logo is padded 10% per side, its blurred black silhouette goes underneath (drawn twice for density)
+        parts.push(
+          `[${i + 1}:v]scale=1000:-2:flags=lanczos,format=rgba,pad=iw*1.2:ih*1.2:(ow-iw)/2:(oh-ih)/2:color=black@0,split[lg${i}][sh${i}]`
+        );
+        parts.push(
+          `[sh${i}]colorchannelmixer=rr=0:gg=0:bb=0:aa=1,boxblur=luma_radius=14:luma_power=2:alpha_radius=14:alpha_power=2,split[sa${i}][sb${i}]`
+        );
+        parts.push(`[sa${i}][sb${i}]overlay=format=auto[shd${i}]`);
+        parts.push(`[shd${i}][lg${i}]overlay=format=auto[lw${i}]`);
+        parts.push(
+          `[lw${i}]${cur}scale2ref=w='iw*${m.box.w}*1.2/${g.refW}':h='ow*main_h/main_w':flags=lanczos[m${i}][b${i}]`
+        );
+        parts.push(
+          `[b${i}][m${i}]overlay=x='main_w*${m.box.x}/${g.refW}-overlay_w*0.1/1.2':y='main_h*${m.box.y}/${g.refH}-overlay_h*0.1/1.2'[o${i}]`
+        );
+      } else {
+        parts.push(
+          `[${i + 1}:v]${cur}scale2ref=w='iw*${m.box.w}/${g.refW}':h='ow*main_h/main_w':flags=lanczos[m${i}][b${i}]`
+        );
+        parts.push(`[b${i}][m${i}]overlay=x='main_w*${m.box.x}/${g.refW}':y='main_h*${m.box.y}/${g.refH}'[o${i}]`);
+      }
       cur = `[o${i}]`;
     });
     args.push('-filter_complex', parts.join(';'), '-map', cur, '-frames:v', '1', tmpOut);
