@@ -593,6 +593,8 @@ export function createFlowPcManager(deps: FlowPcManagerDeps, serverPort: number)
   // ==========================================================================
   let cloudflaredProc: ChildProcess | null = null;
   let activeTunnelUrl = '';
+  // When the current tunnel URL appeared: a brand-new trycloudflare hostname takes a while to exist in DNS
+  let activeTunnelSinceMs = 0;
   let lastEncryptedEnvelopeJson = '';
   let studioBridgeKeyCache: Buffer | null = null;
 
@@ -888,6 +890,7 @@ export function createFlowPcManager(deps: FlowPcManagerDeps, serverPort: number)
         const m = text.match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com/i);
         if (m && m[0] && m[0] !== activeTunnelUrl) {
           activeTunnelUrl = m[0];
+          activeTunnelSinceMs = Date.now();
           console.log(`[FlowPC] 5G Cloudflare Tunnel ready (encrypted sync): ${activeTunnelUrl}`);
           publishEncryptedTunnelEnvelope(true).catch(() => {});
         }
@@ -920,11 +923,33 @@ export function createFlowPcManager(deps: FlowPcManagerDeps, serverPort: number)
     if (!activeTunnelUrl) {
       return { healthy: false, dnsFailed: true };
     }
+    // DNS check against public resolvers, not the Mac's own: asking the ISP resolver right after the tunnel is
+    // created caches "does not exist" for minutes, every 45 s check then saw NXDOMAIN and recreated the tunnel
+    // in an endless loop (the iPhone kept pointing at a dead URL). A new tunnel gets a grace period.
+    const host = (() => {
+      try {
+        return new URL(activeTunnelUrl).hostname;
+      } catch {
+        return '';
+      }
+    })();
+    if (!host) return { healthy: false, dnsFailed: true };
+    const inGrace = Date.now() - activeTunnelSinceMs < 120000;
+    let resolvedPublicly = false;
     try {
-      const host = new URL(activeTunnelUrl).hostname;
-      await dns.promises.lookup(host);
-    } catch {
-      return { healthy: false, dnsFailed: true };
+      const resolver = new dns.promises.Resolver({ timeout: 4000, tries: 2 });
+      resolver.setServers(['1.1.1.1', '8.8.8.8']);
+      const addrs = await resolver.resolve4(host);
+      resolvedPublicly = Array.isArray(addrs) && addrs.length > 0;
+    } catch (e: any) {
+      const code = String(e?.code || '');
+      // Only a real "this name does not exist" counts; timeouts / network errors are not a lost tunnel
+      if ((code === 'ENOTFOUND' || code === 'ENODATA') && !inGrace) {
+        return { healthy: false, dnsFailed: true };
+      }
+    }
+    if (!resolvedPublicly && inGrace) {
+      return { healthy: true, dnsFailed: false };
     }
     try {
       const res = await fetch(`${activeTunnelUrl}/api/flow-pc/ping?t=${Date.now()}`, {
@@ -933,7 +958,13 @@ export function createFlowPcManager(deps: FlowPcManagerDeps, serverPort: number)
       if (!res.ok) return { healthy: false, dnsFailed: false };
       const data: any = await res.json().catch(() => null);
       return { healthy: Boolean(data?.ok), dnsFailed: false };
-    } catch {
+    } catch (e: any) {
+      // The ping goes through the Mac's own DNS, which may still hold a cached "does not exist" for this new
+      // name. If public DNS already resolves it, the tunnel is fine for the iPhone: do not recreate it.
+      const causeCode = String(e?.cause?.code || e?.code || '');
+      if (resolvedPublicly && (causeCode === 'ENOTFOUND' || causeCode === 'EAI_AGAIN')) {
+        return { healthy: true, dnsFailed: false };
+      }
       return { healthy: false, dnsFailed: false };
     }
   }
@@ -1570,6 +1601,7 @@ export function createFlowPcManager(deps: FlowPcManagerDeps, serverPort: number)
     if (process.platform === 'darwin') {
       let isCheckingTunnelHealth = false;
       let consecutiveHttpFailures = 0;
+      let consecutiveDnsFailures = 0;
       let healthyHeartbeatTick = 0;
       setInterval(async () => {
         if (isCheckingTunnelHealth || !cloudflaredProc || !activeTunnelUrl) return;
@@ -1578,6 +1610,7 @@ export function createFlowPcManager(deps: FlowPcManagerDeps, serverPort: number)
           const st = await checkActiveTunnelHealthy();
           if (st.healthy) {
             consecutiveHttpFailures = 0;
+            consecutiveDnsFailures = 0;
             healthyHeartbeatTick++;
             if (healthyHeartbeatTick % 3 === 0 && lastEncryptedEnvelopeJson) {
               pushEncryptedEnvelopeToRender(lastEncryptedEnvelopeJson);
@@ -1586,10 +1619,16 @@ export function createFlowPcManager(deps: FlowPcManagerDeps, serverPort: number)
           }
           if (st.dnsFailed) {
             consecutiveHttpFailures = 0;
-            console.warn('[FlowPC] Cloudflare tunnel DNS lost (NXDOMAIN). Recreating tunnel...');
-            ensureCloudflaredRunning(true);
+            consecutiveDnsFailures++;
+            // Two public-DNS misses in a row (about 90 s apart) before giving up on the tunnel
+            if (consecutiveDnsFailures >= 2) {
+              consecutiveDnsFailures = 0;
+              console.warn('[FlowPC] Cloudflare tunnel DNS lost (NXDOMAIN). Recreating tunnel...');
+              ensureCloudflaredRunning(true);
+            }
             return;
           }
+          consecutiveDnsFailures = 0;
           consecutiveHttpFailures++;
           if (consecutiveHttpFailures >= 2) {
             consecutiveHttpFailures = 0;
