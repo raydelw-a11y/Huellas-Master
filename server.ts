@@ -22587,20 +22587,20 @@ app.post('/api/viral-clips/analyze', async (req, res) => {
 
     // "Auto": as many clips as the video really supports. All non-overlapping windows are ranked; the ones
     // close to the best score are kept (strong hook + emotion + clean ending), at most about one per 75 s of
-    // narration so the clips do not cannibalise each other, never fewer than 3 nor more than 12.
+    // narration so the clips do not cannibalise each other (the cap grows with the documentary), never fewer than 3.
     const isAutoCount = String(clipCount).toLowerCase() === 'auto' || Number(clipCount) === 0;
     let autoCountReason = '';
     let desiredCount = Math.max(1, Math.min(15, Number(clipCount) || 5));
     if (isAutoCount) {
       const pool: ScoredCandidateWindow[] = [];
       for (const cand of candidates) {
-        if (pool.length >= 20) break;
+        if (pool.length >= 80) break;
         if (!pool.some((p) => Math.min(p.endSec, cand.endSec) - Math.max(p.startSec, cand.startSec) > 0.5)) {
           pool.push(cand);
         }
       }
       const spanSec = Math.max(1, segments[segments.length - 1].end - segments[0].start);
-      const maxBySpan = Math.max(3, Math.min(12, Math.floor(spanSec / 75)));
+      const maxBySpan = Math.max(3, Math.floor(spanSec / 75));
       const best = pool.length > 0 ? pool[0].totalScore : 0;
       const strong = pool.filter((c) => c.totalScore >= best - 6).length;
       desiredCount = Math.max(Math.min(3, pool.length), Math.min(strong, maxBySpan, pool.length));

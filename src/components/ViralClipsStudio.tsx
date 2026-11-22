@@ -691,7 +691,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
         transcriptSegments[transcriptSegments.length - 1].end - transcriptSegments[0].start
       );
       const fallbackCount =
-        desiredClipCount > 0 ? desiredClipCount : Math.max(3, Math.min(12, Math.floor(totalSpan / 75)));
+        desiredClipCount > 0 ? desiredClipCount : Math.max(3, Math.floor(totalSpan / 75));
       const stepSec = Math.max(15, (totalSpan - minDur) / Math.max(1, fallbackCount));
       for (let k = 0; k < fallbackCount; k++) {
         const approxStart = transcriptSegments[0].start + k * stepSec;
@@ -1386,7 +1386,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                         )}s): ${s.text}`
                     )
                     .join(' // ');
-                  const webPrompt = `Act as OpusClip Pro and an expert viral short-form video editor. From the following timestamped Spanish transcript of "${sourceTitle}", ${desiredClipCount > 0 ? `select the ${desiredClipCount} most viral standalone segments` : 'decide yourself how many standalone segments this transcript genuinely supports with strong viral potential (usually about one per 75 seconds of narration, never fewer than 3 nor more than 12, and never a weak one just to reach a number), and select them'} lasting between ${minDur}s and ${maxDur}s. CRITICAL OUTPUT LANGUAGE REQUIREMENT: Return ONLY a valid JSON object (no markdown commentary) where all audience-facing text fields ("title", "viralityReason", "hookBannerText", "socialCaption", "hashtags") are written in Neutral Spanish: {"clips":[{"title":"...","viralityScore":96,"viralityReason":"...","structureMode":"hook_teaser","startSec":0,"endSec":42,"hookTeaserStartSec":10,"hookTeaserEndSec":14,"hookBannerText":"...","socialCaption":"...","hashtags":"#Historia #Documental #Reels"}]}. TIMESTAMPED TRANSCRIPT: ${formattedTranscript}`;
+                  const webPrompt = `Act as OpusClip Pro and an expert viral short-form video editor. From the following timestamped Spanish transcript of "${sourceTitle}", ${desiredClipCount > 0 ? `select the ${desiredClipCount} most viral standalone segments` : 'decide yourself how many standalone segments this transcript genuinely supports with strong viral potential (at most about one per 75 seconds of narration, so a longer documentary can give more, never fewer than 3, and never a weak one just to reach a number), and select them'} lasting between ${minDur}s and ${maxDur}s. CRITICAL OUTPUT LANGUAGE REQUIREMENT: Return ONLY a valid JSON object (no markdown commentary) where all audience-facing text fields ("title", "viralityReason", "hookBannerText", "socialCaption", "hashtags") are written in Neutral Spanish: {"clips":[{"title":"...","viralityScore":96,"viralityReason":"...","structureMode":"hook_teaser","startSec":0,"endSec":42,"hookTeaserStartSec":10,"hookTeaserEndSec":14,"hookBannerText":"...","socialCaption":"...","hashtags":"#Historia #Documental #Reels"}]}. TIMESTAMPED TRANSCRIPT: ${formattedTranscript}`;
                   const geminiViralPayload = {
                     action: 'SEND_PROMPT',
                     prompt: webPrompt,
