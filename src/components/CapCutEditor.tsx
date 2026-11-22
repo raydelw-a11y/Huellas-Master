@@ -15078,9 +15078,17 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 burnInLogo,
                 logo: {
                   pngDataUrl: logoPngDataUrl,
-                  xPct: logoPosX,
-                  yPct: logoPosY,
-                  wPct: logoScalePct,
+                  // Same picture the viewer draws: its logo box is `logoScalePct`% of the frame but never
+                  // narrower than 46 px of the 520-px-high stage, and the image sits 4 px inside that box.
+                  // (In 9:16 a small percentage hits that minimum, so sending the raw percentage exported
+                  // a logo much smaller than the one seen in the editor.)
+                  // Applied to 9:16 only: 16:9 exports keep the size they have always had.
+                  xPct: aspectRatio === '9:16' ? logoPosX + (4 / canonicalStageWidth) * 100 : logoPosX,
+                  yPct: aspectRatio === '9:16' ? logoPosY + (4 / CANONICAL_STAGE_HEIGHT) * 100 : logoPosY,
+                  wPct:
+                    aspectRatio === '9:16'
+                      ? ((Math.max(46, (logoScalePct / 100) * canonicalStageWidth) - 8) / canonicalStageWidth) * 100
+                      : logoScalePct,
                   opacity: logoOpacity,
                   animIn: logoAnimIn,
                   animInDur: logoAnimInDur,
