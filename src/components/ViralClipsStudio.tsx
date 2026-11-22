@@ -1519,7 +1519,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 gap-2">
                 <input
                   type="text"
                   value={customTopicFilter}
@@ -1527,23 +1527,6 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                   placeholder="Filtro opcional (ej. momentos más dramáticos, cifras...)"
                   className="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 outline-none"
                 />
-                <div className="flex items-center gap-1.5 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5">
-                  <span className="text-[10px] text-pink-300 font-bold shrink-0">
-                    Palabra Auto-DM:
-                  </span>
-                  <input
-                    type="text"
-                    value={igConfig.autoDm.keyword}
-                    onChange={(e) =>
-                      setIgConfig((prev) => ({
-                        ...prev,
-                        autoDm: { ...prev.autoDm, keyword: e.target.value.toUpperCase() },
-                      }))
-                    }
-                    className="w-full bg-transparent text-xs font-black text-amber-300 outline-none uppercase"
-                    placeholder="HUELLAS"
-                  />
-                </div>
               </div>
             </div>
 
@@ -2123,9 +2106,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                       onClick={() =>
                         copyText(
                           'caption',
-                          `${selectedClip.title}\n\n${selectedClip.socialCaption}\n\n💬 Comenta "${
-                            igConfig.autoDm.keyword || 'HUELLAS'
-                          }" y te envío el link directo al documental completo por DM.\n\n${limitToFiveHashtags(
+                          `${selectedClip.title}\n\n${selectedClip.socialCaption}\n\n${limitToFiveHashtags(
                             selectedClip.hashtags
                           )}`
                         )

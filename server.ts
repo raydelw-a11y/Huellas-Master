@@ -23808,9 +23808,8 @@ app.post('/api/viral-clips/publish-instagram', async (req, res) => {
     saveViralStore(store);
 
     const activeKeyword = store.autoDm.keyword || 'HUELLAS';
-    const fullCaption = `${String(caption || '').trim()}\n\n💬 Comenta "${activeKeyword}" y te envío el link directo al documental completo por DM.\n\n${String(
-      hashtags || ''
-    ).trim()}`.trim();
+    // Instagram text: title + the clip's description + its 5 hashtags (no "comment a word" call to action)
+    const fullCaption = `${String(caption || '').trim()}\n\n${String(hashtags || '').trim()}`.trim();
 
     let reelResult: { mediaId: string; permalink?: string } | undefined;
     let storyResult: { mediaId: string; permalink?: string } | undefined;
