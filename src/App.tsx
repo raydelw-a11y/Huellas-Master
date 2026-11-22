@@ -202,7 +202,7 @@ import { useNoticeStack } from './utils/noticeStack';
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '10:30 AM - 11/22/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '10:35 AM - 11/22/2026';
 
 // PRODUCTION LOCK: while promptConfig.PRODUCTION_LOCKED === 'YES' these fields never change (the server
 // enforces the same list in protectLockedDocs). Metadata, thumbnails, review marks and reframes stay editable.
@@ -14226,9 +14226,23 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           setBridgeStatusType('WORKING');
         }
       } else if (msg.type === 'GEMINI_RESPONSE_READY' && Number(msg.stageNumber) === 970) {
-        // Respuesta al botón "Gemini Web (Gratis)" de Viral Clips: la recoge esa pantalla, nunca es una etapa
+        // Respuesta al botón "Gemini Web (Gratis)" de Viral Clips: nunca es una etapa. Se guarda en la Mac
+        // aunque la pantalla de Viral Clips no esté abierta, y esa pantalla la convierte en clips sola.
         setExtensionInstalled(true);
         setAiGenerating(false);
+        const viralDocId = String(msg.docId || '').trim();
+        const viralText = String(msg.text || '');
+        if (viralDocId && viralText.trim()) {
+          void fetch('/api/viral-clips/gemini-answer', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ docId: viralDocId, text: viralText }),
+          })
+            .then(() =>
+              window.dispatchEvent(new CustomEvent('huellas-viral-gemini-answer', { detail: { docId: viralDocId } }))
+            )
+            .catch(() => {});
+        }
       } else if (msg.type === 'GEMINI_RESPONSE_READY' && Number(msg.stageNumber) === 960) {
         // Answer to a clip-identification order: never a stage result
         setExtensionInstalled(true);

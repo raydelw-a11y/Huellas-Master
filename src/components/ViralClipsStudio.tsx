@@ -207,9 +207,6 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
   const [cloudOnlyMaster, setCloudOnlyMaster] = useState<{ path: string; sizeMB: number } | null>(null);
   const [isRequestingCloudMaster, setIsRequestingCloudMaster] = useState<boolean>(false);
   const [isWaitingGeminiClips, setIsWaitingGeminiClips] = useState<boolean>(false);
-  // Pasted Gemini answer (from the Gemini chat history), for when the automatic answer was lost
-  const [showGeminiPaste, setShowGeminiPaste] = useState<boolean>(false);
-  const [geminiPasteText, setGeminiPasteText] = useState<string>('');
 
   // YouTube input
   const [youtubeUrlInput, setYoutubeUrlInput] = useState<string>('');
@@ -430,6 +427,14 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
           if (!data?.ok) throw new Error('not ready');
           const saved = Array.isArray(data.clips) ? data.clips : [];
           viralClipsDocIdRef.current = selectedDocId;
+          if (data.pendingGeminiAnswer?.text && Number(data.pendingGeminiAnswer.at) > appliedGeminiAnswerAtRef.current) {
+            pendingGeminiAnswerRef.current = {
+              docId: selectedDocId,
+              text: String(data.pendingGeminiAnswer.text),
+              at: Number(data.pendingGeminiAnswer.at),
+            };
+            setPendingGeminiTick((t) => t + 1);
+          }
           if (saved.length > 0) {
             setViralClips(saved);
             const sel = saved.find((c: any) => c.id === data.selectedClipId) || saved[0];
@@ -455,7 +460,12 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
       fetch(viralApi('/api/viral-clips/saved'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ docId, clips: viralClips, selectedClipId }),
+        body: JSON.stringify({
+          docId,
+          clips: viralClips,
+          selectedClipId,
+          clearPendingGeminiAt: appliedGeminiAnswerAtRef.current || undefined,
+        }),
       }).catch(() => {});
     }, 800);
   }, [viralClips, selectedClipId]);
@@ -580,8 +590,10 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
   const transcriptSegmentsRef = useRef<TranscriptSegmentItem[]>([]);
   transcriptSegmentsRef.current = transcriptSegments;
   const geminiViralOrderRef = useRef<{ payload: any; attempts: number } | null>(null);
-  const applyGeminiViralResponseRef = useRef<(text: string) => void>(() => {});
-  applyGeminiViralResponseRef.current = (text: string) => {
+  const applyGeminiViralResponseRef = useRef<(text: string) => boolean>(() => false);
+  // Instant of the stored Gemini answer turned into the list on screen (the next save clears it on the Mac)
+  const appliedGeminiAnswerAtRef = useRef<number>(0);
+  applyGeminiViralResponseRef.current = (text: string): boolean => {
     setIsWaitingGeminiClips(false);
     if (sourceMode === 'doc' && selectedDocId) viralClipsDocIdRef.current = selectedDocId;
     let parsedList: any[] = [];
@@ -609,10 +621,10 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
         sendCommandToWebBridge('GEMINI', pending.payload);
         setIsWaitingGeminiClips(true);
         setActionToast('🔁 La respuesta de Gemini llegó incompleta; la pido otra vez...');
-        return;
+        return false;
       }
       setActionToast('⚠️ Gemini respondió, pero sin una lista de clips que se pueda leer. Vuelve a pulsar "Gemini Web (Gratis)".');
-      return;
+      return false;
     }
     geminiViralOrderRef.current = null;
     const built = buildViralClipsFromList(
@@ -623,15 +635,52 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
     setSelectedClipId(built[0].id);
     setPlayheadSec(built[0].startSec);
     setActionToast(`✅ Gemini eligió ${built.length} clips. Ya están en la lista.`);
+    return true;
   };
+
+  // Gemini's answer is stored on the Mac by the page as soon as it arrives (even if this screen was closed).
+  // Here it is turned into the clip list: right away if this documentary is open, or the next time it is.
+  const pendingGeminiAnswerRef = useRef<{ docId: string; text: string; at: number } | null>(null);
+  const [pendingGeminiTick, setPendingGeminiTick] = useState<number>(0);
+  const fetchPendingGeminiAnswer = async (docId: string) => {
+    try {
+      const resp = await fetch(viralApi(`/api/viral-clips/saved?docId=${encodeURIComponent(docId)}`), {
+        cache: 'no-store',
+      });
+      const data = resp.ok ? await resp.json() : null;
+      const p = data?.pendingGeminiAnswer;
+      if (p?.text && Number(p.at) > appliedGeminiAnswerAtRef.current) {
+        pendingGeminiAnswerRef.current = { docId, text: String(p.text), at: Number(p.at) };
+        setPendingGeminiTick((t) => t + 1);
+      }
+    } catch {}
+  };
+  useEffect(() => {
+    const p = pendingGeminiAnswerRef.current;
+    if (!p || sourceMode !== 'doc' || p.docId !== selectedDocId) return;
+    // The answer can only be checked against the narration once it is loaded
+    if (transcriptSegments.length === 0) return;
+    pendingGeminiAnswerRef.current = null;
+    viralClipsDocIdRef.current = selectedDocId;
+    if (applyGeminiViralResponseRef.current(p.text)) {
+      appliedGeminiAnswerAtRef.current = p.at;
+    }
+  }, [pendingGeminiTick, transcriptSegments, selectedDocId, sourceMode]);
+  useEffect(() => {
+    const onAnswer = (ev: Event) => {
+      const docId = String((ev as CustomEvent).detail?.docId || '');
+      if (docId && docId === selectedDocId) void fetchPendingGeminiAnswer(docId);
+    };
+    window.addEventListener('huellas-viral-gemini-answer', onAnswer);
+    return () => window.removeEventListener('huellas-viral-gemini-answer', onAnswer);
+  }, [selectedDocId]);
   useEffect(() => {
     const onExtensionMessage = (event: MessageEvent) => {
       const msg = event.data;
       if (!msg || msg.source !== 'HUELLAS_EXTENSION') return;
       if (Number(msg.stageNumber) !== VIRAL_CLIPS_GEMINI_STAGE) return;
-      if (msg.type === 'GEMINI_RESPONSE_READY') {
-        applyGeminiViralResponseRef.current(String(msg.text || ''));
-      } else if (msg.status === 'ERROR') {
+      // The answer itself is stored on the Mac by the page and arrives through 'huellas-viral-gemini-answer'
+      if (msg.status === 'ERROR') {
         setIsWaitingGeminiClips(false);
         setActionToast(`⚠️ ${msg.message || 'Gemini Web no pudo completar el pedido.'}`);
       }
@@ -1468,6 +1517,8 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                     // Pedido suelto en un chat nuevo: su respuesta vuelve a esta pantalla, no a una etapa
                     stageNumber: VIRAL_CLIPS_GEMINI_STAGE,
                     taskType: 'VIRAL_CLIPS',
+                    // The answer comes back tagged with it and is stored under this documentary
+                    docId: sourceMode === 'doc' ? selectedDocId : '',
                     videoName: '',
                     deepResearchVideoName: '',
                     geminiChatUrl: '',
@@ -1500,39 +1551,6 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
               </button>
             </div>
 
-            <div className="space-y-2">
-              <button
-                type="button"
-                onClick={() => setShowGeminiPaste((v) => !v)}
-                className="text-[11px] font-bold text-emerald-300/90 hover:text-emerald-200 underline underline-offset-2 cursor-pointer"
-              >
-                {showGeminiPaste ? 'Cerrar' : '📋 Pegar respuesta de Gemini (desde tu historial de Gemini)'}
-              </button>
-              {showGeminiPaste && (
-                <div className="space-y-2">
-                  <textarea
-                    value={geminiPasteText}
-                    onChange={(e) => setGeminiPasteText(e.target.value)}
-                    rows={4}
-                    placeholder='Pega aquí la respuesta completa de Gemini (el JSON que empieza con {"clips":[...'
-                    className="w-full bg-black/40 border border-emerald-500/30 rounded-lg p-2 text-[11px] text-slate-200 outline-none focus:border-emerald-400"
-                  />
-                  <button
-                    type="button"
-                    disabled={!geminiPasteText.trim() || transcriptSegments.length === 0}
-                    onClick={() => {
-                      geminiViralOrderRef.current = null;
-                      applyGeminiViralResponseRef.current(geminiPasteText);
-                      setGeminiPasteText('');
-                      setShowGeminiPaste(false);
-                    }}
-                    className="py-2 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-black text-xs cursor-pointer disabled:opacity-50"
-                  >
-                    Cargar clips de Gemini
-                  </button>
-                </div>
-              )}
-            </div>
           </div>
         </div>
 

@@ -22145,6 +22145,7 @@ app.get('/api/viral-clips/saved', (req, res) => {
       clips: Array.isArray(data?.clips) ? data.clips : [],
       selectedClipId: String(data?.selectedClipId || ''),
       savedAt: Number(data?.savedAt || 0),
+      ...(data?.pendingGeminiAnswer?.text ? { pendingGeminiAnswer: data.pendingGeminiAnswer } : {}),
     });
   } catch (err: any) {
     res.status(500).json({ ok: false, error: err?.message || 'No se pudieron leer los clips guardados.' });
@@ -22157,13 +22158,51 @@ app.post('/api/viral-clips/saved', (req, res) => {
     const clips = Array.isArray(req.body?.clips) ? req.body.clips.slice(0, 30) : null;
     if (!docId || !clips) return res.status(400).json({ ok: false, error: 'Faltan datos.' });
     fs.mkdirSync(VIRAL_SAVED_DIR, { recursive: true });
+    const f = viralSavedFileFor(docId);
+    let prevPending: any = null;
+    try {
+      prevPending = fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, 'utf8'))?.pendingGeminiAnswer || null : null;
+    } catch {}
+    // A Gemini answer waiting to be turned into clips survives list saves until the page says it applied it
+    const clearedAt = Number(req.body?.clearPendingGeminiAt || 0);
+    const keepPending = prevPending && !(clearedAt > 0 && clearedAt >= Number(prevPending.at || 0));
     writeFileAtomicUtf8(
-      viralSavedFileFor(docId),
-      JSON.stringify({ docId, clips, selectedClipId: String(req.body?.selectedClipId || ''), savedAt: Date.now() })
+      f,
+      JSON.stringify({
+        docId,
+        clips,
+        selectedClipId: String(req.body?.selectedClipId || ''),
+        savedAt: Date.now(),
+        ...(keepPending ? { pendingGeminiAnswer: prevPending } : {}),
+      })
     );
     res.json({ ok: true });
   } catch (err: any) {
     res.status(500).json({ ok: false, error: err?.message || 'No se pudieron guardar los clips.' });
+  }
+});
+
+// Gemini Web's answer to a Viral Clips order. The page stores it here as soon as it arrives (whatever screen
+// is open), and the Viral Clips studio turns it into the clip list when it is (or next gets) opened.
+app.post('/api/viral-clips/gemini-answer', (req, res) => {
+  try {
+    const docId = String(req.body?.docId || '').trim();
+    const text = String(req.body?.text || '');
+    if (!docId || !text.trim()) return res.status(400).json({ ok: false, error: 'Faltan datos.' });
+    fs.mkdirSync(VIRAL_SAVED_DIR, { recursive: true });
+    const f = viralSavedFileFor(docId);
+    let prev: any = {};
+    try {
+      prev = fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, 'utf8')) || {} : {};
+    } catch {}
+    const at = Date.now();
+    writeFileAtomicUtf8(
+      f,
+      JSON.stringify({ ...prev, docId, pendingGeminiAnswer: { text: text.slice(0, 400000), at } })
+    );
+    res.json({ ok: true, at });
+  } catch (err: any) {
+    res.status(500).json({ ok: false, error: err?.message || 'No se pudo guardar la respuesta de Gemini.' });
   }
 });
 
