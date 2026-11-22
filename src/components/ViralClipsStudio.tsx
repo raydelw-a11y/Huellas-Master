@@ -406,23 +406,30 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
     }
     viralClipsDocIdRef.current = '';
     (async () => {
-      try {
-        const resp = await fetch(viralApi(`/api/viral-clips/saved?docId=${encodeURIComponent(selectedDocId)}`), {
-          cache: 'no-store',
-        });
-        const data = resp.ok ? await resp.json() : null;
-        if (cancelled) return;
-        const saved = Array.isArray(data?.clips) ? data.clips : [];
-        viralClipsDocIdRef.current = selectedDocId;
-        if (saved.length > 0) {
-          setViralClips(saved);
-          const sel = saved.find((c: any) => c.id === data.selectedClipId) || saved[0];
-          setSelectedClipId(sel.id);
-          setPlayheadSec(Number(sel.startSec) || 0);
+      // The page reloads itself right after a server update, while the server may still be starting:
+      // keep asking for a while instead of showing an empty list (the clips are still saved on the Mac).
+      for (let attempt = 0; attempt < 40 && !cancelled; attempt++) {
+        try {
+          const resp = await fetch(viralApi(`/api/viral-clips/saved?docId=${encodeURIComponent(selectedDocId)}`), {
+            cache: 'no-store',
+          });
+          const data = resp.ok ? await resp.json() : null;
+          if (cancelled) return;
+          if (!data?.ok) throw new Error('not ready');
+          const saved = Array.isArray(data.clips) ? data.clips : [];
+          viralClipsDocIdRef.current = selectedDocId;
+          if (saved.length > 0) {
+            setViralClips(saved);
+            const sel = saved.find((c: any) => c.id === data.selectedClipId) || saved[0];
+            setSelectedClipId(sel.id);
+            setPlayheadSec(Number(sel.startSec) || 0);
+          }
+          return;
+        } catch {
+          await new Promise((r) => window.setTimeout(r, 3000));
         }
-      } catch {
-        if (!cancelled) viralClipsDocIdRef.current = selectedDocId;
       }
+      // Never saves over the Mac's list unless it was read (the ref stays empty)
     })();
     return () => {
       cancelled = true;
@@ -563,6 +570,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
   const applyGeminiViralResponseRef = useRef<(text: string) => void>(() => {});
   applyGeminiViralResponseRef.current = (text: string) => {
     setIsWaitingGeminiClips(false);
+    if (sourceMode === 'doc' && selectedDocId) viralClipsDocIdRef.current = selectedDocId;
     let parsedList: any[] = [];
     try {
       const raw = String(text || '');
@@ -653,6 +661,8 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
       return;
     }
     setIsAnalyzingViral(true);
+    // A new analysis belongs to the documentary selected now (it is saved under it)
+    if (sourceMode === 'doc' && selectedDocId) viralClipsDocIdRef.current = selectedDocId;
     try {
       const resp = await fetch(viralApi('/api/viral-clips/analyze'), {
         method: 'POST',
