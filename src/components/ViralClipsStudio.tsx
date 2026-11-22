@@ -249,6 +249,9 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
   const [isLoadingSource, setIsLoadingSource] = useState<boolean>(false);
   const [sourceStatusMsg, setSourceStatusMsg] = useState<string>('');
   // Video maestro que está solo en iCloud (sin descargar en la Mac): no se puede ver ni renderizar hasta bajarlo
+  // Documentary clips changed after the final 16:9 video was exported (viral clips are cut from that file)
+  const [staleMasterClips, setStaleMasterClips] = useState<number[]>([]);
+  const [masterExportedAt, setMasterExportedAt] = useState<number>(0);
   const [cloudOnlyMaster, setCloudOnlyMaster] = useState<{ path: string; sizeMB: number } | null>(null);
   const [isRequestingCloudMaster, setIsRequestingCloudMaster] = useState<boolean>(false);
   // After asking iCloud for the master video the source reloads by itself until the file is on the Mac
@@ -398,6 +401,10 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
           setTranscriptSegments(
             Array.isArray(data.transcriptSegments) ? data.transcriptSegments : []
           );
+          setStaleMasterClips(
+            Array.isArray(data.clipsNewerThanMaster) ? data.clipsNewerThanMaster.map(Number) : []
+          );
+          setMasterExportedAt(Number(data.masterExportedAt) || 0);
           setCloudOnlyMaster(
             data.masterVideoCloudOnly && data.masterVideoPath
               ? { path: String(data.masterVideoPath), sizeMB: Number(data.masterVideoSizeMB) || 0 }
@@ -424,6 +431,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
 
     // Client-side fallback if backend is offline
     setCloudOnlyMaster(null);
+    setStaleMasterClips([]);
     const doc = documentaries.find((d) => d.id === docIdToLoad);
     if (doc) {
       setSourceTitle(doc.title);
@@ -1524,6 +1532,24 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                   <Globe className="w-3.5 h-3.5" />
                   <span>{isLoadingSource ? 'Descargando...' : 'Cargar de YouTube'}</span>
                 </button>
+              </div>
+            )}
+
+            {sourceMode === 'doc' && staleMasterClips.length > 0 && (
+              <div className="mt-2 px-3 py-2 rounded-xl bg-rose-950/70 border border-rose-500/50 text-xs text-rose-100 leading-relaxed">
+                ⚠️ El video final 16:9 se exportó
+                {masterExportedAt
+                  ? ` el ${new Date(masterExportedAt).toLocaleString('es-ES', {
+                      timeZone: 'America/New_York',
+                      day: '2-digit',
+                      month: '2-digit',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}`
+                  : ''}{' '}
+                y después cambiaron estos clips del documental:{' '}
+                <strong>{staleMasterClips.join(', ')}</strong>. Los viral clips se recortan de ese video final, así que esas
+                escenas saldrían con la versión antigua. Vuelve a exportar el documental 16:9 en el Editor de Video.
               </div>
             )}
 

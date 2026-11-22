@@ -22713,6 +22713,29 @@ app.post('/api/viral-clips/resolve-doc-source', async (req, res) => {
       );
     }
 
+    // Clips of the documentary changed AFTER the final video was exported: the viral clips are cut from that
+    // file, so those scenes would come out with the old version until the 16:9 video is exported again
+    let clipsNewerThanMaster: number[] = [];
+    let masterExportedAt = 0;
+    try {
+      if (masterVideoPath && rootFolder && fs.existsSync(masterVideoPath)) {
+        masterExportedAt = fs.statSync(masterVideoPath).mtimeMs;
+        const clipsDir = path.join(rootFolder, '05_Clips_Video');
+        if (fs.existsSync(clipsDir)) {
+          const nums = new Set<number>();
+          for (const name of fs.readdirSync(clipsDir)) {
+            if (!/\.(mp4|mov|m4v)$/i.test(name)) continue;
+            const m = name.match(/^0*(\d{1,3})_/);
+            if (!m) continue;
+            try {
+              if (fs.statSync(path.join(clipsDir, name)).mtimeMs > masterExportedAt + 60000) nums.add(Number(m[1]));
+            } catch {}
+          }
+          clipsNewerThanMaster = [...nums].sort((x, y) => x - y);
+        }
+      }
+    } catch {}
+
     res.json({
       ok: true,
       transcriptSource,
@@ -22721,6 +22744,8 @@ app.post('/api/viral-clips/resolve-doc-source', async (req, res) => {
       rootFolder,
       masterVideoPath,
       masterVideoCloudOnly,
+      clipsNewerThanMaster,
+      masterExportedAt,
       masterVideoSizeMB,
       masterVideoUrl:
         masterVideoPath && !masterVideoCloudOnly
