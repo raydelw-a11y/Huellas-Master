@@ -10350,16 +10350,21 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     // Frozen while dragging: changing the zoom under the pointer would distort the drag
     if (isClipTransformDragging) return;
     const b = getClipTransformBoxPct(activeClipAtPlayhead);
-    const extent = Math.max(
-      1,
-      Math.abs(b.left - 50) / 50,
-      Math.abs(b.left + b.w - 50) / 50,
-      Math.abs(b.top - 50) / 50,
-      Math.abs(b.top + b.h - 50) / 50
-    );
+    // Half-extent of the clip around the frame centre, in half-frames (1 = exactly the frame)
+    const extentX = Math.max(1, Math.abs(b.left - 50) / 50, Math.abs(b.left + b.w - 50) / 50);
+    const extentY = Math.max(1, Math.abs(b.top - 50) / 50, Math.abs(b.top + b.h - 50) / 50);
+    // Room available around the frame: the whole viewer area, not just the frame (a vertical frame leaves
+    // wide empty sides, which is where the 16:9 picture shows when choosing the 9:16 focus)
+    const targetRatio = aspectRatio === '16:9' ? 16 / 9 : 9 / 16;
+    const stageW = viewerStageSize.width || 0;
+    const stageH = viewerStageSize.height || 0;
+    const fitW = stageW > 0 && stageH > 0 ? Math.min(stageW, stageH * targetRatio) : 0;
+    const fitH = fitW > 0 ? fitW / targetRatio : 0;
+    const roomX = fitW > 0 ? (0.94 * stageW) / (extentX * fitW) : 0.9 / extentX;
+    const roomY = fitH > 0 ? (0.94 * stageH) / (extentY * fitH) : 0.9 / extentY;
     // A fixed zoom-out leaves working room around the frame, so the frame keeps its size on screen while the
     // clip grows or shrinks around it; only a clip larger than that room zooms the viewer out further.
-    const next = Math.max(0.22, Math.min(0.66, 0.9 / extent));
+    const next = Math.max(0.2, Math.min(b.focusMode ? 0.82 : 0.66, roomX, roomY));
     if (Math.abs(next - clipViewScale) > 0.004) setClipViewScale(next);
   });
 
