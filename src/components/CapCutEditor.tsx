@@ -15180,7 +15180,74 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               throw renderErr;
             }
           }
-        } catch (ffErr: any) {
+        } catch (ffErrRaw: any) {
+          let ffErr: any = ffErrRaw;
+          // The export is one long request. If the browser loses that connection ("Failed to fetch": tunnel
+          // time limit, sleep, network change) the server keeps rendering: follow its status instead of
+          // reporting a failure that did not happen.
+          const lostConnection =
+            !ffErr?.cancelled &&
+            (ffErr instanceof TypeError ||
+              /failed to fetch|networkerror|load failed|network request failed/i.test(String(ffErr?.message || '')));
+          if (lostConnection) {
+            setRenderStageLabel('🔄 Se perdió la conexión con la exportación; el servidor sigue trabajando...');
+            let unreachableSince = 0;
+            let outcome: any = null;
+            for (let tries = 0; tries < 4800; tries++) {
+              await new Promise((r) => window.setTimeout(r, 3000));
+              let st: any = null;
+              try {
+                const stResp = await fetch(`${getEditorPrimaryServerOrigin()}/api/editor/render-status`, {
+                  cache: 'no-store',
+                });
+                st = stResp.ok ? await stResp.json() : null;
+              } catch {
+                st = null;
+              }
+              if (!st) {
+                if (!unreachableSince) unreachableSince = Date.now();
+                // Server really gone for two minutes: give up with the original error
+                if (Date.now() - unreachableSince > 120000) break;
+                continue;
+              }
+              unreachableSince = 0;
+              if (st.running) {
+                if (typeof st.progressPct === 'number' && st.progressPct > 0) {
+                  setRenderProgressPct(Math.min(99, Math.max(2, st.progressPct)));
+                }
+                if (st.stageLabel) setRenderStageLabel(String(st.stageLabel));
+                continue;
+              }
+              outcome = st;
+              break;
+            }
+            if (outcome) {
+              if (pollTimer) {
+                window.clearInterval(pollTimer);
+                pollTimer = null;
+              }
+              if (secTimer) {
+                window.clearInterval(secTimer);
+                secTimer = null;
+              }
+              const finishedOk =
+                Number(outcome.progressPct) >= 100 && outcome.outputPath && !(Number(outcome.errorAt) > Number(outcome.startedAt));
+              if (finishedOk) {
+                setRenderProgressPct(100);
+                setRenderRemainingSec(0);
+                setLastExportedOutputPath(outcome.outputPath || '');
+                setRenderStageLabel(`✅ ¡Exportado! Archivo: ${outcome.fileName || ''}`);
+                setStatusMessage(`✅ ¡Video renderizado y exportado! Guardado en: ${outcome.outputPath}`);
+                setIsRenderingVideo(false);
+                return;
+              }
+              if (Number(outcome.cancelledAt || 0) > Number(outcome.errorAt || 0)) {
+                ffErr = Object.assign(new Error('Exportación cancelada'), { cancelled: true });
+              } else {
+                ffErr = new Error(String(outcome.error || outcome.stageLabel || 'La exportación no terminó.'));
+              }
+            }
+          }
           if (pollTimer) {
             window.clearInterval(pollTimer);
             pollTimer = null;
