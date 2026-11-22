@@ -1,10 +1,10 @@
 {
-  "aspectRatio": "9:16",
-  "exportResolution": "2K_1440P",
+  "aspectRatio": "16:9",
+  "exportResolution": "HD_1080P",
   "exportFps": 30,
   "formatProfiles": {
     "16:9": {
-      "exportResolution": "8K_4320P",
+      "exportResolution": "HD_1080P",
       "logoScalePct": 12,
       "logoOpacity": 95,
       "logoPosX": 10,
@@ -17,7 +17,7 @@
       "captionFontSize": 25,
       "captionWordsPerLine": 0,
       "captionBottomPct": 10,
-      "captionLineMode": "subdivide",
+      "captionLineMode": "original",
       "captionMaxChars": 22
     },
     "9:16": {
@@ -33,7 +33,7 @@
       "hookBoxWidthPct": 88,
       "captionFontSize": 21,
       "captionWordsPerLine": 0,
-      "captionBottomPct": 20,
+      "captionBottomPct": 25,
       "captionLineMode": "subdivide",
       "captionMaxChars": 16
     },
@@ -47,7 +47,7 @@
     "_v9_9x16_logo_x10_y3": true,
     "_v10_9x16_captionBottom20": true
   },
-  "updatedAt": "2026-11-22T22:19:04.723Z",
+  "updatedAt": "2026-11-22T22:29:16.760Z",
   "overlayStyles": {
     "logoScalePct": 12,
     "logoOpacity": 95,
@@ -81,18 +81,18 @@
     "hookLine2AnimInDur": 1,
     "hookLine2AnimOut": "fade",
     "hookLine2AnimOutDur": 1,
-    "clip1OverlayEndSec": 16,
+    "clip1OverlayEndSec": 14,
     "captionFontFamily": "'Cinzel', Georgia, 'Times New Roman', serif",
-    "captionFontSize": 21,
+    "captionFontSize": 25,
     "captionFontSize16x9": 25,
     "captionFontSize9x16": 21,
     "captionWordsPerLine16x9": 0,
     "captionWordsPerLine9x16": 0,
-    "captionMaxChars": 16,
-    "captionLineMode": "subdivide",
+    "captionMaxChars": 22,
+    "captionLineMode": "original",
     "captionOriginal16x9V1": true,
     "captionFontSizeV25": true,
-    "captionBottomPct": 20,
+    "captionBottomPct": 10,
     "captionBottom16x9V10": true,
     "captionColor": "white",
     "captionCustomColor": "#ffffff",
@@ -299,7 +299,7 @@
     {
       "id": "clip-12-1794891908279-49w3",
       "clipNumber": 12,
-      "duration": 10.04,
+      "duration": 10.02,
       "trimStart": 0,
       "trimEnd": 10,
       "speed": 1,
@@ -619,7 +619,7 @@
     {
       "id": "clip-32-1794891908320-hlhj",
       "clipNumber": 32,
-      "duration": 10.04,
+      "duration": 10.02,
       "trimStart": 0,
       "trimEnd": 10,
       "speed": 1,
@@ -939,7 +939,7 @@
     {
       "id": "clip-52-1794891908495-urdx",
       "clipNumber": 52,
-      "duration": 10.04,
+      "duration": 10.02,
       "trimStart": 0,
       "trimEnd": 10,
       "speed": 1,
