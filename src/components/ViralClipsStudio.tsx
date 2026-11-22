@@ -207,6 +207,9 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
   const [cloudOnlyMaster, setCloudOnlyMaster] = useState<{ path: string; sizeMB: number } | null>(null);
   const [isRequestingCloudMaster, setIsRequestingCloudMaster] = useState<boolean>(false);
   const [isWaitingGeminiClips, setIsWaitingGeminiClips] = useState<boolean>(false);
+  // Pasted Gemini answer (from the Gemini chat history), for when the automatic answer was lost
+  const [showGeminiPaste, setShowGeminiPaste] = useState<boolean>(false);
+  const [geminiPasteText, setGeminiPasteText] = useState<string>('');
 
   // YouTube input
   const [youtubeUrlInput, setYoutubeUrlInput] = useState<string>('');
@@ -1551,6 +1554,39 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
               </button>
             </div>
 
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={() => setShowGeminiPaste((v) => !v)}
+                className="text-[11px] font-bold text-emerald-300/90 hover:text-emerald-200 underline underline-offset-2 cursor-pointer"
+              >
+                {showGeminiPaste ? 'Cerrar' : '📋 Pegar respuesta de Gemini (desde tu historial de Gemini)'}
+              </button>
+              {showGeminiPaste && (
+                <div className="space-y-2">
+                  <textarea
+                    value={geminiPasteText}
+                    onChange={(e) => setGeminiPasteText(e.target.value)}
+                    rows={4}
+                    placeholder='Pega aquí la respuesta completa de Gemini (el JSON que empieza con {"clips":[...'
+                    className="w-full bg-black/40 border border-emerald-500/30 rounded-lg p-2 text-[11px] text-slate-200 outline-none focus:border-emerald-400"
+                  />
+                  <button
+                    type="button"
+                    disabled={!geminiPasteText.trim() || transcriptSegments.length === 0}
+                    onClick={() => {
+                      geminiViralOrderRef.current = null;
+                      applyGeminiViralResponseRef.current(geminiPasteText);
+                      setGeminiPasteText('');
+                      setShowGeminiPaste(false);
+                    }}
+                    className="py-2 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-black text-xs cursor-pointer disabled:opacity-50"
+                  >
+                    Cargar clips de Gemini
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
