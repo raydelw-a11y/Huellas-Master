@@ -199,10 +199,11 @@ import {
   verifyAndStoreStudioAccessPassword,
 } from './utils/mediaBridge';
 import { useNoticeStack } from './utils/noticeStack';
+import { stampHdBadgeOn9x16Thumbnail, HD_BADGE_EMPTY_CORNER_CLAUSE } from './utils/hdBadge';
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '12:07 PM - 11/22/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '12:16 PM - 11/22/2026';
 
 // PRODUCTION LOCK: while promptConfig.PRODUCTION_LOCKED === 'YES' these fields never change (the server
 // enforces the same list in protectLockedDocs). Metadata, thumbnails, review marks and reframes stay editable.
@@ -909,8 +910,9 @@ function buildOrUpdateThumbnailPrompt(
     ? 'centered and middle-justified right in the middle center of the image'
     : 'positioned in the bottom-left area of the image';
   const textPositionClause = formatThumbnailOverlayClause(overlayText, positionOnlyPhrase);
+  // 9:16: the official HD badge (Video 30) is stamped afterwards, so the AI leaves that corner empty
   const rightLogoClause = isVertical
-    ? 'a small discreet 5% scale logo in the top-right corner displaying "HD" in metallic gold'
+    ? HD_BADGE_EMPTY_CORNER_CLAUSE
     : 'a small discreet 5% scale logo in the top-right corner displaying "8K" in metallic gold';
   const leftLogoClause =
     'official page logo cleanly integrated in the top-left corner from provided reference image at 5% scale, strictly preserving and visibly rendering both the logo emblem and the exact text underneath it "Huellas de la Humanidad" without cropping, blurring, or omitting the sub-text';
@@ -1039,8 +1041,9 @@ function buildPsychologicalThumbnailVariantPrompt(
     : 'positioned in the bottom-left area of the image';
   const textPositionClause = formatThumbnailOverlayClause(effectiveRawOverlay, positionOnlyPhrase);
   const textPart = textPositionClause ? `${textPositionClause}, ` : '';
+  // 9:16: the official HD badge (Video 30) is stamped afterwards, so the AI leaves that corner empty
   const rightLogoClause = isVertical
-    ? 'a small discreet 5% scale logo in the top-right corner displaying "HD" in metallic gold'
+    ? HD_BADGE_EMPTY_CORNER_CLAUSE
     : 'a small discreet 5% scale logo in the top-right corner displaying "8K" in metallic gold';
   const leftLogoClause =
     'official page logo cleanly integrated in the top-left corner from provided reference image at 5% scale, strictly preserving and visibly rendering both the logo emblem and the exact text underneath it "Huellas de la Humanidad" without cropping, blurring, or omitting the sub-text';
@@ -14770,7 +14773,12 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         const rawCapOpt = String(msg.option || msg.optionLabel || 'A').trim().toUpperCase();
         const opt: 'A' | 'B' | 'C' =
           rawCapOpt === 'B' ? 'B' : rawCapOpt === 'C' ? 'C' : 'A';
-        const dataUrl = msg.imageDataUrl || msg.imageUrl || '';
+        const rawCapturedDataUrl = msg.imageDataUrl || msg.imageUrl || '';
+        // 9:16 thumbnails always carry the official HD badge (the one from Video 30), stamped top-right
+        const dataUrl =
+          curViewingDoc?.thumbnailOrientation === 'VERTICAL_9X16'
+            ? await stampHdBadgeOn9x16Thumbnail(rawCapturedDataUrl)
+            : rawCapturedDataUrl;
         const sourceLabel = 'Gemini Web';
         if (dataUrl) {
           setCapturedThumbnailsMap((prev) => ({ ...prev, [opt]: dataUrl }));

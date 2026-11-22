@@ -93,6 +93,13 @@ export interface ViralClipSuggestion {
   origin?: 'gemini' | 'local';
 }
 
+/** Captions (preview and render) show words without periods, commas or other punctuation. */
+const stripCaptionPunctuation = (w: string) =>
+  String(w || '')
+    .replace(/[.,;:!?¡¿"“”‘’'«»…()\[\]{}—–]/g, '')
+    .replace(/^-+|-+$/g, '')
+    .trim();
+
 /** Closing paragraph of every clip description (its own paragraph, after the description). */
 const VIRAL_DESCRIPTION_CTA =
   '¡Para ver el documental completo, visita nuestro canal de YouTube, el enlace está en la biografía!';
@@ -1028,7 +1035,10 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
       return null;
     }
     const safePerLine = Math.max(1, Math.min(6, wordsPerLine));
-    const words = selectedClip.words;
+    // Sin puntos, comas ni otros signos (igual que el render); un signo suelto no ocupa palabra
+    const words = selectedClip.words
+      .map((w) => ({ ...w, word: stripCaptionPunctuation(w.word) }))
+      .filter((w) => w.word);
     // Igual que la exportación: cada línea se corta también a los 16 caracteres
     const VIRAL_CAPTION_MAX_CHARS = 16;
     const chunks: (typeof words)[] = [];

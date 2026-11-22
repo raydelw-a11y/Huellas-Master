@@ -4990,7 +4990,7 @@ MANDATORILY APPLY ALL 5 CTR NEUROPSYCHOLOGY PRINCIPLES IN THE IMAGE PROMPT:
    ${
      isThumbHorizontal
        ? `Because this is HORIZONTAL (16:9), the top-right badge is "8K": include verbatim 'a small discreet 5% scale logo in the top-right corner displaying "8K" in metallic gold'.`
-       : `Because this is VERTICAL (9:16), the top-right badge is "HD": include verbatim 'a small discreet 5% scale logo in the top-right corner displaying "HD" in metallic gold'.`
+       : `Because this is VERTICAL (9:16), the official "HD" badge is added afterwards by our app: include verbatim 'the top-right corner left completely clean and empty with no text, no badge and no logo in that corner'.`
    }
 7. 5% OFFICIAL TOP-LEFT BRAND LOGO (FROM REFERENCE IMAGE):
    Include verbatim: 'official page logo cleanly integrated in the top-left corner from provided reference image at 5% scale, strictly preserving and visibly rendering both the logo emblem and the exact text underneath it "Huellas de la Humanidad" without cropping, blurring, or omitting the sub-text'.
@@ -11434,6 +11434,38 @@ function resolveLocalDocumentaryFolder(
 }
 
 // Automatically save captured Gemini Web thumbnail into the documentary's 03_Miniaturas folder & sync project state
+// Official "HD" badge of the 9:16 thumbnails (cut from the Video 30 thumbnail, 3072x5504): box 430 px wide,
+// left edge x=2550, top y=165. Same geometry as src/utils/hdBadge.ts (client side).
+const HD_BADGE_9X16_FILE = path.join(process.cwd(), 'src', 'assets', 'brand', 'hd_badge_9x16.png');
+function stampHdBadgeOn9x16ThumbnailServer(img: Buffer): Buffer {
+  if (!fs.existsSync(HD_BADGE_9X16_FILE)) return img;
+  const tmpBase = path.join(os.tmpdir(), `huellas_hd_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`);
+  const tmpIn = `${tmpBase}_in`;
+  const tmpOut = `${tmpBase}_out.png`;
+  try {
+    fs.writeFileSync(tmpIn, img);
+    execFileSync(
+      getFfmpegPath(),
+      [
+        '-loglevel', 'error', '-y', '-i', tmpIn, '-i', HD_BADGE_9X16_FILE,
+        '-filter_complex',
+        // scale2ref: iw = the thumbnail width, main_w/main_h = the badge
+        "[1:v][0:v]scale2ref=w='iw*430/3072':h='ow*main_h/main_w':flags=lanczos[bd][base];[base][bd]overlay=x='main_w*2550/3072':y='main_h*165/5504'",
+        '-frames:v', '1', tmpOut,
+      ],
+      { stdio: 'ignore', timeout: 60000 }
+    );
+    const out = fs.existsSync(tmpOut) ? fs.readFileSync(tmpOut) : null;
+    return out && out.length > 1000 ? out : img;
+  } catch (e) {
+    console.warn('[HDBadge] No se pudo poner el logo HD en la miniatura 9:16:', e);
+    return img;
+  } finally {
+    try { if (fs.existsSync(tmpIn)) fs.unlinkSync(tmpIn); } catch {}
+    try { if (fs.existsSync(tmpOut)) fs.unlinkSync(tmpOut); } catch {}
+  }
+}
+
 app.post('/api/gemini-web/save-captured-thumbnail', async (req, res) => {
   try {
     const docId = String(req.body?.docId || '').trim();
@@ -11456,10 +11488,12 @@ app.post('/api/gemini-web/save-captured-thumbnail', async (req, res) => {
     );
 
     const cleanBase64 = imageDataUrl.replace(/^data:[^;]+;base64,/, '');
-    const imgBuffer = Buffer.from(cleanBase64, 'base64');
+    let imgBuffer = Buffer.from(cleanBase64, 'base64');
 
     const isVerticalCapture =
       String(req.body?.orientation || doc?.thumbnailOrientation || '').toUpperCase() === 'VERTICAL_9X16';
+    // 9:16 thumbnails always carry the official HD badge (cut from the Video 30 thumbnail), stamped top-right
+    if (isVerticalCapture) imgBuffer = stampHdBadgeOn9x16ThumbnailServer(imgBuffer);
 
     const savedPaths: string[] = [];
     if (resolvedRoot) {
@@ -11492,7 +11526,7 @@ app.post('/api/gemini-web/save-captured-thumbnail', async (req, res) => {
     }
 
     // Build a crisp lightweight JPEG preview (<=42,000 chars) so GitHub Cloud Sync preserves `thumbnailImageUrl` & A/B/C map for mobile!
-    let previewDataUrl = imageDataUrl;
+    let previewDataUrl = isVerticalCapture ? `data:image/png;base64,${imgBuffer.toString('base64')}` : imageDataUrl;
     if (previewDataUrl.length > 42000) {
       const tmpBase = path.join(os.tmpdir(), `huellas_thumb_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`);
       const tmpIn = `${tmpBase}.png`;
@@ -23071,7 +23105,17 @@ function buildOpusClipAssSubtitles(params: {
   {
     let cur: WordTimestamp[] = [];
     let curLen = 0;
-    for (const w of words) {
+    // Captions without periods, commas or other punctuation; a lone sign does not take a word slot
+    const cleanWords = words
+      .map((w) => ({
+        ...w,
+        word: String(w.word || '')
+          .replace(/[.,;:!?¡¿"“”‘’'«»…()\[\]{}—–]/g, '')
+          .replace(/^-+|-+$/g, '')
+          .trim(),
+      }))
+      .filter((w) => w.word);
+    for (const w of cleanWords) {
       const wl = String(w.word || '').replace(/[{}]/g, '').length;
       if (cur.length > 0 && (cur.length >= safeWordsPerChunk || curLen + 1 + wl > VIRAL_CAPTION_MAX_CHARS)) {
         wordChunks.push(cur);

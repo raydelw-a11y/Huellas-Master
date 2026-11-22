@@ -6626,8 +6626,9 @@ export function cleanAndNormalizeStage5ThumbnailPrompt(
           .map((ln, idx) => `Line ${idx + 1}: "${ln}"`)
           .join(' / ')}).`;
 
+  // 9:16: the official HD badge (Video 30) is stamped afterwards, so the AI keeps that corner empty
   const rightLogoSentence = isVert
-    ? 'In the top-right corner, a small discreet 5% scale logo displays "HD" in metallic gold.'
+    ? 'The top-right corner is left completely clean and empty, with no text, no badge and no logo in that corner.'
     : 'In the top-right corner, a small discreet 5% scale logo displays "8K" in metallic gold.';
 
   const leftLogoSentence =

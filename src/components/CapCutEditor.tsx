@@ -2681,7 +2681,15 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     if (aspectRatio === '16:9') {
       raw = balanceCaptionsFor16x9(raw);
     }
-    if (aspectRatio === '9:16') return raw.toLocaleUpperCase('es-ES');
+    if (aspectRatio === '9:16') {
+      // 9:16: mayúsculas y sin puntos, comas ni otros signos (un signo suelto desaparece)
+      return raw
+        .split(/\s+/)
+        .map((t) => t.replace(/[.,;:!?¡¿"“”‘’'«»…()\[\]{}—–]/g, '').replace(/^-+|-+$/g, ''))
+        .filter(Boolean)
+        .join(' ')
+        .toLocaleUpperCase('es-ES');
+    }
     if (captionTextCase === 'uppercase') return raw.toLocaleUpperCase('es-ES');
     if (captionTextCase === 'lowercase') return raw.toLocaleLowerCase('es-ES');
     return raw;
