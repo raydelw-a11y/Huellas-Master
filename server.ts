@@ -1267,6 +1267,20 @@ function sanitizeServerClipSkeleton(clip: any): any {
   };
 }
 
+/**
+ * true when two saved clip file names are the SAME video (only the "_4K" suffix or the extension differs).
+ * Otherwise the clip was regenerated and its review no longer stands.
+ */
+function isSameServerClipVideoFile(a: any, b: any): boolean {
+  const core = (v: any) =>
+    String(v || '')
+      .trim()
+      .toLowerCase()
+      .replace(/\.(?:mp4|mov|webm)$/, '')
+      .replace(/[_-]4k$/, '');
+  return Boolean(a && b) && core(a) === core(b);
+}
+
 function isServerClipDiscardOverridden(clip: any): boolean {
   if (!clip || typeof clip !== 'object') return false;
   const rawDiscAt = Number(clip.videoDiscardedAt || 0);
@@ -13911,6 +13925,17 @@ function syncUpscaledClipsToDocumentariesJson(
         };
         delete nextClip.discardedVideoFileName;
         delete nextClip.videoDiscardedAt;
+        // A regenerated clip (another video in place of the reviewed one) goes back to "por revisar":
+        // only the user marks it as reviewed again.
+        if (
+          c.reviewedForEditor &&
+          (isRegenPromotion ||
+            (c.videoSavedFileName && !isSameServerClipVideoFile(c.videoSavedFileName, fName)))
+        ) {
+          nextClip.reviewedForEditor = false;
+          nextClip.reviewedUpdatedAt = Math.max(promoMs, Number(c.reviewedUpdatedAt || 0) + 1);
+          nextClip.recreated = true;
+        }
         if (isRegenPromotion) {
           nextClip.recreated = true;
           nextClip.videoAttempts = Math.max(2, Number(c.videoAttempts || 1) + 1);
@@ -16767,6 +16792,16 @@ app.post('/api/flow/purge-discarded-clip', async (req, res) => {
             videoSavedAt: Math.max(Number(c.videoSavedAt || 0), savedAt),
             videoDiscardOverriddenAt: savedAt,
             ...(fileName ? { videoSavedFileName: String(fileName) } : {}),
+            ...(fileName &&
+            c.reviewedForEditor &&
+            c.videoSavedFileName &&
+            !isSameServerClipVideoFile(c.videoSavedFileName, fileName)
+              ? {
+                  reviewedForEditor: false,
+                  reviewedUpdatedAt: Math.max(savedAt, Number(c.reviewedUpdatedAt || 0) + 1),
+                  recreated: true,
+                }
+              : {}),
             ...(hadDiscard
               ? {
                   videoReady: true,

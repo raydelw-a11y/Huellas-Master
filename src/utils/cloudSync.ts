@@ -3969,6 +3969,22 @@ UNBREAKABLE STAGE 7 RULES:
             brollIntervalMin
           )
         : new Map();
+    // Rows whose static B-roll is already rendered ("..._Broll_4K.mp4") are B-roll rows too: tell Gemini,
+    // so it designs a still plate there instead of a clip the page would have to throw away.
+    if (tlSentences.length > 0) {
+      for (const c of doc.clips || []) {
+        const n = Number(c?.clipNumber);
+        if (
+          c?.isStaticBroll &&
+          n >= 2 &&
+          n <= tlSentences.length + 1 &&
+          /_Broll_4K\.(?:mp4|mov|webm)$/i.test(String(c.videoSavedFileName || '')) &&
+          !periodicBrollTargets.has(n)
+        ) {
+          periodicBrollTargets.set(n, (c.brollCameraMotion as any) || 'zoom_in');
+        }
+      }
+    }
     const preNumberedTimelineRows =
       tlSentences.length > 0
         ? [

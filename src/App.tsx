@@ -202,7 +202,7 @@ import { useNoticeStack } from './utils/noticeStack';
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '06:50 PM - 11/21/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '07:10 PM - 11/21/2026';
 
 // PRODUCTION LOCK: while promptConfig.PRODUCTION_LOCKED === 'YES' these fields never change (the server
 // enforces the same list in protectLockedDocs). Metadata, thumbnails, review marks and reframes stay editable.
@@ -430,6 +430,20 @@ function cleanStage11SingleMetadataText(raw: string): string {
   }
 
   return stripStage12ClosingChatter(clean);
+}
+
+/**
+ * true cuando dos nombres de archivo guardados son el MISMO video del clip (solo cambia el sufijo "_4K"
+ * o la extensión). Si no lo son, el clip fue regenerado y su revisión ya no vale.
+ */
+function isSameClipVideoFile(a?: string | null, b?: string | null): boolean {
+  const core = (v?: string | null) =>
+    String(v || '')
+      .trim()
+      .toLowerCase()
+      .replace(/\.(?:mp4|mov|webm)$/, '')
+      .replace(/[_-]4k$/, '');
+  return Boolean(a && b) && core(a) === core(b);
 }
 
 /** YouTube rechaza títulos de más de 100 caracteres: recorta el gancho (no el sufijo) por una frontera natural. */
@@ -6243,13 +6257,20 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         const mImg = line.match(/^\s*(?:\*\*)?(?:Image|Imagen)\s+\[?0*(\d{1,3})\b/i);
         if (mImg && isImageOnlyBrollPrompt(line)) freshImageOnlyNums.add(Number(mImg[1]));
       }
-      const staleBrollNums = (activeDoc.clips || [])
-        .filter(
-          (c) =>
-            c.isStaticBroll &&
-            freshClipNums.has(Number(c.clipNumber)) &&
-            !freshImageOnlyNums.has(Number(c.clipNumber))
-        )
+      // A B-roll whose video is already rendered ("..._Broll_4K.mp4") stays a B-roll: the file is what counts.
+      const hasRenderedBrollFile = (c: DocumentaryClip) =>
+        /_Broll_4K\.(?:mp4|mov|webm)$/i.test(String(c.videoSavedFileName || ''));
+      const brollMarkedWithFreshClip = (activeDoc.clips || []).filter(
+        (c) =>
+          c.isStaticBroll &&
+          freshClipNums.has(Number(c.clipNumber)) &&
+          !freshImageOnlyNums.has(Number(c.clipNumber))
+      );
+      const staleBrollNums = brollMarkedWithFreshClip
+        .filter((c) => !hasRenderedBrollFile(c))
+        .map((c) => Number(c.clipNumber));
+      const keptRenderedBrollNums = brollMarkedWithFreshClip
+        .filter((c) => hasRenderedBrollFile(c))
         .map((c) => Number(c.clipNumber));
       const existingClipsForSync =
         staleBrollNums.length > 0
@@ -6273,8 +6294,13 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         references: docRefs,
         includeNarrationInClip: activeDoc.promptConfig?.VOZ_NARRATIVA_EN_CLIPS !== 'EXCLUIR',
       });
+      const staleBrollClearedAt = Date.now();
       const syncedClips = rawSyncedClips.map((c) => ({
         ...c,
+        // Said explicitly: a clip saved without the flag is merged back with the old "B-roll" mark
+        ...(staleBrollNums.includes(Number(c.clipNumber)) && !c.isStaticBroll
+          ? { isStaticBroll: false, brollCameraMotion: undefined, promptUpdatedAt: staleBrollClearedAt }
+          : {}),
         imagePrompt: (c.imagePrompt || '').trim()
           ? sanitizeImagePromptForFlowSafety(c.imagePrompt || '', docRefs, docCtxText)
           : c.imagePrompt,
@@ -6311,6 +6337,15 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           `Se quitó la marca de B-roll antigua de ${staleBrollNums.length === 1 ? 'el clip' : 'los clips'} ${staleBrollNums.join(
             ', '
           )}: en esta generación Gemini escribió clip de video para ${staleBrollNums.length === 1 ? 'él' : 'ellos'}.`
+        );
+      }
+      if (keptRenderedBrollNums.length > 0) {
+        shotPlanAudit.warnings.push(
+          `${keptRenderedBrollNums.length === 1 ? 'El clip' : 'Los clips'} ${keptRenderedBrollNums.join(
+            ', '
+          )} ya ${keptRenderedBrollNums.length === 1 ? 'tiene' : 'tienen'} su B-roll hecho: se ${
+            keptRenderedBrollNums.length === 1 ? 'mantiene' : 'mantienen'
+          } como B-roll y no se usa el clip nuevo que escribió Gemini.`
         );
       }
       const shotPlanSummary =
@@ -10154,7 +10189,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                 }
                 const isRegenPromotion = Boolean(nextName) && hadPriorDiscard;
                 const isReplacedWithDifferentFile = Boolean(
-                  c.videoSavedFileName && nextName && nextName !== c.videoSavedFileName
+                  c.videoSavedFileName && nextName && !isSameClipVideoFile(c.videoSavedFileName, nextName)
                 );
                 const shouldRevokeReview = isRegenPromotion || isReplacedWithDifferentFile;
                 clipRemainsReviewed = shouldRevokeReview ? false : Boolean(c.reviewedForEditor);
@@ -10858,6 +10893,15 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             videoAuditStatus: 'approved' as const,
                             videoAuditReason: '',
                             videoAuditIssues: [],
+                          }
+                        : // Another video took the place of the one that was reviewed: back to "por revisar"
+                        c.reviewedForEditor &&
+                          c.videoSavedFileName &&
+                          !isSameClipVideoFile(c.videoSavedFileName, diskName)
+                        ? {
+                            reviewedForEditor: false,
+                            reviewedUpdatedAt: Math.max(nowLoadMs, Number(c.reviewedUpdatedAt || 0) + 1),
+                            recreated: true,
                           }
                         : {}),
                     }
@@ -11568,6 +11612,13 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                       videoAuditStatus: 'approved' as const,
                       videoAuditReason: '',
                       videoAuditIssues: [],
+                    }
+                  : // Another video took the place of the one that was reviewed: back to "por revisar"
+                  c.reviewedForEditor && c.videoSavedFileName && !isSameClipVideoFile(c.videoSavedFileName, fName)
+                  ? {
+                      reviewedForEditor: false,
+                      reviewedUpdatedAt: Math.max(pipeNowMs, Number(c.reviewedUpdatedAt || 0) + 1),
+                      recreated: true,
                     }
                   : {}),
               };
