@@ -1,5 +1,13 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { computeViralClipCuts, buildViralLocalWords, viralSourceToClipTime } from '../utils/viralClipCuts';
+import {
+  computeViralClipCuts,
+  buildViralLocalWords,
+  viralSourceToClipTime,
+  viralClipTimeToSource,
+  viralCutTimes,
+  normalizeViralSegments,
+  viralSegmentsDurationSec,
+} from '../utils/viralClipCuts';
 import {
   Sparkles,
   Film,
@@ -74,12 +82,17 @@ export interface ViralClipSuggestion {
     completeness: number;
   };
   viralityReason: string;
-  structureMode: 'continuous' | 'hook_teaser';
+  /** Old lists may still say 'hook_teaser': the hook teaser was removed, every clip plays its pieces in order */
+  structureMode?: 'continuous' | 'hook_teaser';
+  /** First and last second used by the clip (bounds of its pieces) */
   startSec: number;
   endSec: number;
+  /** Length of the exported clip (sum of its pieces) */
   durationSec: number;
-  hookTeaserStartSec: number;
-  hookTeaserEndSec: number;
+  /** Pieces of the documentary in order (the parts in between are skipped); none = one continuous piece */
+  segments?: Array<{ startSec: number; endSec: number }>;
+  hookTeaserStartSec?: number;
+  hookTeaserEndSec?: number;
   hookBannerText: string;
   socialCaption: string;
   hashtags: string;
@@ -251,9 +264,8 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
   );
   // 0 = Auto: the analysis decides how many clips the video supports
   const [desiredClipCount, setDesiredClipCount] = useState<number>(0);
-  const [structurePreference, setStructurePreference] = useState<
-    'both' | 'hook_teaser' | 'continuous'
-  >('both');
+  // Hook teaser removed: clips are pieces of the documentary in order (cuts allowed)
+  const structurePreference = 'continuous' as const;
   const [customTopicFilter, setCustomTopicFilter] = useState<string>('');
   const [isAnalyzingViral, setIsAnalyzingViral] = useState<boolean>(false);
 
@@ -628,8 +640,23 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
 
   const buildViralClipsFromList = (list: any[], origin: 'gemini' | 'local'): ViralClipSuggestion[] =>
     list.map((c: any, idx: number) => {
-      const st = Math.max(0, Number(c.startSec) || 0);
-      const en = Math.max(st + 15, Number(c.endSec) || st + 40);
+      // Gemini may give the clip as several pieces in order (cuts allowed): the clip spans from the first to the last
+      const rawPieces: Array<{ startSec: number; endSec: number }> = (Array.isArray(c.segments) ? c.segments : [])
+        .map((r: any) =>
+          Array.isArray(r)
+            ? { startSec: Number(r[0]), endSec: Number(r[1]) }
+            : { startSec: Number(r?.startSec ?? r?.start), endSec: Number(r?.endSec ?? r?.end) }
+        )
+        .filter((r: any) => Number.isFinite(r.startSec) && Number.isFinite(r.endSec) && r.endSec > r.startSec);
+      const st = Math.max(
+        0,
+        rawPieces.length > 0 ? Math.min(...rawPieces.map((r) => r.startSec)) : Number(c.startSec) || 0
+      );
+      const en = Math.max(
+        st + 15,
+        rawPieces.length > 0 ? Math.max(...rawPieces.map((r) => r.endSec)) : Number(c.endSec) || st + 40
+      );
+      const pieces = normalizeViralSegments({ startSec: st, endSec: en, segments: rawPieces });
       const overlapping = transcriptSegments.filter((s) => s.end > st && s.start < en);
       const words: WordTimestamp[] = [];
       for (const seg of overlapping) {
@@ -645,12 +672,11 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
         viralityScore: Number(c.viralityScore) || 94 - idx * 2,
         scoreBreakdown: { hook: 95, retention: 92, emotion: 94, completeness: 91 },
         viralityReason: c.viralityReason || 'Alto potencial de retención.',
-        structureMode: c.structureMode === 'hook_teaser' ? 'hook_teaser' : 'continuous',
+        structureMode: 'continuous',
         startSec: st,
         endSec: en,
-        durationSec: Number((en - st).toFixed(1)),
-        hookTeaserStartSec: Number(c.hookTeaserStartSec) || st,
-        hookTeaserEndSec: Number(c.hookTeaserEndSec) || st + 3.5,
+        durationSec: Number(viralSegmentsDurationSec(pieces).toFixed(1)),
+        segments: pieces.length > 1 ? pieces : undefined,
         hookBannerText: String(c.hookBannerText || c.title || '').toUpperCase(),
         socialCaption: c.socialCaption || '',
         hashtags: limitToFiveHashtags(c.hashtags || '#HistoriaMedieval #DatosCuriosos #CulturaGeneral #EdadMedia #HistoriaUniversal'),
@@ -686,9 +712,16 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
     }
     const segs = transcriptSegmentsRef.current;
     const spanEnd = segs.length > 0 ? segs[segs.length - 1].end : 0;
+    // A clip may come as pieces only ("segments"): its range runs from the first piece to the last
+    const pieceBounds = (c: any): { st: number; en: number } => {
+      const ps = (Array.isArray(c?.segments) ? c.segments : [])
+        .map((r: any) => (Array.isArray(r) ? [Number(r[0]), Number(r[1])] : [Number(r?.startSec ?? r?.start), Number(r?.endSec ?? r?.end)]))
+        .filter((r: number[]) => Number.isFinite(r[0]) && Number.isFinite(r[1]) && r[1] > r[0]);
+      if (ps.length > 0) return { st: Math.min(...ps.map((r: number[]) => r[0])), en: Math.max(...ps.map((r: number[]) => r[1])) };
+      return { st: Number(c?.startSec), en: Number(c?.endSec) };
+    };
     const valid = parsedList.filter((c) => {
-      const st = Number(c?.startSec);
-      const en = Number(c?.endSec);
+      const { st, en } = pieceBounds(c);
       return Number.isFinite(st) && Number.isFinite(en) && en > st + 5 && st >= 0 && st < spanEnd;
     });
     if (valid.length === 0) {
@@ -885,11 +918,9 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
           viralityScore: Math.max(82, 97 - k * 2),
           viralityReason:
             'Fragmento con apertura narrativa atrapante y alta densidad emocional para retención en Reels y Shorts.',
-          structureMode: k % 2 === 0 ? 'hook_teaser' : 'continuous',
+          structureMode: 'continuous',
           startSec: st,
           endSec: en,
-          hookTeaserStartSec: st,
-          hookTeaserEndSec: Math.min(en, st + 3.5),
           hookBannerText: firstWords.toUpperCase(),
           socialCaption: `${startSeg.text} — Una historia real que marcó a toda una generación.`,
           hashtags: '#HistoriaUniversal #DatosCuriosos #CulturaGeneral #DocumentalHistorico #ViajeEnElTiempo',
@@ -1012,7 +1043,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
       prev.map((c) => {
         if (c.id !== selectedClip.id) return c;
         const updated = { ...c, ...patch };
-        updated.durationSec = Number(Math.max(3, updated.endSec - updated.startSec).toFixed(1));
+        updated.durationSec = Number(Math.max(3, viralSegmentsDurationSec(normalizeViralSegments(updated))).toFixed(1));
         return updated;
       })
     );
@@ -1023,64 +1054,48 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
   const hasBurnedDocCaptions = /[\\/]06_Video_Final[\\/]/i.test(String(sourceLocalPath || ''));
 
   // Compute current active word chunk for the live 9:16 preview player
-  // The preview plays exactly what gets exported (src/utils/viralClipCuts.ts, same as the render):
-  // [hook teaser] + [main part], cut between whole words. captionSec is the CLIP time (0 = first frame of the
-  // exported Reel); phaseRef says which part of the source video is playing.
+  // The preview plays exactly what gets exported (src/utils/viralClipCuts.ts, same as the render): the clip's
+  // pieces one after another, cut between whole words. captionSec is the CLIP time (0 = first frame of the
+  // exported Reel); partRef says which piece of the source video is playing.
   const clipCuts = useMemo(
     () =>
       selectedClip
         ? computeViralClipCuts({
             startSec: selectedClip.startSec,
             endSec: selectedClip.endSec,
-            structureMode: selectedClip.structureMode,
-            hookTeaserStartSec: selectedClip.hookTeaserStartSec,
-            hookTeaserEndSec: selectedClip.hookTeaserEndSec,
+            segments: selectedClip.segments,
             words: selectedClip.words || [],
           })
         : null,
-    [
-      selectedClip?.id,
-      selectedClip?.startSec,
-      selectedClip?.endSec,
-      selectedClip?.structureMode,
-      selectedClip?.hookTeaserStartSec,
-      selectedClip?.hookTeaserEndSec,
-      selectedClip?.words,
-    ]
+    [selectedClip?.id, selectedClip?.startSec, selectedClip?.endSec, selectedClip?.segments, selectedClip?.words]
   );
-  const phaseRef = useRef<'teaser' | 'main'>('main');
-  const toClipTime = (sourceSec: number) =>
-    clipCuts ? viralSourceToClipTime(clipCuts, sourceSec, phaseRef.current === 'teaser') : 0;
+  const partRef = useRef<number>(0);
+  const toClipTime = (sourceSec: number) => (clipCuts ? viralSourceToClipTime(clipCuts, sourceSec, partRef.current) : 0);
   /** Moves the player to a point of the exported clip (0 … total) */
   const seekClipTime = (clipSec: number) => {
     if (!clipCuts) return;
     const ct = Math.max(0, Math.min(clipCuts.totalDurSec, clipSec));
-    let src: number;
-    if (clipCuts.useHookTeaser && ct < clipCuts.teaserDurSec) {
-      phaseRef.current = 'teaser';
-      src = clipCuts.teaserStartSec + ct;
-    } else {
-      phaseRef.current = 'main';
-      src = clipCuts.mainStartSec + (ct - clipCuts.teaserDurSec);
-    }
-    if (videoRef.current) videoRef.current.currentTime = src;
-    setPlayheadSec(src);
+    const { partIndex, sourceSec } = viralClipTimeToSource(clipCuts, ct);
+    partRef.current = partIndex;
+    if (videoRef.current) videoRef.current.currentTime = sourceSec;
+    setPlayheadSec(sourceSec);
     setCaptionSec(ct);
   };
-  /** Teaser → main jump and end of clip, checked every frame while playing (exact cut, no half words) */
+  /** Jump to the next piece and end of clip, checked every frame while playing (exact cuts, no half words) */
   const applyClipCutsAt = (vid: HTMLVideoElement): boolean => {
-    if (!clipCuts) return false;
-    const t = vid.currentTime;
-    if (phaseRef.current === 'teaser') {
-      if (t >= clipCuts.teaserStartSec + clipCuts.teaserDurSec - 0.01 || t < clipCuts.teaserStartSec - 0.5) {
-        phaseRef.current = 'main';
-        vid.currentTime = clipCuts.mainStartSec;
-        return true;
+    if (!clipCuts || clipCuts.parts.length === 0) return false;
+    const idx = Math.max(0, Math.min(clipCuts.parts.length - 1, partRef.current));
+    const part = clipCuts.parts[idx];
+    if (vid.currentTime >= part.srcEnd - 0.01) {
+      const next = clipCuts.parts[idx + 1];
+      if (next) {
+        partRef.current = idx + 1;
+        vid.currentTime = next.srcStart;
+      } else {
+        vid.pause();
+        setIsPlaying(false);
+        seekClipTime(0);
       }
-    } else if (t >= clipCuts.mainEndSec) {
-      vid.pause();
-      setIsPlaying(false);
-      seekClipTime(0);
       return true;
     }
     return false;
@@ -1151,14 +1166,14 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
     // Igual que la exportación: cada línea se corta también a los 16 caracteres y nunca cruza el paso
     // del gancho al cuerpo del clip
     const VIRAL_CAPTION_MAX_CHARS = 16;
-    const breakAt = clipCuts.useHookTeaser ? clipCuts.teaserDurSec : 0;
+    const cutTimes = viralCutTimes(clipCuts);
     const chunks: (typeof words)[] = [];
     let cur: typeof words = [];
     let curLen = 0;
     for (const w of words) {
       const wl = String(w.word || '').length;
-      const crossesBreak =
-        breakAt > 0 && cur.length > 0 && cur[cur.length - 1].start < breakAt && w.start >= breakAt;
+      const prevStart = cur.length > 0 ? cur[cur.length - 1].start : 0;
+      const crossesBreak = cur.length > 0 && cutTimes.some((b) => prevStart < b && w.start >= b);
       if (
         cur.length > 0 &&
         (crossesBreak || cur.length >= safePerLine || curLen + 1 + wl > VIRAL_CAPTION_MAX_CHARS)
@@ -1222,9 +1237,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
           clipNumber: Math.max(1, viralClips.findIndex((c) => c.id === clip.id) + 1),
           startSec: clip.startSec,
           endSec: clip.endSec,
-          structureMode: clip.structureMode,
-          hookTeaserStartSec: clip.hookTeaserStartSec,
-          hookTeaserEndSec: clip.hookTeaserEndSec,
+          segments: clip.segments,
           reframeMode: clip.reframeMode,
           focusX: clip.focusX,
           captionStyle: clip.captionStyle,
@@ -1537,20 +1550,6 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                   </select>
                 </div>
 
-                <div>
-                  <label className="block text-[10px] text-slate-400 font-bold mb-1">
-                    Estructura
-                  </label>
-                  <select
-                    value={structurePreference}
-                    onChange={(e) => setStructurePreference(e.target.value as any)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-xs font-bold text-slate-200"
-                  >
-                    <option value="both">Ambos (Hook + Cont.)</option>
-                    <option value="hook_teaser">Hook Adelantado</option>
-                    <option value="continuous">Solo Continuos</option>
-                  </select>
-                </div>
               </div>
 
               <div className="grid grid-cols-1 gap-2">
@@ -1581,7 +1580,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                         )}s): ${s.text}`
                     )
                     .join(' // ');
-                  const webPrompt = `Act as OpusClip Pro and an expert viral short-form video editor. From the following timestamped Spanish transcript of "${sourceTitle}", ${desiredClipCount > 0 ? `select the ${desiredClipCount} most viral standalone segments` : 'decide yourself how many standalone segments this transcript genuinely supports with strong viral potential (at most about one per 75 seconds of narration, so a longer documentary can give more, never fewer than 3, and never a weak one just to reach a number), and select them'} lasting between ${minDur}s and ${maxDur}s. CRITICAL OUTPUT LANGUAGE REQUIREMENT: Return ONLY a valid JSON object (no markdown commentary) where all audience-facing text fields ("title", "viralityReason", "hookBannerText", "socialCaption", "hashtags") are written in Neutral Spanish: {"clips":[{"title":"...","viralityScore":96,"viralityReason":"...","structureMode":"hook_teaser","startSec":0,"endSec":42,"hookTeaserStartSec":10,"hookTeaserEndSec":14,"hookBannerText":"...","socialCaption":"...","hashtags":"#Uno #Dos #Tres #Cuatro #Cinco"}]}. EVERY clip has its OWN publication text, written for that clip only: "title" is a short catchy headline (max 60 characters) used only as the clip name and NEVER repeated inside the description, "socialCaption" is a 1-3 sentence description of what that clip shows (it must not start with or contain the title), and "hashtags" holds EXACTLY 5 hashtags specific to that clip (no generic repeats across all clips, never more than 5, never fewer), and EVERY hashtag is made of EXACTLY TWO Spanish words joined in CamelCase with no spaces or accents (e.g. #HistoriaMedieval #EdadMedia #DatosCuriosos), never a single-word hashtag like #Historia or #Reels. TIMESTAMPED TRANSCRIPT: ${formattedTranscript}`;
+                  const webPrompt = `Act as OpusClip Pro and an expert viral short-form video editor. From the following timestamped Spanish transcript of "${sourceTitle}", ${desiredClipCount > 0 ? `select the ${desiredClipCount} most viral standalone clips` : 'decide yourself how many standalone clips this transcript genuinely supports with strong viral potential (at most about one per 75 seconds of narration, so a longer documentary can give more, never fewer than 3, and never a weak one just to reach a number), and select them'}, each lasting between ${minDur}s and ${maxDur}s IN TOTAL. CLIP STRUCTURE: a clip is built from 1 to 4 pieces ("segments") of the transcript, ALWAYS in chronological order (never a flash-forward, hook teaser or any later moment placed before an earlier one). Use several pieces only when cutting out filler, a tangent or a slow passage makes the clip stronger: skip what is in between and keep the best lines. Every piece starts at the beginning of a phrase and ends at the end of a phrase (never in the middle of a sentence), is at least 4 seconds long, and the pieces together must read as one clear, self-contained story. The first piece opens with the strongest possible line, because the first 3 seconds decide whether people keep watching. If the moment already works as one continuous stretch, use a single piece. The clip length is the SUM of its pieces. CRITICAL OUTPUT LANGUAGE REQUIREMENT: Return ONLY a valid JSON object (no markdown commentary) where all audience-facing text fields ("title", "viralityReason", "hookBannerText", "socialCaption", "hashtags") are written in Neutral Spanish: {"clips":[{"title":"...","viralityScore":96,"viralityReason":"...","segments":[{"startSec":120.5,"endSec":138.2},{"startSec":146.0,"endSec":171.4}],"hookBannerText":"...","socialCaption":"...","hashtags":"#Uno #Dos #Tres #Cuatro #Cinco"}]}. EVERY clip has its OWN publication text, written for that clip only: "hookBannerText" is the short on-screen title shown during the first 8 seconds (UPPERCASE, max 50 characters), "title" is a short catchy headline (max 60 characters) used only as the clip name and NEVER repeated inside the description, "socialCaption" is a 1-3 sentence description of what that clip shows (it must not start with or contain the title), and "hashtags" holds EXACTLY 5 hashtags specific to that clip (no generic repeats across all clips, never more than 5, never fewer), and EVERY hashtag is made of EXACTLY TWO Spanish words joined in CamelCase with no spaces or accents (e.g. #HistoriaMedieval #EdadMedia #DatosCuriosos), never a single-word hashtag like #Historia or #Reels. TIMESTAMPED TRANSCRIPT: ${formattedTranscript}`;
                   const geminiViralPayload = {
                     action: 'SEND_PROMPT',
                     prompt: webPrompt,
@@ -1673,15 +1672,20 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                       <span>
                         ⏱ {formatMMSS(clip.startSec)} → {formatMMSS(clip.endSec)} ({clip.durationSec}s)
                       </span>
-                      <span
-                        className={`px-1.5 py-0.2 rounded font-sans font-bold ${
-                          clip.structureMode === 'hook_teaser'
-                            ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40'
-                            : 'bg-slate-800 text-slate-300'
-                        }`}
-                      >
-                        {clip.structureMode === 'hook_teaser' ? '🔥 Hook + Cuerpo' : '▶ Continuo'}
-                      </span>
+                      {(() => {
+                        const cutCount = normalizeViralSegments(clip).length - 1;
+                        return (
+                          <span
+                            className={`px-1.5 py-0.2 rounded font-sans font-bold ${
+                              cutCount > 0
+                                ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40'
+                                : 'bg-slate-800 text-slate-300'
+                            }`}
+                          >
+                            {cutCount > 0 ? `✂ ${cutCount} ${cutCount === 1 ? 'corte' : 'cortes'}` : '▶ Continuo'}
+                          </span>
+                        );
+                      })()}
                     </div>
 
                     {clip.renderedReelUrl && (
@@ -2039,31 +2043,18 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs pt-1">
                   <div className="bg-slate-950 border border-slate-800 rounded-xl p-2.5 space-y-1">
                     <span className="text-[10px] text-slate-400 font-bold block">
-                      Modo de Estructura del Clip
+                      Tramos del Documental (en orden)
                     </span>
-                    <div className="flex gap-1">
-                      <button
-                        type="button"
-                        onClick={() => updateSelectedClip({ structureMode: 'hook_teaser' })}
-                        className={`flex-1 py-1 rounded-lg text-[11px] font-bold cursor-pointer ${
-                          selectedClip.structureMode === 'hook_teaser'
-                            ? 'bg-purple-500 text-slate-950'
-                            : 'bg-slate-900 text-slate-300'
-                        }`}
-                      >
-                        🔥 Hook Adelantado
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => updateSelectedClip({ structureMode: 'continuous' })}
-                        className={`flex-1 py-1 rounded-lg text-[11px] font-bold cursor-pointer ${
-                          selectedClip.structureMode === 'continuous'
-                            ? 'bg-amber-500 text-slate-950'
-                            : 'bg-slate-900 text-slate-300'
-                        }`}
-                      >
-                        ▶ Continuo
-                      </button>
+                    <div className="flex flex-wrap gap-1">
+                      {normalizeViralSegments(selectedClip).map((seg, i) => (
+                        <span
+                          key={i}
+                          className="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-700 font-mono text-[11px] text-amber-200"
+                        >
+                          {i > 0 ? '✂ ' : ''}
+                          {formatMMSS(seg.startSec)}→{formatMMSS(seg.endSec)}
+                        </span>
+                      ))}
                     </div>
                   </div>
 

@@ -5,7 +5,7 @@ import fs from 'fs';
 import fsp from 'fs/promises';
 import os from 'os';
 import crypto from 'crypto';
-import { exec, execFile, execFileSync, execSync, spawn, ChildProcess } from 'child_process';
+import { exec, execFile, execFileSync, execSync, spawn, spawnSync, ChildProcess } from 'child_process';
 import multer from 'multer';
 import dotenv from 'dotenv';
 import cors from 'cors';
@@ -37,7 +37,13 @@ import {
   balanceCaptionsFor16x9,
 } from './src/utils/smartParsers';
 import { buildShotDirectionClause } from './src/utils/shotCatalogue';
-import { computeViralClipCuts, buildViralLocalWords } from './src/utils/viralClipCuts';
+import {
+  computeViralClipCuts,
+  buildViralLocalWords,
+  viralCutTimes,
+  normalizeViralSegments,
+  viralSegmentsDurationSec,
+} from './src/utils/viralClipCuts';
 import {
   extractCleanPcmFromGeminiAudio,
   polishCleanTtsPcmBlock,
@@ -22994,18 +23000,11 @@ app.post('/api/viral-clips/analyze', async (req, res) => {
           completeness: p.completenessScore,
         },
         viralityReason: p.reason,
-        structureMode:
-          structurePreference === 'continuous'
-            ? 'continuous'
-            : structurePreference === 'hook_teaser'
-            ? 'hook_teaser'
-            : k % 2 === 0
-            ? 'hook_teaser'
-            : 'continuous',
+        // No hook teaser: a continuous piece (Gemini can return several pieces with cuts)
+        structureMode: 'continuous',
         startSec: p.startSec,
         endSec: p.endSec,
-        hookTeaserStartSec: p.bestTeaserSeg.start,
-        hookTeaserEndSec: Math.min(p.endSec, Math.max(p.bestTeaserSeg.start + 2.8, Math.min(p.bestTeaserSeg.end, p.bestTeaserSeg.start + 4.5))),
+        segments: undefined as Array<{ startSec: number; endSec: number }> | undefined,
         hookBannerText: bannerWords || cleanWords.toUpperCase(),
         socialCaption: `🔥 ${p.bestTeaserSeg.text.trim()}\n\nUn episodio fascinante de "${
           title || 'Huellas de la Humanidad'
@@ -23017,11 +23016,8 @@ app.post('/api/viral-clips/analyze', async (req, res) => {
     const enrichedClips = rawClips.map((c, idx) => {
       const startSec = Math.max(0, Number(c.startSec) || 0);
       const endSec = Math.max(startSec + 10, Number(c.endSec) || startSec + 35);
-      const hookStart = Math.max(startSec, Number(c.hookTeaserStartSec) || startSec);
-      const hookEnd = Math.min(
-        endSec,
-        Math.max(hookStart + 2.2, Number(c.hookTeaserEndSec) || hookStart + 3.5)
-      );
+      // Pieces of the documentary that make up the clip (in order); one continuous piece if none
+      const pieces = normalizeViralSegments({ startSec, endSec, segments: c.segments });
 
       // Slice overlapping transcript segments and their word-level timestamps
       const overlappingSegments = segments.filter(
@@ -23061,12 +23057,11 @@ app.post('/api/viral-clips/analyze', async (req, res) => {
           c.viralityReason ||
             'Gancho inmediato en los primeros 3 segundos con alta carga emocional e intriga histórica.'
         ),
-        structureMode: c.structureMode === 'hook_teaser' ? 'hook_teaser' : 'continuous',
+        structureMode: 'continuous',
         startSec: Number(startSec.toFixed(2)),
         endSec: Number(endSec.toFixed(2)),
-        durationSec: Number((endSec - startSec).toFixed(2)),
-        hookTeaserStartSec: Number(hookStart.toFixed(2)),
-        hookTeaserEndSec: Number(hookEnd.toFixed(2)),
+        durationSec: Number(viralSegmentsDurationSec(pieces).toFixed(2)),
+        segments: pieces.length > 1 ? pieces : undefined,
         hookBannerText: String(c.hookBannerText || c.title || '').toUpperCase(),
         socialCaption: String(c.socialCaption || ''),
         hashtags: String(c.hashtags || '#HistoriaUniversal #DatosCuriosos #CulturaGeneral #DocumentalHistorico #ViajeEnElTiempo'),
@@ -23108,8 +23103,8 @@ function buildOpusClipAssSubtitles(params: {
   totalClipDurSec: number;
   /** Top of the on-screen title text, % of the frame height (below the logo) */
   hookBannerTopPct?: number;
-  /** A caption line never spans this time (the cut between the hook teaser and the main part) */
-  chunkBreakSec?: number;
+  /** A caption line never spans these times (the cuts between the clip's pieces) */
+  chunkBreaks?: number[];
 }): string {
   const {
     outW,
@@ -23123,7 +23118,7 @@ function buildOpusClipAssSubtitles(params: {
     hookBannerText,
     showHookBanner,
     totalClipDurSec,
-    chunkBreakSec = 0,
+    chunkBreaks = [],
     hookBannerTopPct = 13.5,
   } = params;
 
@@ -23244,8 +23239,8 @@ function buildOpusClipAssSubtitles(params: {
       .filter((w) => w.word);
     for (const w of cleanWords) {
       const wl = String(w.word || '').replace(/[{}]/g, '').length;
-      const crossesBreak =
-        chunkBreakSec > 0 && cur.length > 0 && cur[cur.length - 1].start < chunkBreakSec && w.start >= chunkBreakSec;
+      const prevStart = cur.length > 0 ? cur[cur.length - 1].start : 0;
+      const crossesBreak = cur.length > 0 && chunkBreaks.some((b) => prevStart < b && w.start >= b);
       if (
         cur.length > 0 &&
         (crossesBreak || cur.length >= safeWordsPerChunk || curLen + 1 + wl > VIRAL_CAPTION_MAX_CHARS)
@@ -23297,9 +23292,10 @@ async function renderViralClipMp4Internal(params: {
   clipTitle: string;
   startSec: number;
   endSec: number;
-  structureMode: 'continuous' | 'hook_teaser';
-  hookTeaserStartSec?: number;
-  hookTeaserEndSec?: number;
+  /** Old field (hook teaser removed): ignored */
+  structureMode?: string;
+  /** Pieces of the documentary that make up the clip, in order (the parts in between are skipped) */
+  segments?: Array<{ startSec: number; endSec: number }>;
   reframeMode: 'center_fill' | 'fit_blur' | 'auto_pan';
   focusX: number;
   captionStyle: 'yellow_white' | 'opus_gold' | 'hormozi_green' | 'viral_box' | 'huellas_cinema';
@@ -23324,9 +23320,7 @@ async function renderViralClipMp4Internal(params: {
     clipTitle,
     startSec,
     endSec,
-    structureMode,
-    hookTeaserStartSec = startSec,
-    hookTeaserEndSec = startSec + 3,
+    segments,
     reframeMode = 'center_fill',
     focusX = 50,
     captionStyle = 'yellow_white',
@@ -23361,22 +23355,9 @@ async function renderViralClipMp4Internal(params: {
   const outW = 1440;
   const outH = 2560;
 
-  // Cuts shared with the Viral Clips preview (src/utils/viralClipCuts.ts): no cut splits a word, the teaser
-  // ends after its last whole word, and the page plays exactly the same parts as this render
-  const cuts = computeViralClipCuts({
-    startSec,
-    endSec,
-    structureMode,
-    hookTeaserStartSec,
-    hookTeaserEndSec,
-    words,
-  });
-  const clipStartSec = cuts.mainStartSec;
-  const effectiveEndSec = cuts.mainEndSec;
-  const mainSpanDur = cuts.mainDurSec;
-  const useHookTeaser = cuts.useHookTeaser;
-  const teaserStartSec = cuts.teaserStartSec;
-  const teaserSpanDur = cuts.teaserDurSec;
+  // Cuts shared with the Viral Clips preview (src/utils/viralClipCuts.ts): the clip is one or more pieces of
+  // the documentary in order, no cut splits a word, and the page plays exactly the same pieces as this render
+  const cuts = computeViralClipCuts({ startSec, endSec, segments, words });
   const totalClipDurSec = cuts.totalDurSec;
 
   // Words on the clip's own timeline [0, totalClipDurSec]
@@ -23394,7 +23375,7 @@ async function renderViralClipMp4Internal(params: {
     hookBannerText,
     showHookBanner,
     totalClipDurSec,
-    chunkBreakSec: teaserSpanDur,
+    chunkBreaks: viralCutTimes(cuts),
     hookBannerTopPct: look916.hookBannerTopPct,
   });
 
@@ -23470,7 +23451,7 @@ async function renderViralClipMp4Internal(params: {
   if (reframeMode === 'fit_blur') {
     reframeVf = `${preCropVf}split=2[bg][fg];[bg]scale=${outW}:${outH}:force_original_aspect_ratio=increase:flags=lanczos,crop=${outW}:${outH},boxblur=24:4,eq=brightness=-0.18[bgblur];[fg]scale=${outW}:${outH}:force_original_aspect_ratio=decrease:flags=lanczos[fgscaled];[bgblur][fgscaled]overlay=(W-w)/2:(H-h)/2,ass='${escapedAssPath}'${logoOverlaySuffix}`;
   } else if (reframeMode === 'auto_pan') {
-    reframeVf = `${preCropVf}scale=${outW}:${outH}:force_original_aspect_ratio=increase:flags=lanczos,crop=${outW}:${outH}:'(iw-ow)*(0.25+0.5*min(1,t/${mainSpanDur.toFixed(
+    reframeVf = `${preCropVf}scale=${outW}:${outH}:force_original_aspect_ratio=increase:flags=lanczos,crop=${outW}:${outH}:'(iw-ow)*(0.25+0.5*min(1,t/${Math.max(1, totalClipDurSec).toFixed(
       2
     )}))':(ih-oh)/2,ass='${escapedAssPath}'${logoOverlaySuffix}`;
   } else {
@@ -23480,112 +23461,70 @@ async function renderViralClipMp4Internal(params: {
   }
 
   try {
-    if (!useHookTeaser) {
-      await new Promise<void>((resolve, reject) => {
-        execFile(
-          ffmpegBin,
-          [
-            '-y',
-            '-ss',
-            clipStartSec.toFixed(3),
-            '-t',
-            mainSpanDur.toFixed(3),
-            '-i',
-            sourceVideoPath,
-            '-vf',
-            reframeVf,
-            '-r',
-            '30',
-            '-c:v',
-            'libx264',
-            '-preset',
-            'veryfast',
-            '-crf',
-            '18',
-            '-pix_fmt',
-            'yuv420p',
-            '-c:a',
-            'aac',
-            '-b:a',
-            '192k',
-            '-movflags',
-            '+faststart',
-            outputFilePath,
-          ],
-          { timeout: 1800000 },
-          (err, _stdout, stderr) => {
-            if (err) return reject(new Error(stderr || err.message));
-            resolve();
-          }
-        );
-      });
-    } else {
-      // Render Hook Teaser + Main Segment concatenated, then burn ASS subtitles
-      const complexFilter =
-        reframeMode === 'fit_blur'
-          ? `[0:v]setpts=PTS-STARTPTS[v0];[0:a]asetpts=PTS-STARTPTS,afade=t=out:st=${Math.max(
-              0,
-              teaserSpanDur - 0.1
-            ).toFixed(3)}:d=0.1[a0];[1:v]setpts=PTS-STARTPTS[v1];[1:a]asetpts=PTS-STARTPTS,afade=t=in:st=0:d=0.08[a1];[v0][a0][v1][a1]concat=n=2:v=1:a=1[vc][aout];[vc]${preCropVf}split=2[bg][fg];[bg]scale=${outW}:${outH}:force_original_aspect_ratio=increase:flags=lanczos,crop=${outW}:${outH},boxblur=24:4,eq=brightness=-0.18[bgblur];[fg]scale=${outW}:${outH}:force_original_aspect_ratio=decrease:flags=lanczos[fgscaled];[bgblur][fgscaled]overlay=(W-w)/2:(H-h)/2,ass='${escapedAssPath}'${logoOverlaySuffix ? `${logoOverlaySuffix}[vout]` : '[vout]'}`
-          : `[0:v]setpts=PTS-STARTPTS[v0];[0:a]asetpts=PTS-STARTPTS,afade=t=out:st=${Math.max(
-              0,
-              teaserSpanDur - 0.1
-            ).toFixed(3)}:d=0.1[a0];[1:v]setpts=PTS-STARTPTS[v1];[1:a]asetpts=PTS-STARTPTS,afade=t=in:st=0:d=0.08[a1];[v0][a0][v1][a1]concat=n=2:v=1:a=1[vc][aout];[vc]${preCropVf}scale=${outW}:${outH}:force_original_aspect_ratio=increase:flags=lanczos,crop=${outW}:${outH}:(iw-ow)*${fX.toFixed(
-              3
-            )}:(ih-oh)/2,ass='${escapedAssPath}'${logoOverlaySuffix ? `${logoOverlaySuffix}[vout]` : '[vout]'}`;
+    // One input per piece, each read from its own point (input seeking: the 8K master is never decoded from
+    // 00:00). Pieces are joined with a hard picture cut and a very short audio fade (no click, no half word).
+    const sourceHasAudio = (() => {
+      try {
+        const r = spawnSync(ffmpegBin, ['-hide_banner', '-i', sourceVideoPath], { encoding: 'utf8', timeout: 30000 });
+        return /Stream #[^\n]*Audio:/.test(String(r.stderr || ''));
+      } catch {
+        return true;
+      }
+    })();
+    const n = cuts.parts.length;
+    const inputArgs: string[] = [];
+    const chains: string[] = [];
+    let concatIn = '';
+    cuts.parts.forEach((part, i) => {
+      inputArgs.push('-ss', part.srcStart.toFixed(3), '-t', part.dur.toFixed(3), '-i', sourceVideoPath);
+      chains.push(`[${i}:v]setpts=PTS-STARTPTS[v${i}]`);
+      if (sourceHasAudio) {
+        const fades: string[] = [];
+        if (i > 0) fades.push('afade=t=in:st=0:d=0.06');
+        if (i < n - 1) fades.push(`afade=t=out:st=${Math.max(0, part.dur - 0.1).toFixed(3)}:d=0.1`);
+        chains.push(`[${i}:a]asetpts=PTS-STARTPTS${fades.length ? `,${fades.join(',')}` : ''}[a${i}]`);
+        concatIn += `[v${i}][a${i}]`;
+      } else {
+        concatIn += `[v${i}]`;
+      }
+    });
+    const complexFilter = `${chains.join(';')};${concatIn}concat=n=${n}:v=1:a=${sourceHasAudio ? 1 : 0}[vc]${
+      sourceHasAudio ? '[aout]' : ''
+    };[vc]${reframeVf}[vout]`;
 
-      await new Promise<void>((resolve, reject) => {
-        execFile(
-          ffmpegBin,
-          [
-            '-y',
-            // Input seeking: each part is read from its own point (before, the whole 8K master was decoded
-            // from 00:00 up to the clip, several minutes for a clip near the end). The teaser lasts exactly
-            // teaserSpanDur, the same length the captions use (it used to run longer and shift every caption).
-            '-ss',
-            teaserStartSec.toFixed(3),
-            '-t',
-            teaserSpanDur.toFixed(3),
-            '-i',
-            sourceVideoPath,
-            '-ss',
-            clipStartSec.toFixed(3),
-            '-t',
-            mainSpanDur.toFixed(3),
-            '-i',
-            sourceVideoPath,
-            '-filter_complex',
-            complexFilter,
-            '-map',
-            '[vout]',
-            '-map',
-            '[aout]',
-            '-r',
-            '30',
-            '-c:v',
-            'libx264',
-            '-preset',
-            'veryfast',
-            '-crf',
-            '18',
-            '-pix_fmt',
-            'yuv420p',
-            '-c:a',
-            'aac',
-            '-b:a',
-            '192k',
-            '-movflags',
-            '+faststart',
-            outputFilePath,
-          ],
-          { timeout: 1800000 },
-          (err, _stdout, stderr) => {
-            if (err) return reject(new Error(stderr || err.message));
-            resolve();
-          }
-        );
-      });
-    }
+    await new Promise<void>((resolve, reject) => {
+      execFile(
+        ffmpegBin,
+        [
+          '-y',
+          ...inputArgs,
+          '-filter_complex',
+          complexFilter,
+          '-map',
+          '[vout]',
+          ...(sourceHasAudio ? ['-map', '[aout]'] : []),
+          '-r',
+          '30',
+          '-c:v',
+          'libx264',
+          '-preset',
+          'veryfast',
+          '-crf',
+          '18',
+          '-pix_fmt',
+          'yuv420p',
+          ...(sourceHasAudio ? ['-c:a', 'aac', '-b:a', '192k'] : []),
+          '-movflags',
+          '+faststart',
+          outputFilePath,
+        ],
+        { timeout: 1800000 },
+        (err, _stdout, stderr) => {
+          if (err) return reject(new Error(stderr || err.message));
+          resolve();
+        }
+      );
+    });
   } finally {
     try {
       if (fs.existsSync(assPath)) fs.unlinkSync(assPath);
