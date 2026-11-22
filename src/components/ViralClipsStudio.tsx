@@ -1379,7 +1379,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                         )}s): ${s.text}`
                     )
                     .join(' // ');
-                  const webPrompt = `Act as OpusClip Pro and an expert viral short-form video editor. From the following timestamped Spanish transcript of "${sourceTitle}", ${desiredClipCount > 0 ? `select the ${desiredClipCount} most viral standalone segments` : 'decide yourself how many standalone segments this transcript genuinely supports with strong viral potential (at most about one per 75 seconds of narration, so a longer documentary can give more, never fewer than 3, and never a weak one just to reach a number), and select them'} lasting between ${minDur}s and ${maxDur}s. CRITICAL OUTPUT LANGUAGE REQUIREMENT: Return ONLY a valid JSON object (no markdown commentary) where all audience-facing text fields ("title", "viralityReason", "hookBannerText", "socialCaption", "hashtags") are written in Neutral Spanish: {"clips":[{"title":"...","viralityScore":96,"viralityReason":"...","structureMode":"hook_teaser","startSec":0,"endSec":42,"hookTeaserStartSec":10,"hookTeaserEndSec":14,"hookBannerText":"...","socialCaption":"...","hashtags":"#Uno #Dos #Tres #Cuatro #Cinco"}]}. EVERY clip has its OWN publication text, written for that clip only: "title" is a short catchy headline (max 60 characters) that appears first in the Instagram description, "socialCaption" is a 1-3 sentence description of what that clip shows, and "hashtags" holds EXACTLY 5 hashtags specific to that clip (no generic repeats across all clips, never more than 5). TIMESTAMPED TRANSCRIPT: ${formattedTranscript}`;
+                  const webPrompt = `Act as OpusClip Pro and an expert viral short-form video editor. From the following timestamped Spanish transcript of "${sourceTitle}", ${desiredClipCount > 0 ? `select the ${desiredClipCount} most viral standalone segments` : 'decide yourself how many standalone segments this transcript genuinely supports with strong viral potential (at most about one per 75 seconds of narration, so a longer documentary can give more, never fewer than 3, and never a weak one just to reach a number), and select them'} lasting between ${minDur}s and ${maxDur}s. CRITICAL OUTPUT LANGUAGE REQUIREMENT: Return ONLY a valid JSON object (no markdown commentary) where all audience-facing text fields ("title", "viralityReason", "hookBannerText", "socialCaption", "hashtags") are written in Neutral Spanish: {"clips":[{"title":"...","viralityScore":96,"viralityReason":"...","structureMode":"hook_teaser","startSec":0,"endSec":42,"hookTeaserStartSec":10,"hookTeaserEndSec":14,"hookBannerText":"...","socialCaption":"...","hashtags":"#Uno #Dos #Tres #Cuatro #Cinco"}]}. EVERY clip has its OWN publication text, written for that clip only: "title" is a short catchy headline (max 60 characters) used only as the clip name and NEVER repeated inside the description, "socialCaption" is a 1-3 sentence description of what that clip shows (it must not start with or contain the title), and "hashtags" holds EXACTLY 5 hashtags specific to that clip (no generic repeats across all clips, never more than 5). TIMESTAMPED TRANSCRIPT: ${formattedTranscript}`;
                   const geminiViralPayload = {
                     action: 'SEND_PROMPT',
                     prompt: webPrompt,
@@ -1581,7 +1581,15 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                   playheadSec >= selectedClip.startSec - 0.2 &&
                   playheadSec < selectedClip.startSec + 8 && (
                   <div className="absolute top-[13.5%] inset-x-[13%] z-20 flex justify-center pointer-events-none">
-                    <div className="px-3 py-1.5 rounded-xl bg-amber-400 text-slate-950 font-black text-[14px] leading-tight text-center uppercase tracking-wide shadow-lg border border-white/40 leading-tight">
+                    <div
+                      className="px-3 py-1.5 rounded-xl bg-amber-400 text-slate-950 font-black text-[14px] leading-tight text-center uppercase tracking-wide shadow-lg border border-white/40"
+                      style={{
+                        fontFamily: "'Arial Black', Impact, 'Helvetica Neue', sans-serif",
+                        // Extra-heavy title: a stroke in the text color thickens Arial Black (same as the render)
+                        WebkitTextStroke: '0.9px #101010',
+                        paintOrder: 'stroke fill',
+                      }}
+                    >
                       {selectedClip.hookBannerText}
                     </div>
                   </div>
@@ -1938,9 +1946,8 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                       onClick={() =>
                         copyText(
                           'caption',
-                          `${selectedClip.title}\n\n${selectedClip.socialCaption}\n\n${limitToFiveHashtags(
-                            selectedClip.hashtags
-                          )}`
+                          // The title is not part of the description: only the description and its 5 hashtags
+                          `${selectedClip.socialCaption}\n\n${limitToFiveHashtags(selectedClip.hashtags)}`.trim()
                         )
                       }
                       className="text-[11px] text-amber-300 hover:text-amber-200 flex items-center gap-1 cursor-pointer"
@@ -1950,16 +1957,9 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                       ) : (
                         <Copy className="w-3 h-3" />
                       )}
-                      <span>{copiedField === 'caption' ? '¡Copiado!' : 'Copiar Todo'}</span>
+                      <span>{copiedField === 'caption' ? '¡Copiado!' : 'Copiar descripción + hashtags'}</span>
                     </button>
                   </div>
-                  <input
-                    type="text"
-                    value={selectedClip.title}
-                    onChange={(e) => updateSelectedClip({ title: e.target.value })}
-                    placeholder="Título de este clip"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs font-bold text-amber-100 outline-none"
-                  />
                   <textarea
                     rows={3}
                     value={selectedClip.socialCaption}

@@ -23027,6 +23027,11 @@ function buildOpusClipAssSubtitles(params: {
     `Style: HookBanner,Arial Black,${hookBannerFontSize},&H00101010,&H0000FFFF,&H0015CCFA,&H0015CCFA,-1,0,0,0,100,100,1,0,3,${Math.round(
       hookBannerFontSize * 0.36
     )},0,8,50,50,180,1`,
+    // Same title drawn again on top with an outline in the text color: thickens the strokes (extra-bold title)
+    `Style: HookBannerInk,Arial Black,${hookBannerFontSize},&H00101010,&H0000FFFF,&H00101010,&H00000000,-1,0,0,0,100,100,1,0,1,${Math.max(
+      2,
+      Math.round(hookBannerFontSize * 0.028)
+    )},0,8,50,50,180,1`,
     '',
     '[Events]',
     'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
@@ -23046,6 +23051,13 @@ function buildOpusClipAssSubtitles(params: {
       `Dialogue: 3,${formatAssTime(0)},${formatAssTime(
         bannerEnd
       )},HookBanner,,${bannerSideMargin},${bannerSideMargin},0,,{\\q0\\fad(180,280)\\an8\\pos(${centerX},${Math.round(
+        outH * 0.135
+      )})}${cleanHook}`
+    );
+    assLines.push(
+      `Dialogue: 4,${formatAssTime(0)},${formatAssTime(
+        bannerEnd
+      )},HookBannerInk,,${bannerSideMargin},${bannerSideMargin},0,,{\\q0\\fad(180,280)\\an8\\pos(${centerX},${Math.round(
         outH * 0.135
       )})}${cleanHook}`
     );
