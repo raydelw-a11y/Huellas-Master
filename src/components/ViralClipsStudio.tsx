@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { computeViralClipCuts, buildViralLocalWords, viralSourceToClipTime } from '../utils/viralClipCuts';
 import {
   Sparkles,
   Film,
@@ -907,14 +908,6 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
     }
   };
 
-  // Sync video player when selectedClip changes
-  useEffect(() => {
-    if (selectedClip && videoRef.current) {
-      videoRef.current.currentTime = selectedClip.startSec;
-      setPlayheadSec(selectedClip.startSec);
-      setIsPlaying(false);
-    }
-  }, [selectedClip?.id]);
 
   // Light 720p preview of the final video (the 8K original stutters in the browser). The player switches to
   // it as soon as it is ready; renders keep using the original file.
@@ -996,22 +989,15 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
   const handleTimeUpdate = () => {
     const vid = videoRef.current;
     if (!vid || !selectedClip) return;
-    const cur = vid.currentTime;
-    setPlayheadSec(cur);
-    if (cur >= selectedClip.endSec) {
-      vid.currentTime = selectedClip.startSec;
-      vid.pause();
-      setIsPlaying(false);
-    }
+    if (applyClipCutsAt(vid)) return;
+    setPlayheadSec(vid.currentTime);
   };
 
   const togglePlayClip = () => {
     const vid = videoRef.current;
     if (!vid || !selectedClip) return;
     if (vid.paused) {
-      if (vid.currentTime < selectedClip.startSec || vid.currentTime >= selectedClip.endSec - 0.3) {
-        vid.currentTime = selectedClip.startSec;
-      }
+      if (clipCuts && toClipTime(vid.currentTime) >= clipCuts.totalDurSec - 0.3) seekClipTime(0);
       vid.play().catch(() => {});
       setIsPlaying(true);
     } else {
@@ -1037,19 +1023,98 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
   const hasBurnedDocCaptions = /[\\/]06_Video_Final[\\/]/i.test(String(sourceLocalPath || ''));
 
   // Compute current active word chunk for the live 9:16 preview player
+  // The preview plays exactly what gets exported (src/utils/viralClipCuts.ts, same as the render):
+  // [hook teaser] + [main part], cut between whole words. captionSec is the CLIP time (0 = first frame of the
+  // exported Reel); phaseRef says which part of the source video is playing.
+  const clipCuts = useMemo(
+    () =>
+      selectedClip
+        ? computeViralClipCuts({
+            startSec: selectedClip.startSec,
+            endSec: selectedClip.endSec,
+            structureMode: selectedClip.structureMode,
+            hookTeaserStartSec: selectedClip.hookTeaserStartSec,
+            hookTeaserEndSec: selectedClip.hookTeaserEndSec,
+            words: selectedClip.words || [],
+          })
+        : null,
+    [
+      selectedClip?.id,
+      selectedClip?.startSec,
+      selectedClip?.endSec,
+      selectedClip?.structureMode,
+      selectedClip?.hookTeaserStartSec,
+      selectedClip?.hookTeaserEndSec,
+      selectedClip?.words,
+    ]
+  );
+  const phaseRef = useRef<'teaser' | 'main'>('main');
+  const toClipTime = (sourceSec: number) =>
+    clipCuts ? viralSourceToClipTime(clipCuts, sourceSec, phaseRef.current === 'teaser') : 0;
+  /** Moves the player to a point of the exported clip (0 … total) */
+  const seekClipTime = (clipSec: number) => {
+    if (!clipCuts) return;
+    const ct = Math.max(0, Math.min(clipCuts.totalDurSec, clipSec));
+    let src: number;
+    if (clipCuts.useHookTeaser && ct < clipCuts.teaserDurSec) {
+      phaseRef.current = 'teaser';
+      src = clipCuts.teaserStartSec + ct;
+    } else {
+      phaseRef.current = 'main';
+      src = clipCuts.mainStartSec + (ct - clipCuts.teaserDurSec);
+    }
+    if (videoRef.current) videoRef.current.currentTime = src;
+    setPlayheadSec(src);
+    setCaptionSec(ct);
+  };
+  /** Teaser → main jump and end of clip, checked every frame while playing (exact cut, no half words) */
+  const applyClipCutsAt = (vid: HTMLVideoElement): boolean => {
+    if (!clipCuts) return false;
+    const t = vid.currentTime;
+    if (phaseRef.current === 'teaser') {
+      if (t >= clipCuts.teaserStartSec + clipCuts.teaserDurSec - 0.01 || t < clipCuts.teaserStartSec - 0.5) {
+        phaseRef.current = 'main';
+        vid.currentTime = clipCuts.mainStartSec;
+        return true;
+      }
+    } else if (t >= clipCuts.mainEndSec) {
+      vid.pause();
+      setIsPlaying(false);
+      seekClipTime(0);
+      return true;
+    }
+    return false;
+  };
+
+  // Sync video player when the selected clip (or its cuts) changes: back to the first frame of the export
+  useEffect(() => {
+    if (selectedClip && videoRef.current) {
+      videoRef.current.pause();
+      setIsPlaying(false);
+      seekClipTime(0);
+    }
+  }, [selectedClip?.id, clipCuts]);
+
   // Caption clock: 'timeupdate' only fires ~4 times a second, so captions changed up to 0.25 s late.
   // While playing, a frame loop reads the video time and re-renders only when it crosses a word start/end
   // (same precision as the 9:16 editor, without re-rendering the studio every frame).
   const [captionSec, setCaptionSec] = useState<number>(0);
+  // Words on the exported clip's timeline, without punctuation (same as the render)
+  const clipLocalWords = useMemo(() => {
+    if (!clipCuts || !selectedClip) return [] as WordTimestamp[];
+    return buildViralLocalWords(clipCuts, selectedClip.words || [])
+      .map((w) => ({ ...w, word: stripCaptionPunctuation(w.word) }))
+      .filter((w) => w.word);
+  }, [clipCuts, selectedClip?.words]);
   const captionBoundaries = useMemo(() => {
-    const out: number[] = [];
-    for (const w of selectedClip?.words || []) {
+    const out: number[] = [8]; // the on-screen title disappears at 8 s
+    for (const w of clipLocalWords) {
       out.push(w.start - 0.08, w.start, w.end, w.end + 0.15);
     }
     return out.sort((a, b) => a - b);
-  }, [selectedClip?.words]);
+  }, [clipLocalWords]);
   useEffect(() => {
-    setCaptionSec(playheadSec);
+    setCaptionSec(toClipTime(playheadSec));
   }, [playheadSec]);
   useEffect(() => {
     if (!isPlaying) return;
@@ -1058,43 +1123,46 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
     const tick = () => {
       const vid = videoRef.current;
       if (vid) {
-        const t = vid.currentTime;
+        if (applyClipCutsAt(vid)) lastBucket = -2;
+        const ct = toClipTime(vid.currentTime);
         // index of the last boundary already passed
         let lo = 0;
         let hi = captionBoundaries.length;
         while (lo < hi) {
           const mid = (lo + hi) >> 1;
-          if (captionBoundaries[mid] <= t) lo = mid + 1;
+          if (captionBoundaries[mid] <= ct) lo = mid + 1;
           else hi = mid;
         }
         if (lo !== lastBucket) {
           lastBucket = lo;
-          setCaptionSec(t);
+          setCaptionSec(ct);
         }
       }
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [isPlaying, captionBoundaries]);
+  }, [isPlaying, captionBoundaries, clipCuts]);
 
   const activeCaptionChunk = useMemo(() => {
-    if (!selectedClip || !Array.isArray(selectedClip.words) || selectedClip.words.length === 0) {
-      return null;
-    }
+    if (!clipCuts || clipLocalWords.length === 0) return null;
     const safePerLine = Math.max(1, Math.min(2, wordsPerLine));
-    // Sin puntos, comas ni otros signos (igual que el render); un signo suelto no ocupa palabra
-    const words = selectedClip.words
-      .map((w) => ({ ...w, word: stripCaptionPunctuation(w.word) }))
-      .filter((w) => w.word);
-    // Igual que la exportación: cada línea se corta también a los 16 caracteres
+    const words = clipLocalWords;
+    // Igual que la exportación: cada línea se corta también a los 16 caracteres y nunca cruza el paso
+    // del gancho al cuerpo del clip
     const VIRAL_CAPTION_MAX_CHARS = 16;
+    const breakAt = clipCuts.useHookTeaser ? clipCuts.teaserDurSec : 0;
     const chunks: (typeof words)[] = [];
     let cur: typeof words = [];
     let curLen = 0;
     for (const w of words) {
       const wl = String(w.word || '').length;
-      if (cur.length > 0 && (cur.length >= safePerLine || curLen + 1 + wl > VIRAL_CAPTION_MAX_CHARS)) {
+      const crossesBreak =
+        breakAt > 0 && cur.length > 0 && cur[cur.length - 1].start < breakAt && w.start >= breakAt;
+      if (
+        cur.length > 0 &&
+        (crossesBreak || cur.length >= safePerLine || curLen + 1 + wl > VIRAL_CAPTION_MAX_CHARS)
+      ) {
         chunks.push(cur);
         cur = [];
         curLen = 0;
@@ -1129,7 +1197,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
       return { chunk, activeIdx };
     }
     return null;
-  }, [selectedClip, captionSec, wordsPerLine]);
+  }, [clipCuts, clipLocalWords, captionSec, wordsPerLine]);
 
   // Render Clip to 9:16 MP4 (Reel)
   const handleRenderViralClip = async (clip: ViralClipSuggestion) => {
@@ -1712,8 +1780,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                 {/* Top Hook Banner (first 8 seconds of the clip, same as the render) */}
                 {showHookBanner &&
                   selectedClip.hookBannerText &&
-                  playheadSec >= selectedClip.startSec - 0.2 &&
-                  playheadSec < selectedClip.startSec + 8 && (
+                  captionSec < 8 && (
                   <div
                     className="absolute inset-x-[13%] z-20 flex justify-center pointer-events-none"
                     // Same place as the render: under the logo (the box starts ~1.5% above the text)
@@ -1794,22 +1861,18 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                     <span>{isPlaying ? 'Pausar' : 'Reproducir Clip'}</span>
                   </button>
                   <span className="font-mono text-xs text-amber-300">
-                    {formatMMSS(Math.max(0, playheadSec - selectedClip.startSec))} /{' '}
-                    {formatMMSS(selectedClip.endSec - selectedClip.startSec)}
+                    {formatMMSS(Math.max(0, captionSec))} /{' '}
+                    {formatMMSS(clipCuts ? clipCuts.totalDurSec : selectedClip.endSec - selectedClip.startSec)}
                   </span>
                 </div>
                 {/* Time bar: move through the clip */}
                 <input
                   type="range"
-                  min={selectedClip.startSec}
-                  max={selectedClip.endSec}
+                  min={0}
+                  max={clipCuts ? clipCuts.totalDurSec : 0}
                   step={0.1}
-                  value={Math.max(selectedClip.startSec, Math.min(selectedClip.endSec, playheadSec))}
-                  onChange={(e) => {
-                    const t = Number(e.target.value);
-                    setPlayheadSec(t);
-                    if (videoRef.current) videoRef.current.currentTime = t;
-                  }}
+                  value={Math.max(0, Math.min(clipCuts ? clipCuts.totalDurSec : 0, captionSec))}
+                  onChange={(e) => seekClipTime(Number(e.target.value))}
                   className="w-full accent-amber-400 cursor-pointer"
                   aria-label="Posición dentro del clip"
                 />

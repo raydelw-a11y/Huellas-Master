@@ -37,6 +37,7 @@ import {
   balanceCaptionsFor16x9,
 } from './src/utils/smartParsers';
 import { buildShotDirectionClause } from './src/utils/shotCatalogue';
+import { computeViralClipCuts, buildViralLocalWords } from './src/utils/viralClipCuts';
 import {
   extractCleanPcmFromGeminiAudio,
   polishCleanTtsPcmBlock,
@@ -23360,42 +23361,26 @@ async function renderViralClipMp4Internal(params: {
   const outW = 1440;
   const outH = 2560;
 
-  const effectiveEndSec = endSec;
-  const mainSpanDur = Math.max(3, effectiveEndSec - startSec);
+  // Cuts shared with the Viral Clips preview (src/utils/viralClipCuts.ts): no cut splits a word, the teaser
+  // ends after its last whole word, and the page plays exactly the same parts as this render
+  const cuts = computeViralClipCuts({
+    startSec,
+    endSec,
+    structureMode,
+    hookTeaserStartSec,
+    hookTeaserEndSec,
+    words,
+  });
+  const clipStartSec = cuts.mainStartSec;
+  const effectiveEndSec = cuts.mainEndSec;
+  const mainSpanDur = cuts.mainDurSec;
+  const useHookTeaser = cuts.useHookTeaser;
+  const teaserStartSec = cuts.teaserStartSec;
+  const teaserSpanDur = cuts.teaserDurSec;
+  const totalClipDurSec = cuts.totalDurSec;
 
-  const useHookTeaser =
-    structureMode === 'hook_teaser' &&
-    hookTeaserStartSec > startSec + 1.5 &&
-    hookTeaserEndSec > hookTeaserStartSec + 1.5 &&
-    hookTeaserEndSec <= endSec;
-
-  const teaserSpanDur = useHookTeaser ? Math.min(5, hookTeaserEndSec - hookTeaserStartSec) : 0;
-  const totalClipDurSec = teaserSpanDur + mainSpanDur;
-
-  // Shift words to local clip timeline [0, totalClipDurSec]
-  const localWords: WordTimestamp[] = [];
-  if (useHookTeaser) {
-    // Only the words actually inside the teaser cut (teaserSpanDur); later ones overlapped the main part
-    const teaserCutEnd = hookTeaserStartSec + teaserSpanDur;
-    for (const w of words) {
-      if (w.end > hookTeaserStartSec && w.start < teaserCutEnd - 0.05) {
-        localWords.push({
-          word: w.word,
-          start: Math.max(0, w.start - hookTeaserStartSec),
-          end: Math.min(teaserSpanDur, w.end - hookTeaserStartSec),
-        });
-      }
-    }
-  }
-  for (const w of words) {
-    if (w.end > startSec && w.start < effectiveEndSec) {
-      localWords.push({
-        word: w.word,
-        start: teaserSpanDur + Math.max(0, w.start - startSec),
-        end: teaserSpanDur + Math.min(mainSpanDur, w.end - startSec),
-      });
-    }
-  }
+  // Words on the clip's own timeline [0, totalClipDurSec]
+  const localWords: WordTimestamp[] = buildViralLocalWords(cuts, words);
 
   const assContent = buildOpusClipAssSubtitles({
     outW,
@@ -23502,7 +23487,7 @@ async function renderViralClipMp4Internal(params: {
           [
             '-y',
             '-ss',
-            startSec.toFixed(3),
+            clipStartSec.toFixed(3),
             '-t',
             mainSpanDur.toFixed(3),
             '-i',
@@ -23538,8 +23523,14 @@ async function renderViralClipMp4Internal(params: {
       // Render Hook Teaser + Main Segment concatenated, then burn ASS subtitles
       const complexFilter =
         reframeMode === 'fit_blur'
-          ? `[0:v]setpts=PTS-STARTPTS[v0];[0:a]asetpts=PTS-STARTPTS[a0];[1:v]setpts=PTS-STARTPTS[v1];[1:a]asetpts=PTS-STARTPTS[a1];[v0][a0][v1][a1]concat=n=2:v=1:a=1[vc][aout];[vc]${preCropVf}split=2[bg][fg];[bg]scale=${outW}:${outH}:force_original_aspect_ratio=increase:flags=lanczos,crop=${outW}:${outH},boxblur=24:4,eq=brightness=-0.18[bgblur];[fg]scale=${outW}:${outH}:force_original_aspect_ratio=decrease:flags=lanczos[fgscaled];[bgblur][fgscaled]overlay=(W-w)/2:(H-h)/2,ass='${escapedAssPath}'${logoOverlaySuffix ? `${logoOverlaySuffix}[vout]` : '[vout]'}`
-          : `[0:v]setpts=PTS-STARTPTS[v0];[0:a]asetpts=PTS-STARTPTS[a0];[1:v]setpts=PTS-STARTPTS[v1];[1:a]asetpts=PTS-STARTPTS[a1];[v0][a0][v1][a1]concat=n=2:v=1:a=1[vc][aout];[vc]${preCropVf}scale=${outW}:${outH}:force_original_aspect_ratio=increase:flags=lanczos,crop=${outW}:${outH}:(iw-ow)*${fX.toFixed(
+          ? `[0:v]setpts=PTS-STARTPTS[v0];[0:a]asetpts=PTS-STARTPTS,afade=t=out:st=${Math.max(
+              0,
+              teaserSpanDur - 0.1
+            ).toFixed(3)}:d=0.1[a0];[1:v]setpts=PTS-STARTPTS[v1];[1:a]asetpts=PTS-STARTPTS,afade=t=in:st=0:d=0.08[a1];[v0][a0][v1][a1]concat=n=2:v=1:a=1[vc][aout];[vc]${preCropVf}split=2[bg][fg];[bg]scale=${outW}:${outH}:force_original_aspect_ratio=increase:flags=lanczos,crop=${outW}:${outH},boxblur=24:4,eq=brightness=-0.18[bgblur];[fg]scale=${outW}:${outH}:force_original_aspect_ratio=decrease:flags=lanczos[fgscaled];[bgblur][fgscaled]overlay=(W-w)/2:(H-h)/2,ass='${escapedAssPath}'${logoOverlaySuffix ? `${logoOverlaySuffix}[vout]` : '[vout]'}`
+          : `[0:v]setpts=PTS-STARTPTS[v0];[0:a]asetpts=PTS-STARTPTS,afade=t=out:st=${Math.max(
+              0,
+              teaserSpanDur - 0.1
+            ).toFixed(3)}:d=0.1[a0];[1:v]setpts=PTS-STARTPTS[v1];[1:a]asetpts=PTS-STARTPTS,afade=t=in:st=0:d=0.08[a1];[v0][a0][v1][a1]concat=n=2:v=1:a=1[vc][aout];[vc]${preCropVf}scale=${outW}:${outH}:force_original_aspect_ratio=increase:flags=lanczos,crop=${outW}:${outH}:(iw-ow)*${fX.toFixed(
               3
             )}:(ih-oh)/2,ass='${escapedAssPath}'${logoOverlaySuffix ? `${logoOverlaySuffix}[vout]` : '[vout]'}`;
 
@@ -23552,13 +23543,13 @@ async function renderViralClipMp4Internal(params: {
             // from 00:00 up to the clip, several minutes for a clip near the end). The teaser lasts exactly
             // teaserSpanDur, the same length the captions use (it used to run longer and shift every caption).
             '-ss',
-            hookTeaserStartSec.toFixed(3),
+            teaserStartSec.toFixed(3),
             '-t',
             teaserSpanDur.toFixed(3),
             '-i',
             sourceVideoPath,
             '-ss',
-            startSec.toFixed(3),
+            clipStartSec.toFixed(3),
             '-t',
             mainSpanDur.toFixed(3),
             '-i',
