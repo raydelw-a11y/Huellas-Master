@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-10-27T02:05:48.997Z",
-    "updatedAt": "2026-11-22T22:19:02.048Z",
+    "updatedAt": "2026-11-22T22:29:14.236Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -20,7 +20,7 @@
       "TEMA_DEL_VIDEO": "Video 74 Castillo Louvre Parte II",
       "UBICACION_INTRO_MARCA": "INTRO_INICIO_00",
       "FIELD_CLEARED_AT_voiceoverScript": "0",
-      "PROMPTS_RESTORED_AT": "1795385942048",
+      "PROMPTS_RESTORED_AT": "1795386554236",
       "FIELD_CLEARED_AT_rawClipsText": "0",
       "FIELD_CLEARED_AT_pinnedComment": "1795091965654",
       "FIELD_CLEARED_AT_correctedSrt": "0",
@@ -35,7 +35,8 @@
       "CAPTION_WORDS_PER_LINE_16X9": 0,
       "CAPTION_WORDS_PER_LINE_9X16": 0,
       "CAPTION_MAX_CHARS_9X16": 16,
-      "CAPTION_SETTINGS_UPDATED_AT": "1795303112528"
+      "CAPTION_SETTINGS_UPDATED_AT": "1795303112528",
+      "MOSTRAR_INTRO_OUTRO_9X16": false
     },
     "compiledMasterPrompt": "Actúa como un historiador, director de cine, y periodista profesional.\n\nPROTOCOLO SECUENCIAL DE EJECUCIÓN OBLIGATORIO: REELS (11 ETAPAS POR SEPARADO):\nEste formato corresponde a un video cinematográfi",
     "topic": "Video 30 Castillo Louvre Parte II",
@@ -1539,14 +1540,14 @@
         "reframeReason": "Enfoque manual tercio derecho (75%)",
         "reviewedUpdatedAt": 1795110380036,
         "promptUpdatedAt": 1795178010837,
-        "userReframed9x16": true,
-        "reframeUpdatedAt": 1795309070262,
         "frameZoom9x16": 100,
         "frameOffsetX9x16": 0,
         "frameOffsetY9x16": 0,
         "frameTransformAt": 1795309062099,
+        "frameKeys9x16": [],
         "frameZoomInSec9x16": 0,
-        "frameKeys9x16": []
+        "userReframed9x16": true,
+        "reframeUpdatedAt": 1795309070262
       },
       {
         "id": "clip-25-1794891908303-d72h",
@@ -1894,8 +1895,8 @@
         "frameOffsetX9x16": 0,
         "frameOffsetY9x16": 0,
         "frameTransformAt": 1795310295351,
-        "frameZoomInSec9x16": 0,
-        "frameKeys9x16": []
+        "frameKeys9x16": [],
+        "frameZoomInSec9x16": 0
       },
       {
         "id": "clip-36-1794891908329-jl3c",
@@ -2045,7 +2046,7 @@
         "videoSavedAt": 1795176513758,
         "videoAuditStatus": "approved",
         "promptUpdatedAt": 1795178010837,
-        "reframe9x16Mode": "auto_focus",
+        "reframe9x16Mode": "manual",
         "reframeFocusXStart": 74,
         "reframeFocusXEnd": 74,
         "reframeFocusY": 50,
@@ -2053,11 +2054,6 @@
         "reframeReason": "Enfoque inteligente IA en tercio derecho (74%)",
         "videoAuditReason": "",
         "videoAuditIssues": [],
-        "frameZoom9x16": 100,
-        "frameOffsetX9x16": 0,
-        "frameOffsetY9x16": 0,
-        "frameTransformAt": 1795311659669,
-        "frameZoomInSec9x16": 0,
         "frameKeys9x16": [
           {
             "t": 0.75,
@@ -2073,7 +2069,13 @@
             "y": 0,
             "f": 25.5
           }
-        ]
+        ],
+        "frameZoomInSec9x16": 0,
+        "frameTransformAt": 1795311659669,
+        "frameZoom9x16": 100,
+        "frameOffsetX9x16": 0,
+        "frameOffsetY9x16": 0,
+        "userReframed9x16": true
       },
       {
         "id": "clip-41-1794891908346-cev8",
@@ -2168,11 +2170,10 @@
         "reframeReason": "Enfoque manual elegido en el visor (100%)",
         "videoAuditReason": "",
         "videoAuditIssues": [],
-        "userReframed9x16": true,
-        "reframeUpdatedAt": 1795311827093,
         "frameZoom9x16": 100,
         "frameTransformAt": 1795311848297,
-        "frameZoomInSec9x16": 0,
+        "userReframed9x16": true,
+        "reframeUpdatedAt": 1795311827093,
         "frameKeys9x16": [
           {
             "t": 0.43,
@@ -2188,7 +2189,8 @@
             "y": 0,
             "f": 19.4
           }
-        ]
+        ],
+        "frameZoomInSec9x16": 0
       },
       {
         "id": "clip-44-1794891908477-09as",
