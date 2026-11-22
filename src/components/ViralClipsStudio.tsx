@@ -1101,18 +1101,30 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
       curLen += (cur.length > 1 ? 1 : 0) + wl;
     }
     if (cur.length > 0) chunks.push(cur);
-    for (const chunk of chunks) {
-      const chunkStart = chunk[0].start;
-      const chunkEnd = chunk[chunk.length - 1].end;
-      if (captionSec >= chunkStart - 0.08 && captionSec <= chunkEnd + 0.15) {
-        let activeIdx = 0;
-        for (let j = 0; j < chunk.length; j++) {
-          if (captionSec >= chunk[j].start) {
-            activeIdx = j;
-          }
-        }
-        return { chunk, activeIdx };
+    // The line that already started wins (latest start <= time). The 0.08 s lead and 0.15 s tail only fill
+    // silences: before, the previous line's tail covered the next one and short words ("de", "y", "la")
+    // were never highlighted during playback.
+    const t = captionSec;
+    let idx = -1;
+    for (let i = 0; i < chunks.length; i++) {
+      if (chunks[i][0].start <= t) idx = i;
+      else break;
+    }
+    let pick = -1;
+    if (idx >= 0) {
+      const c = chunks[idx];
+      const cEnd = c[c.length - 1].end;
+      const nx = chunks[idx + 1];
+      if (t <= cEnd + 0.15 && !(nx && t > cEnd && t >= nx[0].start - 0.08)) pick = idx;
+    }
+    if (pick < 0 && chunks[idx + 1] && t >= chunks[idx + 1][0].start - 0.08) pick = idx + 1;
+    if (pick >= 0) {
+      const chunk = chunks[pick];
+      let activeIdx = 0;
+      for (let j = 0; j < chunk.length; j++) {
+        if (t >= chunk[j].start) activeIdx = j;
       }
+      return { chunk, activeIdx };
     }
     return null;
   }, [selectedClip, captionSec, wordsPerLine]);
