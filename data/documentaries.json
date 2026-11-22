@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-10-27T02:05:48.997Z",
-    "updatedAt": "2026-11-22T17:51:49.150Z",
+    "updatedAt": "2026-11-22T17:54:22.185Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -20,7 +20,7 @@
       "TEMA_DEL_VIDEO": "Video 74 Castillo Louvre Parte II",
       "UBICACION_INTRO_MARCA": "INTRO_INICIO_00",
       "FIELD_CLEARED_AT_voiceoverScript": "0",
-      "PROMPTS_RESTORED_AT": "1795369909150",
+      "PROMPTS_RESTORED_AT": "1795370062185",
       "FIELD_CLEARED_AT_rawClipsText": "0",
       "FIELD_CLEARED_AT_pinnedComment": "1795091965654",
       "FIELD_CLEARED_AT_correctedSrt": "0",
@@ -2926,8 +2926,26 @@
     "selectedStyle": "dramatic",
     "selectedSpeed": "medium",
     "selectedLanguage": "es-la",
-    "audioTracks": [],
-    "masterAudioUrl": "",
+    "audioTracks": [
+      {
+        "id": "tts-portable-doc-1795222673241-r5vg",
+        "text": "Año 1209, Puente de Londres, Inglaterra. Tras 33 años de obras, la ciudad inaugura el primer puente de piedra sobre el Támesis, una calle habitada que flotará sobre el río durante más de 600 años. [pausa: 1.5s]\n\nEn los próximos minutos descubrirás cómo un puente medieval se convirtió en barrio, mercado, fortaleza y patíbulo, y por qué Londres terminó derribando su monumento más famoso. Cada historia deja una huella. Aquí seguimos sus rastros. [pausa: 2s]\n\nTodo comienza en 1176, cuando el sacerdote Peter de Colechurch recibe el encargo de sustituir el viejo puente de madera, quemado y reconstruido una y otra vez. Durante tres décadas, cientos de obreros hincan estacas de olmo en el lecho del río y levantan sobre ellas 19 arcos de piedra desiguales. [pausa: 1.5s]\n\nLos pilares son tan anchos que estrechan el cauce a la mitad. El agua se acelera entre ellos como en una presa, y cruzar bajo los arcos en bote se vuelve una apuesta mortal que los barqueros llaman disparar el puente. [pausa: 1.5s]\n\nEn el centro se alza una capilla dedicada a Tomás Becket, donde los peregrinos rezan antes de partir hacia Canterbury. Y muy pronto, sobre la calzada de apenas 4 metros de ancho, empiezan a levantarse casas. [pausa: 2s]\n\nMantenerlo cuesta una fortuna. La corona crea una institución propia, la Casa del Puente, que administra rentas, peajes y donaciones de fieles que dejan dinero en su testamento a Dios y al puente. En 1281 el hielo del invierno arranca cinco arcos de golpe, y la reina Leonor es acusada de gastar los fondos en sus propios asuntos. [pausa: 1.5s]\n\nCada pilar descansa sobre una isla artificial de estacas y escombros con forma de barca, llamada tajamar. Con la marea baja, la diferencia de nivel entre un lado y otro alcanza casi 2 metros. Bajo dos de los arcos giran enormes ruedas de madera que muelen grano y, desde 1581, bombean agua del río hacia las casas de la ciudad. [pausa: 2s]\n\nHacia 1358 el puente sostiene 138 tiendas. Merceros, guanteros, libreros y fabricantes de agujas pagan alquileres que financian las reparaciones. Los edificios crecen hasta cinco pisos y se unen por arriba con vigas, de modo que quien cruza camina por un túnel oscuro de madera y voces. [pausa: 1.5s]\n\nLa vida ahí arriba tiene ventajas inesperadas. El río se lleva la basura, el viento barre el humo, y durante la gran peste de 1665 los vecinos del puente mueren mucho menos que los de las calles vecinas. Las letrinas cuelgan directamente sobre el agua, y los barqueros aprenden pronto a no pasar por debajo sin mirar. [pausa: 1.5s]\n\nA mitad del recorrido, un puente levadizo permite el paso de los barcos de mástil alto y corta el acceso en caso de ataque. En 1381, durante la revuelta campesina, alguien lo baja desde dentro y miles de rebeldes entran en Londres sin encontrar resistencia. [pausa: 2s]\n\nEn la puerta sur aparece la costumbre más siniestra. Desde 1305, la cabeza del rebelde escocés William Wallace, hervida y bañada en alquitrán, queda clavada en una pica sobre la entrada. Durante 350 años, traidores y condenados compartirán ese lugar frente a los viajeros. [pausa: 2s]\n\nEn 1450 los rebeldes de Jack Cade toman el puente y combaten de noche entre las casas. Muchos vecinos caen al río con sus armaduras. Poco después, en 1577, se levanta la casa de Nonsuch, un palacio de madera traído en piezas desde Holanda y ensamblado sin un solo clavo de hierro. [pausa: 1.5s]\n\nEn 1212 ocurre la primera gran tragedia. Un incendio estalla en la orilla sur y la multitud corre al puente para ayudar o para mirar. El viento lleva las chispas hasta el extremo norte y la gente queda atrapada entre dos frentes de fuego. Las crónicas hablan de 3 mil muertos, una cifra que hoy los historiadores consideran exagerada. [pausa: 1.5s]\n\nUn siglo y medio después, en 1390, el puente es escenario de un torneo. Un caballero escocés y un lord inglés se enfrentan a lanza sobre la calzada ante el rey Ricardo II. Y en 1536, la hija pequeña de un mercader cae por una ventana al río y es rescatada por un aprendiz que años más tarde se casará con ella y llegará a ser alcalde de Londres. [pausa: 2s]\n\nEl fuego es la amenaza constante. En 1633 un incendio destruye un tercio de las viviendas del extremo norte. Ese hueco vacío salvará al resto en 1666, cuando el Gran Incendio de Londres devora la ciudad y las llamas se detienen justo donde ya no quedaba nada que quemar. [pausa: 2s]\n\nLos inviernos traen otro espectáculo. Los pilares frenan tanto la corriente que, aguas arriba, el Támesis llega a congelarse por completo. En 1683 el hielo aguanta dos meses, y sobre él se levanta una ciudad de tiendas con imprentas, tabernas, carreras de caballos y un buey asado entero. Las llaman ferias de la escarcha. [pausa: 1.5s]\n\nLa última se celebra en febrero de 1814. Un elefante cruza el río helado junto al puente de Blackfriars mientras los impresores venden recuerdos estampados sobre el hielo. Cuando el viejo puente desaparezca, la corriente volverá a correr libre y el Támesis no se congelará nunca más en Londres. [pausa: 2s]\n\nEn el siglo XVIII el puente es un estorbo. Los carruajes tardan una hora en cruzarlo y en 1722 el alcalde ordena, por primera vez en Inglaterra, que el tráfico circule por la izquierda. Entre 1758 y 1762 se derriban todas las casas y se ensancha el arco central. [pausa: 1.5s]\n\nPero la estructura medieval ya no resiste. En 1799 se convoca un concurso para reemplazarla y el ingeniero John Rennie diseña cinco arcos de granito. Su hijo dirige las obras desde 1824, a 30 metros río arriba del viejo puente, que sigue en uso mientras tanto. [pausa: 1.5s]\n\nLa construcción dura siete años y cuesta la vida a unos 40 obreros. Cada bloque de granito llega por mar desde Dartmoor y Escocia. Para abrir los accesos se derriban calles enteras y la iglesia de San Miguel, y el coste final supera los 2 millones de libras, una suma descomunal para la época. [pausa: 1.5s]\n\nEl primero de agosto de 1831, el rey Guillermo IV inaugura el nuevo Puente de Londres con un banquete bajo una carpa. Semanas después comienzan a desmontar piedra por piedra los arcos de 1209, tras 622 años de servicio. [pausa: 2s]\n\nEl puente de Rennie tampoco será eterno. En 1968 se vende a un empresario estadounidense, que lo traslada bloque a bloque hasta el desierto de Arizona, donde todavía cruza un lago artificial. [pausa: 1.5s]\n\nDel puente habitado solo quedan algunos sillares en un patio de iglesia y los grabados de quienes lo dibujaron. Déjanos saber en los comentarios si te habrías atrevido a vivir en una casa suspendida sobre el río. [pausa: 1.5s] Cada historia deja una huella. Aquí seguimos sus rastros.",
+        "voice": "Charon",
+        "style": "dramatic",
+        "speed": "medium",
+        "language": "es-la",
+        "consistencyMode": true,
+        "filename": "tts-1793104267935-147.wav",
+        "audioUrl": "tts-files/tts-1793104267935-147.mp3",
+        "duration": 10.2,
+        "wordCount": 1108,
+        "pauseCount": 23,
+        "createdAt": "2026-11-21T02:02:00.231Z",
+        "label": "Voz Narrativa Video",
+        "providerUsed": "Carpeta 02_Audio"
+      }
+    ],
+    "masterAudioUrl": "tts-files/tts-1793104267935-147.mp3",
     "timelineSentences": [
       {
         "text": "[SIN VOZ NARRATIVA — Intro Oficial de Marca (8s)]",
