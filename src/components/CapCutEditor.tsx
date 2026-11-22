@@ -10187,7 +10187,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       Math.abs(b.top - 50) / 50,
       Math.abs(b.top + b.size - 50) / 50
     );
-    const next = Math.max(0.22, Math.min(0.9, 0.9 / extent));
+    // A fixed zoom-out leaves working room around the frame, so the frame keeps its size on screen while the
+    // clip grows or shrinks around it; only a clip larger than that room zooms the viewer out further.
+    const next = Math.max(0.22, Math.min(0.66, 0.9 / extent));
     if (Math.abs(next - clipViewScale) > 0.004) setClipViewScale(next);
   });
 
