@@ -6,7 +6,6 @@ import {
   Play,
   Pause,
   Download,
-  Share2,
   Check,
   Copy,
   RefreshCw,
@@ -268,11 +267,9 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [playheadSec, setPlayheadSec] = useState<number>(0);
   const [isRenderingClipId, setIsRenderingClipId] = useState<string>('');
-  const [isPublishingClipId, setIsPublishingClipId] = useState<string>('');
   const [actionToast, setActionToast] = useState<string>('');
 
-  // 6. Instagram Graph API & Auto-DM Configuration Modal
-  const [showIgModal, setShowIgModal] = useState<boolean>(false);
+  // 6. Instagram settings kept only for the analyze request (no Instagram UI: clips are published by hand)
   const [igConfig, setIgConfig] = useState<InstagramConfigData>({
     igUserId: '',
     accessToken: '',
@@ -295,9 +292,6 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
     sentDmLogs: [],
     publishedHistory: [],
   });
-  const [igTokenInput, setIgTokenInput] = useState<string>('');
-  const [isSavingIgConfig, setIsSavingIgConfig] = useState<boolean>(false);
-  const [isCheckingAutoDm, setIsCheckingAutoDm] = useState<boolean>(false);
 
   const selectedClip = useMemo(
     () => viralClips.find((c) => c.id === selectedClipId) || viralClips[0] || null,
@@ -1079,132 +1073,6 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
     }
   };
 
-  // Direct Publish to Instagram (Reel)
-  const handlePublishInstagram = async (clip: ViralClipSuggestion) => {
-    if (!igConfig.igUserId || !igConfig.hasToken) {
-      setShowIgModal(true);
-      return;
-    }
-    if (!sourceLocalPath) {
-      alert('Primero asegúrate de tener un archivo de video origen cargado para renderizar y publicar.');
-      return;
-    }
-    setIsPublishingClipId(`${clip.id}_reel`);
-    setActionToast(`🎬 Publicando Reel en Instagram...`);
-
-    try {
-      const resp = await fetch(viralApi('/api/viral-clips/publish-instagram'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          publishMode: 'reel',
-          // The Reel already rendered for this clip is published as is (no second render)
-          renderedReelUrl: clip.renderedReelUrl || '',
-          // Instagram description: the clip's title, its own description and its 5 hashtags
-          caption: [clip.title, clip.socialCaption].map((t) => String(t || '').trim()).filter(Boolean).join('\n\n'),
-          hashtags: limitToFiveHashtags(clip.hashtags),
-          autoDmDestinationUrl: igConfig.autoDm.destinationUrl,
-          autoDmKeyword: igConfig.autoDm.keyword,
-          renderParams: {
-            sourceVideoPath: sourceLocalPath,
-          docId: sourceMode === 'doc' ? selectedDocId : '',
-            docRootFolder,
-            clipTitle: clip.title,
-            startSec: clip.startSec,
-            endSec: clip.endSec,
-            structureMode: clip.structureMode,
-            hookTeaserStartSec: clip.hookTeaserStartSec,
-            hookTeaserEndSec: clip.hookTeaserEndSec,
-            reframeMode: clip.reframeMode,
-            focusX: clip.focusX,
-            captionStyle: clip.captionStyle,
-            wordsPerLine,
-            fontSizeScale,
-            captionYPercent,
-            words: clip.words,
-            hookBannerText: clip.hookBannerText,
-            showHookBanner,
-          },
-        }),
-      });
-      const data = await resp.json();
-      if (!resp.ok || !data.ok) {
-        throw new Error(data.error || 'Error publicando en Instagram Graph API.');
-      }
-
-      setActionToast('🎉 ¡Reel publicado directamente en tu Instagram!');
-
-      // Refresh Instagram history
-      const cfgResp = await fetch(viralApi('/api/viral-clips/instagram-config'));
-      if (cfgResp.ok) {
-        const cfgData = await cfgResp.json();
-        if (cfgData?.ok && cfgData.config) setIgConfig(cfgData.config);
-      }
-    } catch (err: any) {
-      alert('Error publicando en Instagram: ' + (err?.message || 'Error desconocido'));
-      setActionToast('');
-    } finally {
-      setIsPublishingClipId('');
-    }
-  };
-
-  const handleSaveInstagramSettings = async () => {
-    setIsSavingIgConfig(true);
-    try {
-      const resp = await fetch(viralApi('/api/viral-clips/instagram-config'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          igUserId: igConfig.igUserId,
-          accessToken: igTokenInput.trim() || undefined,
-          publicServerBaseUrl: igConfig.publicServerBaseUrl,
-          autoDm: igConfig.autoDm,
-        }),
-      });
-      const data = await resp.json();
-      if (!resp.ok || !data.ok) {
-        throw new Error(data.error || 'Error al guardar configuración.');
-      }
-      setIgConfig(data.config);
-      setIgTokenInput('');
-      setActionToast(
-        data.config.accountUsername
-          ? `✅ Conectado a Instagram @${data.config.accountUsername} y Auto-DM guardado.`
-          : '✅ Configuración de Instagram y Auto-DM guardada.'
-      );
-    } catch (err: any) {
-      alert(err?.message || 'Error al guardar configuración de Instagram.');
-    } finally {
-      setIsSavingIgConfig(false);
-    }
-  };
-
-  const handleCheckAutoDmNow = async () => {
-    setIsCheckingAutoDm(true);
-    try {
-      const resp = await fetch(viralApi('/api/viral-clips/instagram-check-autodm'), {
-        method: 'POST',
-      });
-      const data = await resp.json();
-      if (!resp.ok || !data.ok) {
-        throw new Error(data.error || 'Error al revisar comentarios.');
-      }
-      setIgConfig((prev) => ({
-        ...prev,
-        sentDmLogs: data.sentDmLogs || prev.sentDmLogs,
-      }));
-      setActionToast(
-        data.sentCount > 0
-          ? `📬 ¡Se enviaron ${data.sentCount} link(s) por DM automáticamente!`
-          : `✓ Comentarios revisados (${data.checkedCount} nuevos analizados).`
-      );
-    } catch (err: any) {
-      alert('Error al revisar comentarios: ' + (err?.message || 'Error'));
-    } finally {
-      setIsCheckingAutoDm(false);
-    }
-  };
-
   const copyText = (key: string, val: string) => {
     navigator.clipboard.writeText(val);
     setCopiedField(key);
@@ -1225,11 +1093,11 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                 VIRAL CLIPS STUDIO
               </h2>
               <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-500/20 border border-amber-400/40 text-amber-300">
-                OpusClip IA + Instagram Reels + Auto-DM Link
+                OpusClip IA + Reels 9:16
               </span>
             </div>
             <p className="text-xs text-slate-400">
-              Detecta los momentos con mayor retención, agrega captions dinámicos palabra por palabra y publica en Reels con auto-envío de link por DM.
+              Detecta los momentos con mayor retención, agrega captions dinámicos palabra por palabra y exporta Reels 9:16 listos para publicar.
             </p>
           </div>
         </div>
@@ -1247,24 +1115,6 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
             </div>
           )}
 
-          <button
-            type="button"
-            onClick={() => setShowIgModal(true)}
-            className={`px-3.5 py-2 rounded-xl text-xs font-black flex items-center gap-2 border cursor-pointer transition shadow-lg ${
-              igConfig.hasToken && igConfig.igUserId
-                ? 'bg-gradient-to-r from-pink-600 to-purple-600 text-white border-pink-400/60 shadow-pink-500/20'
-                : 'bg-slate-900 hover:bg-slate-800 text-pink-300 border-pink-500/40'
-            }`}
-          >
-            <Share2 className="w-3.5 h-3.5" />
-            <span>
-              {igConfig.hasToken && igConfig.igUserId
-                ? `📲 Instagram Conectado ${
-                    igConfig.accountUsername ? `(@${igConfig.accountUsername})` : ''
-                  } • Auto-DM "${igConfig.autoDm.keyword}"`
-                : '📲 Conectar Instagram (Reels + Auto-DM Link)'}
-            </span>
-          </button>
         </div>
       </div>
 
@@ -2058,7 +1908,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                 <div className="space-y-1">
                   <div className="flex items-center justify-between">
                     <span className="text-[11px] font-bold text-slate-300">
-                      Descripción para Instagram Reels / Shorts / TikTok:
+                      Descripción para Reels / Shorts / TikTok:
                     </span>
                     <button
                       type="button"
@@ -2109,11 +1959,11 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                 </div>
               </div>
 
-              {/* EXPORT TO 07_VIRAL_CLIPS & DIRECT PUBLISH TO INSTAGRAM (REEL) */}
+              {/* EXPORT TO 07_VIRAL_CLIPS */}
               <div className="bg-gradient-to-br from-[#19130e] to-slate-950 border border-amber-500/40 rounded-2xl p-4 space-y-3 shadow-xl">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-black text-amber-300 uppercase">
-                    3. Exportar MP4 y Publicar en Instagram
+                    3. Exportar MP4
                   </span>
                   {selectedClip.savedDocFolderPath && (
                     <span className="text-[10px] text-emerald-400 font-mono">
@@ -2154,23 +2004,6 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                     )}
                   </div>
                 )}
-
-                {/* Direct Instagram Publishing Section */}
-                <div className="pt-2 border-t border-slate-800 space-y-2">
-                  <button
-                    type="button"
-                    disabled={Boolean(isPublishingClipId)}
-                    onClick={() => handlePublishInstagram(selectedClip)}
-                    className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-pink-600 via-rose-500 to-amber-500 hover:from-pink-500 hover:to-amber-400 text-white font-black text-xs cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
-                  >
-                    <Share2 className="w-4 h-4" />
-                    <span>
-                      {isPublishingClipId === `${selectedClip.id}_reel`
-                        ? 'Publicando el Reel en Instagram...'
-                        : '📲 Publicar Reel en Instagram'}
-                    </span>
-                  </button>
-                </div>
               </div>
             </div>
           </div>
@@ -2192,249 +2025,6 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
           </div>
         )}
       </div>
-
-      {/* =====================================================================
-          MODAL: INSTAGRAM GRAPH API + AUTO-DM CLICKABLE LINK CONFIGURATION
-      ===================================================================== */}
-      {showIgModal && (
-        <div
-          onClick={() => setShowIgModal(false)}
-          className="fixed inset-0 z-[260] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-[#14110d] border border-pink-500/40 shadow-2xl p-5 space-y-4 text-xs text-slate-100"
-          >
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <div>
-                <h3 className="text-sm font-black text-pink-300 flex items-center gap-2">
-                  📲 Conexión Oficial de Instagram (Reels) y Auto-DM con Link Clicable
-                </h3>
-                <p className="text-[11px] text-slate-400 mt-0.5">
-                  Publica Reels directamente por la API Oficial de Meta y envía links clicables por DM automáticamente cuando comenten tu Reel.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowIgModal(false)}
-                className="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 cursor-pointer"
-              >
-                ✕
-              </button>
-            </div>
-
-            {/* 1. Credentials */}
-            <div className="bg-slate-950 border border-slate-800 rounded-xl p-3.5 space-y-3">
-              <div className="font-black text-amber-300 uppercase text-[11px]">
-                1. Credenciales de Instagram Graph API (Meta for Developers)
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] text-slate-400 font-semibold mb-1">
-                    Instagram Business / Creator User ID:
-                  </label>
-                  <input
-                    type="text"
-                    value={igConfig.igUserId}
-                    onChange={(e) =>
-                      setIgConfig((prev) => ({ ...prev, igUserId: e.target.value }))
-                    }
-                    placeholder="Ej. 17841405822304914"
-                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white font-mono"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] text-slate-400 font-semibold mb-1">
-                    Access Token de Larga Duración{' '}
-                    {igConfig.maskedToken ? `(Activo: ${igConfig.maskedToken})` : ''}:
-                  </label>
-                  <input
-                    type="password"
-                    value={igTokenInput}
-                    onChange={(e) => setIgTokenInput(e.target.value)}
-                    placeholder={
-                      igConfig.hasToken
-                        ? 'Pegar nuevo token solo si deseas reemplazarlo...'
-                        : 'EAABsbCS1iHgBO...'
-                    }
-                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white font-mono"
-                  />
-                </div>
-              </div>
-
-              <details className="text-[11px] text-slate-400 bg-slate-900/60 rounded-lg p-2.5 border border-slate-800">
-                <summary className="cursor-pointer font-bold text-amber-300">
-                  ℹ️ ¿Cómo obtener tu Instagram User ID y Token en 3 minutos (Gratis)?
-                </summary>
-                <ol className="list-decimal list-inside space-y-1 mt-2 text-slate-300">
-                  <li>
-                    Asegúrate de que tu cuenta de Instagram esté en modo{' '}
-                    <strong>Creador o Empresa</strong>.
-                  </li>
-                  <li>
-                    En <code>developers.facebook.com</code> crea una App de tipo{' '}
-                    <strong>Business</strong> y agrega el producto{' '}
-                    <strong>Instagram Graph API</strong>.
-                  </li>
-                  <li>
-                    En el Explorador de la API Graph genera un Token con los permisos:{' '}
-                    <code>instagram_basic</code>, <code>instagram_content_publish</code>,{' '}
-                    <code>instagram_manage_comments</code> y{' '}
-                    <code>instagram_manage_messages</code>.
-                  </li>
-                  <li>
-                    Consulta <code>GET /me/accounts?fields=instagram_business_account</code> para
-                    copiar el <strong>id</strong> de tu cuenta de Instagram y pégalo arriba.
-                  </li>
-                </ol>
-              </details>
-            </div>
-
-            {/* 2. Auto-DM Clickable Link Responder (ManyChat style) */}
-            <div className="bg-slate-950 border border-pink-500/30 rounded-xl p-3.5 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="font-black text-pink-300 uppercase text-[11px]">
-                  2. Auto-Respuesta por DM con Link Clicable (Para Reels)
-                </span>
-                <label className="flex items-center gap-1.5 cursor-pointer font-bold text-emerald-300">
-                  <input
-                    type="checkbox"
-                    checked={igConfig.autoDm.enabled}
-                    onChange={(e) =>
-                      setIgConfig((prev) => ({
-                        ...prev,
-                        autoDm: { ...prev.autoDm, enabled: e.target.checked },
-                      }))
-                    }
-                    className="accent-emerald-500"
-                  />
-                  Auto-DM Activo
-                </label>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                <div>
-                  <label className="block text-[11px] text-slate-400 font-semibold mb-1">
-                    Palabra Clave Disparadora:
-                  </label>
-                  <input
-                    type="text"
-                    value={igConfig.autoDm.keyword}
-                    onChange={(e) =>
-                      setIgConfig((prev) => ({
-                        ...prev,
-                        autoDm: { ...prev.autoDm, keyword: e.target.value.toUpperCase() },
-                      }))
-                    }
-                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs font-black text-amber-300 uppercase"
-                  />
-                </div>
-                <div className="sm:col-span-2">
-                  <label className="block text-[11px] text-slate-400 font-semibold mb-1">
-                    🔗 Link Clicable que se enviará por DM (Ej. Video de YouTube):
-                  </label>
-                  <input
-                    type="url"
-                    value={igConfig.autoDm.destinationUrl}
-                    onChange={(e) =>
-                      setIgConfig((prev) => ({
-                        ...prev,
-                        autoDm: { ...prev.autoDm, destinationUrl: e.target.value },
-                      }))
-                    }
-                    placeholder="https://www.youtube.com/watch?v=..."
-                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-emerald-300 font-mono"
-                  />
-                </div>
-              </div>
-
-              <label className="flex items-center gap-2 text-[11px] text-slate-300 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={igConfig.autoDm.matchAnyCommentAskingLink}
-                  onChange={(e) =>
-                    setIgConfig((prev) => ({
-                      ...prev,
-                      autoDm: { ...prev.autoDm, matchAnyCommentAskingLink: e.target.checked },
-                    }))
-                  }
-                  className="accent-pink-500"
-                />
-                Enviar el link también a quien comente palabras como &quot;link&quot;, &quot;enlace&quot;, &quot;video completo&quot; o &quot;YouTube&quot;
-              </label>
-
-              <div>
-                <label className="block text-[11px] text-slate-400 font-semibold mb-1">
-                  Mensaje Directo (DM) que recibirá el usuario (usa {'{{username}}'} y {'{{url}}'}):
-                </label>
-                <textarea
-                  rows={3}
-                  value={igConfig.autoDm.dmMessageTemplate}
-                  onChange={(e) =>
-                    setIgConfig((prev) => ({
-                      ...prev,
-                      autoDm: { ...prev.autoDm, dmMessageTemplate: e.target.value },
-                    }))
-                  }
-                  className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-slate-200"
-                />
-              </div>
-
-              <div className="flex items-center justify-between gap-2 pt-1">
-                <button
-                  type="button"
-                  onClick={handleCheckAutoDmNow}
-                  disabled={isCheckingAutoDm || !igConfig.hasToken}
-                  className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-300 font-bold cursor-pointer disabled:opacity-50"
-                >
-                  {isCheckingAutoDm
-                    ? 'Revisando comentarios...'
-                    : '⚡ Revisar Comentarios y Responder Ahora'}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleSaveInstagramSettings}
-                  disabled={isSavingIgConfig}
-                  className="px-4 py-2 rounded-xl bg-pink-600 hover:bg-pink-500 text-white font-black cursor-pointer shadow"
-                >
-                  {isSavingIgConfig ? 'Guardando...' : '💾 Guardar Configuración de Instagram'}
-                </button>
-              </div>
-            </div>
-
-            {/* 3. Sent Auto-DM Log */}
-            {igConfig.sentDmLogs.length > 0 && (
-              <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2">
-                <div className="font-bold text-slate-300 text-[11px]">
-                  📬 Últimos Links Enviados por DM Automático ({igConfig.sentDmLogs.length})
-                </div>
-                <div className="max-h-36 overflow-y-auto space-y-1">
-                  {igConfig.sentDmLogs.slice(0, 15).map((log) => (
-                    <div
-                      key={log.id}
-                      className="flex items-center justify-between text-[11px] bg-slate-900/80 px-2.5 py-1.5 rounded border border-slate-800"
-                    >
-                      <span className="text-slate-200 truncate">
-                        <strong>@{log.recipientUsername}</strong> ({log.triggerText}) →{' '}
-                        <span className="text-emerald-300 font-mono">{log.sentUrl}</span>
-                      </span>
-                      <span
-                        className={`text-[10px] font-bold shrink-0 ml-2 ${
-                          log.status === 'sent' ? 'text-emerald-400' : 'text-rose-400'
-                        }`}
-                      >
-                        {log.status === 'sent' ? '✓ Enviado' : '✕ Error'}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 };
