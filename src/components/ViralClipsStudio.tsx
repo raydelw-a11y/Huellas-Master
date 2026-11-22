@@ -271,6 +271,8 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
     logoWPct: number;
     logoXPct: number;
     logoYPct: number;
+    /** Top of the on-screen title text (below the logo), % of the frame height */
+    hookBannerTopPct?: number;
     logoOpacity: number;
     captionBottomPct: number;
     captionEmOfHeight: number;
@@ -1712,7 +1714,11 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                   selectedClip.hookBannerText &&
                   playheadSec >= selectedClip.startSec - 0.2 &&
                   playheadSec < selectedClip.startSec + 8 && (
-                  <div className="absolute top-[13.5%] inset-x-[13%] z-20 flex justify-center pointer-events-none">
+                  <div
+                    className="absolute inset-x-[13%] z-20 flex justify-center pointer-events-none"
+                    // Same place as the render: under the logo (the box starts ~1.5% above the text)
+                    style={{ top: `${Math.max(12, (look916?.hookBannerTopPct ?? 13.5) - 1.5)}%` }}
+                  >
                     <div
                       className="px-3 py-1.5 rounded-xl bg-amber-400 text-slate-950 font-black text-[14px] leading-tight text-center uppercase tracking-wide shadow-lg border border-white/40"
                       style={{

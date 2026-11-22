@@ -22276,10 +22276,28 @@ function getViral916Look(docId?: string) {
   const bottomRaw = Number(pc.CAPTION_BOTTOM_PCT_9X16 ?? profile.captionBottomPct);
   const captionBottomPct = Number.isFinite(bottomRaw) && bottomRaw >= 2 && bottomRaw <= 85 ? bottomRaw : 25;
   const captionFontSize = num(pc.CAPTION_FONT_SIZE_9X16 ?? profile.captionFontSize, 21);
+  const logoWPct = ((Math.max(46, (logoScalePct / 100) * stageW) - 8) / stageW) * 100;
+  const logoYPct = logoPosY + (4 / stageH) * 100;
+  // Bottom of the logo (height = width × the official logo's own proportion, frame 9:16) so the on-screen
+  // title starts below it instead of sliding under the logo
+  let logoAspectHW = 1.23;
+  try {
+    const dataUrl = resolveOfficialLogoPayloadServer().logoDataUrl || '';
+    const buf = Buffer.from(dataUrl.replace(/^data:[^;]+;base64,/, '').slice(0, 64), 'base64');
+    if (buf.length >= 24 && buf.toString('ascii', 1, 4) === 'PNG') {
+      const w = buf.readUInt32BE(16);
+      const h = buf.readUInt32BE(20);
+      if (w > 0 && h > 0) logoAspectHW = h / w;
+    }
+  } catch {}
+  const logoBottomPct = logoYPct + logoWPct * (9 / 16) * logoAspectHW;
+  // Top of the title TEXT (its yellow box adds ~1.5% of padding above it): 1% gap under the logo, never above 13.5%
+  const hookBannerTopPct = Math.max(13.5, logoBottomPct + 1 + 1.5);
   return {
-    logoWPct: ((Math.max(46, (logoScalePct / 100) * stageW) - 8) / stageW) * 100,
+    logoWPct,
     logoXPct: logoPosX + (4 / stageW) * 100,
-    logoYPct: logoPosY + (4 / stageH) * 100,
+    logoYPct,
+    hookBannerTopPct,
     logoOpacity: Math.max(0.05, Math.min(1, num(profile.logoOpacity, 95) / 100)),
     captionBottomPct,
     captionFontSize,
@@ -23087,6 +23105,8 @@ function buildOpusClipAssSubtitles(params: {
   hookBannerText?: string;
   showHookBanner?: boolean;
   totalClipDurSec: number;
+  /** Top of the on-screen title text, % of the frame height (below the logo) */
+  hookBannerTopPct?: number;
   /** A caption line never spans this time (the cut between the hook teaser and the main part) */
   chunkBreakSec?: number;
 }): string {
@@ -23103,6 +23123,7 @@ function buildOpusClipAssSubtitles(params: {
     showHookBanner,
     totalClipDurSec,
     chunkBreakSec = 0,
+    hookBannerTopPct = 13.5,
   } = params;
 
   const formatAssTime = (sec: number): string => {
@@ -23189,14 +23210,14 @@ function buildOpusClipAssSubtitles(params: {
       `Dialogue: 3,${formatAssTime(0)},${formatAssTime(
         bannerEnd
       )},HookBanner,,${bannerSideMargin},${bannerSideMargin},0,,{\\q0\\fad(180,280)\\an8\\pos(${centerX},${Math.round(
-        outH * 0.135
+        (outH * hookBannerTopPct) / 100
       )})}${cleanHook}`
     );
     assLines.push(
       `Dialogue: 4,${formatAssTime(0)},${formatAssTime(
         bannerEnd
       )},HookBannerInk,,${bannerSideMargin},${bannerSideMargin},0,,{\\q0\\fad(180,280)\\an8\\pos(${centerX},${Math.round(
-        outH * 0.135
+        (outH * hookBannerTopPct) / 100
       )})}${cleanHook}`
     );
   }
@@ -23389,6 +23410,7 @@ async function renderViralClipMp4Internal(params: {
     showHookBanner,
     totalClipDurSec,
     chunkBreakSec: teaserSpanDur,
+    hookBannerTopPct: look916.hookBannerTopPct,
   });
 
   const stamp = Date.now();
