@@ -16713,17 +16713,16 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
             {/* Footer Actions */}
             <div className="px-4 py-3 bg-slate-950/90 border-t border-slate-800 flex flex-wrap items-center justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setShowExportModal(false)}
-                className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-300 font-bold text-xs cursor-pointer transition"
-              >
-                {isRenderingVideo
-                  ? 'Minimizar y seguir trabajando'
-                  : lastExportedOutputPath
-                  ? 'Cerrar'
-                  : 'Cancelar'}
-              </button>
+              {/* While exporting, the window is minimized with the "−" at the top: no second button for it here */}
+              {!isRenderingVideo && (
+                <button
+                  type="button"
+                  onClick={() => setShowExportModal(false)}
+                  className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-300 font-bold text-xs cursor-pointer transition"
+                >
+                  {lastExportedOutputPath ? 'Cerrar' : 'Cancelar'}
+                </button>
+              )}
               {isRenderingVideo && (
                 <button
                   type="button"
