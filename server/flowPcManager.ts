@@ -771,7 +771,7 @@ export function createFlowPcManager(deps: FlowPcManagerDeps, serverPort: number)
       const diskEnvRaw = fs.readFileSync(tunnelEnvelopeDataFile, 'utf8');
       const diskEnvObj = JSON.parse(diskEnvRaw);
       const dec = decryptStudioMediaBridgeBoxServer(diskEnvObj?.studioBridge);
-      if (dec && /^https:\/\/[a-z0-9-]+\.trycloudflare\.com$/i.test(dec.tunnelUrl)) {
+      if (dec && /^https:\/\/(?!api\.)[a-z0-9-]+\.trycloudflare\.com$/i.test(dec.tunnelUrl)) {
         lastEncryptedEnvelopeJson = diskEnvRaw;
         latestReceivedEnvelopeUpdatedAt = Math.max(
           Number(dec.updatedAt || 0),
@@ -887,7 +887,8 @@ export function createFlowPcManager(deps: FlowPcManagerDeps, serverPort: number)
       cloudflaredProc = proc;
       const handleChunk = (chunk: Buffer) => {
         const text = chunk.toString('utf8');
-        const m = text.match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com/i);
+        // "api.trycloudflare.com" only appears in cloudflared's error lines: it is never a tunnel address
+        const m = text.match(/https:\/\/(?!api\.)[a-z0-9-]+\.trycloudflare\.com/i);
         if (m && m[0] && m[0] !== activeTunnelUrl) {
           activeTunnelUrl = m[0];
           activeTunnelSinceMs = Date.now();
@@ -969,6 +970,29 @@ export function createFlowPcManager(deps: FlowPcManagerDeps, serverPort: number)
     }
   }
 
+  // When the Mac itself has no internet, a new tunnel would not work either and would only change the address the
+  // iPhone uses: in that case the tunnel is left alone.
+  async function macHasInternet(): Promise<boolean> {
+    for (const url of ['https://1.1.1.1/cdn-cgi/trace', 'https://www.google.com/generate_204']) {
+      try {
+        const r = await fetch(url, { signal: AbortSignal.timeout(4000) });
+        if (r.status < 500) return true;
+      } catch {}
+    }
+    return false;
+  }
+  /** A failed check is confirmed once more a few seconds later before the tunnel is recreated. */
+  async function confirmTunnelUnhealthy(): Promise<boolean> {
+    await new Promise((r) => setTimeout(r, 4000));
+    const again = await checkActiveTunnelHealthy();
+    if (again.healthy) return false;
+    if (!(await macHasInternet())) {
+      console.warn('[FlowPC] La Mac no tiene internet ahora mismo: no se recrea el túnel (cambiaría la dirección del iPhone).');
+      return false;
+    }
+    return true;
+  }
+
   let ensureHealthyTunnelInFlight: Promise<{
     tunnelUrl: string;
     lanUrl: string;
@@ -988,7 +1012,7 @@ export function createFlowPcManager(deps: FlowPcManagerDeps, serverPort: number)
     }
     ensureHealthyTunnelInFlight = (async () => {
       const probe = await checkActiveTunnelHealthy();
-      if (!probe.healthy) {
+      if (!probe.healthy && (!activeTunnelUrl || !cloudflaredProc || (await confirmTunnelUnhealthy()))) {
         console.warn('[FlowPC] Active Cloudflare tunnel unhealthy/expired. Regenerating tunnel...');
         ensureCloudflaredRunning(true);
         for (let i = 0; i < 20; i++) {
@@ -1623,6 +1647,7 @@ export function createFlowPcManager(deps: FlowPcManagerDeps, serverPort: number)
             // Two public-DNS misses in a row (about 90 s apart) before giving up on the tunnel
             if (consecutiveDnsFailures >= 2) {
               consecutiveDnsFailures = 0;
+              if (!(await macHasInternet())) return;
               console.warn('[FlowPC] Cloudflare tunnel DNS lost (NXDOMAIN). Recreating tunnel...');
               ensureCloudflaredRunning(true);
             }
@@ -1632,6 +1657,10 @@ export function createFlowPcManager(deps: FlowPcManagerDeps, serverPort: number)
           consecutiveHttpFailures++;
           if (consecutiveHttpFailures >= 2) {
             consecutiveHttpFailures = 0;
+            if (!(await macHasInternet())) {
+              console.warn('[FlowPC] La Mac no tiene internet ahora mismo: no se recrea el túnel.');
+              return;
+            }
             console.warn('[FlowPC] Cloudflare tunnel ping failed twice. Recreating tunnel...');
             ensureCloudflaredRunning(true);
           }
@@ -1756,7 +1785,7 @@ export function createFlowPcManager(deps: FlowPcManagerDeps, serverPort: number)
           res.status(401).json({ ok: false, error: 'Invalid or unauthenticated studioBridge.' });
           return;
         }
-        if (!/^https:\/\/[a-z0-9-]+\.trycloudflare\.com$/i.test(decrypted.tunnelUrl)) {
+        if (!/^https:\/\/(?!api\.)[a-z0-9-]+\.trycloudflare\.com$/i.test(decrypted.tunnelUrl)) {
           res.status(400).json({ ok: false, error: 'Invalid Cloudflare tunnel URL.' });
           return;
         }
