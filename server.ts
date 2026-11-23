@@ -19115,7 +19115,8 @@ interface AnalyzedVideoLibraryEntry {
   geminiAnalysis?: string;
   /** 'video_analysis' = research material only (videos of the documentary's own subject); 'investigated' = reference video */
   origin?: string;
-  analysisStatus?: 'analyzing' | 'done' | 'error';
+  analysisStatus?: 'queued' | 'analyzing' | 'done' | 'error';
+  analysisQueuedAt?: string;
   analysisStartedAt?: string;
   analysisDoneAt?: string;
   analysisError?: string;
@@ -19782,22 +19783,23 @@ app.post('/api/youtube/analyzed-videos', (req, res) => {
 // ---------------------------------------------------------------------------------------------------------------
 const VIDEO_ANALYSIS_STALE_MS = 40 * 60 * 1000;
 const VIDEO_ANALYSIS_GEMINI_STAGE = 975;
-function buildVideoAnalysisPrompt(url: string, title: string, topic: string): string {
+/** Gemini tabs analyzing at the same time; the rest wait in the queue */
+const VIDEO_ANALYSIS_MAX_PARALLEL = 4;
+// One complete analysis per video, valid for ANY documentary: research material when it is about the same subject,
+// structure and hooks when it is not (each documentary's prompts decide what to use)
+function buildVideoAnalysisPrompt(url: string, title: string): string {
   return [
     `Analiza a fondo este video de YouTube: ${url}${title ? ` ("${title}")` : ''}.`,
-    topic ? `Lo usaremos como material de investigación para un documental propio sobre: ${topic}.` : '',
     'Mira el video completo (transcripción, imágenes y descripción) y responde en español neutro, sin introducción, con estas secciones:',
-    '1) RESUMEN: de qué trata y cuál es su tesis o explicación principal (4-6 líneas).',
-    '2) HECHOS Y DATOS: lista de todos los hechos concretos que afirma (fechas, lugares, nombres, cifras, citas), con el minuto aproximado.',
+    '1) TEMA Y RESUMEN: el tema exacto (qué, dónde, cuándo, quién) y su tesis o explicación principal (4-6 líneas).',
+    '2) HECHOS Y DATOS: lista de los hechos concretos que afirma (fechas, lugares, nombres, cifras, citas), con el minuto aproximado.',
     '3) FUENTES Y PRUEBAS: documentos, expertos, libros o investigaciones que menciona; marca lo que no tiene fuente.',
-    '4) TEORÍAS Y EXPLICACIONES: todas las hipótesis que presenta y cómo las valora.',
+    '4) TEORÍAS Y EXPLICACIONES: las hipótesis que presenta y cómo las valora.',
     '5) DUDAS Y POSIBLES ERRORES: afirmaciones discutibles, exageradas o que conviene verificar.',
     '6) LO QUE NO CUENTA: huecos, preguntas sin responder o ángulos que un documental mejor podría cubrir.',
-    '7) ESTRUCTURA Y GANCHOS: cómo abre, cómo mantiene la tensión, momentos más fuertes y cómo cierra.',
+    '7) ESTRUCTURA, GANCHOS Y POR QUÉ FUNCIONA: fórmula del título, cómo abre (primeros 30 segundos), cómo mantiene la tensión, actos con su porcentaje aproximado, momentos más fuertes, cómo cierra y qué lo hace atractivo para el público.',
     'No copies frases largas del video: resume con tus palabras. Sé concreto: unas 1.500 a 1.800 palabras en total.',
-  ]
-    .filter(Boolean)
-    .join(' ');
+  ].join(' ');
 }
 async function fetchYoutubeOembedSafe(url: string): Promise<{ title: string; channel: string }> {
   try {
@@ -19811,25 +19813,118 @@ async function fetchYoutubeOembedSafe(url: string): Promise<{ title: string; cha
     return { title: '', channel: '' };
   }
 }
+function enqueueVideoAnalysisGeminiOrder(v: { videoId: string; url: string; title: string }): void {
+  const commandId = `va_${v.videoId}_${Date.now().toString(36)}`;
+  pendingGeminiCommands.set(commandId, {
+    commandId,
+    docId: '',
+    action: 'SEND_PROMPT',
+    prompt: buildVideoAnalysisPrompt(v.url, v.title),
+    stageNumber: VIDEO_ANALYSIS_GEMINI_STAGE,
+    taskType: 'VIDEO_ANALYSIS',
+    enableHighModel: false,
+    enableArgonLow: true,
+    enableCarbonLow: true,
+    preferredModel: 'CARBON_4_LOW',
+    thinkingLevel: 'LOW',
+    enableDeepResearch: false,
+    enableCreateImage: false,
+    skipModelSwitch: false,
+    autoSubmit: true,
+    focusTab: false,
+    videoName: '',
+    deepResearchVideoName: '',
+    geminiChatUrl: '',
+    geminiDeepResearchChatUrl: '',
+    notebookName: '',
+    standaloneNewChat: true,
+    noNotebook: true,
+    parallelNewTab: true,
+    videoAnalysisId: v.videoId,
+    createdAt: Date.now(),
+  });
+}
+/**
+ * Moves queued videos to Gemini, at most VIDEO_ANALYSIS_MAX_PARALLEL at a time (the extension opens one tab per
+ * order). Also ends analyses that never came back. Runs on start, on every result and every minute.
+ */
+function pumpVideoAnalysisQueue(): void {
+  try {
+    const library = loadAnalyzedVideosLibrary();
+    let changed = false;
+    for (const v of library) {
+      if (v.analysisStatus === 'analyzing' && Date.now() - Date.parse(v.analysisStartedAt || '') > VIDEO_ANALYSIS_STALE_MS) {
+        v.analysisStatus = 'error';
+        v.analysisError = 'Gemini no respondió a tiempo. Vuelve a analizarlo.';
+        changed = true;
+      }
+    }
+    let running = library.filter((v) => v.analysisStatus === 'analyzing').length;
+    const queued = library
+      .filter((v) => v.analysisStatus === 'queued')
+      .sort((a, b) => Date.parse(a.analysisQueuedAt || '') - Date.parse(b.analysisQueuedAt || ''));
+    for (const v of queued) {
+      if (running >= VIDEO_ANALYSIS_MAX_PARALLEL) break;
+      v.analysisStatus = 'analyzing';
+      v.analysisStartedAt = new Date().toISOString();
+      enqueueVideoAnalysisGeminiOrder({ videoId: v.videoId, url: v.url, title: v.title });
+      running++;
+      changed = true;
+    }
+    if (changed) saveAnalyzedVideosLibrary(library);
+  } catch (e) {
+    console.warn('[VideoAnalysis] Cola:', e);
+  }
+}
+setInterval(pumpVideoAnalysisQueue, 60 * 1000);
+setTimeout(pumpVideoAnalysisQueue, 15 * 1000);
+// Viewer comments (and public details) of an analyzed video, saved with it so Etapa 1 can list them
+async function collectAnalyzedVideoComments(videoId: string): Promise<void> {
+  try {
+    const data = await fetchYoutubeVideoCommentsDataOnly(videoId, 3, true);
+    const ownChannel = /huellas/i.test(String(data.channelName || ''));
+    const viewerComments = data.comments.filter((c) => !c.author.toLowerCase().includes('huellas_de_la_humanidad'));
+    const library = loadAnalyzedVideosLibrary();
+    const idx = library.findIndex(
+      (v) => v.videoId === videoId || v.id === `vid_${videoId}` || (v as any).realYoutubeId === videoId
+    );
+    if (idx < 0) return;
+    const e = library[idx];
+    const title = e.title || data.title || videoId;
+    library[idx] = {
+      ...e,
+      comments: deduplicateAndClusterComments(viewerComments, ownChannel ? 'channel' : 'analyzed_video', title),
+      commentsCount: viewerComments.length,
+      description: e.description || data.description || '',
+      tags: Array.isArray(e.tags) && e.tags.length > 0 ? e.tags : data.tags || [],
+      channelName: e.channelName && e.channelName !== 'YouTube' ? e.channelName : data.channelName || e.channelName,
+    };
+    saveAnalyzedVideosLibrary(library);
+  } catch (err) {
+    console.warn(`[VideoAnalysis] No se pudieron leer los comentarios de ${videoId}:`, (err as any)?.message || err);
+  }
+}
 app.post('/api/youtube/video-analysis/start', async (req, res) => {
   try {
     const urls: string[] = (Array.isArray(req.body?.urls) ? req.body.urls : [])
       .map((u: any) => String(u || '').trim())
       .filter((u: string) => !!extractYoutubeVideoId(u));
     if (urls.length === 0) return res.status(400).json({ ok: false, error: 'No hay enlaces de YouTube válidos.' });
-    const unique = [...new Map(urls.map((u) => [extractYoutubeVideoId(u), u])).values()].slice(0, 12);
+    const unique = [...new Map(urls.map((u) => [extractYoutubeVideoId(u), u])).values()].slice(0, 40);
     const metas = await Promise.all(unique.map((u) => fetchYoutubeOembedSafe(u)));
     const library = loadAnalyzedVideosLibrary();
     const started: Array<{ videoId: string; url: string; title: string; channelName: string }> = [];
+    const nowMs = Date.now();
     unique.forEach((url, i) => {
       const vid = extractYoutubeVideoId(url);
-      const idx = library.findIndex((v) => v.videoId === vid || v.id === `vid_${vid}`);
+      const idx = library.findIndex(
+        (v) => v.videoId === vid || v.id === `vid_${vid}` || (v as any).realYoutubeId === vid
+      );
       const prev: any = idx >= 0 ? library[idx] : null;
       const entry: AnalyzedVideoLibraryEntry = {
         ...(prev || {}),
-        ...(prev ? {} : { origin: 'video_analysis' }),
         id: prev?.id || `vid_${vid}`,
-        videoId: vid,
+        videoId: prev?.videoId || vid,
         url,
         title: metas[i].title || prev?.title || `Video ${vid}`,
         channelName: metas[i].channel || prev?.channelName || 'YouTube',
@@ -19838,83 +19933,46 @@ app.post('/api/youtube/video-analysis/start', async (req, res) => {
         structureSummary: String(prev?.structureSummary || ''),
         structuralBlocks: Array.isArray(prev?.structuralBlocks) ? prev.structuralBlocks : [],
         comments: Array.isArray(prev?.comments) ? prev.comments : [],
-        analysisStatus: 'analyzing',
-        analysisStartedAt: new Date().toISOString(),
+        analysisStatus: 'queued',
+        analysisQueuedAt: new Date(nowMs + i).toISOString(),
         analysisError: '',
       };
       if (idx >= 0) library[idx] = entry;
       else library.unshift(entry);
-      started.push({ videoId: vid, url, title: entry.title, channelName: entry.channelName });
+      started.push({ videoId: entry.videoId, url, title: entry.title, channelName: entry.channelName });
     });
     saveAnalyzedVideosLibrary(library);
-    // One Gemini order per video, all at once: the extension opens each in its own new Gemini tab and stores the
-    // answer itself (/video-analysis/result), so it works the same from the Mac page and from the iPhone.
-    const topic = String(req.body?.topic || '').trim().slice(0, 300);
+    pumpVideoAnalysisQueue();
     for (const v of started) {
-      const commandId = `va_${v.videoId}_${Date.now().toString(36)}`;
-      pendingGeminiCommands.set(commandId, {
-        commandId,
-        docId: '',
-        action: 'SEND_PROMPT',
-        prompt: buildVideoAnalysisPrompt(v.url, v.title, topic),
-        stageNumber: VIDEO_ANALYSIS_GEMINI_STAGE,
-        taskType: 'VIDEO_ANALYSIS',
-        enableHighModel: false,
-        enableArgonLow: true,
-        enableCarbonLow: true,
-        preferredModel: 'CARBON_4_LOW',
-        thinkingLevel: 'LOW',
-        enableDeepResearch: false,
-        enableCreateImage: false,
-        skipModelSwitch: false,
-        autoSubmit: true,
-        focusTab: false,
-        videoName: '',
-        deepResearchVideoName: '',
-        geminiChatUrl: '',
-        geminiDeepResearchChatUrl: '',
-        notebookName: '',
-        standaloneNewChat: true,
-        noNotebook: true,
-        parallelNewTab: true,
-        videoAnalysisId: v.videoId,
-        createdAt: Date.now(),
-      });
+      const ytId = extractYoutubeVideoId(v.url);
+      if (ytId) void collectAnalyzedVideoComments(ytId);
     }
-    res.json({ ok: true, started, videos: library });
+    res.json({ ok: true, started });
   } catch (e: any) {
     res.status(500).json({ ok: false, error: e?.message || 'No se pudo registrar el análisis.' });
   }
 });
-// Light list for the Etapa 1 panel (polled while Gemini works): no comments, no channel scrape
+// The whole library for the Etapa 1 panel (light=1 while polling: no analysis texts)
 app.get('/api/youtube/video-analysis/list', (req, res) => {
   try {
+    pumpVideoAnalysisQueue();
     const library = loadAnalyzedVideosLibrary();
-    let staleFixed = false;
-    for (const v of library) {
-      if (v.analysisStatus === 'analyzing' && Date.now() - Date.parse(v.analysisStartedAt || '') > VIDEO_ANALYSIS_STALE_MS) {
-        v.analysisStatus = 'error';
-        v.analysisError = 'Gemini no respondió a tiempo. Vuelve a analizarlo.';
-        staleFixed = true;
-      }
-    }
-    if (staleFixed) saveAnalyzedVideosLibrary(library);
+    const light = String(req.query.light || '') === '1';
     res.json({
       ok: true,
-      videos: library
-        .filter((v) => v.analysisStatus || v.geminiAnalysis)
-        .map((v) => ({
-          id: v.id,
-          videoId: v.videoId,
-          url: v.url,
-          title: v.title,
-          channelName: v.channelName,
-          ...(String(req.query.light || '') === '1' ? {} : { geminiAnalysis: v.geminiAnalysis || '' }),
-          analysisStatus: v.analysisStatus || (v.geminiAnalysis ? 'done' : undefined),
-          analysisStartedAt: v.analysisStartedAt,
-          analysisDoneAt: v.analysisDoneAt,
-          analysisError: v.analysisError || '',
-        })),
+      videos: library.map((v) => ({
+        id: v.id,
+        videoId: v.videoId,
+        url: v.url,
+        title: v.title,
+        channelName: v.channelName,
+        commentsCount: Number(v.commentsCount || 0),
+        ...(light ? {} : { geminiAnalysis: v.geminiAnalysis || '' }),
+        analysisStatus: v.analysisStatus || (v.geminiAnalysis ? 'done' : undefined),
+        analysisStartedAt: v.analysisStartedAt,
+        analysisDoneAt: v.analysisDoneAt,
+        analysisError: v.analysisError || '',
+      })),
     });
   } catch (e: any) {
     res.status(500).json({ ok: false, error: e?.message || 'No se pudo leer la biblioteca.' });
@@ -19942,7 +20000,9 @@ app.post('/api/youtube/video-analysis/result', (req, res) => {
     }
     library[idx] = e;
     saveAnalyzedVideosLibrary(library);
-    res.json({ ok: true, entry: e, videos: library });
+    // Next video of the queue
+    pumpVideoAnalysisQueue();
+    res.json({ ok: true, entry: e });
   } catch (err: any) {
     res.status(500).json({ ok: false, error: err?.message || 'No se pudo guardar el análisis.' });
   }
