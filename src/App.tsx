@@ -204,7 +204,7 @@ import { stampBrandMarksOnThumbnail, HD_BADGE_EMPTY_CORNER_CLAUSE, LOGO_EMPTY_CO
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '12:58 AM - 11/23/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '01:20 AM - 11/23/2026';
 
 // PRODUCTION LOCK: while promptConfig.PRODUCTION_LOCKED === 'YES' these fields never change (the server
 // enforces the same list in protectLockedDocs). Metadata, thumbnails, review marks and reframes stay editable.
@@ -1165,8 +1165,7 @@ interface Stage1PropositionPart {
   id:
     | 'typology'
     | 'topic'
-    | 'historicalTime'
-    | 'historicalLocation'
+    | 'timeAndPlace'
     | 'hookAndAngle'
     | 'actsEscaleta'
     | 'climaxAndClosure';
@@ -1212,7 +1211,7 @@ function parsePropositionSectionOptions(
 ): { summary: string; options: string[] } {
   if (!rawResearch || !rawResearch.trim()) return { summary: '', options: [] };
   const partRegex = new RegExp(
-    `(?:PARTE|PART)\\s*${partNum}\\s*[—:\\-–][\\s\\S]*?(?=(?:PARTE|PART)\\s*${partNum + 1}\\s*[—:\\-–]|={5,}|\\n\\s*1\\.\\s+[A-ZÁÉÍÓÚ]|$)`,
+    `(?:PARTE|PART)\\s*${partNum}\\s*[—:\\-–][\\s\\S]*?(?=(?:PARTE|PART)\\s*\\d+\\s*[—:\\-–]|={5,}|\\n\\s*1\\.\\s+[A-ZÁÉÍÓÚ]|$)`,
     'i'
   );
   const match = rawResearch.match(partRegex);
@@ -1273,6 +1272,21 @@ function cleanPropositionOptionValue(raw: string): string {
     .replace(/\s+/g, ' ')
     .trim();
   return s;
+}
+
+/** "Año 1945 / Siglo XX | Fort Lauderdale, Florida, Estados Unidos" -> era and place (Parte 3 · Tiempo y Lugar). */
+function splitTimeAndPlace(value: string): { time: string; place: string } {
+  const v = String(value || '').trim();
+  const bar = v.indexOf(' | ');
+  if (bar >= 0) return { time: v.slice(0, bar).trim(), place: v.slice(bar + 3).trim() };
+  const dash = v.search(/\s[—–]\s/);
+  if (dash >= 0) return { time: v.slice(0, dash).trim(), place: v.slice(dash + 3).trim() };
+  return { time: v, place: '' };
+}
+function joinTimeAndPlace(time: string, place: string): string {
+  const t = String(time || '').trim();
+  const p = String(place || '').trim();
+  return t && p ? `${t} | ${p}` : t || p;
 }
 
 function resolvePartOptionsList(
@@ -1348,11 +1362,24 @@ function buildStage1PropositionParts(
     concordanceIdx > 0 && opts[concordanceIdx]
       ? [opts[concordanceIdx], ...opts.filter((_, i) => i !== concordanceIdx)]
       : opts;
-  const p3Options = putConcordantFirst(resolvePartOptionsList(doc, 3, parsed[2].options));
-  const p4Options = putConcordantFirst(resolvePartOptionsList(doc, 4, parsed[3].options));
-  const p5Options = resolvePartOptionsList(doc, 5, parsed[4].options);
-  const p6Options = resolvePartOptionsList(doc, 6, parsed[5].options);
-  const p7Options = resolvePartOptionsList(doc, 7, parsed[6].options);
+  // Answers before 2026-11-23 had 7 parts (era and place separate); now Parte 3 is "Tiempo y Lugar" and there are 6
+  const isLegacySevenParts = /(?:PARTE|PART)\s*7\s*[—:\-–]/i.test(researchText);
+  const timePlaceRaw = isLegacySevenParts
+    ? (() => {
+        const t = parsed[2].options;
+        const l = parsed[3].options;
+        return Array.from({ length: Math.max(t.length, l.length) }, (_, i) =>
+          joinTimeAndPlace(t[i] || t[0] || '', l[i] || l[0] || '')
+        );
+      })()
+    : parsed[2].options;
+  const timePlaceOptions = putConcordantFirst(resolvePartOptionsList(doc, 3, timePlaceRaw));
+  const hookIdx = isLegacySevenParts ? 4 : 3;
+  const escaletaIdx = isLegacySevenParts ? 5 : 4;
+  const climaxIdx = isLegacySevenParts ? 6 : 5;
+  const hookOptions = resolvePartOptionsList(doc, hookIdx + 1, parsed[hookIdx].options);
+  const escaletaOptions = resolvePartOptionsList(doc, escaletaIdx + 1, parsed[escaletaIdx].options);
+  const climaxOptions = resolvePartOptionsList(doc, climaxIdx + 1, parsed[climaxIdx].options);
 
   const hasStep1Text = Boolean(String(doc.deepResearchPrompt || '').trim());
   const withMissingNote = (summary: string, opts: string[]) =>
@@ -1362,6 +1389,10 @@ function buildStage1PropositionParts(
   // Value shown as active: what the documentary has saved (even when it is not one of the options), else option 1
   const currentOr = (stored: string | undefined, opts: string[]) =>
     String(stored || '').trim() ? cleanPropositionOptionValue(String(stored)) : opts[0] || '';
+  const savedTimePlace = joinTimeAndPlace(
+    cleanPropositionOptionValue(String(doc.historicalTime || '')),
+    cleanPropositionOptionValue(String(doc.historicalLocation || ''))
+  );
 
   return [
     {
@@ -1383,55 +1414,55 @@ function buildStage1PropositionParts(
       partNumber: 2,
       id: 'topic',
       title: 'Parte 2 · Tema Central del Documental / Episodio',
-      subtitle: 'Al elegir una opción aquí, las Partes 3, 4, 5, 6 y 7 se actualizan en concordancia con este tema',
+      subtitle: 'Al elegir una opción aquí, las Partes 3 a 6 se actualizan en concordancia con este tema',
       summary: withMissingNote(parsed[1].summary || 'Temas o ángulos propuestos por Gemini en el Paso 1.', p2Options),
       currentValue: activeTopicText,
       options: p2Options,
     },
     {
       partNumber: 3,
-      id: 'historicalTime',
-      title: 'Parte 3 · Tiempo / Época',
-      subtitle: `Épocas propuestas para "${activeTopicShortLabel}"`,
-      summary: withMissingNote(parsed[2].summary || `Épocas propuestas para "${activeTopicShortLabel}".`, p3Options),
-      currentValue: currentOr(doc.historicalTime, p3Options),
-      options: p3Options,
+      id: 'timeAndPlace',
+      title: 'Parte 3 · Tiempo y Lugar Histórico',
+      subtitle: `Época y lugar propuestos para "${activeTopicShortLabel}"`,
+      summary: withMissingNote(
+        parsed[2].summary || `Época y lugar propuestos para "${activeTopicShortLabel}".`,
+        timePlaceOptions
+      ),
+      currentValue: savedTimePlace || timePlaceOptions[0] || '',
+      options: timePlaceOptions,
     },
     {
       partNumber: 4,
-      id: 'historicalLocation',
-      title: 'Parte 4 · Lugar Histórico',
-      subtitle: `Lugares propuestos para "${activeTopicShortLabel}"`,
-      summary: withMissingNote(parsed[3].summary || `Lugares propuestos para "${activeTopicShortLabel}".`, p4Options),
-      currentValue: currentOr(doc.historicalLocation, p4Options),
-      options: p4Options,
+      id: 'hookAndAngle',
+      title: 'Parte 4 · Apertura, Gancho Visual (Clip 1) y Contradicción Central',
+      subtitle: `Aperturas propuestas para "${activeTopicShortLabel}" (${hookOptions.length} opciones)`,
+      summary: withMissingNote(
+        parsed[hookIdx].summary || 'Aperturas (Clip 1 y entrada de la voz) propuestas por Gemini.',
+        hookOptions
+      ),
+      currentValue: currentOr(doc.promptConfig?.PROPOSICION_GANCHO, hookOptions),
+      options: hookOptions,
     },
     {
       partNumber: 5,
-      id: 'hookAndAngle',
-      title: 'Parte 5 · Apertura, Gancho Visual (Clip 1) y Contradicción Central',
-      subtitle: `Aperturas propuestas para "${activeTopicShortLabel}" (${p5Options.length} opciones)`,
-      summary: withMissingNote(parsed[4].summary || 'Aperturas (Clip 1 y entrada de la voz) propuestas por Gemini.', p5Options),
-      currentValue: currentOr(doc.promptConfig?.PROPOSICION_GANCHO, p5Options),
-      options: p5Options,
+      id: 'actsEscaleta',
+      title: 'Parte 5 · Escaleta y Desarrollo por Actos del Cuerpo Documental',
+      subtitle: `Escaletas propuestas para ~${durationMinutes} minutos (${escaletaOptions.length} opciones)`,
+      summary: withMissingNote(
+        parsed[escaletaIdx].summary || `Escaletas propuestas para ~${durationMinutes} minutos.`,
+        escaletaOptions
+      ),
+      currentValue: currentOr(doc.promptConfig?.PROPOSICION_ESCALETA, escaletaOptions),
+      options: escaletaOptions,
     },
     {
       partNumber: 6,
-      id: 'actsEscaleta',
-      title: 'Parte 6 · Escaleta y Desarrollo por Actos del Cuerpo Documental',
-      subtitle: `Escaletas propuestas para ~${durationMinutes} minutos (${p6Options.length} opciones)`,
-      summary: withMissingNote(parsed[5].summary || `Escaletas propuestas para ~${durationMinutes} minutos.`, p6Options),
-      currentValue: currentOr(doc.promptConfig?.PROPOSICION_ESCALETA, p6Options),
-      options: p6Options,
-    },
-    {
-      partNumber: 7,
       id: 'climaxAndClosure',
-      title: 'Parte 7 · Clímax Histórico, Revelación y Cierre Reflexivo',
-      subtitle: `Desenlaces propuestos antes del Outro de 8s (${p7Options.length} opciones)`,
-      summary: withMissingNote(parsed[6].summary || 'Desenlaces propuestos por Gemini.', p7Options),
-      currentValue: currentOr(doc.promptConfig?.PROPOSICION_CLIMAX, p7Options),
-      options: p7Options,
+      title: 'Parte 6 · Clímax Histórico, Revelación y Cierre Reflexivo',
+      subtitle: `Desenlaces propuestos antes del Outro de 8s (${climaxOptions.length} opciones)`,
+      summary: withMissingNote(parsed[climaxIdx].summary || 'Desenlaces propuestos por Gemini.', climaxOptions),
+      currentValue: currentOr(doc.promptConfig?.PROPOSICION_CLIMAX, climaxOptions),
+      options: climaxOptions,
     },
   ];
 }
@@ -1485,16 +1516,18 @@ function computeStage1RecommendedDuration(
   const rawStep1Text = String(doc.deepResearchPrompt || '').trim();
   const topicText = String(doc.topic || parts[1]?.currentValue || '').trim();
   const typologyText = String(doc.typology || parts[0]?.currentValue || '').trim();
-  const timeText = String(doc.historicalTime || parts[2]?.currentValue || '').trim();
-  const locText = String(doc.historicalLocation || parts[3]?.currentValue || '').trim();
+  const partById = (id: Stage1PropositionPart['id']) => parts.find((p) => p.id === id);
+  const timePlacePart = splitTimeAndPlace(String(partById('timeAndPlace')?.currentValue || ''));
+  const timeText = String(doc.historicalTime || timePlacePart.time || '').trim();
+  const locText = String(doc.historicalLocation || timePlacePart.place || '').trim();
   const hookText = String(
-    doc.promptConfig?.PROPOSICION_GANCHO || parts[4]?.currentValue || ''
+    doc.promptConfig?.PROPOSICION_GANCHO || partById('hookAndAngle')?.currentValue || ''
   ).trim();
   const escaletaText = String(
-    doc.promptConfig?.PROPOSICION_ESCALETA || parts[5]?.currentValue || ''
+    doc.promptConfig?.PROPOSICION_ESCALETA || partById('actsEscaleta')?.currentValue || ''
   ).trim();
   const climaxText = String(
-    doc.promptConfig?.PROPOSICION_CLIMAX || parts[6]?.currentValue || ''
+    doc.promptConfig?.PROPOSICION_CLIMAX || partById('climaxAndClosure')?.currentValue || ''
   ).trim();
 
   // 1. Check explicit AI recommendation from Paso 1 text
@@ -3355,11 +3388,11 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
 
     const p1 = parts[0];
     const p2 = parts[1];
-    const p3 = parts[2];
-    const p4 = parts[3];
-    const p5 = parts[4];
-    const p6 = parts[5];
-    const p7 = parts[6];
+    const pTimePlace = parts[2];
+    const pHook = parts[3];
+    const pEscaleta = parts[4];
+    const pClimax = parts[5];
+    const firstTimePlace = splitTimeAndPlace(pTimePlace.options[0] || '');
 
     // What the producer typed or picked is never overwritten: Gemini's answer only fills empty fields
     // (preferExtractedValues is kept for callers but no longer replaces existing values).
@@ -3372,19 +3405,22 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     const nextTopic = docToInspect.topic?.trim() ? docToInspect.topic : p2.options[0] || '';
     const nextHistoricalTime = docToInspect.historicalTime?.trim()
       ? docToInspect.historicalTime
-      : p3.options[0] || '';
+      : firstTimePlace.time;
     const nextHistoricalLocation = docToInspect.historicalLocation?.trim()
       ? docToInspect.historicalLocation
-      : p4.options[0] || '';
+      : firstTimePlace.place;
     // Hook, outline and climax only exist as Paso 1 options: keep the chosen one while it is still an option
     const pickPartValue = (current: string | undefined, opts: string[]) => {
       const cur = cleanPropositionOptionValue(String(current || ''));
       if (opts.length === 0) return String(current || '');
       return cur && opts.includes(cur) ? cur : opts[0];
     };
-    const nextHook = pickPartValue(docToInspect.promptConfig?.PROPOSICION_GANCHO, p5.options);
+    const nextHook = pickPartValue(docToInspect.promptConfig?.PROPOSICION_GANCHO, pHook.options);
 
     const dynamicPropConfig: Record<string, string> = {};
+    // Slots of the old 7th part (before "Tiempo y Lugar" was one part) are emptied
+    dynamicPropConfig.PROP_P7_OPTIONS_JSON = '';
+    for (let optIdx = 0; optIdx < 25; optIdx++) dynamicPropConfig[`PROP_P7_OPT${optIdx + 1}`] = '';
     parts.forEach((partObj, idx) => {
       const pNum = idx + 1;
       dynamicPropConfig[`PROP_P${pNum}_OPTIONS_JSON`] = JSON.stringify(partObj.options);
@@ -3457,8 +3493,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         LUGAR_HISTORICO: nextHistoricalLocation,
         PROPOSICION_GANCHO: nextHook,
         ANGULO_CENTRAL: nextHook,
-        PROPOSICION_ESCALETA: pickPartValue(docToInspect.promptConfig?.PROPOSICION_ESCALETA, p6.options),
-        PROPOSICION_CLIMAX: pickPartValue(docToInspect.promptConfig?.PROPOSICION_CLIMAX, p7.options),
+        PROPOSICION_ESCALETA: pickPartValue(docToInspect.promptConfig?.PROPOSICION_ESCALETA, pEscaleta.options),
+        PROPOSICION_CLIMAX: pickPartValue(docToInspect.promptConfig?.PROPOSICION_CLIMAX, pClimax.options),
         ...dynamicPropConfig,
       },
     };
@@ -5282,38 +5318,19 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     deduplicatedCommentsList,
   ]);
 
-  // Paso 1 sent from the iPhone: the Mac only saves Gemini's text, so the first page that sees the finished
-  // command fills Tipología, Tema, Época, Lugar, the options and the duration (once per command).
+  // A Paso 1 answer that was saved but never applied (sent from the iPhone, the page reloaded while Gemini answered,
+  // or the answer reached only the Mac's backup): fill Tipología, Tema, Época, Lugar, the options and the duration
+  // once. Documentaries whose Paso 1 was already applied (STAGE1_PART1_COMPLETED) are never touched on open.
   useEffect(() => {
     if (!activeDoc) return;
     const cfg = activeDoc.promptConfig || {};
-    if (cfg.REMOTE_GEMINI_STAGE_STATUS !== 'completed') return;
-    let cmd: any = null;
-    try {
-      cmd = cfg.REMOTE_GEMINI_STAGE_COMMAND_JSON ? JSON.parse(cfg.REMOTE_GEMINI_STAGE_COMMAND_JSON) : null;
-    } catch {
-      return;
-    }
-    const commandId = String(cmd?.commandId || '');
-    if (!commandId || Number(cmd?.stageNumber) !== 10) return;
-    if (String(cfg.REMOTE_GEMINI_STAGE_ACK_ID || '') !== commandId) return;
-    if (String(cfg.STAGE1_PART1_APPLIED_FOR_CMD || '') === commandId) return;
-    // Only a fresh command, and never on a locked documentary
-    if (Date.now() - Number(cmd?.requestedAt || 0) > 24 * 60 * 60 * 1000) return;
+    if (cfg.STAGE1_PART1_COMPLETED === 'SI') return;
     if (isDocProductionLocked(activeDoc)) return;
     const phase1Text = String(activeDoc.deepResearchPrompt || '').trim();
-    if (phase1Text.length < 200) return;
+    if (phase1Text.length < 500 || !/(?:PARTE|PART)\s*2\s*[—:\-–]/i.test(phase1Text)) return;
     const patch = buildAndApplyStage1PropositionPatch(activeDoc, phase1Text, false, 'PART1');
-    updateActiveDoc(
-      { ...patch, promptConfig: { ...(patch.promptConfig || {}), STAGE1_PART1_APPLIED_FOR_CMD: commandId } },
-      { docId: activeDoc.id, source: 'stage1-remote-part1-apply' }
-    );
-  }, [
-    activeDoc?.id,
-    activeDoc?.deepResearchPrompt,
-    activeDoc?.promptConfig?.REMOTE_GEMINI_STAGE_STATUS,
-    activeDoc?.promptConfig?.REMOTE_GEMINI_STAGE_ACK_ID,
-  ]);
+    updateActiveDoc(patch, { docId: activeDoc.id, source: 'stage1-unapplied-part1' });
+  }, [activeDoc?.id, activeDoc?.deepResearchPrompt, activeDoc?.promptConfig?.STAGE1_PART1_COMPLETED]);
 
   const buildNewDocumentaryObject = (): DocumentaryProject => {
     const now = new Date().toISOString();
@@ -14940,12 +14957,12 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           prompt: promptText,
           ...(stage8ExpectedClipCount > 0 ? { expectedClipCount: stage8ExpectedClipCount } : {}),
           taskType: isPart1Remote ? 'STAGE1_PART1_DEFINITION' : 'STAGE_GENERATION',
-          // Deep research (Paso 2) runs with Thinking level High, also when sent from the iPhone
-          enableHighModel: isDeepResearchRemote,
-          enableArgonLow: !isDeepResearchRemote,
-          enableCarbonLow: !isDeepResearchRemote,
-          preferredModel: isDeepResearchRemote ? 'CARBON_HIGH' : 'CARBON_4_LOW',
-          thinkingLevel: (isDeepResearchRemote ? 'HIGH' : 'LOW') as 'HIGH' | 'LOW',
+          // Etapa 1 (Paso 1 and Paso 2) runs with Thinking level High, also when sent from the iPhone
+          enableHighModel: isRemoteResearchStage,
+          enableArgonLow: !isRemoteResearchStage,
+          enableCarbonLow: !isRemoteResearchStage,
+          preferredModel: isRemoteResearchStage ? 'CARBON_HIGH' : 'CARBON_4_LOW',
+          thinkingLevel: (isRemoteResearchStage ? 'HIGH' : 'LOW') as 'HIGH' | 'LOW',
           enableDeepResearch: remoteDeep,
           videoName: currentDoc.title || '',
           deepResearchVideoName: `${currentDoc.title || ''}_Deep Research`,
@@ -15126,7 +15143,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     setBridgeStatusType('WORKING');
     setBridgeStatusMsg(
       isStage1Part1Low
-        ? `⚡ Etapa 1 (Parte 1): Enviando a Gemini Web en 4 Carbon · Thinking level: Low (SIN Deep Research) para investigar video y determinar Definición Histórica y Calibración...`
+        ? `⚡ Etapa 1 (Parte 1): Enviando a Gemini Web en 4 Carbon · Thinking level: High (SIN Deep Research) para investigar video y determinar Definición Histórica y Calibración...`
         : isResearchStage
         ? `🔬 Etapa 1 (Parte 2): Enviando a Gemini Web en 4 Carbon · Thinking level: High + Deep Research activo (con Auto-Iniciar Plan)...`
         : stageNum === 8 && stage8ExpectedClipCount > 0
@@ -15149,12 +15166,12 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       ...(stage8ExpectedClipCount > 0 ? { expectedClipCount: stage8ExpectedClipCount } : {}),
       taskType: isStage1Part1Low ? 'STAGE1_PART1_DEFINITION' : 'STAGE_GENERATION',
       // Image and clip prompts (Stage 8) are written with Thinking level: High; every other stage stays on Low
-      // Thinking level High: image and clip prompts (Stage 8) and the deep research of Etapa 1 (Paso 2)
-      enableHighModel: stageNum === 8 || isResearchStage ? true : useHighModel,
-      enableArgonLow: stageNum === 8 || isResearchStage ? false : useArgonLow,
-      enableCarbonLow: stageNum !== 8 && !isResearchStage,
-      preferredModel: stageNum === 8 || isResearchStage ? 'CARBON_HIGH' : 'CARBON_4_LOW',
-      thinkingLevel: stageNum === 8 || isResearchStage ? 'HIGH' : 'LOW',
+      // Thinking level High: image and clip prompts (Stage 8) and both steps of Etapa 1 (Paso 1 and Paso 2)
+      enableHighModel: stageNum === 8 || isResearchStage || isStage1Part1Low ? true : useHighModel,
+      enableArgonLow: stageNum === 8 || isResearchStage || isStage1Part1Low ? false : useArgonLow,
+      enableCarbonLow: stageNum !== 8 && !isResearchStage && !isStage1Part1Low,
+      preferredModel: stageNum === 8 || isResearchStage || isStage1Part1Low ? 'CARBON_HIGH' : 'CARBON_4_LOW',
+      thinkingLevel: stageNum === 8 || isResearchStage || isStage1Part1Low ? 'HIGH' : 'LOW',
       enableDeepResearch: useDeepResearch,
       skipModelSwitch: Boolean(options?.skipModelSwitch),
       autoSubmit: true,
@@ -19936,7 +19953,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                         Etapa 1 Dividida en 2 Fases
                       </span>
                       <h3 className="font-black text-amber-300 text-sm sm:text-lg break-words">
-                        🔬 Flujo en 2 Pasos: 1º Definición y Calibración (4 Carbon Low) → 2º Investigación Profunda (Deep Research + 4 Carbon Low)
+                        🔬 Flujo en 2 Pasos: 1º Definición y Calibración (4 Carbon High) → 2º Investigación Profunda (Deep Research + 4 Carbon High)
                       </h3>
                     </div>
                   </div>
@@ -19952,7 +19969,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             PASO 1 DE ETAPA 1
                           </span>
                           <span className="px-2.5 py-0.5 rounded-md bg-slate-900 border border-slate-700 text-emerald-300 text-[11px] font-bold">
-                            ⚡ 4 Carbon · Thinking level: Low · SIN Deep Research
+                            ⚡ 4 Carbon · Thinking level: High · SIN Deep Research
                           </span>
                           {(activeDoc.deepResearchPrompt || '').trim() && (
                             <span className="px-2.5 py-0.5 rounded-md bg-emerald-500/20 border border-emerald-500/50 text-emerald-300 text-[11px] font-black">
@@ -19964,7 +19981,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                           1º Investigación del Otro Video + Determinación de 🏛️ Definición Histórica y Continuidad y ⏱️ Calibración Matemática
                         </h4>
                         <p className="text-xs text-slate-300 leading-relaxed break-words">
-                          Usa los videos marcados (Videos Analizados) y los comentarios <code className="text-amber-300">×N</code> seleccionados en <strong>4 Carbon con Thinking level en Low (sin activar Deep Research)</strong>, llena automáticamente la <strong>Tipología</strong>, el <strong>Tema Central</strong>, el <strong>Tiempo / Época</strong> y el <strong>Lugar Histórico</strong>, y te entrega <strong>3 opciones seleccionables para cada parte</strong>.
+                          Usa los videos marcados (Videos Analizados) y los comentarios <code className="text-amber-300">×N</code> seleccionados en <strong>4 Carbon con Thinking level en High (sin activar Deep Research)</strong>, llena automáticamente la <strong>Tipología</strong>, el <strong>Tema Central</strong>, el <strong>Tiempo / Época</strong> y el <strong>Lugar Histórico</strong>, y te entrega <strong>3 opciones seleccionables para cada parte</strong>.
                         </p>
                       </div>
 
@@ -19983,7 +20000,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             title={
                               duplicateBlockForStart
                                 ? `Bloqueado: el link pegado ya fue investigado ("${duplicateBlockForStart.title}"). Deja la caja de link en blanco o pega un link no investigado.`
-                                : 'Ejecutar Paso 1 con 4 Carbon en Thinking level: Low (sin Deep Research)'
+                                : 'Ejecutar Paso 1 con 4 Carbon en Thinking level: High (sin Deep Research)'
                             }
                             className={`w-full sm:w-auto max-w-full px-3.5 sm:px-5 py-2.5 sm:py-3 rounded-xl font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg transition whitespace-normal text-left sm:text-center ${
                               duplicateBlockForStart
@@ -19997,7 +20014,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                 ? 'Procesando en Gemini...'
                                 : duplicateBlockForStart
                                 ? '🔒 Link Ya Investigado (Limpia la Caja)'
-                                : '⚡ Paso 1: Determinar Definición + Calibración (Low)'}
+                                : '⚡ Paso 1: Determinar Definición + Calibración (High)'}
                             </span>
                           </button>
                         );
@@ -20050,18 +20067,19 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             selectedVideoObj,
                             selectedComments
                           );
-                          const concordantTime = nextParts[2]?.options[0] || activeDoc.historicalTime || '';
-                          const concordantLoc = nextParts[3]?.options[0] || activeDoc.historicalLocation || '';
+                          const concordantTimePlace = splitTimeAndPlace(nextParts[2]?.options[0] || '');
+                          const concordantTime = concordantTimePlace.time || activeDoc.historicalTime || '';
+                          const concordantLoc = concordantTimePlace.place || activeDoc.historicalLocation || '';
                           const concordantHook =
-                            nextParts[4]?.options[0] ||
+                            nextParts[3]?.options[0] ||
                             activeDoc.promptConfig?.PROPOSICION_GANCHO ||
                             '';
                           const concordantEscaleta =
-                            nextParts[5]?.options[0] ||
+                            nextParts[4]?.options[0] ||
                             activeDoc.promptConfig?.PROPOSICION_ESCALETA ||
                             '';
                           const concordantClimax =
-                            nextParts[6]?.options[0] ||
+                            nextParts[5]?.options[0] ||
                             activeDoc.promptConfig?.PROPOSICION_CLIMAX ||
                             '';
                           const cascadedConfig: Record<string, string> = {
@@ -20077,7 +20095,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             PROP_P4_OPTIONS_JSON: JSON.stringify(nextParts[3]?.options || []),
                             PROP_P5_OPTIONS_JSON: JSON.stringify(nextParts[4]?.options || []),
                             PROP_P6_OPTIONS_JSON: JSON.stringify(nextParts[5]?.options || []),
-                            PROP_P7_OPTIONS_JSON: JSON.stringify(nextParts[6]?.options || []),
+                            PROP_P7_OPTIONS_JSON: '',
                           };
                           updateActiveDoc({
                             topic: optionValue,
@@ -20085,20 +20103,15 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             historicalLocation: concordantLoc,
                             promptConfig: cascadedConfig,
                           });
-                        } else if (partId === 'historicalTime') {
+                        } else if (partId === 'timeAndPlace') {
+                          // One option = era and place together ("Año 1945 / Siglo XX | Fort Lauderdale, ...")
+                          const chosen = splitTimeAndPlace(optionValue);
                           updateActiveDoc({
-                            historicalTime: optionValue,
+                            historicalTime: chosen.time,
+                            historicalLocation: chosen.place || activeDoc.historicalLocation || '',
                             promptConfig: {
-                              ...(activeDoc.promptConfig || {}),
-                              TIEMPO_EPOCA: optionValue,
-                            },
-                          });
-                        } else if (partId === 'historicalLocation') {
-                          updateActiveDoc({
-                            historicalLocation: optionValue,
-                            promptConfig: {
-                              ...(activeDoc.promptConfig || {}),
-                              LUGAR_HISTORICO: optionValue,
+                              TIEMPO_EPOCA: chosen.time,
+                              LUGAR_HISTORICO: chosen.place || activeDoc.historicalLocation || '',
                             },
                           });
                         } else if (partId === 'hookAndAngle') {
@@ -20129,7 +20142,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                       if (!isPart1OrPart2Done) {
                         return (
                           <div className="bg-slate-900/70 border border-slate-800 rounded-xl p-3.5 text-xs text-slate-400">
-                            💡 Al pulsar <strong>&quot;⚡ Paso 1: Determinar Definición + Calibración (Low)&quot;</strong>, Gemini (sin Deep Research, con <strong>4 Carbon · Thinking level: Low</strong>) usará los videos marcados y llenará <strong>🏛️ Definición Histórica y Continuidad</strong>. Si no escribiste el Tema, propondrá uno por cada video marcado; aquí verás las opciones de cada parte antes de pasar al Paso 2.
+                            💡 Al pulsar <strong>&quot;⚡ Paso 1: Determinar Definición + Calibración (High)&quot;</strong>, Gemini (sin Deep Research, con <strong>4 Carbon · Thinking level: High</strong>) usará los videos marcados y llenará <strong>🏛️ Definición Histórica y Continuidad</strong>. Si no escribiste el Tema, propondrá uno por cada video marcado; aquí verás las opciones de cada parte antes de pasar al Paso 2.
                           </div>
                         );
                       }
@@ -20143,11 +20156,11 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                   ✓ Paso 1 Determinado · Campos Auto-Llenados
                                 </span>
                                 <h4 className="text-sm sm:text-base font-black text-amber-300 break-words">
-                                  📋 Resumen por Partes de la Proposición para Nuestro Documental (Concordancia Automática entre Partes 1–7)
+                                  📋 Resumen por Partes de la Proposición para Nuestro Documental (Partes 1–6)
                                 </h4>
                               </div>
                               <p className="text-xs text-slate-300 break-words">
-                                En la <strong>Parte 1 (Tipología del Video)</strong> puedes <strong>seleccionar varias opciones a la vez</strong>. Las <strong>Partes 3 (Tiempo/Época) y 4 (Lugar Histórico)</strong> (así como las Partes 5–7) muestran exclusivamente opciones que están <strong>100% en concordancia histórica con lo seleccionado en las Partes 1 y 2</strong> para evitar cualquier contradicción en el documental:
+                                En la <strong>Parte 1 (Tipología del Video)</strong> puedes <strong>seleccionar varias opciones a la vez</strong>. La <strong>Parte 3 (Tiempo y Lugar)</strong> muestra primero la época y el lugar del tema elegido en la Parte 2; las Partes 4–6 son la apertura, la escaleta y el clímax:
                               </p>
                             </div>
                             <button
@@ -20345,7 +20358,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                               enableDeepResearch: true,
                             });
                           }}
-                          title="Activa Deep Research (+ -> More tools -> Deep research) y 4 Carbon con Thinking level en Low"
+                          title="Activa Deep Research (+ -> More tools -> Deep research) y 4 Carbon con Thinking level en High"
                           className="w-full sm:w-auto max-w-full px-3.5 sm:px-5 py-2.5 sm:py-3 rounded-xl font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg transition whitespace-normal text-left sm:text-center bg-gradient-to-r from-purple-500 via-indigo-500 to-amber-400 hover:from-purple-400 hover:via-indigo-400 hover:to-amber-300 disabled:opacity-50 text-slate-950 cursor-pointer shadow-purple-500/25"
                         >
                           <Wand2 className="w-4 h-4 shrink-0" />

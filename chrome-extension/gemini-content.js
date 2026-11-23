@@ -4302,10 +4302,10 @@
         // All Huellas Master app calls run on 4 Carbon · Thinking: Low (Carbon High is reserved exclusively for MODO DUO / MODO TRIO external debate)
         const wantCreateImage = Boolean(payload.enableCreateImage || payload.mediaType === 'THUMBNAILS');
         // Exceptions written with Thinking level: High when the app asks for it: image and clip prompts (8),
-        // the deep research of Etapa 1 (1/2/3, with Deep Research) and the YouTube video analyses (975).
+        // Etapa 1 Paso 1 (10) and its deep research (1/2/3, with Deep Research) and the YouTube video analyses (975).
         // Every other stage stays on Low.
         const wantHighThinking =
-          [8, 975, 1, 2, 3].includes(Number(payload.stageNumber)) &&
+          [8, 975, 10, 1, 2, 3].includes(Number(payload.stageNumber)) &&
           !wantCreateImage &&
           String(payload.thinkingLevel || '').toUpperCase() === 'HIGH';
         const desiredModeKey = payload.enableDeepResearch
@@ -4579,6 +4579,44 @@
               );
             }
           }
+
+          // Very long prompts are sent by Gemini as an attached "pasted text" chip and the text can stay in the box
+          // (once even doubled): when the order already left, empty the box so it is not sent again by accident
+          try {
+            const sentAlready =
+              isGeminiStillGenerating() ||
+              document.querySelectorAll('user-query, [data-message-author-role="user"]').length > initialUserQueries;
+            const leftEl = findPromptInput();
+            const leftText = String((leftEl && (leftEl.value ?? leftEl.innerText ?? leftEl.textContent)) || '').trim();
+            const squashLeft = (x) => String(x || '').replace(/\s+/g, ' ').toLowerCase();
+            const promptProbe = squashLeft(rawPrompt.slice(0, 80));
+            if (
+              sentAlready &&
+              leftEl &&
+              leftText.length > 200 &&
+              promptProbe.length > 20 &&
+              squashLeft(leftText.slice(0, 400)).includes(promptProbe.slice(0, 60))
+            ) {
+              leftEl.focus();
+              if (leftEl.tagName === 'TEXTAREA' || leftEl.tagName === 'INPUT') {
+                leftEl.value = '';
+              } else {
+                const selection = window.getSelection();
+                const range = document.createRange();
+                range.selectNodeContents(leftEl);
+                selection.removeAllRanges();
+                selection.addRange(range);
+                try {
+                  document.execCommand('delete', false);
+                } catch {}
+                if (String(leftEl.innerText || '').trim().length > 0) leftEl.innerHTML = '<p><br></p>';
+              }
+              leftEl.dispatchEvent(new Event('input', { bubbles: true }));
+              chrome.runtime
+                .sendMessage({ type: 'HUELLAS_DEBUG_LOG', event: 'gemini:cleared-leftover-prompt', data: { stage: payload.stageNumber, leftLen: leftText.length } })
+                .catch(() => {});
+            }
+          } catch {}
 
           try {
             const dbgInput = findPromptInput();
