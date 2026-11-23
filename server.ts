@@ -2540,6 +2540,48 @@ app.get('/api/documentaries/:id', (req, res) => {
   res.json(doc);
 });
 
+// A new documentary gets its own folder (with the standard subfolders) in iCloud Videos right away. The name never
+// reuses an existing folder: "Nuevo Documental — Huellas de la Humanidad", then "... (2)", "... (3)"…
+const DOC_FOLDER_SUBFOLDERS = [
+  '01_Guion_y_SEO',
+  '02_Audio',
+  '04_Referencias',
+  '03_Miniaturas',
+  '05_Clips_Video',
+  '06_Video_Final',
+  '07_Viral_Clips',
+];
+function createNewDocumentaryFolder(rawName: string): { folderName: string; folderPath: string } | null {
+  const icloudVideosDir =
+    '/Users/raydelsantana/Library/Mobile Documents/com~apple~CloudDocs/0YouTube/Huellas de la Humanidad/Videos';
+  try {
+    if (!icloudDriveVerifiedReady || !fs.existsSync(icloudVideosDir)) return null;
+    const base =
+      String(rawName || '')
+        .replace(/[/:\\\0]+/g, ' - ')
+        .replace(/\s+/g, ' ')
+        .trim() || 'Nuevo Documental — Huellas de la Humanidad';
+    if (base === '.' || base === '..') return null;
+    let folderName = base;
+    for (let n = 2; fs.existsSync(path.join(icloudVideosDir, folderName)) && n < 200; n++) {
+      folderName = `${base} (${n})`;
+    }
+    const folderPath = path.join(icloudVideosDir, folderName);
+    if (fs.existsSync(folderPath)) return null;
+    fs.mkdirSync(folderPath, { recursive: true });
+    for (const sub of DOC_FOLDER_SUBFOLDERS) fs.mkdirSync(path.join(folderPath, sub), { recursive: true });
+    fs.writeFileSync(
+      path.join(folderPath, '00_Carpeta_Raiz_Huellas.txt'),
+      `Carpeta raíz del documental: ${folderName}\nSubcarpetas listas: ${DOC_FOLDER_SUBFOLDERS.join(', ')}\n`,
+      'utf8'
+    );
+    return { folderName, folderPath };
+  } catch (e) {
+    console.warn('[NewDocFolder] No se pudo crear la carpeta del documental nuevo:', e);
+    return null;
+  }
+}
+
 app.post('/api/documentaries', (req, res) => {
   const list = readDocumentaries();
   const now = new Date().toISOString();
@@ -2637,6 +2679,15 @@ app.post('/api/documentaries', (req, res) => {
     youtubeTags: body.youtubeTags || '',
     pinnedComment: body.pinnedComment || '',
   };
+
+  const newFolder = createNewDocumentaryFolder(
+    String(body.downloadFolderName || '').trim() || newDoc.title
+  );
+  if (newFolder) {
+    (newDoc as any).downloadFolderName = newFolder.folderName;
+    (newDoc as any).downloadFolderPath = newFolder.folderPath;
+    console.log(`[NewDocFolder] ${newDoc.id}: carpeta "${newFolder.folderName}" creada con sus subcarpetas`);
+  }
 
   list.unshift(newDoc);
   writeDocumentaries(list);
