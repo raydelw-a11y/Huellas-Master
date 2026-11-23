@@ -204,7 +204,7 @@ import { stampBrandMarksOnThumbnail, HD_BADGE_EMPTY_CORNER_CLAUSE, LOGO_EMPTY_CO
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '12:22 AM - 11/23/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '12:58 AM - 11/23/2026';
 
 // PRODUCTION LOCK: while promptConfig.PRODUCTION_LOCKED === 'YES' these fields never change (the server
 // enforces the same list in protectLockedDocs). Metadata, thumbnails, review marks and reframes stay editable.
@@ -2850,6 +2850,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
   const [stage1CommentSourceFilter, setStage1CommentSourceFilter] = useState<'ALL' | 'OWN' | 'EXTERNAL'>('ALL');
   const [stage1CommentKindFilter, setStage1CommentKindFilter] = useState<'ALL' | 'question' | 'suggestion'>('ALL');
   const [stage1CommentSearch, setStage1CommentSearch] = useState<string>('');
+  // Comments of one video only ('' = all videos)
+  const [stage1CommentVideoFilter, setStage1CommentVideoFilter] = useState<string>('');
   const [selectedResearchCommentIds, setSelectedResearchCommentIds] = useState<string[]>([]);
   const [stage1LoadingLibrary, setStage1LoadingLibrary] = useState<boolean>(false);
   const [geminiHighModelEnabled, setGeminiHighModelEnabled] = useState<boolean>(true);
@@ -19759,6 +19761,30 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                         </button>
                       </div>
 
+                      {(() => {
+                        // One entry per video, with how many comments it has
+                        const perVideo = new Map<string, number>();
+                        for (const c of deduplicatedCommentsList) {
+                          perVideo.set(c.videoTitle, (perVideo.get(c.videoTitle) || 0) + 1);
+                        }
+                        const videoOptions = [...perVideo.entries()].sort((a, b) => b[1] - a[1]);
+                        return (
+                          <select
+                            value={stage1CommentVideoFilter}
+                            onChange={(e) => setStage1CommentVideoFilter(e.target.value)}
+                            className="w-full sm:w-auto sm:max-w-[260px] min-w-0 truncate bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-xs text-slate-200 cursor-pointer"
+                            title="Ver solo los comentarios de un video"
+                          >
+                            <option value="">🎬 Todos los videos ({videoOptions.length})</option>
+                            {videoOptions.map(([title, n]) => (
+                              <option key={title} value={title}>
+                                {title.length > 70 ? `${title.slice(0, 70)}…` : title} ({n})
+                              </option>
+                            ))}
+                          </select>
+                        );
+                      })()}
+
                       <input
                         type="text"
                         value={stage1CommentSearch}
@@ -19783,6 +19809,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             stage1CommentKindFilter !== 'ALL' &&
                             c.kind !== stage1CommentKindFilter
                           )
+                            return false;
+                          if (stage1CommentVideoFilter && c.videoTitle !== stage1CommentVideoFilter)
                             return false;
                           if (
                             stage1CommentSearch.trim() &&
