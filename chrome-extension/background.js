@@ -5965,6 +5965,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     // Remote (mobile) orders: persist result ONLY in the local server (never applied to the Mac app's active doc).
     // If the server is unreachable, fall back to broadcasting with docId + isRemoteOrder so nothing is lost.
     (async () => {
+      if (await storeParallelVideoAnalysisIfAny(message, sender).catch(() => false)) return;
       const outcome = await forwardRemoteStageResultIfAny(message, sender).catch(() => null);
       if (outcome && outcome.isRemote) {
         if (!outcome.saved) {
@@ -6838,10 +6839,51 @@ async function runPendingGeminiCommandOrder(cmd) {
   }
   await ensureScriptInjected(tabId, 'gemini-content.js');
   await sleep(250);
+  // A parallel video analysis runs in a background tab: keep its timers alive
+  if (finalCmd.parallelNewTab) huellasStartGeminiTicks(tabId);
   await chrome.tabs.sendMessage(tabId, {
     target: 'GEMINI',
     ...finalCmd,
   });
+}
+
+// Answer of a parallel video analysis (Etapa 1): stored in the Mac server's library, then its tab is closed
+async function storeParallelVideoAnalysisIfAny(message, sender) {
+  const tabId = sender?.tab?.id;
+  if (!tabId) return false;
+  const key = `huellasParallelAnalysis_${tabId}`;
+  let rec = null;
+  try {
+    const st = await chrome.storage.local.get(key);
+    rec = st && st[key];
+  } catch {}
+  if (!rec || !rec.videoAnalysisId) return false;
+  if (message.isPartialContinuation) return true;
+  await chrome.storage.local.remove(key).catch(() => {});
+  const text = String(message.text || '').trim();
+  let saved = false;
+  for (let attempt = 0; attempt < 6 && !saved; attempt++) {
+    try {
+      const r = await fetch('http://localhost:4200/api/youtube/video-analysis/result', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(
+          text.length > 40
+            ? { videoId: rec.videoAnalysisId, text }
+            : { videoId: rec.videoAnalysisId, error: text ? `Gemini respondió: ${text}` : 'Respuesta vacía de Gemini.' }
+        ),
+      });
+      saved = r.ok;
+    } catch {}
+    if (!saved) await sleep(1500);
+  }
+  huellasGeminiTickTabs.delete(tabId);
+  // Close the tab (never the last Gemini tab)
+  setTimeout(async () => {
+    const allGem = await chrome.tabs.query({ url: 'https://gemini.google.com/*' }).catch(() => []);
+    if (allGem.length > 1) chrome.tabs.remove(tabId).catch(() => {});
+  }, 1500);
+  return true;
 }
 
 async function forwardRemoteStageResultIfAny(message, sender) {
@@ -12277,6 +12319,14 @@ async function isGeminiTabCurrentlyBusy(tab) {
     return true;
   }
   try {
+    const paKey = `huellasParallelAnalysis_${tabId}`;
+    const pa = await chrome.storage.local.get(paKey);
+    const paRec = pa && pa[paKey];
+    if (paRec && Date.now() - Number(paRec.startedAt || 0) < 40 * 60 * 1000) {
+      return true;
+    }
+  } catch {}
+  try {
     const remoteKey = `huellasRemoteStage_${tabId}`;
     const st = await chrome.storage.local.get(remoteKey);
     const rec = st && st[remoteKey];
@@ -12330,6 +12380,51 @@ async function acquireGeminiTargetTabWithWindowPolicy(payload, senderWindowId = 
       acctPrefix = m[1];
       break;
     }
+  }
+
+  // CASE 0: several YouTube videos analyzed at the same time (Etapa 1) -> every order gets its OWN new Gemini tab
+  // in a clean chat, reserved for it until the answer arrives (then the background stores it and closes the tab)
+  if (payload && payload.parallelNewTab) {
+    const freshUrl = `https://gemini.google.com${acctPrefix}/app`;
+    const hostTab = geminiTabs.find(
+      (t) => t && typeof t.windowId === 'number' && !standaloneImgWinIds.has(t.windowId)
+    );
+    const hostWinId = hostTab ? hostTab.windowId : typeof senderWindowId === 'number' ? senderWindowId : null;
+    let newTab = null;
+    if (hostWinId != null) {
+      newTab = await chrome.tabs.create({ windowId: hostWinId, url: freshUrl, active: false }).catch(() => null);
+    }
+    if (!newTab) {
+      const w = await chrome.windows.create({ url: freshUrl, focused: false, type: 'normal' }).catch(() => null);
+      newTab = (w && Array.isArray(w.tabs) && w.tabs[0]) || null;
+    }
+    if (newTab && newTab.id) {
+      await chrome.storage.local
+        .set({
+          [`huellasParallelAnalysis_${newTab.id}`]: {
+            videoAnalysisId: String(payload.videoAnalysisId || ''),
+            startedAt: Date.now(),
+          },
+        })
+        .catch(() => {});
+      await chrome.tabs.update(newTab.id, { autoDiscardable: false }).catch(() => {});
+      await waitForGeminiTabLoadComplete(newTab.id, 16000);
+      await sleep(2200);
+      newTab = (await chrome.tabs.get(newTab.id).catch(() => null)) || newTab;
+    }
+    return {
+      targetTab: newTab,
+      finalPayload: {
+        ...payload,
+        standaloneNewChat: true,
+        noNotebook: true,
+        geminiChatUrl: '',
+        geminiDeepResearchChatUrl: '',
+        notebookName: '',
+      },
+      openedNewWindow: false,
+      skipPrePosition: true,
+    };
   }
 
   // CASE A: Create Image call -> NEW window (if no idle standalone image window exists) in a NEW clean chat WITHOUT Notebook linkage

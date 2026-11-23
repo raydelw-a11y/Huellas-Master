@@ -54,6 +54,7 @@ import {
   getTextShadowCss,
 } from './components/CapCutEditor';
 import { ViralClipsStudio } from './components/ViralClipsStudio';
+import MultiVideoResearchPanel from './components/MultiVideoResearchPanel';
 import { FlowPcModal } from './components/FlowPcModal';
 import {
   DocumentaryProject,
@@ -203,7 +204,7 @@ import { stampBrandMarksOnThumbnail, HD_BADGE_EMPTY_CORNER_CLAUSE, LOGO_EMPTY_CO
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '05:36 PM - 11/22/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '07:28 PM - 11/22/2026';
 
 // PRODUCTION LOCK: while promptConfig.PRODUCTION_LOCKED === 'YES' these fields never change (the server
 // enforces the same list in protectLockedDocs). Metadata, thumbnails, review marks and reframes stay editable.
@@ -14243,6 +14244,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
             )
             .catch(() => {});
         }
+      } else if (msg.type === 'GEMINI_RESPONSE_READY' && Number(msg.stageNumber) === 975) {
+        // Análisis de un video de Etapa 1 (varios a la vez): la extensión ya lo guardó en la biblioteca. Nunca es una etapa.
+        setExtensionInstalled(true);
       } else if (msg.type === 'GEMINI_RESPONSE_READY' && Number(msg.stageNumber) === 960) {
         // Answer to a clip-identification order: never a stage result
         setExtensionInstalled(true);
@@ -19954,6 +19958,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                         {stage1LoadingLibrary ? 'Actualizando...' : 'Actualizar Biblioteca'}
                       </button>
                     </div>
+
+                    {/* Varios videos analizados a la vez por Gemini Web; se eligen varios como material de investigación */}
+                    <MultiVideoResearchPanel activeDoc={activeDoc} updateActiveDoc={updateActiveDoc} />
 
                     {/* Dropdown de Videos Analizados Previamente */}
                     {(() => {
