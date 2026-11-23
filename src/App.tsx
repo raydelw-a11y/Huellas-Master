@@ -204,7 +204,7 @@ import { stampBrandMarksOnThumbnail, HD_BADGE_EMPTY_CORNER_CLAUSE, LOGO_EMPTY_CO
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '01:20 AM - 11/23/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '03:29 PM - 11/23/2026';
 
 // PRODUCTION LOCK: while promptConfig.PRODUCTION_LOCKED === 'YES' these fields never change (the server
 // enforces the same list in protectLockedDocs). Metadata, thumbnails, review marks and reframes stay editable.
@@ -3899,6 +3899,10 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
   const activeDoc = useMemo(() => {
     const found = documentaries.find((d) => d.id === activeDocId);
     if (found) return found;
+    // The documentary that was opened is not in this list yet (e.g. the phone has an older copy without it): show
+    // the documentaries list instead of silently opening ANOTHER one (a "Limpiar Etapa 1" once hit the wrong one).
+    // It opens by itself as soon as it arrives.
+    if (activeDocId && mainView !== 'capcut_editor') return null;
     if (documentaries.length > 0) {
       if (mainView === 'capcut_editor') {
         return (
@@ -4770,6 +4774,15 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
   const setDocProductionLock = async (docId: string, locked: boolean) => {
     const current = documentaries.find((d) => d.id === docId);
     if (!current) return;
+    // Unlocking is never a single accidental tap (the lock of Video 77 was once removed that way from the phone)
+    if (
+      !locked &&
+      !window.confirm(
+        `¿Desbloquear "${current.title}"?\n\nSe podrán volver a cambiar su guion, la voz, el timeline, los subtítulos y los clips.`
+      )
+    ) {
+      return;
+    }
     const nowMs = Date.now();
     const lockKeys = { PRODUCTION_LOCKED: locked ? 'YES' : 'NO', PRODUCTION_LOCK_AT: String(nowMs) };
     const applyLock = (d: DocumentaryProject): DocumentaryProject => ({
