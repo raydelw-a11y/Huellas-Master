@@ -19117,6 +19117,8 @@ interface AnalyzedVideoLibraryEntry {
   origin?: string;
   analysisStatus?: 'queued' | 'analyzing' | 'done' | 'error';
   analysisQueuedAt?: string;
+  /** Thinking level requested for the next analysis ('HIGH' by default; 'LOW' only when asked for) */
+  analysisThinking?: 'HIGH' | 'LOW';
   analysisStartedAt?: string;
   analysisDoneAt?: string;
   analysisError?: string;
@@ -19814,7 +19816,13 @@ async function fetchYoutubeOembedSafe(url: string): Promise<{ title: string; cha
     return { title: '', channel: '' };
   }
 }
-function enqueueVideoAnalysisGeminiOrder(v: { videoId: string; url: string; title: string }): void {
+function enqueueVideoAnalysisGeminiOrder(v: {
+  videoId: string;
+  url: string;
+  title: string;
+  thinking?: 'HIGH' | 'LOW';
+}): void {
+  const high = v.thinking !== 'LOW';
   const commandId = `va_${v.videoId}_${Date.now().toString(36)}`;
   pendingGeminiCommands.set(commandId, {
     commandId,
@@ -19823,12 +19831,12 @@ function enqueueVideoAnalysisGeminiOrder(v: { videoId: string; url: string; titl
     prompt: buildVideoAnalysisPrompt(v.url, v.title),
     stageNumber: VIDEO_ANALYSIS_GEMINI_STAGE,
     taskType: 'VIDEO_ANALYSIS',
-    // Thinking level High for video analyses (user decision 2026-11-23)
-    enableHighModel: true,
-    enableArgonLow: false,
-    enableCarbonLow: false,
-    preferredModel: 'CARBON_HIGH',
-    thinkingLevel: 'HIGH',
+    // Thinking level High for video analyses (user decision 2026-11-23); Low only when that analysis asks for it
+    enableHighModel: high,
+    enableArgonLow: !high,
+    enableCarbonLow: !high,
+    preferredModel: high ? 'CARBON_HIGH' : 'CARBON_4_LOW',
+    thinkingLevel: high ? 'HIGH' : 'LOW',
     enableDeepResearch: false,
     enableCreateImage: false,
     skipModelSwitch: false,
@@ -19869,7 +19877,7 @@ function pumpVideoAnalysisQueue(): void {
       if (running >= VIDEO_ANALYSIS_MAX_PARALLEL) break;
       v.analysisStatus = 'analyzing';
       v.analysisStartedAt = new Date().toISOString();
-      enqueueVideoAnalysisGeminiOrder({ videoId: v.videoId, url: v.url, title: v.title });
+      enqueueVideoAnalysisGeminiOrder({ videoId: v.videoId, url: v.url, title: v.title, thinking: v.analysisThinking });
       running++;
       changed = true;
     }
@@ -19937,6 +19945,7 @@ app.post('/api/youtube/video-analysis/start', async (req, res) => {
         comments: Array.isArray(prev?.comments) ? prev.comments : [],
         analysisStatus: 'queued',
         analysisQueuedAt: new Date(nowMs + i).toISOString(),
+        analysisThinking: String(req.body?.thinkingLevel || '').toUpperCase() === 'LOW' ? 'LOW' : 'HIGH',
         analysisError: '',
       };
       if (idx >= 0) library[idx] = entry;
