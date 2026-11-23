@@ -1,12 +1,12 @@
 [
   {
     "id": "doc-1795401867074-v32r",
-    "title": "Nuevo Documental — Huellas de la Humanidad",
+    "title": "Video 31",
     "subtitle": "",
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-11-23T02:44:27.074Z",
-    "updatedAt": "2026-11-23T02:44:27.074Z",
+    "updatedAt": "2026-11-23T02:48:27.904Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -88,7 +88,11 @@
     "slogan": "Cada historia deja una huella. Aquí seguimos sus rastros.",
     "hashtags": "",
     "youtubeTags": "",
-    "pinnedComment": ""
+    "pinnedComment": "",
+    "flowVideoEngine": "HYBRID_PEOPLE_OMNI_REST_LOWER",
+    "downloadFolderName": "Video 31",
+    "downloadFolderPath": "/Users/raydelsantana/Library/Mobile Documents/com~apple~CloudDocs/0YouTube/Huellas de la Humanidad/Videos/Video 31",
+    "geminiChatTitle": "Video 31"
   },
   {
     "id": "doc-1793066748998-7if4",
