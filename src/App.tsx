@@ -204,7 +204,7 @@ import { stampBrandMarksOnThumbnail, HD_BADGE_EMPTY_CORNER_CLAUSE, LOGO_EMPTY_CO
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '03:29 PM - 11/23/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '04:12 PM - 11/23/2026';
 
 // PRODUCTION LOCK: while promptConfig.PRODUCTION_LOCKED === 'YES' these fields never change (the server
 // enforces the same list in protectLockedDocs). Metadata, thumbnails, review marks and reframes stay editable.
@@ -3894,7 +3894,6 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
   const [brokenTrackIds, setBrokenTrackIds] = useState<Record<string, boolean>>({});
   const [restoredVaultTrackUrls, setRestoredVaultTrackUrls] = useState<Record<string, string>>({});
 
-  const hasAutoSelectedFolderDocRef = React.useRef<boolean>(false);
 
   const activeDoc = useMemo(() => {
     const found = documentaries.find((d) => d.id === activeDocId);
@@ -3934,29 +3933,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
 
   useEffect(() => {
     activeDocRef.current = activeDoc;
-    if (
-      !hasAutoSelectedFolderDocRef.current &&
-      documentaries.length > 0 &&
-      mainView === 'studio' &&
-      activeStage === 1
-    ) {
-      const savedFolder = (localStorage.getItem(SINGLE_DOWNLOAD_FOLDER_NAME_KEY) || '').trim();
-      if (/77/.test(savedFolder)) {
-        const doc77 = documentaries.find(
-          (d) =>
-            /77/.test(d.title || '') ||
-            /77/.test(d.downloadFolderName || '') ||
-            /77/.test(d.topic || '')
-        );
-        if (doc77) {
-          hasAutoSelectedFolderDocRef.current = true;
-          if (doc77.id !== activeDocId) {
-            setActiveDocId(doc77.id);
-            return;
-          }
-        }
-      }
-    }
+    // (An old one-off rule switched to Video 77 on every load in Etapa 1 when the phone's saved download folder
+    // contained "77"; removed 2026-11-23: the page opens the documentary you chose, nothing else.)
     if (activeDoc?.id && activeDoc.id !== activeDocId) {
       setActiveDocId(activeDoc.id);
     }
@@ -17819,7 +17797,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           <button
             onClick={() => {
               saveCurrentSectionScrollPosition();
-              if (!activeDoc && documentaries.length > 0) {
+              if (!activeDoc && !activeDocId && documentaries.length > 0) {
                 const bestDoc =
                   documentaries.find(
                     (d) => (d.clips?.length || 0) > 0 || Boolean(d.masterAudioUrl)
@@ -17849,7 +17827,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           <button
             onClick={() => {
               saveCurrentSectionScrollPosition();
-              if (!activeDoc && documentaries.length > 0) {
+              if (!activeDoc && !activeDocId && documentaries.length > 0) {
                 setActiveDocId(documentaries[0].id);
               }
               setMainView('viral_clips');
@@ -17872,7 +17850,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           <button
             onClick={() => {
               saveCurrentSectionScrollPosition();
-              if (!activeDoc && documentaries.length > 0) {
+              if (!activeDoc && !activeDocId && documentaries.length > 0) {
                 setActiveDocId(documentaries[0].id);
               }
               setMainView('flow_pc');
