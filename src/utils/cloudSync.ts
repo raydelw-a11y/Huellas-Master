@@ -3214,9 +3214,10 @@ export function isTemplateStructureSummary(summary: string): boolean {
 function extractPhase1Conclusions(phase1Text: string, maxChars = 3500): string {
   const text = String(phase1Text || '');
   if (!text.trim()) return '';
-  const part7Matches = [...text.matchAll(/(?:PARTE|PART)\s*7\s*[—:\-–]/gi)];
-  const part7At = part7Matches.length > 0 ? part7Matches[part7Matches.length - 1].index || 0 : 0;
-  const tail = text.slice(part7At);
+  // After the last part (Parte 6 now, Parte 7 in older answers)
+  const partMatches = [...text.matchAll(/(?:PARTE|PART)\s*\d+\s*[—:\-–]/gi)];
+  const lastPartAt = partMatches.length > 0 ? partMatches[partMatches.length - 1].index || 0 : 0;
+  const tail = text.slice(lastPartAt);
   const sectionStart = tail.search(/\n\s*1\.\s+[A-ZÁÉÍÓÚ]/);
   if (sectionStart < 0) return '';
   return tail.slice(sectionStart).trim().slice(0, maxChars);
@@ -3384,7 +3385,7 @@ export function buildStagePromptText(
     const topicLine = cleanTopic
       ? `${cleanTopic} (CHOSEN BY THE PRODUCER — keep this exact subject; Parte 2 proposes angles for it, never a different subject)`
       : hasMarkedVideos
-      ? `BLANK (Propose ONE topic per marked video below, in the same order: Opción 1 = the subject of VIDEO 1, Opción 2 = the subject of VIDEO 2, and so on (${selectedVideoAnalysesCount || 'one per video'}). If two videos share a subject, propose it once with a different angle for the second. The producer picks one)`
+      ? 'BLANK (Propose 10 topics for our documentary that can be built from the analyses of the marked videos below: their subjects and the stories, characters, unanswered questions and gaps inside them. Rank them by viral potential on YouTube; each must be well supported by that material. The producer picks one)'
       : hasReferenceVideo
       ? 'BLANK (Propose 3+ 100% ORIGINAL, DIFFERENT, and UNPUBLISHED historical topics for "Huellas de la Humanidad" —STRICTLY FORBIDDEN to duplicate the topic of the analyzed video— applying the exact same viral patterns, contrasts, and structure)'
       : 'BLANK (Propose 3+ strong, ORIGINAL historical topics for "Huellas de la Humanidad" with high viral potential on YouTube)';
@@ -3400,7 +3401,7 @@ export function buildStagePromptText(
       : hasMarkedVideos
       ? [
           '⚠️ ORIGINALITY RULES:',
-          '- Our documentary will be about the subject of ONE of the marked videos (the producer picks it in Parte 2). Each topic option must be faithful to its video\'s subject, but our version must be original, more complete and better.',
+          '- Our documentary will be about one of the 10 topics of Parte 2, all built from the marked videos\' material (the producer picks one). Our version must be original, more complete and better than those videos.',
           '- Never copy their phrases, titles or order of scenes.',
         ]
       : hasReferenceVideo
@@ -3425,8 +3426,8 @@ export function buildStagePromptText(
         ];
     const parte2Lines = !topicIsChosen && hasMarkedVideos
       ? [
-          '     • Resumen de esta parte: [Explain in Spanish, for each marked video, the topic it gives our documentary and why it would work on YouTube]',
-          '     • Opción 1..N: [ONE topic per marked video, in the same order as the videos (Opción 1 = VIDEO 1…), each written as our documentary\'s subject in Spanish]',
+          '     • Resumen de esta parte: [Explain in Spanish which material of the marked videos supports these topics and why they would work on YouTube]',
+          '     • Opción 1..10: [EXACTLY 10 topics in Spanish built from the marked videos\' material, ranked by viral potential (Opción 1 = the strongest); each one names what, where, when and who]',
         ]
       : topicIsChosen
       ? [
@@ -3439,14 +3440,14 @@ export function buildStagePromptText(
         ];
     const concordanceHint = topicIsChosen
       ? ''
-      : ' In Partes 3 and 4, Opción k must be the era / place of Opción k of Parte 2 (same order).';
+      : ' In Parte 3, Opción k must be the era and place of Opción k of Parte 2 (same order, same number of options).';
     const section1 = hasMarkedVideos
       ? `1. ANÁLISIS DE LOS VIDEOS MARCADOS:\n   - In Spanish: which marked videos are about our subject (or about each proposed topic) and what their facts agree on or contradict, the errors or exaggerations to avoid, what none of them covers, and which structure and hook ideas from any of them fit our ~${minutesLabel}-minute documentary.`
       : hasReferenceVideo
       ? `1. RADIOGRAFÍA DE PATRONES VIRALES DEL VIDEO INVESTIGADO:\n   - Detailed breakdown in Spanish of the exact patterns that made the reference video go viral (Title formula, Description chapter pacing, Tag intent, Comment triggers, block percentages, and psychological hooks) and how they serve as a mold for our ~${minutesLabel}-minute documentary.`
       : `1. POTENCIAL VIRAL DEL TEMA:\n   - In Spanish: why the chosen or proposed subject can work on YouTube (curiosity gap, emotion, contrasts) and which retention patterns fit a ~${minutesLabel}-minute documentary.`;
     stagePrompt = `Act as Chief Documentary Director and Lead Historical Researcher for the Spanish-language documentary channel "Huellas de la Humanidad".
-This is STAGE 1 — PHASE 1 (4 Carbon · Thinking level: Low · WITHOUT Deep Research): ${
+This is STAGE 1 — PHASE 1 (4 Carbon · Thinking level: High · WITHOUT Deep Research): ${
       hasReferenceVideo ? 'Viral pattern analysis of the reference video + ' : ''
     }Determination of Historical Definition, Continuity, and Mathematical Calibration for our ${
       topicIsChosen ? '' : 'ORIGINAL '
@@ -3483,31 +3484,30 @@ ${selectedAudienceQuestions ? `\n💬 SELECTED AUDIENCE COMMENTS & QUESTIONS:\n$
 ================================================================================
 ${originalityRules.filter(Boolean).join('\n')}
 
-Deliver this structured report in Spanish with MULTIPLE OPTIONS (3 to 6 per part), preserving the exact Spanish section headers below for parser compatibility. Write every option on its own line exactly as "Opción N: text", in a single paragraph (no line breaks or numbered sub-lists inside an option). In Partes 3 and 4 write only the value (e.g., "Opción 1: Año 1888 / Siglo XIX"), with no label or parentheses before it.${concordanceHint}
+Deliver this structured report in Spanish with MULTIPLE OPTIONS (3 to 6 per part${
+      !topicIsChosen && hasMarkedVideos ? '; exactly 10 in Partes 2 and 3' : ''
+    }), preserving the exact Spanish section headers below for parser compatibility. Write every option on its own line exactly as "Opción N: text", in a single paragraph (no line breaks or numbered sub-lists inside an option). In Parte 3 write each option as "era | place" separated by " | " (e.g., "Opción 1: Año 1888 / Siglo XIX | Sevilla, España"), with no label or parentheses before it.${concordanceHint}
 
 0. RESUMEN POR PARTES DE LA PROPOSICIÓN PARA NUESTRO DOCUMENTAL:
-   Deliver numbered options (Opción 1, Opción 2, Opción 3, Opción 4...) in Spanish for each of the 7 parts:
+   Deliver numbered options (Opción 1, Opción 2, Opción 3, Opción 4...) in Spanish for each of the 6 parts:
    - PARTE 1 — TIPOLOGÍA DEL VIDEO:
 ${parte1Lines.join('\n')}
    - PARTE 2 — TEMA CENTRAL DEL DOCUMENTAL / EPISODIO:
 ${parte2Lines.join('\n')}
-   - PARTE 3 — TIEMPO / ÉPOCA HISTÓRICA:
-     • Resumen de esta parte: [Justification in Spanish of the chronological timeframe matching Parts 1 & 2]
-     • Opción 1..N: [Multiple chronological scopes in Spanish with years in digits and Centuries in Roman numerals, e.g., Año 1888 / Siglo XIX]
-   - PARTE 4 — LUGAR HISTÓRICO:
-     • Resumen de esta parte: [Justification in Spanish of the geographic settings matching Parts 1 & 2]
-     • Opción 1..N: [Multiple geographic settings in Spanish (City, Country)]
-   - PARTE 5 — GANCHO INICIAL Y CONTRADICCIÓN / ÁNGULO CENTRAL (CLIP 1 + APERTURA):
+   - PARTE 3 — TIEMPO Y LUGAR HISTÓRICO:
+     • Resumen de esta parte: [Justification in Spanish of the era and place matching Parts 1 & 2]
+     • Opción 1..N: [era | place in Spanish: years in digits and Centuries in Roman numerals, then City, Country — e.g., Año 1888 / Siglo XIX | Sevilla, España]
+   - PARTE 4 — GANCHO INICIAL Y CONTRADICCIÓN / ÁNGULO CENTRAL (CLIP 1 + APERTURA):
      • Resumen de esta parte: [${
        hasReferenceVideo
          ? "How we adapt the reference video's Hook patterns to our documentary"
          : 'How we open our documentary with maximum curiosity in the first seconds'
      }]
      • Opción 1..N: [Visual/narrative Hook variants (00:08) and central paradox in Spanish]
-   - PARTE 6 — CALIBRACIÓN MATEMÁTICA Y ESCALETA POR ACTOS (~${minutesLabel} MIN):
+   - PARTE 5 — CALIBRACIÓN MATEMÁTICA Y ESCALETA POR ACTOS (~${minutesLabel} MIN):
      • Resumen de esta parte: [How we map block percentages and pacing to ~${minutesLabel} min with 8s Intro and 8s Outro]
      • Opción 1..N: [Mathematical act outlines by percentage (%) and minutes in Spanish]
-   - PARTE 7 — CLÍMAX HISTÓRICO, REVELACIÓN Y CIERRE REFLEXIVO:
+   - PARTE 6 — CLÍMAX HISTÓRICO, REVELACIÓN Y CIERRE REFLEXIVO:
      • Resumen de esta parte: [Emotional and historical payoff strategy leading into the 8s Outro]
      • Opción 1..N: [Historical climax and reflective ending options in Spanish]
 
@@ -3559,9 +3559,9 @@ ${
 - Confirmed Central Documentary Topic: ${cleanTopic || 'To be confirmed in research'}
 - Confirmed Historical Time / Era: ${cleanTime || 'To be confirmed in research'}
 - Confirmed Historical Location (City, Country): ${cleanLoc || 'To be confirmed in research'}
-${chosenHookProp ? `- Selected Opening Hook & Central Paradox (Part 5): ${chosenHookProp}\n` : ''}${
-      chosenEscaletaProp ? `- Selected Mathematical Calibration & Act Outline (Part 6): ${chosenEscaletaProp}\n` : ''
-    }${chosenClimaxProp ? `- Selected Historical Climax & Reflective Ending (Part 7): ${chosenClimaxProp}\n` : ''}${
+${chosenHookProp ? `- Selected Opening Hook & Central Paradox (Part 4): ${chosenHookProp}\n` : ''}${
+      chosenEscaletaProp ? `- Selected Mathematical Calibration & Act Outline (Part 5): ${chosenEscaletaProp}\n` : ''
+    }${chosenClimaxProp ? `- Selected Historical Climax & Reflective Ending (Part 6): ${chosenClimaxProp}\n` : ''}${
       excludePreviousParts
         ? `- Continuity / FORBIDDEN Elements NOT to repeat from previous parts: ${excludePreviousParts}\n`
         : ''

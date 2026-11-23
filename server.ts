@@ -25669,8 +25669,8 @@ function enqueueRemoteGeminiStageFromDoc(doc: any): boolean {
         ? { expectedClipCount: Number(cmd.expectedClipCount) }
         : {}),
       taskType: cmd.taskType || 'STAGE_GENERATION',
-      // Deep research of Etapa 1 (stages 1/2/3) runs with Thinking level High
-      ...([1, 2, 3].includes(resolvedStageNum)
+      // Etapa 1 (Paso 1 = 10, deep research = 1/2/3) runs with Thinking level High
+      ...([10, 1, 2, 3].includes(resolvedStageNum)
         ? {
             enableHighModel: true,
             enableArgonLow: false,
