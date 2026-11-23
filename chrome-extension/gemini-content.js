@@ -1488,7 +1488,9 @@
     reportStatus(
       'GENERATING',
       isDeepResearch
-        ? '🔬 Gemini Web (4 Carbon · Thinking: Low + Deep Research) preparando el Plan de Investigación...'
+        ? `🔬 Gemini Web (4 Carbon · Thinking: ${
+            String((meta && meta.thinkingLevel) || '').toUpperCase() === 'HIGH' ? 'High' : 'Low'
+          } + Deep Research) preparando el Plan de Investigación...`
         : isImageOrder
         ? `🖼️ Gemini Web (Create image + Logo Oficial) está creando la Miniatura Opción ${
             (meta && meta.optionLabel) || 'A'
@@ -4299,15 +4301,17 @@
 
         // All Huellas Master app calls run on 4 Carbon · Thinking: Low (Carbon High is reserved exclusively for MODO DUO / MODO TRIO external debate)
         const wantCreateImage = Boolean(payload.enableCreateImage || payload.mediaType === 'THUMBNAILS');
-        // Exception: the image and clip prompts (Stage 8) are written with Thinking level: High when the
-        // app asks for it. Every other stage stays on Low.
+        // Exceptions written with Thinking level: High when the app asks for it: image and clip prompts (8),
+        // the deep research of Etapa 1 (1/2/3, with Deep Research) and the YouTube video analyses (975).
+        // Every other stage stays on Low.
         const wantHighThinking =
-          Number(payload.stageNumber) === 8 &&
-          !payload.enableDeepResearch &&
+          [8, 975, 1, 2, 3].includes(Number(payload.stageNumber)) &&
           !wantCreateImage &&
           String(payload.thinkingLevel || '').toUpperCase() === 'HIGH';
         const desiredModeKey = payload.enableDeepResearch
-          ? 'CARBON4_LOW_DEEP_RESEARCH'
+          ? wantHighThinking
+            ? 'CARBON4_HIGH_DEEP_RESEARCH'
+            : 'CARBON4_LOW_DEEP_RESEARCH'
           : wantCreateImage
           ? 'CARBON4_LOW_CREATE_IMAGE'
           : wantHighThinking
