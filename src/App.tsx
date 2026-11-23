@@ -204,7 +204,7 @@ import { stampBrandMarksOnThumbnail, HD_BADGE_EMPTY_CORNER_CLAUSE, LOGO_EMPTY_CO
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '09:58 PM - 11/22/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '10:07 PM - 11/22/2026';
 
 // PRODUCTION LOCK: while promptConfig.PRODUCTION_LOCKED === 'YES' these fields never change (the server
 // enforces the same list in protectLockedDocs). Metadata, thumbnails, review marks and reframes stay editable.
@@ -19427,9 +19427,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                           className="w-full max-w-full min-w-0 truncate bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-100"
                         >
                           <option value="8_SEGUNDOS">
-                            8 segundos por clip (1 shot de 8s — Por defecto)
+                            8 segundos por clip (1 o 2 shots — Por defecto)
                           </option>
-                          <option value="10_SEGUNDOS">10 segundos por clip (1 shot de 10s)</option>
+                          <option value="10_SEGUNDOS">10 segundos por clip (1 o 2 shots)</option>
                         </select>
                       </div>
                     </div>
