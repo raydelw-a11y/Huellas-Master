@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-11-23T02:44:27.074Z",
-    "updatedAt": "2026-11-23T20:23:29.711Z",
+    "updatedAt": "2026-11-23T20:24:09.545Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -31,7 +31,7 @@
       "SUGGESTED_DURATION_SECONDS": "",
       "SUGGESTED_DURATION_REASON": "",
       "TIPOLOGIA_VIDEO": "",
-      "TEMA_VIDEO": "",
+      "TEMA_VIDEO": "La construcción del Empire State y la Rutina Cotidiana de los Obreros sobre el Vac­o",
       "TIEMPO_EPOCA": "",
       "PROPOSICION_GANCHO": "",
       "ANGULO_CENTRAL": "",
@@ -245,7 +245,7 @@
       "FIELD_CLEARED_AT_sectionsStructure": "1795465076527"
     },
     "compiledMasterPrompt": "",
-    "topic": "",
+    "topic": "La construcción del Empire State y la Rutina Cotidiana de los Obreros sobre el Vac­o",
     "typology": "",
     "historicalTime": "",
     "historicalLocation": "",
