@@ -19117,7 +19117,7 @@ interface AnalyzedVideoLibraryEntry {
   origin?: string;
   analysisStatus?: 'queued' | 'analyzing' | 'done' | 'error';
   analysisQueuedAt?: string;
-  /** Thinking level requested for the next analysis ('HIGH' by default; 'LOW' only when asked for) */
+  /** Thinking level requested for the next analysis ('LOW' by default; 'HIGH' only when asked for) */
   analysisThinking?: 'HIGH' | 'LOW';
   analysisStartedAt?: string;
   analysisDoneAt?: string;
@@ -19822,7 +19822,8 @@ function enqueueVideoAnalysisGeminiOrder(v: {
   title: string;
   thinking?: 'HIGH' | 'LOW';
 }): void {
-  const high = v.thinking !== 'LOW';
+  // Low by default: with High, Gemini sometimes answers without opening the video (user decision 2026-11-23)
+  const high = v.thinking === 'HIGH';
   const commandId = `va_${v.videoId}_${Date.now().toString(36)}`;
   pendingGeminiCommands.set(commandId, {
     commandId,
@@ -19831,7 +19832,7 @@ function enqueueVideoAnalysisGeminiOrder(v: {
     prompt: buildVideoAnalysisPrompt(v.url, v.title),
     stageNumber: VIDEO_ANALYSIS_GEMINI_STAGE,
     taskType: 'VIDEO_ANALYSIS',
-    // Thinking level High for video analyses (user decision 2026-11-23); Low only when that analysis asks for it
+    // Thinking level Low for video analyses; High only when that analysis asks for it
     enableHighModel: high,
     enableArgonLow: !high,
     enableCarbonLow: !high,
@@ -19945,7 +19946,7 @@ app.post('/api/youtube/video-analysis/start', async (req, res) => {
         comments: Array.isArray(prev?.comments) ? prev.comments : [],
         analysisStatus: 'queued',
         analysisQueuedAt: new Date(nowMs + i).toISOString(),
-        analysisThinking: String(req.body?.thinkingLevel || '').toUpperCase() === 'LOW' ? 'LOW' : 'HIGH',
+        analysisThinking: String(req.body?.thinkingLevel || '').toUpperCase() === 'HIGH' ? 'HIGH' : 'LOW',
         analysisError: '',
       };
       if (idx >= 0) library[idx] = entry;
