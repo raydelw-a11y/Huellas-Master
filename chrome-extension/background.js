@@ -6859,7 +6859,9 @@ async function storeParallelVideoAnalysisIfAny(message, sender) {
   } catch {}
   if (!rec || !rec.videoAnalysisId) return false;
   if (message.isPartialContinuation) return true;
-  await chrome.storage.local.remove(key).catch(() => {});
+  if (rec.closing) return true;
+  // Keep the tab reserved (busy) until it is closed, so no other order can take it in the meantime
+  await chrome.storage.local.set({ [key]: { ...rec, closing: true, startedAt: Date.now() } }).catch(() => {});
   const text = String(message.text || '').trim();
   let saved = false;
   for (let attempt = 0; attempt < 6 && !saved; attempt++) {
@@ -6878,13 +6880,19 @@ async function storeParallelVideoAnalysisIfAny(message, sender) {
     if (!saved) await sleep(1500);
   }
   huellasGeminiTickTabs.delete(tabId);
-  // Close the tab (never the last Gemini tab)
+  // Close the tab (never the last Gemini tab); the reservation ends when the tab is gone or stays as the last one
   setTimeout(async () => {
     const allGem = await chrome.tabs.query({ url: 'https://gemini.google.com/*' }).catch(() => []);
-    if (allGem.length > 1) chrome.tabs.remove(tabId).catch(() => {});
+    if (allGem.length > 1) await chrome.tabs.remove(tabId).catch(() => {});
+    await chrome.storage.local.remove(key).catch(() => {});
   }, 1500);
   return true;
 }
+
+// A closed tab never keeps a parallel-analysis reservation (tab ids can repeat after Chrome restarts)
+chrome.tabs.onRemoved.addListener((closedTabId) => {
+  chrome.storage.local.remove(`huellasParallelAnalysis_${closedTabId}`).catch(() => {});
+});
 
 async function forwardRemoteStageResultIfAny(message, sender) {
   const tabId = sender?.tab?.id;
