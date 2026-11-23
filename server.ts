@@ -24471,6 +24471,29 @@ function performMacFolderRenameCore(params: {
     } catch {}
   }
 
+  // Folders that belong to ANOTHER documentary are never renamed (a new documentary once took Video 77's folder)
+  const otherDocsForGuard = (docsList.length > 0 ? docsList : (() => {
+    try {
+      return readDocumentaries();
+    } catch {
+      return [];
+    }
+  })()).filter((d: any) => d && d.id !== docId);
+  const ownedFolderPaths = new Set<string>();
+  for (const od of otherDocsForGuard) {
+    const ownPaths = [
+      typeof od.downloadFolderPath === 'string' ? od.downloadFolderPath.trim() : '',
+      hasIcloudDir && od.downloadFolderName ? path.join(icloudVideosDir, String(od.downloadFolderName).trim()) : '',
+      hasIcloudDir && od.title ? path.join(icloudVideosDir, String(od.title).trim()) : '',
+    ];
+    for (const op of ownPaths) if (op) ownedFolderPaths.add(realOrResolve(op));
+  }
+  const isOwnedByAnotherDoc = (p: string) => {
+    const owned = ownedFolderPaths.has(realOrResolve(p));
+    if (owned) console.warn(`[RenameGuard] ${docId || '?'} tried to rename "${path.basename(p)}", which belongs to another documentary; skipped`);
+    return owned;
+  };
+
   const candidatePaths = [
     typeof oldFolderPath === 'string' ? oldFolderPath.trim() : '',
     typeof storedDoc?.downloadFolderPath === 'string' ? storedDoc.downloadFolderPath.trim() : '',
@@ -24483,7 +24506,7 @@ function performMacFolderRenameCore(params: {
     hasIcloudDir && typeof storedDoc?.title === 'string' && storedDoc.title.trim()
       ? path.join(icloudVideosDir, storedDoc.title.trim())
       : '',
-  ].filter((p) => Boolean(p) && isPathPermitted(p));
+  ].filter((p) => Boolean(p) && isPathPermitted(p) && !isOwnedByAnotherDoc(p));
 
   let existingFolderPath = '';
   for (const cand of candidatePaths) {
@@ -24514,6 +24537,7 @@ function performMacFolderRenameCore(params: {
         if (!name || name.startsWith('.') || !prefixRegex.test(name)) return false;
         try {
           const cand = path.join(icloudVideosDir, name);
+          if (isOwnedByAnotherDoc(cand)) return false;
           return fs.existsSync(cand) && fs.statSync(cand).isDirectory();
         } catch {
           return false;
