@@ -3505,6 +3505,14 @@ export function buildStagePromptText(
     ? `\n${standaloneYoutubeMetadataBlock}${youtubeCommentsResearchBlock}\n`
     : '';
 
+  // Research material from several videos of the SAME topic, analyzed one by one by Gemini in Etapa 1 and selected
+  // for this documentary. Unlike the structural blueprint above, these ARE about our topic: facts to cross-check.
+  const selectedVideoAnalysesRaw = String(doc.promptConfig?.SELECTED_VIDEO_ANALYSES_BLOCK || '').trim();
+  const selectedVideoAnalysesCount = (selectedVideoAnalysesRaw.match(/^=== VIDEO \d+:/gm) || []).length;
+  const multiVideoResearchBlock = selectedVideoAnalysesRaw
+    ? `\n================================================================================\n📚 RESEARCH MATERIAL: ANALYSES OF ${selectedVideoAnalysesCount || 'SEVERAL'} YOUTUBE VIDEOS ABOUT OUR SAME TOPIC (selected by the producer)\n================================================================================\nEach video was analyzed separately. Use them as SOURCE MATERIAL for our own documentary: cross-check their facts against each other and against reliable historical sources, keep what is verified, flag and resolve contradictions between them, discard errors and exaggerations, and cover the gaps and unanswered questions they leave. Our documentary must be BETTER and more complete than all of them together, with its own original structure and narration: never copy their phrases, titles or order.\n\n${selectedVideoAnalysesRaw.slice(0, 45000)}\n`
+    : '';
+
   let stagePrompt = '';
   if (stageNumber === 10) {
     const cleanTopic = (doc.topic || '').trim();
@@ -3512,7 +3520,7 @@ export function buildStagePromptText(
     const cleanTime = (doc.historicalTime || '').trim();
     const cleanLoc = (doc.historicalLocation || '').trim();
     stagePrompt = `Act as Chief Documentary Director and Lead Historical Researcher for the Spanish-language documentary channel "Huellas de la Humanidad".
-This is STAGE 1 — PHASE 1 (4 Carbon · Thinking level: Low · WITHOUT Deep Research): Viral pattern analysis of the reference video + Determination of Historical Definition, Continuity, and Mathematical Calibration for our ORIGINAL documentary.${viralContextBlock}
+This is STAGE 1 — PHASE 1 (4 Carbon · Thinking level: Low · WITHOUT Deep Research): Viral pattern analysis of the reference video + Determination of Historical Definition, Continuity, and Mathematical Calibration for our ORIGINAL documentary.${viralContextBlock}${multiVideoResearchBlock}
 
 CRITICAL OUTPUT LANGUAGE REQUIREMENT:
 Write all explanatory prose, summaries, and option texts in Spanish (Neutral Documentary Spanish for our producer UI), while keeping the exact structural section markers requested below.
@@ -3609,7 +3617,7 @@ Deliver this structured report in Spanish with MULTIPLE OPTIONS (3, 4, 5, 6, or 
       selectedAnalyzedVideoId;
 
     stagePrompt = `Act as a Master Historian, Film Director, and Chief Documentary Investigator for "Huellas de la Humanidad".
-This is STAGE 1 — PHASE 2 (DEEP HISTORICAL RESEARCH WITH GEMINI DEEP RESEARCH + 4 CARBON THINKING LEVEL: LOW), building upon the Historical Definition, the Selected Analyzed Library Video from Step 1, and the Mathematical Calibration established in Phase 1.${viralContextBlock}
+This is STAGE 1 — PHASE 2 (DEEP HISTORICAL RESEARCH WITH GEMINI DEEP RESEARCH + 4 CARBON THINKING LEVEL: LOW), building upon the Historical Definition, the Selected Analyzed Library Video from Step 1, and the Mathematical Calibration established in Phase 1.${viralContextBlock}${multiVideoResearchBlock}
 
 CRITICAL OUTPUT LANGUAGE REQUIREMENT:
 Deliver the entire historical research dossier and structural outline in clear, rigorous Documentary Spanish so it directly feeds the Spanish Voiceover Script in the next stage.
@@ -3726,7 +3734,11 @@ Target Total Duration Selected in Stage 1: ${budget.totalMinutesLabel} MINUTES (
 Historical Definition & Calibration (Step 1):
 ${doc.deepResearchPrompt || ''}
 Deep Historical Research (Step 2 — Deep Research):
-${doc.deepResearchResult || (!doc.deepResearchPrompt ? doc.sectionsStructure || '' : '')}
+${doc.deepResearchResult || (!doc.deepResearchPrompt ? doc.sectionsStructure || '' : '')}${
+        selectedVideoAnalysesRaw
+          ? `\nAnalyses of ${selectedVideoAnalysesCount || 'several'} YouTube videos about this same topic (research material only: use verified facts, never copy their phrasing or structure):\n${selectedVideoAnalysesRaw.slice(0, 20000)}\n`
+          : ''
+      }
 
 CRITICAL OUTPUT LANGUAGE REQUIREMENT:
 Write the complete VOICEOVER SCRIPT 100% in Neutral Latin American Documentary Spanish (Español Neutro Documental) obeying every unbreakable rule below:
