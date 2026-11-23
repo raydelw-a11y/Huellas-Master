@@ -204,7 +204,7 @@ import { stampBrandMarksOnThumbnail, HD_BADGE_EMPTY_CORNER_CLAUSE, LOGO_EMPTY_CO
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '09:54 PM - 11/22/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '09:58 PM - 11/22/2026';
 
 // PRODUCTION LOCK: while promptConfig.PRODUCTION_LOCKED === 'YES' these fields never change (the server
 // enforces the same list in protectLockedDocs). Metadata, thumbnails, review marks and reframes stay editable.
@@ -5431,9 +5431,14 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           }),
         });
         if (res.ok && (res.headers.get('content-type') || '').includes('application/json')) {
+          // The Mac created its folder with the subfolders already (empty when iCloud Drive is not ready)
           const created = await res.json();
-          created.downloadFolderName = '';
-          created.downloadFolderPath = '';
+          created.downloadFolderName = String(created.downloadFolderName || '');
+          created.downloadFolderPath = String(created.downloadFolderPath || '');
+          if (created.downloadFolderPath) {
+            setFlowDownloadFolderName(created.downloadFolderName);
+            setFlowServerFolderPath(created.downloadFolderPath);
+          }
           const next = [created, ...documentaries];
           setDocumentaries(next);
           saveLocalCachedDocumentaries(next);
