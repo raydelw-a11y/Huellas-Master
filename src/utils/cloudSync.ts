@@ -2799,48 +2799,8 @@ export function mergeDocumentariesLists(
         : l;
     const existing = byId.get(l.id);
     if (!existing) {
-      const canonical77 = byId.get('doc-video-77-huellas');
-      const isLocal77Candidate =
-        l.id !== 'doc-video-77-huellas' &&
-        (/77/.test(l.downloadFolderName || '') ||
-          /77/.test(l.title || '') ||
-          (l.title === 'Nuevo Documental — Huellas de la Humanidad' &&
-            (!l.clips || l.clips.length === 0)));
-      if (canonical77 && isLocal77Candidate) {
-        // Respect "Limpiar Etapa 1" tombstone: cleared local Stage 1 fields must not be refilled from the canonical copy
-        const local77Cleared = Number(normalized.promptConfig?.STAGE1_CLEARED_AT || 0) > 0;
-        const pick77 = (k: keyof DocumentaryProject) =>
-          local77Cleared ? (normalized as any)[k] ?? '' : (normalized as any)[k] || (canonical77 as any)[k];
-        byId.set('doc-video-77-huellas', {
-          ...canonical77,
-          ...(local77Cleared ? { promptConfig: { ...(canonical77.promptConfig || {}), ...(normalized.promptConfig || {}) } } : {}),
-          title:
-            normalized.title && normalized.title !== 'Nuevo Documental — Huellas de la Humanidad'
-              ? normalized.title
-              : canonical77.title,
-          topic: pick77('topic'),
-          typology: pick77('typology'),
-          historicalTime: pick77('historicalTime'),
-          historicalLocation: pick77('historicalLocation'),
-          targetDurationSeconds:
-            normalized.targetDurationSeconds || canonical77.targetDurationSeconds,
-          sectionsStructure: pick77('sectionsStructure'),
-          deepResearchPrompt: pick77('deepResearchPrompt'),
-          deepResearchResult: pick77('deepResearchResult'),
-          voiceoverScript: normalized.voiceoverScript || canonical77.voiceoverScript,
-          downloadFolderName: normalized.downloadFolderName || canonical77.downloadFolderName,
-          downloadFolderPath: normalized.downloadFolderPath || canonical77.downloadFolderPath,
-          geminiChatTitle: (normalized as any).geminiChatTitle || (canonical77 as any).geminiChatTitle,
-          geminiChatUrl: normalized.geminiChatUrl || canonical77.geminiChatUrl,
-          geminiDeepResearchChatUrl:
-            (normalized as any).geminiDeepResearchChatUrl ||
-            normalized.promptConfig?.GEMINI_DEEP_RESEARCH_CHAT_URL ||
-            (canonical77 as any).geminiDeepResearchChatUrl ||
-            canonical77.promptConfig?.GEMINI_DEEP_RESEARCH_CHAT_URL,
-        } as any);
-      } else {
-        byId.set(l.id, normalized);
-      }
+      // A documentary that only exists here (e.g. just created on the iPhone) is kept as it is
+      byId.set(l.id, normalized);
     } else {
       const parseDocTimeMs = (v: any): number => {
         if (typeof v === 'number' && Number.isFinite(v)) return v;
