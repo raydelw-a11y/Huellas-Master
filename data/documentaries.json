@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-11-23T02:44:27.074Z",
-    "updatedAt": "2026-11-23T02:44:27.074Z",
+    "updatedAt": "2026-11-23T02:47:18.409Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -88,7 +88,10 @@
     "slogan": "Cada historia deja una huella. Aquí seguimos sus rastros.",
     "hashtags": "",
     "youtubeTags": "",
-    "pinnedComment": ""
+    "pinnedComment": "",
+    "flowVideoEngine": "HYBRID_PEOPLE_OMNI_REST_LOWER",
+    "downloadFolderName": "",
+    "downloadFolderPath": ""
   },
   {
     "id": "doc-1793066748998-7if4",
