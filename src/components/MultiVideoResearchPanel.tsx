@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { DocumentaryProject } from '../types';
+import { MULTI_VIDEO_RESEARCH_MAX_CHARS } from '../utils/cloudSync';
 import {
   getMediaBridgeSnapshot,
   getOrderedMediaBridgeBases,
@@ -26,8 +27,8 @@ interface AnalyzedVideo {
   analysisError?: string;
 }
 
-// A whole analysis (its 7 sections, ~21k characters) must reach the prompts: doubts, gaps and structure come last
-const MAX_CHARS_PER_VIDEO = 22000;
+// Analyses reach the prompts whole (only the total has an emergency ceiling, see MULTI_VIDEO_RESEARCH_MAX_CHARS)
+const MAX_CHARS_PER_VIDEO = 200000;
 
 function serverOrigin(): string {
   if (typeof window === 'undefined' || isLocalMediaRuntimeOrigin()) return '';
@@ -250,6 +251,7 @@ export default function MultiVideoResearchPanel({ activeDoc, updateActiveDoc, on
     .sort((a, b) => Number(selectedIds.includes(b.videoId)) - Number(selectedIds.includes(a.videoId)));
   const selectedDone = videos.filter((v) => selectedIds.includes(v.videoId) && statusOf(v) === 'done');
   const pendingCount = videos.filter((v) => v.analysisStatus === 'queued' || v.analysisStatus === 'analyzing').length;
+  const markedChars = String(activeDoc.promptConfig?.SELECTED_VIDEO_ANALYSES_BLOCK || '').length;
 
   return (
     <div className="bg-slate-950/70 border border-sky-500/30 rounded-xl p-3 space-y-3 min-w-0 max-w-full">
@@ -281,6 +283,13 @@ export default function MultiVideoResearchPanel({ activeDoc, updateActiveDoc, on
           : `Analizar ${linksFromText().length || ''} video${linksFromText().length === 1 ? '' : 's'} con Gemini`}
       </button>
       {message && <p className="text-[11px] text-slate-300">{message}</p>}
+      {markedChars > MULTI_VIDEO_RESEARCH_MAX_CHARS && (
+        <p className="text-[11px] text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded-lg px-2.5 py-1.5">
+          ⚠️ Los videos marcados suman {markedChars.toLocaleString('es')} caracteres: Gemini recibirá solo los primeros{' '}
+          {MULTI_VIDEO_RESEARCH_MAX_CHARS.toLocaleString('es')}, así que el último llegará recortado. Desmarca alguno si
+          quieres que todos lleguen completos.
+        </p>
+      )}
 
       {videos.length > 0 && (
         <div className="space-y-1.5">

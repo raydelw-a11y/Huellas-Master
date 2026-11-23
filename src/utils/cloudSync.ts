@@ -3196,8 +3196,8 @@ async function callGeminiGenerateContentClientSide(
   throw new Error(lastErr || 'No se pudo conectar con Gemini desde el navegador.');
 }
 
-/** Most of the research analyses that fit in one Etapa 1 prompt (several videos, each analyzed by Gemini). */
-const MULTI_VIDEO_RESEARCH_MAX_CHARS = 70000;
+/** Emergency ceiling for the marked videos' analyses in one Etapa 1 prompt (~7 whole analyses); the panel warns. */
+export const MULTI_VIDEO_RESEARCH_MAX_CHARS = 150000;
 
 /**
  * A reference video's "structure summary" that is NOT an analysis of the video's content: the template the server

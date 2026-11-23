@@ -19798,7 +19798,7 @@ function buildVideoAnalysisPrompt(url: string, title: string): string {
     '5) DUDAS Y POSIBLES ERRORES: afirmaciones discutibles, exageradas o que conviene verificar.',
     '6) LO QUE NO CUENTA: huecos, preguntas sin responder o ángulos que un documental mejor podría cubrir.',
     '7) ESTRUCTURA, GANCHOS Y POR QUÉ FUNCIONA: fórmula del título, cómo abre (primeros 30 segundos), cómo mantiene la tensión, actos con su porcentaje aproximado, momentos más fuertes, cómo cierra y qué lo hace atractivo para el público.',
-    'No copies frases largas del video: resume con tus palabras. Sé concreto: unas 1.500 a 1.800 palabras en total.',
+    'No copies frases largas del video: resume con tus palabras.',
   ].join(' ');
 }
 async function fetchYoutubeOembedSafe(url: string): Promise<{ title: string; channel: string }> {
@@ -19822,11 +19822,12 @@ function enqueueVideoAnalysisGeminiOrder(v: { videoId: string; url: string; titl
     prompt: buildVideoAnalysisPrompt(v.url, v.title),
     stageNumber: VIDEO_ANALYSIS_GEMINI_STAGE,
     taskType: 'VIDEO_ANALYSIS',
-    enableHighModel: false,
-    enableArgonLow: true,
-    enableCarbonLow: true,
-    preferredModel: 'CARBON_4_LOW',
-    thinkingLevel: 'LOW',
+    // Thinking level High for video analyses (user decision 2026-11-23)
+    enableHighModel: true,
+    enableArgonLow: false,
+    enableCarbonLow: false,
+    preferredModel: 'CARBON_HIGH',
+    thinkingLevel: 'HIGH',
     enableDeepResearch: false,
     enableCreateImage: false,
     skipModelSwitch: false,
@@ -20010,7 +20011,8 @@ app.post('/api/youtube/video-analysis/result', (req, res) => {
     if (idx < 0) return res.status(404).json({ ok: false, error: 'Ese video no está en la biblioteca.' });
     const e = library[idx];
     if (text && !error) {
-      e.geminiAnalysis = text.slice(0, 40000);
+      // The analysis is kept whole (200k is only a safety ceiling)
+      e.geminiAnalysis = text.slice(0, 200000);
       e.analysisStatus = 'done';
       e.analysisDoneAt = new Date().toISOString();
       e.analysisError = '';
