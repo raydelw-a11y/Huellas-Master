@@ -154,7 +154,7 @@ import {
   fetchRemoteDocumentariesFromGitHub,
   pushDocumentariesToGitHub,
   buildStagePromptText,
-  generateStageClientSide,
+  isTemplateStructureSummary,
   auditClipsClientSide,
   auditClipVideoClientSide,
   auditThumbnailPsychologyClientSide,
@@ -204,7 +204,7 @@ import { stampBrandMarksOnThumbnail, HD_BADGE_EMPTY_CORNER_CLAUSE, LOGO_EMPTY_CO
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '07:28 PM - 11/22/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '09:08 PM - 11/22/2026';
 
 // PRODUCTION LOCK: while promptConfig.PRODUCTION_LOCKED === 'YES' these fields never change (the server
 // enforces the same list in protectLockedDocs). Metadata, thumbnails, review marks and reframes stay editable.
@@ -1250,40 +1250,59 @@ function parsePropositionSectionOptions(
   return { summary, options: extracted };
 }
 
+/**
+ * Library entries created only as research material (videos of the documentary's own subject, analyzed by Gemini
+ * from "Analizar varios videos a la vez"). They are never a structural "reference video": that one is a mold whose
+ * subject the prompts tell Gemini not to copy.
+ */
+function isResearchOnlyLibraryEntry(v: any): boolean {
+  if (!v) return false;
+  if (v.origin === 'video_analysis') return true;
+  if (v.origin) return false;
+  return Boolean(v.analysisStatus) && !(Array.isArray(v.structuralBlocks) && v.structuralBlocks.length > 0);
+}
+
+/** Option text as it is saved in the documentary: without "(label):" prefixes, markdown or "Recomendada" marks. */
+function cleanPropositionOptionValue(raw: string): string {
+  let s = String(raw || '').replace(/\s+/g, ' ').trim();
+  s = s.replace(/\*\*/g, '').replace(/^\*+\s*/, '').replace(/\s*\*+$/, '').trim();
+  s = s.replace(/^[([][^)\]]{1,160}[)\]]\s*[:—–-]\s*/, '').trim();
+  s = s
+    .replace(/\s*[([]\s*recomendad[ao]s?\s*[)\]]\s*/gi, ' ')
+    .replace(/\s*[—–-]\s*recomendad[ao]s?\s*$/i, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return s;
+}
+
 function resolvePartOptionsList(
   doc: DocumentaryProject,
   partNum: number,
   parsedOptions: string[],
-  defaultOptions: string[]
+  fallbackOptions: string[] = []
 ): string[] {
-  if (parsedOptions.length > 0) {
-    return parsedOptions;
-  }
+  const clean = (arr: unknown[]) =>
+    Array.from(new Set(arr.map((v) => cleanPropositionOptionValue(String(v || ''))).filter(Boolean)));
+  if (parsedOptions.length > 0) return clean(parsedOptions);
+  // Options saved when this documentary's Paso 1 answer was applied
   const jsonRaw = doc.promptConfig?.[`PROP_P${partNum}_OPTIONS_JSON`];
   if (jsonRaw) {
     try {
       const parsedJson = JSON.parse(jsonRaw);
       if (Array.isArray(parsedJson)) {
-        const cleanArr = parsedJson.map((s) => String(s || '').trim()).filter(Boolean);
-        if (cleanArr.length > 0) return Array.from(new Set(cleanArr));
+        const cleanArr = clean(parsedJson);
+        if (cleanArr.length > 0) return cleanArr;
       }
     } catch {}
   }
   const storedIndividual: string[] = [];
-  for (let i = 1; i <= 15; i++) {
+  for (let i = 1; i <= 25; i++) {
     const val = String(doc.promptConfig?.[`PROP_P${partNum}_OPT${i}`] || '').trim();
-    if (val && !storedIndividual.includes(val)) {
-      storedIndividual.push(val);
-    }
+    if (val) storedIndividual.push(val);
   }
-  if (storedIndividual.length > 0) {
-    const merged = [...storedIndividual];
-    for (const defOpt of defaultOptions) {
-      if (!merged.includes(defOpt)) merged.push(defOpt);
-    }
-    return merged;
-  }
-  return defaultOptions;
+  if (storedIndividual.length > 0) return clean(storedIndividual);
+  // Only real lists (the 8 protocol typologies); never invented example options shown as if Gemini wrote them
+  return clean(fallbackOptions);
 }
 
 function buildStage1PropositionParts(
@@ -1295,7 +1314,7 @@ function buildStage1PropositionParts(
     tags?: string[];
     structureSummary?: string;
   } | null,
-  topComments: Array<{
+  _topComments: Array<{
     text: string;
     repeatCount: number;
     totalLikes: number;
@@ -1305,301 +1324,44 @@ function buildStage1PropositionParts(
   const researchText = `${String(doc.deepResearchPrompt || '').trim()}\n${String(
     doc.deepResearchResult || ''
   ).trim()}`.trim();
-  const refTitle = String(
-    refVideo?.title ||
-      doc.promptConfig?.YOUTUBE_VIDEO_TITLE ||
-      doc.promptConfig?.ESTRUCTURA_VIRAL_TITULO ||
-      ''
-  ).trim();
+  const refTitle = String(refVideo?.title || '').trim();
   const durationMinutes = Math.max(10, Math.round((doc.targetDurationSeconds || 900) / 60));
+  const parsed = [1, 2, 3, 4, 5, 6, 7].map((n) => parsePropositionSectionOptions(researchText, n));
 
-  const topDoubt1 =
-    topComments[0]?.text ||
-    '¿Qué detalles decisivos quedaron fuera de la versión oficial de esta historia?';
-  const topDoubt2 =
-    topComments[1]?.text ||
-    '¿Cuáles fueron las verdaderas causas y consecuencias humanas detrás de este acontecimiento?';
+  const p1Options = resolvePartOptionsList(doc, 1, parsed[0].options, TYPOLOGIES);
+  const p2Options = resolvePartOptionsList(doc, 2, parsed[1].options);
 
-  // --- PARTE 1: TIPOLOGÍA DEL VIDEO (MULTI-SELECCIÓN · ARQUETIPOS UNIVERSALES BASADOS EN PATRONES VIRALES) ---
-  const parsedP1 = parsePropositionSectionOptions(researchText, 1);
-  const defaultTypologyOptions: string[] = [
-    '9. Crónica documental de crisis repetidas, rechazos históricos y giro contra todo pronóstico (Nueva tipología basada en patrón viral)',
-    '10. Arquetipo de imperios al borde de la liquidación, subastas históricas y resurgimiento (Nueva tipología basada en patrón de apertura)',
-    '11. Anatomía de errores fatales, secretos subestimados y rivalidad de titanes (Nueva tipología basada en patrón de tensión)',
-    '1. Un suceso histórico',
-    '4. Un misterio sin resolver',
-    '7. Una manipulación psicológica',
-    '6. Una conciencia o realidad colectiva',
-    '8. Una curiosidad',
-  ];
-  const p1Options = resolvePartOptionsList(doc, 1, parsedP1.options, defaultTypologyOptions);
-  const p1Summary =
-    parsedP1.summary ||
-    (refTitle
-      ? `Extrae todos los patrones virales que hicieron triunfar a "${refTitle}" en YouTube (sin duplicar su tema). Puedes seleccionar VARIAS tipologías combinadas al mismo tiempo para nuestro documental.`
-      : 'Permite seleccionar una o varias tipologías del protocolo combinadas con las nuevas tipologías arquetípicas creadas a partir de los patrones virales del video analizado.');
+  // Topic picked in Parte 2 (or typed by the producer, which is kept even if it is not one of the options)
+  const currentTopicStr = String(doc.topic || '').trim();
+  const currentTopicKey = cleanPropositionOptionValue(currentTopicStr).toLowerCase();
+  const matchedTopicIdx = currentTopicKey
+    ? p2Options.findIndex((opt) => {
+        const o = opt.toLowerCase();
+        return o === currentTopicKey || (currentTopicKey.length >= 20 && o.slice(0, 32) === currentTopicKey.slice(0, 32));
+      })
+    : -1;
+  const concordanceIdx = matchedTopicIdx >= 0 ? matchedTopicIdx : 0;
+  const activeTopicText = matchedTopicIdx >= 0 ? p2Options[matchedTopicIdx] : currentTopicStr || p2Options[0] || '';
+  const activeTopicShortLabel = (activeTopicText.split(':')[0] || '').trim().slice(0, 90) || 'el tema elegido';
+  // When Gemini proposed several subjects, its era / place k belongs to subject k: show that one first
+  const putConcordantFirst = (opts: string[]) =>
+    concordanceIdx > 0 && opts[concordanceIdx]
+      ? [opts[concordanceIdx], ...opts.filter((_, i) => i !== concordanceIdx)]
+      : opts;
+  const p3Options = putConcordantFirst(resolvePartOptionsList(doc, 3, parsed[2].options));
+  const p4Options = putConcordantFirst(resolvePartOptionsList(doc, 4, parsed[3].options));
+  const p5Options = resolvePartOptionsList(doc, 5, parsed[4].options);
+  const p6Options = resolvePartOptionsList(doc, 6, parsed[5].options);
+  const p7Options = resolvePartOptionsList(doc, 7, parsed[6].options);
 
-  // --- PARTE 2: TEMA CENTRAL DEL DOCUMENTAL / EPISODIO ---
-  const parsedP2 = parsePropositionSectionOptions(researchText, 2);
-  const defaultTopicOptions: string[] = [
-    'El Imperio del Caucho y la Fiebre del Oro Blanco en el Amazonas: quebró 2 veces, fue saboteado por 3 potencias y levantó una metrópoli europea en medio de la selva antes de colapsar.',
-    'La Porcelana Secreta de Meissen y el Alquimista Prisionero: falló en 2 hornos reales, fue rechazado 3 veces por las cortes europeas y rompió el monopolio milenario del oro blanco.',
-    'El Ferrocarril Imposible de los Andes (La Oroya): se declaró en bancarrota 2 veces, sobrevivió a 3 epidemias y perforó 60 túneles a casi 5 mil metros de altura contra todo pronóstico.',
-    'La Subasta de la Compañía del Mar del Sur y el Mayor Colapso Financiero del Siglo XVIII: cómo un imperio comercial que parecía indestructible se liquidó en una tarde arruinando hasta a Isaac Newton.',
-    'El Telégrafo Transatlántico de Cyrus Field: el cable submarino se rompió 2 veces en el fondo del océano, fue ridiculizado 3 veces por el Parlamento y terminó uniendo dos continentes en minutos.',
-    'El Secreto del Vidrio de Murano y los Artesanos Desterrados de Venecia: traicionados 2 veces, perseguidos por 3 decretos de muerte y creadores del monopolio más codiciado de Europa.',
-  ];
-  const p2Options = resolvePartOptionsList(doc, 2, parsedP2.options, defaultTopicOptions);
-  const p2Summary =
-    parsedP2.summary ||
-    `Proposición de múltiples temas históricos 100% originales y distintos al video investigado${
-      refTitle ? ` (usando "${refTitle}" únicamente como guía de estructura y patrones virales)` : ''
-    }, diseñados con los mismos gatillos de viralización en YouTube.`;
-
-  // --- DETERMINACIÓN DE SELECCIÓN ACTIVA EN PARTE 1 Y PARTE 2 PARA CONCORDANCIA EN CASCADA ---
-  const activeTypologyStr = String(doc.typology || p1Options.slice(0, 2).join(' + ')).trim();
-  const activeTypologiesList = parseSelectedTypologies(activeTypologyStr);
-  const currentTopicStr = String(doc.topic || p2Options[0] || '').trim();
-  const matchedTopicIdx = p2Options.findIndex(
-    (opt) =>
-      opt.trim().toLowerCase() === currentTopicStr.toLowerCase() ||
-      (currentTopicStr.length >= 20 &&
-        opt.trim().toLowerCase().slice(0, 32) === currentTopicStr.toLowerCase().slice(0, 32))
-  );
-  const selectedTopicIdx = matchedTopicIdx >= 0 ? matchedTopicIdx : 0;
-  const activeTopicText = p2Options[selectedTopicIdx] || currentTopicStr;
-  const activeTopicShortLabel =
-    activeTopicText.split(':')[0]?.trim() || `Opción ${selectedTopicIdx + 1} de Parte 2`;
-
-  const hasCrisisOrAuctionTypology = activeTypologiesList.some((t) =>
-    /crisis|subasta|liquidaci[oó]n|imperios|suceso\s+hist[oó]rico/i.test(t)
-  );
-  const hasMysteryOrPsychTypology = activeTypologiesList.some((t) =>
-    /misterio|secreto|psicol[oó]gica|errores\s+fatales|curiosidad/i.test(t)
-  );
-
-  // --- PARTE 3 (TIEMPO / ÉPOCA) Y PARTE 4 (LUGAR HISTÓRICO) 100% EN CONCORDANCIA CON PARTES 1 Y 2 ---
-  const parsedP3 = parsePropositionSectionOptions(researchText, 3);
-  const parsedP4 = parsePropositionSectionOptions(researchText, 4);
-
-  const buildConcordantTimeAndLocationForTopic = (
-    topicText: string,
-    topicIndex: number
-  ): { timeOptions: string[]; locationOptions: string[] } => {
-    const tNorm = topicText.toLowerCase();
-
-    if (/caucho|amazonas|oro\s+blanco\s+en\s+el\s+amazonas|manaos/i.test(tNorm)) {
-      return {
-        timeOptions: [
-          'Años 1879 – 1912 / Finales del Siglo XIX y principios del Siglo XX (Arco completo de 33 años: auge, fiebre extractiva, apogeo y colapso del Imperio del Caucho)',
-          'Años 1890 – 1910 / Cambio del Siglo XIX al Siglo XX (Las dos décadas de esplendor europeo en la selva, el Teatro Amazonas y el monopolio mundial)',
-          'Años 1876 – 1912 / Siglo XIX y albores del Siglo XX (Desde el contrabando de las 70 mil semillas en 1876 hasta la quiebra frente al caucho asiático en 1912)',
-          'Años 1909 – 1914 / Principios del Siglo XX (El lustro del espejismo financiero, el desplome de precios en Londres y la liquidación de los barones del caucho)',
-        ],
-        locationOptions: [
-          'Manaos y Belém do Pará, Brasil / Iquitos, Perú (Cuenca Amazónica y Bolsa de Londres, Inglaterra)',
-          'Manaos, Estado de Amazonas, Brasil (El París de los Trópicos, el Teatro Amazonas y el puerto fluvial del Río Negro)',
-          'Iquitos y Río Putumayo, Loreto, Perú / Manaos, Brasil (El corredor extractivo de la selva amazónica y los muelles de exportación)',
-          'Santarém y Belém do Pará, Brasil / Real Jardín Botánico de Kew, Londres, Inglaterra (La ruta del contrabando botánico que derribó el monopolio)',
-        ],
-      };
-    }
-
-    if (/meissen|porcelana|alquimista/i.test(tNorm)) {
-      return {
-        timeOptions: [
-          'Años 1701 – 1719 / Principios del Siglo XVIII (Arco completo: cautiverio del alquimista Böttger, experimentos fallidos y nacimiento de la manufactura real)',
-          'Años 1708 – 1710 / Siglo XVIII (Los dos años críticos de los hornos reales en Dresde y el hallazgo de la fórmula del oro blanco europeo)',
-          'Años 1701 – 1733 / Primera mitad del Siglo XVIII (Tres décadas de espionaje industrial, decretos secretos y reinado de Augusto el Fuerte)',
-          'Años 1705 – 1719 / Principios del Siglo XVIII (Desde el encierro en la fortaleza hasta la muerte prematura del creador a los 37 años)',
-        ],
-        locationOptions: [
-          'Dresde y Castillo de Albrechtsburg en Meissen, Sajonia, Alemania',
-          'Fortaleza de Königstein y Laboratorios Subterráneos de Dresde, Sajonia, Alemania',
-          'Castillo de Albrechtsburg en Meissen y Feria Comercial de Leipzig, Sajonia, Alemania',
-          'Dresde y Meissen, Electorado de Sajonia, Alemania / Corte Real de Varsovia, Polonia',
-        ],
-      };
-    }
-
-    if (/ferrocarril|andes|la\s+oroya|ticlio/i.test(tNorm)) {
-      return {
-        timeOptions: [
-          'Años 1870 – 1908 / Segunda mitad del Siglo XIX y albores del Siglo XX (Arco completo de 38 años: las dos bancarrotas, las epidemias y la llegada final a Huancayo)',
-          'Años 1870 – 1877 / Siglo XIX (Los siete años febriles de Henry Meiggs, los 60 túneles y la crisis fiscal que paralizó la obra)',
-          'Años 1890 – 1908 / Finales del Siglo XIX y principios del Siglo XX (La perforación del Paso de Galera a 4,781 metros y la culminación de la hazaña)',
-          'Años 1868 – 1893 / Segunda mitad del Siglo XIX (Desde el contrato ferroviario más caro de América hasta la apertura del viaducto de Verrugas)',
-        ],
-        locationOptions: [
-          'Lima, Callao y Paso de Ticlio en La Oroya, Cordillera de los Andes, Perú',
-          'Quebrada de Verrugas, Matucana y Paso de Galera, Lima y Junín, Perú',
-          'Puerto del Callao, Estación de Desamparados en Lima y La Oroya, Perú',
-          'Valle del Rímac, San Bartolomé y Cumbre de Ticlio (Cordillera Central de los Andes), Perú',
-        ],
-      };
-    }
-
-    if (/mar\s+del\s+sur|south\s+sea|1720|newton/i.test(tNorm)) {
-      return {
-        timeOptions: [
-          'Año 1720 / Siglo XVIII (El año de la gran burbuja financiera, la euforia especulativa de Londres y el colapso de otoño)',
-          'Años 1711 – 1720 / Principios del Siglo XVIII (Desde la fundación de la Compañía del Mar del Sur y el canje de la deuda nacional hasta la liquidación)',
-          'Años 1720 – 1721 / Siglo XVIII (El estallido de la burbuja, la ruina de Isaac Newton y los juicios secretos en el Parlamento)',
-          'Meses de Enero a Octubre de 1720 / Siglo XVIII (Los diez meses de delirio bursátil en que las acciones subieron diez veces antes de desplomarse)',
-        ],
-        locationOptions: [
-          'Change Alley y Parlamento de Westminster, Londres, Inglaterra',
-          'Exchange Alley (Cafés Financieros de Jonathan’s y Garraway’s) y la City de Londres, Inglaterra',
-          'Sede de la South Sea House en Threadneedle Street y Palacio de Westminster, Londres, Inglaterra',
-          'Londres, Inglaterra y Rutas Comerciales del Atlántico Sur (Imperio Británico y Puertos de América)',
-        ],
-      };
-    }
-
-    if (/tel[eé]grafo|transatl[aá]ntico|cyrus\s+field|cable\s+submarino/i.test(tNorm)) {
-      return {
-        timeOptions: [
-          'Años 1854 – 1866 / Mediados del Siglo XIX (Arco completo de 12 años: expediciones fallidas, dos cables rotos en el abismo y triunfo definitivo)',
-          'Años 1857 – 1858 / Siglo XIX (El primer cable transatlántico que funcionó solo tres semanas antes de quemarse bajo 2,000 voltios)',
-          'Años 1865 – 1866 / Siglo XIX (La odisea del buque Great Eastern, el rescate del cable perdido en el fondo del océano y la unión de dos continentes)',
-          'Años 1854 – 1868 / Mediados del Siglo XIX (De la burla en el Parlamento británico a la revolución de las comunicaciones mundiales)',
-        ],
-        locationOptions: [
-          'Valentia Island, Irlanda y Heart’s Content, Terranova, Canadá (Océano Atlántico Norte)',
-          'Nueva York, Estados Unidos / Londres, Inglaterra y Meseta Telegráfica del Atlántico Norte',
-          'Bahía de Foilhommerum en Valentia Island, Irlanda y Bahía de Trinity en Terranova, Canadá',
-          'Puerto de Sheerness, Inglaterra / Valentia Island, Irlanda y Heart’s Content, Canadá',
-        ],
-      };
-    }
-
-    if (/murano|venecia|vidrio/i.test(tNorm)) {
-      return {
-        timeOptions: [
-          'Años 1291 – 1605 / Siglo XIII al Siglo XVII (Arco histórico del aislamiento insular, el monopolio del cristallo y los decretos de persecución)',
-          'Año 1291 y Siglo XIV / Baja Edad Media (El decreto del Gran Consejo que confinó todos los hornos de Venecia en la isla de Murano)',
-          'Años 1450 – 1550 / Siglos XV y XVI (El siglo de oro de Angelo Barovier, el invención del vidrio cristalino y el apogeo veneciano)',
-          'Años 1665 – 1699 / Siglo XVII (La guerra de espionaje industrial de Colbert para robar los secretos de Murano hacia París)',
-        ],
-        locationOptions: [
-          'Isla de Murano y Palacio Ducal de Venecia, República de Venecia, Italia',
-          'Hornos de Rio dei Vetrai en la Isla de Murano, Laguna de Venecia, Italia',
-          'Isla de Murano, Venecia, Italia y Manufactura Real de los Espejos en París, Francia',
-          'Piazza San Marco, Tribunal de los Diez e Isla de Murano, República de Venecia, Italia',
-        ],
-      };
-    }
-
-    // Dynamic concordant generator for any custom topic Opción #k parsed from Gemini:
-    // Use ONLY the time/location corresponding to topicIndex so options from other topics never mix!
-    const baseTime =
-      parsedP3.options[topicIndex] ||
-      parsedP3.options[0] ||
-      'Siglo XIX y principios del Siglo XX';
-    const baseLoc =
-      parsedP4.options[topicIndex] ||
-      parsedP4.options[0] ||
-      'Escenario histórico principal (Ciudad, País)';
-
-    return {
-      timeOptions: [
-        `${baseTime} — Arco histórico completo (Origen, expansión, crisis y desenlace del tema seleccionado en Parte 2)`,
-        `${baseTime} — Década crítica de las caídas, rechazos y punto de quiebre financiero`,
-        `${baseTime} — Años exactos del origen del secreto, primeros ensayos y ascenso inicial`,
-        `${baseTime} — Etapa de clímax, subasta/reinvención y consecuencias históricas duraderas`,
-      ],
-      locationOptions: [
-        `${baseLoc} — Escenario histórico principal y epicentro de los acontecimientos`,
-        `${baseLoc} — Sedes operativas, talleres de producción y rutas comerciales clave`,
-        `${baseLoc} — Centros de poder financiero, tribunales y salas de negociación`,
-        `${baseLoc} — Escenarios de origen y expansión internacional del conflicto`,
-      ],
-    };
-  };
-
-  const concordantSet = buildConcordantTimeAndLocationForTopic(activeTopicText, selectedTopicIdx);
-  const p3Options = concordantSet.timeOptions;
-  const p3Summary = `🔗 En concordancia directa con Parte 1 (${
-    activeTypologiesList.length
-  } tipología${activeTypologiesList.length === 1 ? '' : 's'}) y Parte 2 (Opción ${
-    selectedTopicIdx + 1
-  }: "${activeTopicShortLabel}"). Todas las opciones de esta lista pertenecen exclusivamente a este tema para evitar cualquier contradicción cronológica.`;
-
-  const p4Options = concordantSet.locationOptions;
-  const p4Summary = `🔗 En concordancia directa con Parte 1 (${
-    activeTypologiesList.length
-  } tipología${activeTypologiesList.length === 1 ? '' : 's'}) y Parte 2 (Opción ${
-    selectedTopicIdx + 1
-  }: "${activeTopicShortLabel}"). Todos los escenarios geográficos de esta lista pertenecen exclusivamente a este tema y época.`;
-
-  // --- PARTE 5: APERTURA, GANCHO VISUAL (CLIP 1) Y CONTRADICCIÓN CENTRAL (ADAPTADA A PARTES 1 Y 2) ---
-  const parsedP5 = parsePropositionSectionOptions(researchText, 5);
-  const defaultHookOptions: string[] = [
-    `Patrón 1 — El Golpe de Martillo y la Liquidación Silenciosa (${activeTopicShortLabel}): Clip 1 (6s sin voz) en sala en penumbra donde un mazo de madera cae sobre la mesa. Entrada de voz (00:16): Por una fracción de su valor, el esfuerzo de décadas cambia de manos sin que nadie en la sala imagine lo que está a punto de nacer.`,
-    `Patrón 2 — La Fórmula Numérica 2 Caídas / 3 Rechazos (${activeTopicShortLabel}): Clip 1 (6s sin voz) de documentos lacrados sobre piedra fría. Entrada de voz (00:16): Colapsó 2 veces, fue rechazado 3 veces por quienes dominaban el mundo... y aun así terminó cambiando la historia para siempre.`,
-    `Patrón 3 — El Secreto Subestimado por el Gigante (${activeTopicShortLabel}): Clip 1 (6s sin voz) de registros y planos antiguos bajo lámpara de aceite. Entrada de voz (00:16): Tuvieron el secreto frente a sus ojos por una suma irrisoria y lo despreciaron tres veces, sin saber que estaban creando a su mayor rival.`,
-    `Patrón 4 — La Caída de un Imperio que Parecía Indestructible (${activeTopicShortLabel}): Clip 1 (6s sin voz) de una imponente fachada histórica vacía y cubierta de niebla. Entrada de voz (00:16): Llegó a concentrar fortunas incalculables, pero un solo error de soberbia borró décadas de gloria en una tarde.`,
-    `Patrón 5 — El Sacrificio del Creador Frente a la Ruina (${activeTopicShortLabel}): Clip 1 (6s sin voz) de un protagonista exhausto recogiendo sus cuadernos en un despacho vacío al anochecer. Entrada de voz (00:16): Cuando cerraron las puertas, aquel hombre lo había perdido casi todo, pero la huella de su obra apenas comenzaba.`,
-    `Patrón 6 — La Paradoja de la Complacencia y el Contraataque (${activeTopicShortLabel}): Clip 1 (6s sin voz) de dos mapas estratégicos enfrentados sobre una mesa de caoba. Entrada de voz (00:16): Mientras el monopolio dominante daba la victoria por segura, en silencio se gestaba la jugada que daría vuelta el tablero.`,
-  ];
-  const p5Options = parsedP5.options.length >= 3 ? parsedP5.options : defaultHookOptions;
-  const p5Summary = `🔗 Adaptado a Parte 1 (${
-    hasCrisisOrAuctionTypology
-      ? 'enfoque en crisis/liquidación'
-      : hasMysteryOrPsychTypology
-      ? 'enfoque en secreto/tensión'
-      : 'enfoque histórico documental'
-  }) y Parte 2 ("${activeTopicShortLabel}"): patrones de Hook inicial (Intro 8s + Clip 1 de 6s sin voz + entrada de locución en 00:16).`;
-
-  // --- PARTE 6: ESCALETA Y DESARROLLO POR ACTOS DEL CUERPO DOCUMENTAL ---
-  const parsedP6 = parsePropositionSectionOptions(researchText, 6);
-  const defaultEscaletaOptions: string[] = [
-    `Escaleta 1 (Estructura de Subasta Inversa — In Media Res · ${durationMinutes} min · ${activeTopicShortLabel}): Intro 8s + Hook (00:08-02:30): El instante crítico de liquidación · Acto I (02:30-08:30): El origen humilde y el hallazgo inicial · Acto II (08:30-15:00): La primera gran ruptura y el espejismo del éxito · Acto III (15:00-21:30): Los rechazos y la segunda caída · Acto IV (21:30-27:30): El giro estratégico definitivo · Clímax y Outro 8s.`,
-    `Escaleta 2 (Estructura de Doble Caída y Triple Rechazo · ${durationMinutes} min · ${activeTopicShortLabel}): Intro 8s + Hook (8%) · Bloque 1 (20%): El descubrimiento y primera expansión · Bloque 2 (25%): Primera crisis, error de cálculo y primer rechazo · Bloque 3 (22%): Segunda caída y momento de máxima tensión · Bloque 4 (17%): La reinvención radical · Cierre + Outro 8s (8%).`,
-    `Escaleta 3 (Estructura de Rivalidad de Titanes · ${durationMinutes} min · ${activeTopicShortLabel}): Intro 8s + Hook de contraste · Acto I: El monopolio dominante frente al desafiante · Acto II: Los errores fatales de complacencia ("${topDoubt1.slice(0, 65)}...") · Acto III: La guerra de patentes, rutas y supervivencia · Acto IV: El desenlace histórico · Outro 8s.`,
-    `Escaleta 4 (Estructura Forense de las Décadas Decisivas · ${durationMinutes} min · ${activeTopicShortLabel}): Intro 8s + Hook · Investigación cronológica etapa por etapa de cómo se levantó la obra y cómo tres decisiones sellaron su destino · Outro 8s.`,
-    `Escaleta 5 (Estructura de Micro-Ganchos Cada 4 Minutos · ${durationMinutes} min · ${activeTopicShortLabel}): 6 bloques diseñados con un cliffhanger documental al cierre de cada bloque (1. El precio del secreto, 2. La trampa de la materia prima, 3. La oferta rechazada, 4. El juicio y la crisis, 5. La jugada maestra, 6. El legado imborrable) + Intro 8s y Outro 8s.`,
-    `Escaleta 6 (Estructura Guiada por las Dudas de la Audiencia · ${durationMinutes} min · ${activeTopicShortLabel}): Responde en 5 actos orgánicos por qué caen los grandes monopolios ("${topDoubt2.slice(0, 65)}..."), qué ocurrió con sus protagonistas y cómo transformó la historia + Intro 8s y Outro 8s.`,
-  ];
-  const p6Options = parsedP6.options.length >= 3 ? parsedP6.options : defaultEscaletaOptions;
-  const p6Summary = `🔗 Dimensionada para ${durationMinutes} minutos en concordancia con "${activeTopicShortLabel}" (Parte 2) y las tipologías seleccionadas en Parte 1.`;
-
-  // --- PARTE 7: CLÍMAX HISTÓRICO, REVELACIÓN Y CIERRE REFLEXIVO ---
-  const parsedP7 = parsePropositionSectionOptions(researchText, 7);
-  const defaultClimaxOptions: string[] = [
-    `Clímax 1 — La Lección del Martillo y el Resurgimiento (${activeTopicShortLabel}): Volvemos a la escena crítica del inicio para revelar qué ocurrió exactamente después del colapso y qué lección dejó para la historia antes del Outro de 8s.`,
-    `Clímax 2 — La Paradoja del Rechazo (${activeTopicShortLabel}): El instante histórico en que quienes subestimaron o rechazaron aquel proyecto comprendieron la magnitud de lo que habían dejado escapar. Cierre solemne con Slogan Oficial y Outro de 8s.`,
-    `Clímax 3 — El Destino Humano del Creador vs. Su Legado (${activeTopicShortLabel}): El contraste conmovedor entre el sacrificio personal de los protagonistas y la huella imborrable que sobrevivió a su época. Cierre reflexivo y Outro de 8s.`,
-    `Clímax 4 — La Jugada que Cambió las Reglas (${activeTopicShortLabel}): Revelación final de cómo una crisis extrema obligó a crear la innovación que transformó para siempre aquel sector histórico. Cierre filosófico y Outro de 8s.`,
-    `Clímax 5 — El Impacto en la Vida Cotidiana y la Memoria Colectiva (${activeTopicShortLabel}): Conexión directa con cómo este episodio moldeó las ciudades, el comercio y la memoria de generaciones enteras. Outro de 8s.`,
-    `Clímax 6 — Ningún Imperio Tiene el Futuro Comprado (${activeTopicShortLabel}): Reflexión documental final sobre por qué ninguna potencia o monopolio es indestructible frente a la soberbia y el paso del tiempo. Cierre con Slogan y Outro de 8s.`,
-  ];
-  const p7Options = parsedP7.options.length >= 3 ? parsedP7.options : defaultClimaxOptions;
-  const p7Summary = `🔗 Desenlace y reflexión final en concordancia directa con "${activeTopicShortLabel}" (Parte 2), Parte 3 y Parte 4 antes de los 8 segundos de Outro Oficial.`;
-
-  const resolvedCurrentP3 =
-    doc.historicalTime && p3Options.includes(doc.historicalTime)
-      ? doc.historicalTime
-      : p3Options[0];
-  const resolvedCurrentP4 =
-    doc.historicalLocation && p4Options.includes(doc.historicalLocation)
-      ? doc.historicalLocation
-      : p4Options[0];
-  const resolvedCurrentP5 =
-    doc.promptConfig?.PROPOSICION_GANCHO &&
-    p5Options.includes(doc.promptConfig.PROPOSICION_GANCHO)
-      ? doc.promptConfig.PROPOSICION_GANCHO
-      : p5Options[0];
-  const resolvedCurrentP6 =
-    doc.promptConfig?.PROPOSICION_ESCALETA &&
-    p6Options.includes(doc.promptConfig.PROPOSICION_ESCALETA)
-      ? doc.promptConfig.PROPOSICION_ESCALETA
-      : p6Options[0];
-  const resolvedCurrentP7 =
-    doc.promptConfig?.PROPOSICION_CLIMAX &&
-    p7Options.includes(doc.promptConfig.PROPOSICION_CLIMAX)
-      ? doc.promptConfig.PROPOSICION_CLIMAX
-      : p7Options[0];
+  const hasStep1Text = Boolean(String(doc.deepResearchPrompt || '').trim());
+  const withMissingNote = (summary: string, opts: string[]) =>
+    opts.length === 0 && hasStep1Text
+      ? `${summary} ⚠️ No se pudieron leer opciones de esta parte en la respuesta de Gemini: revisa el texto del Paso 1 o vuelve a ejecutarlo.`
+      : summary;
+  // Value shown as active: what the documentary has saved (even when it is not one of the options), else option 1
+  const currentOr = (stored: string | undefined, opts: string[]) =>
+    String(stored || '').trim() ? cleanPropositionOptionValue(String(stored)) : opts[0] || '';
 
   return [
     {
@@ -1607,62 +1369,68 @@ function buildStage1PropositionParts(
       id: 'typology',
       title: 'Parte 1 · Tipología del Video (Etapa 1 del Protocolo — Permite Seleccionar Varias)',
       subtitle: 'Haz clic en todas las opciones que desees combinar (selecciona una o varias tipologías a la vez)',
-      summary: p1Summary,
-      currentValue: doc.typology || p1Options.slice(0, 2).join(' + '),
+      summary: withMissingNote(
+        parsed[0].summary ||
+          (refTitle
+            ? `Tipologías sugeridas a partir de los patrones de "${refTitle}". Puedes marcar varias a la vez.`
+            : 'Tipologías del protocolo que encajan con este documental. Puedes marcar varias a la vez.'),
+        parsed[0].options
+      ),
+      currentValue: String(doc.typology || ''),
       options: p1Options,
     },
     {
       partNumber: 2,
       id: 'topic',
       title: 'Parte 2 · Tema Central del Documental / Episodio',
-      subtitle: `Al elegir una opción aquí, las Partes 3, 4, 5, 6 y 7 se actualizan automáticamente en concordancia con este tema`,
-      summary: p2Summary,
+      subtitle: 'Al elegir una opción aquí, las Partes 3, 4, 5, 6 y 7 se actualizan en concordancia con este tema',
+      summary: withMissingNote(parsed[1].summary || 'Temas o ángulos propuestos por Gemini en el Paso 1.', p2Options),
       currentValue: activeTopicText,
       options: p2Options,
     },
     {
       partNumber: 3,
       id: 'historicalTime',
-      title: `Parte 3 · Tiempo / Época — Concordante con Opción ${selectedTopicIdx + 1} de Parte 2`,
-      subtitle: `Todas las ${p3Options.length} opciones cronológicas corresponden exclusivamente a "${activeTopicShortLabel}"`,
-      summary: p3Summary,
-      currentValue: resolvedCurrentP3,
+      title: 'Parte 3 · Tiempo / Época',
+      subtitle: `Épocas propuestas para "${activeTopicShortLabel}"`,
+      summary: withMissingNote(parsed[2].summary || `Épocas propuestas para "${activeTopicShortLabel}".`, p3Options),
+      currentValue: currentOr(doc.historicalTime, p3Options),
       options: p3Options,
     },
     {
       partNumber: 4,
       id: 'historicalLocation',
-      title: `Parte 4 · Lugar Histórico — Concordante con Opción ${selectedTopicIdx + 1} de Parte 2`,
-      subtitle: `Todos los ${p4Options.length} escenarios geográficos corresponden exclusivamente a "${activeTopicShortLabel}"`,
-      summary: p4Summary,
-      currentValue: resolvedCurrentP4,
+      title: 'Parte 4 · Lugar Histórico',
+      subtitle: `Lugares propuestos para "${activeTopicShortLabel}"`,
+      summary: withMissingNote(parsed[3].summary || `Lugares propuestos para "${activeTopicShortLabel}".`, p4Options),
+      currentValue: currentOr(doc.historicalLocation, p4Options),
       options: p4Options,
     },
     {
       partNumber: 5,
       id: 'hookAndAngle',
-      title: `Parte 5 · Apertura, Gancho Visual (Clip 1) y Contradicción Central`,
-      subtitle: `Patrones de apertura en concordancia con Parte 1 y "${activeTopicShortLabel}" (${p5Options.length} opciones)`,
-      summary: p5Summary,
-      currentValue: resolvedCurrentP5,
+      title: 'Parte 5 · Apertura, Gancho Visual (Clip 1) y Contradicción Central',
+      subtitle: `Aperturas propuestas para "${activeTopicShortLabel}" (${p5Options.length} opciones)`,
+      summary: withMissingNote(parsed[4].summary || 'Aperturas (Clip 1 y entrada de la voz) propuestas por Gemini.', p5Options),
+      currentValue: currentOr(doc.promptConfig?.PROPOSICION_GANCHO, p5Options),
       options: p5Options,
     },
     {
       partNumber: 6,
       id: 'actsEscaleta',
-      title: `Parte 6 · Escaleta y Desarrollo por Actos del Cuerpo Documental`,
-      subtitle: `Estructuras de bloques en concordancia con Parte 1 y "${activeTopicShortLabel}" (${p6Options.length} opciones)`,
-      summary: p6Summary,
-      currentValue: resolvedCurrentP6,
+      title: 'Parte 6 · Escaleta y Desarrollo por Actos del Cuerpo Documental',
+      subtitle: `Escaletas propuestas para ~${durationMinutes} minutos (${p6Options.length} opciones)`,
+      summary: withMissingNote(parsed[5].summary || `Escaletas propuestas para ~${durationMinutes} minutos.`, p6Options),
+      currentValue: currentOr(doc.promptConfig?.PROPOSICION_ESCALETA, p6Options),
       options: p6Options,
     },
     {
       partNumber: 7,
       id: 'climaxAndClosure',
-      title: `Parte 7 · Clímax Histórico, Revelación y Cierre Reflexivo`,
-      subtitle: `Desenlaces en concordancia con Parte 1 y "${activeTopicShortLabel}" antes del Outro de 8s (${p7Options.length} opciones)`,
-      summary: p7Summary,
-      currentValue: resolvedCurrentP7,
+      title: 'Parte 7 · Clímax Histórico, Revelación y Cierre Reflexivo',
+      subtitle: `Desenlaces propuestos antes del Outro de 8s (${p7Options.length} opciones)`,
+      summary: withMissingNote(parsed[6].summary || 'Desenlaces propuestos por Gemini.', p7Options),
+      currentValue: currentOr(doc.promptConfig?.PROPOSICION_CLIMAX, p7Options),
       options: p7Options,
     },
   ];
@@ -2771,83 +2539,6 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         ],
         comments: [
           {
-            id: 'seed-v76-c1',
-            text: '¿Por qué los jóvenes españoles preferían embarcarse casi adolescentes a los 14 o 16 años hacia Cuba y México antes de cumplir la edad del sorteo militar?',
-            author: 'Comunidad YouTube',
-            likes: 94,
-            repeatCount: 14,
-            category: 'question',
-            sourceType: 'analyzed_video',
-            videoTitle: 'La llegada de los italianos a Argentina',
-            videoId: 'clqshy5NB7I',
-          },
-          {
-            id: 'seed-v76-c2',
-            text: 'Hagan un documental sobre qué pasó con los miles de emigrantes españoles que NO se hicieron ricos ("los indianos fracasados") tras el desplome azucarero de 1921 y el Crac de 1929.',
-            author: 'Comunidad YouTube',
-            likes: 82,
-            repeatCount: 12,
-            category: 'suggestion',
-            sourceType: 'analyzed_video',
-            videoTitle: 'La llegada de los italianos a Argentina',
-            videoId: 'clqshy5NB7I',
-          },
-          {
-            id: 'seed-v76-c3',
-            text: '¿Cómo era realmente el campamento de cuarentena de Triscornia en La Habana y qué les hacían a los inmigrantes de tercera clase al bajar del barco?',
-            author: 'Comunidad YouTube',
-            likes: 76,
-            repeatCount: 11,
-            category: 'question',
-            sourceType: 'analyzed_video',
-            videoTitle: 'La llegada de los italianos a Argentina',
-            videoId: 'clqshy5NB7I',
-          },
-          {
-            id: 'seed-v76-c4',
-            text: '¿Es verdad que los dependientes españoles en las bodegas de La Habana y tiendas de abarrotes y panaderías de México tenían prohibido casarse y dormían sobre el mostrador?',
-            author: 'Comunidad YouTube',
-            likes: 68,
-            repeatCount: 9,
-            category: 'question',
-            sourceType: 'analyzed_video',
-            videoTitle: 'La llegada de los italianos a Argentina',
-            videoId: 'clqshy5NB7I',
-          },
-          {
-            id: 'seed-v76-c5',
-            text: 'Deberían contar la historia de los grandes hospitales y palacios que construyeron los inmigrantes con sus cuotas: la Quinta Covadonga, La Benéfica en La Habana y la Beneficencia Española en México.',
-            author: 'Comunidad YouTube',
-            likes: 59,
-            repeatCount: 8,
-            category: 'suggestion',
-            sourceType: 'analyzed_video',
-            videoTitle: 'La llegada de los italianos a Argentina',
-            videoId: 'clqshy5NB7I',
-          },
-          {
-            id: 'seed-v76-c6',
-            text: 'Hagan la continuación sobre el viaje del vapor Sinaia a Veracruz en junio de 1939 y cómo los refugiados republicanos transformaron la ciencia y la cultura en México.',
-            author: 'Comunidad YouTube',
-            likes: 53,
-            repeatCount: 7,
-            category: 'suggestion',
-            sourceType: 'analyzed_video',
-            videoTitle: 'La llegada de los italianos a Argentina',
-            videoId: 'clqshy5NB7I',
-          },
-          {
-            id: 'seed-v76-c7',
-            text: '¿Cómo funcionaban las "cartas de llamada" y las redes de emigración clandestina desde las rías de Galicia, Asturias y Canarias hacia América?',
-            author: 'Comunidad YouTube',
-            likes: 47,
-            repeatCount: 6,
-            category: 'question',
-            sourceType: 'analyzed_video',
-            videoTitle: 'La llegada de los italianos a Argentina',
-            videoId: 'clqshy5NB7I',
-          },
-          {
             id: 'analyzed_video-1-mw0ureh5',
             text: 'Mi papá italiano decidió volver a Italia a los 75 años y me vine a Italia con él. En casa siempre hablamos italiano y conservamos tradiciones italianas. Crecí con las dos culturas, pero extraño mi patria argentina cada día. Emigrar es tener el corazón partido en dos. 🇦🇷❤️',
             author: '@alessandramagni2147',
@@ -2960,28 +2651,6 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           },
         ],
         comments: [
-          {
-            id: 'seed-c1',
-            text: '¿Qué pasó con los túneles subterráneos que conectaban el torreón con el río Sena?',
-            author: 'Suscriptor Huellas',
-            likes: 34,
-            repeatCount: 6,
-            category: 'question',
-            sourceType: 'channel',
-            videoTitle: 'Castillo del Louvre Parte I',
-            videoId: 'louvre_medieval_p1',
-          },
-          {
-            id: 'seed-c2',
-            text: 'Deberían hacer la continuación contando cómo Carlos V transformó la fortaleza militar en residencia real y biblioteca.',
-            author: 'Suscriptor Huellas',
-            likes: 29,
-            repeatCount: 5,
-            category: 'suggestion',
-            sourceType: 'channel',
-            videoTitle: 'Castillo del Louvre Parte I',
-            videoId: 'louvre_medieval_p1',
-          },
         ],
       },
       {
@@ -3064,28 +2733,6 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           },
         ],
         comments: [
-          {
-            id: 'seed-c3',
-            text: '¿Cómo era realmente la higiene y los baños dentro de los palacios europeos antes del siglo XVIII?',
-            author: 'Comunidad Huellas',
-            likes: 51,
-            repeatCount: 8,
-            category: 'question',
-            sourceType: 'channel',
-            videoTitle: 'Las Princesas de la Edad Media',
-            videoId: 'princesas_edad_media',
-          },
-          {
-            id: 'seed-c4',
-            text: 'Hagan un documental sobre cómo vivían los sirvientes y guardias invisibles dentro de los grandes castillos.',
-            author: 'Comunidad Huellas',
-            likes: 41,
-            repeatCount: 4,
-            category: 'suggestion',
-            sourceType: 'channel',
-            videoTitle: 'Las Princesas de la Edad Media',
-            videoId: 'princesas_edad_media',
-          },
         ],
       },
       {
@@ -3184,6 +2831,10 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     () => STAGE1_ANALYZED_VIDEOS_SEED_FALLBACK
   );
   const [selectedAnalyzedVideoId, setSelectedAnalyzedVideoId] = useState<string>('');
+  // Status of the research analyses ("Analizar varios videos a la vez"), reported by that panel
+  const [researchAnalysesSnapshot, setResearchAnalysesSnapshot] = useState<
+    Array<{ videoId: string; analysisStatus?: string; title?: string }>
+  >([]);
   const [channelDeduplicatedComments, setChannelDeduplicatedComments] = useState<any[]>(() =>
     STAGE1_ANALYZED_VIDEOS_SEED_FALLBACK.flatMap((v) => v.comments || []).filter(
       (c) => c.sourceType === 'channel'
@@ -3261,7 +2912,10 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     return '';
   };
 
-  const findAlreadyInvestigatedLibraryVideo = (rawUrl: string, libList = analyzedVideosLibrary) => {
+  const findAlreadyInvestigatedLibraryVideo = (
+    rawUrl: string,
+    libList = analyzedVideosLibrary.filter((v: any) => !isResearchOnlyLibraryEntry(v))
+  ) => {
     const clean = String(rawUrl || '').trim();
     if (!clean) return null;
     const ytId = extractYoutubeVideoIdClient(clean);
@@ -3296,22 +2950,25 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
   const resolveSelectedLibraryVideoForDoc = (
     docToCheck: DocumentaryProject | null | undefined,
     libraryList: any[] = analyzedVideosLibrary,
-    fallbackSelectedId = ''
+    _fallbackSelectedId = ''
   ): any | null => {
+    // Only what the producer chose for THIS documentary (dropdown, "Investigar Video" or a pasted link). Never a
+    // guess from text that mentions a video, and never a research analysis of the documentary's own subject.
     if (!docToCheck || !Array.isArray(libraryList) || libraryList.length === 0) return null;
+    const structuralList = libraryList.filter((v: any) => v && !isResearchOnlyLibraryEntry(v));
+    if (structuralList.length === 0) return null;
     const cfg = docToCheck.promptConfig || {};
-    if (cfg.SELECTED_ANALYZED_VIDEO_CLEARED === 'SI' && !fallbackSelectedId && !cfg.SELECTED_ANALYZED_VIDEO_ID) {
+    if (cfg.SELECTED_ANALYZED_VIDEO_CLEARED === 'SI' && !cfg.SELECTED_ANALYZED_VIDEO_ID) {
       return null;
     }
 
-    const explicitId = String(cfg.SELECTED_ANALYZED_VIDEO_ID || fallbackSelectedId || '').trim();
+    const explicitId = String(cfg.SELECTED_ANALYZED_VIDEO_ID || '').trim();
     if (explicitId) {
-      const byId = libraryList.find(
+      const byId = structuralList.find(
         (v: any) =>
-          v &&
-          (String(v.videoId || '') === explicitId ||
-            String(v.id || '') === explicitId ||
-            String(v.realYoutubeId || '') === explicitId)
+          String(v.videoId || '') === explicitId ||
+          String(v.id || '') === explicitId ||
+          String(v.realYoutubeId || '') === explicitId
       );
       if (byId) return byId;
     }
@@ -3323,48 +2980,22 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         ''
     ).trim();
     if (linkCandidate) {
-      const byLink = findAlreadyInvestigatedLibraryVideo(linkCandidate, libraryList);
+      const byLink = findAlreadyInvestigatedLibraryVideo(linkCandidate, structuralList);
       if (byLink) return byLink;
     }
 
     const titleCandidate = String(
       cfg.SELECTED_ANALYZED_VIDEO_TITLE ||
         cfg.ESTRUCTURA_VIRAL_TITULO ||
-        cfg.YOUTUBE_VIDEO_TITLE ||
         ''
     )
       .trim()
       .toLowerCase();
     if (titleCandidate) {
-      const byTitle = libraryList.find(
-        (v: any) => v && String(v.title || '').trim().toLowerCase() === titleCandidate
+      const byTitle = structuralList.find(
+        (v: any) => String(v.title || '').trim().toLowerCase() === titleCandidate
       );
       if (byTitle) return byTitle;
-    }
-
-    const combinedStep1Context = `${String(docToCheck.deepResearchPrompt || '')}\n${String(
-      docToCheck.sectionsStructure || ''
-    )}`.toLowerCase();
-    const hasCompletedOrStartedStep1 = Boolean(
-      cfg.STAGE1_PART1_COMPLETED === 'SI' ||
-        (docToCheck.deepResearchPrompt || '').trim() ||
-        (docToCheck.deepResearchResult || '').trim()
-    );
-    if (combinedStep1Context.trim()) {
-      const byMention = libraryList.find((v: any) => {
-        if (!v) return false;
-        const vTitle = String(v.title || '').trim().toLowerCase();
-        const vYtId = String(v.realYoutubeId || v.videoId || '').trim().toLowerCase();
-        return (
-          (vTitle.length >= 12 && combinedStep1Context.includes(vTitle)) ||
-          (vYtId.length >= 8 && combinedStep1Context.includes(vYtId))
-        );
-      });
-      if (byMention) return byMention;
-    }
-
-    if (hasCompletedOrStartedStep1 && libraryList.length === 1) {
-      return libraryList[0];
     }
 
     return null;
@@ -3728,32 +3359,37 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     const p6 = parts[5];
     const p7 = parts[6];
 
+    // What the producer typed or picked is never overwritten: Gemini's answer only fills empty fields
+    // (preferExtractedValues is kept for callers but no longer replaces existing values).
+    void preferExtractedValues;
     const defaultCombinedTypology =
       p1.options.length >= 2
-        ? `${p1.options[0]} + ${p1.options.find((o) => /^[1-8]\./.test(o)) || p1.options[1]}`
+        ? `${p1.options[0]} + ${p1.options.find((o, i) => i > 0 && /^[1-8]\./.test(o)) || p1.options[1]}`
         : p1.options[0] || '';
-    const nextTypology =
-      !docToInspect.typology?.trim() || preferExtractedValues
-        ? defaultCombinedTypology
-        : docToInspect.typology;
-    const nextTopic =
-      !docToInspect.topic?.trim() || preferExtractedValues ? p2.options[0] : docToInspect.topic;
-    const nextHistoricalTime =
-      !docToInspect.historicalTime?.trim() || preferExtractedValues
-        ? p3.options[0]
-        : docToInspect.historicalTime;
-    const nextHistoricalLocation =
-      !docToInspect.historicalLocation?.trim() || preferExtractedValues
-        ? p4.options[0]
-        : docToInspect.historicalLocation;
+    const nextTypology = docToInspect.typology?.trim() ? docToInspect.typology : defaultCombinedTypology;
+    const nextTopic = docToInspect.topic?.trim() ? docToInspect.topic : p2.options[0] || '';
+    const nextHistoricalTime = docToInspect.historicalTime?.trim()
+      ? docToInspect.historicalTime
+      : p3.options[0] || '';
+    const nextHistoricalLocation = docToInspect.historicalLocation?.trim()
+      ? docToInspect.historicalLocation
+      : p4.options[0] || '';
+    // Hook, outline and climax only exist as Paso 1 options: keep the chosen one while it is still an option
+    const pickPartValue = (current: string | undefined, opts: string[]) => {
+      const cur = cleanPropositionOptionValue(String(current || ''));
+      if (opts.length === 0) return String(current || '');
+      return cur && opts.includes(cur) ? cur : opts[0];
+    };
+    const nextHook = pickPartValue(docToInspect.promptConfig?.PROPOSICION_GANCHO, p5.options);
 
     const dynamicPropConfig: Record<string, string> = {};
     parts.forEach((partObj, idx) => {
       const pNum = idx + 1;
       dynamicPropConfig[`PROP_P${pNum}_OPTIONS_JSON`] = JSON.stringify(partObj.options);
-      partObj.options.forEach((optStr, optIdx) => {
-        dynamicPropConfig[`PROP_P${pNum}_OPT${optIdx + 1}`] = optStr;
-      });
+      // Clear the slots of an earlier, longer list so old options never come back
+      for (let optIdx = 0; optIdx < 25; optIdx++) {
+        dynamicPropConfig[`PROP_P${pNum}_OPT${optIdx + 1}`] = partObj.options[optIdx] || '';
+      }
     });
 
     const docAfterStep1Preview: DocumentaryProject = {
@@ -3817,22 +3453,10 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         TEMA_VIDEO: nextTopic,
         TIEMPO_EPOCA: nextHistoricalTime,
         LUGAR_HISTORICO: nextHistoricalLocation,
-        PROPOSICION_GANCHO:
-          preferExtractedValues || !docToInspect.promptConfig?.PROPOSICION_GANCHO
-            ? p5.options[0]
-            : docToInspect.promptConfig.PROPOSICION_GANCHO,
-        ANGULO_CENTRAL:
-          preferExtractedValues || !docToInspect.promptConfig?.ANGULO_CENTRAL
-            ? p5.options[0]
-            : docToInspect.promptConfig.ANGULO_CENTRAL,
-        PROPOSICION_ESCALETA:
-          preferExtractedValues || !docToInspect.promptConfig?.PROPOSICION_ESCALETA
-            ? p6.options[0]
-            : docToInspect.promptConfig.PROPOSICION_ESCALETA,
-        PROPOSICION_CLIMAX:
-          preferExtractedValues || !docToInspect.promptConfig?.PROPOSICION_CLIMAX
-            ? p7.options[0]
-            : docToInspect.promptConfig.PROPOSICION_CLIMAX,
+        PROPOSICION_GANCHO: nextHook,
+        ANGULO_CENTRAL: nextHook,
+        PROPOSICION_ESCALETA: pickPartValue(docToInspect.promptConfig?.PROPOSICION_ESCALETA, p6.options),
+        PROPOSICION_CLIMAX: pickPartValue(docToInspect.promptConfig?.PROPOSICION_CLIMAX, p7.options),
         ...dynamicPropConfig,
       },
     };
@@ -5611,49 +5235,82 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     }
   };
 
-  // Keep selectedAnalyzedVideoId and activeDoc.promptConfig persistently synchronized per documentary
+  // Keep the dropdown state in step with the documentary's own choice. Read-only: opening a documentary never writes
+  // to it (the chosen video's summary is copied into the prompt when Paso 1 / Paso 2 are sent).
   useEffect(() => {
     if (!activeDoc) return;
     const matched = resolveSelectedLibraryVideoForDoc(activeDoc, analyzedVideosLibrary, '');
-    if (matched) {
-      const matchedId = String(matched.videoId || matched.id || '');
-      if (matchedId && selectedAnalyzedVideoId !== matchedId) {
-        setSelectedAnalyzedVideoId(matchedId);
-      }
-      const cfg = activeDoc.promptConfig || {};
-      const needsPromptConfigSync =
-        cfg.SELECTED_ANALYZED_VIDEO_ID !== matchedId ||
-        !cfg.ESTRUCTURA_VIRAL_RESUMEN ||
-        !cfg.SELECTED_ANALYZED_VIDEO_TITLE;
-      if (matchedId && needsPromptConfigSync) {
-        updateActiveDoc({
-          promptConfig: {
-            ...cfg,
-            SELECTED_ANALYZED_VIDEO_ID: matchedId,
-            SELECTED_ANALYZED_VIDEO_CLEARED: 'NO',
-            YOUTUBE_SELECTED_LIBRARY_LINK: String(matched.url || matchedId),
-            ESTRUCTURA_VIRAL_RESUMEN: String(matched.structureSummary || ''),
-            ESTRUCTURA_VIRAL_TITULO: String(matched.title || ''),
-            SELECTED_ANALYZED_VIDEO_SUMMARY: String(matched.structureSummary || ''),
-            SELECTED_ANALYZED_VIDEO_TITLE: String(matched.title || ''),
-            YOUTUBE_VIDEO_TITLE: String(matched.title || ''),
-            YOUTUBE_VIDEO_DESCRIPTION: String(matched.description || ''),
-            YOUTUBE_VIDEO_TAGS: Array.isArray(matched.tags)
-              ? matched.tags.join(', ')
-              : String(cfg.YOUTUBE_VIDEO_TAGS || ''),
-            YOUTUBE_VIDEO_CHANNEL: String(matched.channelTitle || cfg.YOUTUBE_VIDEO_CHANNEL || ''),
-          },
-        });
-      }
-    } else if (analyzedVideosLibrary.length > 0 && selectedAnalyzedVideoId) {
-      setSelectedAnalyzedVideoId('');
+    const matchedId = matched ? String(matched.videoId || matched.id || '') : '';
+    if (matchedId !== selectedAnalyzedVideoId && (matchedId || analyzedVideosLibrary.length > 0)) {
+      setSelectedAnalyzedVideoId(matchedId);
     }
   }, [
     activeDoc?.id,
     analyzedVideosLibrary,
     activeDoc?.promptConfig?.SELECTED_ANALYZED_VIDEO_ID,
     activeDoc?.promptConfig?.YOUTUBE_SELECTED_LIBRARY_LINK,
+    activeDoc?.promptConfig?.SELECTED_ANALYZED_VIDEO_CLEARED,
+  ]);
+
+  // Audience comments chosen for the research belong to each documentary (saved with it, restored on open)
+  useEffect(() => {
+    if (!activeDoc) return;
+    const cfg = activeDoc.promptConfig || {};
+    let ids: string[] = [];
+    const rawIds = String(cfg.SELECTED_RESEARCH_COMMENT_IDS || '').trim();
+    if (rawIds) {
+      try {
+        const arr = JSON.parse(rawIds);
+        if (Array.isArray(arr)) ids = arr.map(String);
+      } catch {}
+    } else {
+      // Older documentaries only saved the text: recover which comments it lists
+      const savedText = String(cfg.COMENTARIOS_AUDIENCIA_SELECCIONADOS || '');
+      if (savedText.trim()) {
+        ids = deduplicatedCommentsList
+          .filter((c) => c.text.trim() && savedText.includes(`"${c.text}"`))
+          .map((c) => c.id);
+      }
+    }
+    setSelectedResearchCommentIds((prev) => (prev.join('|') === ids.join('|') ? prev : ids));
+  }, [
+    activeDoc?.id,
+    activeDoc?.promptConfig?.SELECTED_RESEARCH_COMMENT_IDS,
+    activeDoc?.promptConfig?.COMENTARIOS_AUDIENCIA_SELECCIONADOS,
+    deduplicatedCommentsList,
+  ]);
+
+  // Paso 1 sent from the iPhone: the Mac only saves Gemini's text, so the first page that sees the finished
+  // command fills Tipología, Tema, Época, Lugar, the options and the duration (once per command).
+  useEffect(() => {
+    if (!activeDoc) return;
+    const cfg = activeDoc.promptConfig || {};
+    if (cfg.REMOTE_GEMINI_STAGE_STATUS !== 'completed') return;
+    let cmd: any = null;
+    try {
+      cmd = cfg.REMOTE_GEMINI_STAGE_COMMAND_JSON ? JSON.parse(cfg.REMOTE_GEMINI_STAGE_COMMAND_JSON) : null;
+    } catch {
+      return;
+    }
+    const commandId = String(cmd?.commandId || '');
+    if (!commandId || Number(cmd?.stageNumber) !== 10) return;
+    if (String(cfg.REMOTE_GEMINI_STAGE_ACK_ID || '') !== commandId) return;
+    if (String(cfg.STAGE1_PART1_APPLIED_FOR_CMD || '') === commandId) return;
+    // Only a fresh command, and never on a locked documentary
+    if (Date.now() - Number(cmd?.requestedAt || 0) > 24 * 60 * 60 * 1000) return;
+    if (isDocProductionLocked(activeDoc)) return;
+    const phase1Text = String(activeDoc.deepResearchPrompt || '').trim();
+    if (phase1Text.length < 200) return;
+    const patch = buildAndApplyStage1PropositionPatch(activeDoc, phase1Text, false, 'PART1');
+    updateActiveDoc(
+      { ...patch, promptConfig: { ...(patch.promptConfig || {}), STAGE1_PART1_APPLIED_FOR_CMD: commandId } },
+      { docId: activeDoc.id, source: 'stage1-remote-part1-apply' }
+    );
+  }, [
+    activeDoc?.id,
     activeDoc?.deepResearchPrompt,
+    activeDoc?.promptConfig?.REMOTE_GEMINI_STAGE_STATUS,
+    activeDoc?.promptConfig?.REMOTE_GEMINI_STAGE_ACK_ID,
   ]);
 
   const buildNewDocumentaryObject = (): DocumentaryProject => {
@@ -5949,48 +5606,43 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     if (stageNum === 10) {
       // Stage 1 — Parte 1 finished (4 Argon · Thinking Low · Sin Deep Research):
       // Investigated the reference video + determined 🏛️ Definición Histórica y Continuidad & ⏱️ Calibración Matemática (3 options per part)
-      const propositionPatch = buildAndApplyStage1PropositionPatch(activeDoc, text, true, 'PART1');
+      const propositionPatch = buildAndApplyStage1PropositionPatch(activeDoc, text, false, 'PART1');
       updateActiveDoc({
         ...propositionPatch,
         deepResearchPrompt: text,
       });
 
-      const ytLink = (activeDoc.promptConfig?.YOUTUBE_VIRAL_LINK || '').trim();
-      if (ytLink && text.length > 120) {
-        fetch('/api/youtube/analyzed-videos', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            url: ytLink,
-            title:
-              activeDoc.promptConfig?.SELECTED_ANALYZED_VIDEO_TITLE || activeDoc.topic || ytLink,
-            structureSummary: text.slice(0, 4500),
-          }),
-        })
-          .then((r) => r.json())
-          .then((d) => {
-            if (d?.ok && Array.isArray(d.videos)) {
-              const normVids = normalizeAnalyzedVideoEntries(d.videos);
-              setAnalyzedVideosLibrary(normVids);
-              const entryId = String(d.entry?.videoId || d.entry?.id || '');
-              if (entryId) {
-                setSelectedAnalyzedVideoId(entryId);
-                updateActiveDoc({
-                  promptConfig: {
-                    ...(activeDocRef.current?.promptConfig || activeDoc.promptConfig || {}),
-                    SELECTED_ANALYZED_VIDEO_ID: entryId,
-                    SELECTED_ANALYZED_VIDEO_CLEARED: 'NO',
-                    YOUTUBE_SELECTED_LIBRARY_LINK: String(d.entry?.url || ytLink || entryId),
-                    ESTRUCTURA_VIRAL_RESUMEN: String(d.entry?.structureSummary || text.slice(0, 4500)),
-                    ESTRUCTURA_VIRAL_TITULO: String(d.entry?.title || activeDoc.topic || ytLink),
-                    SELECTED_ANALYZED_VIDEO_SUMMARY: String(d.entry?.structureSummary || text.slice(0, 4500)),
-                    SELECTED_ANALYZED_VIDEO_TITLE: String(d.entry?.title || activeDoc.topic || ytLink),
-                  },
-                });
-              }
-            }
-          })
-          .catch(() => {});
+      // Section "1. RADIOGRAFÍA" is Gemini's analysis of the reference video itself: it replaces the template that
+      // "Investigar Video" saved from public data only, so the library keeps a real analysis for later documentaries.
+      const refVideoForAnalysis = resolveSelectedLibraryVideoForDoc(activeDoc, analyzedVideosLibrary, '');
+      const radiografiaSection = (
+        text.match(/\n\s*1\.\s*RADIOGRAF[IÍ]A[\s\S]*?(?=\n\s*2\.\s*DURACI[OÓ]N|$)/i)?.[0] || ''
+      ).trim();
+      if (
+        refVideoForAnalysis &&
+        radiografiaSection.length > 300 &&
+        isTemplateStructureSummary(String(refVideoForAnalysis.structureSummary || ''))
+      ) {
+        void (async () => {
+          for (const base of getMacMediaBridgeBases()) {
+            try {
+              const resp = await fetch(`${base}/api/youtube/analyzed-videos`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  id: refVideoForAnalysis.id,
+                  url: refVideoForAnalysis.url,
+                  title: refVideoForAnalysis.title,
+                  structureSummary: radiografiaSection.slice(0, 12000),
+                }),
+              });
+              if (!resp.ok || !(resp.headers.get('content-type') || '').includes('application/json')) continue;
+              const d = await resp.json();
+              if (d?.ok && Array.isArray(d.videos)) setAnalyzedVideosLibrary(normalizeAnalyzedVideoEntries(d.videos));
+              break;
+            } catch {}
+          }
+        })();
       }
     } else if (stageNum === 1 || stageNum === 2 || stageNum === 3) {
       // Stage 1 — Parte 2 finished (4 Argon · Thinking High + Deep Research):
@@ -6021,44 +5673,6 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         patch.rawReferencePrompts = parsedRefs.map((r) => `${r.tag}: ${r.prompt}`).join('\n\n');
       }
       updateActiveDoc(patch);
-
-      // If a YouTube viral link was analyzed during this research, persist its structure explanation in the Analyzed Videos Library
-      const ytLink = (activeDoc.promptConfig?.YOUTUBE_VIRAL_LINK || '').trim();
-      if (ytLink && text.length > 120) {
-        fetch('/api/youtube/analyzed-videos', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            url: ytLink,
-            title: activeDoc.promptConfig?.SELECTED_ANALYZED_VIDEO_TITLE || activeDoc.topic || ytLink,
-            structureSummary: text.slice(0, 4500),
-          }),
-        })
-          .then((r) => r.json())
-          .then((d) => {
-            if (d?.ok && Array.isArray(d.videos)) {
-              const normVids = normalizeAnalyzedVideoEntries(d.videos);
-              setAnalyzedVideosLibrary(normVids);
-              const entryId = String(d.entry?.videoId || d.entry?.id || '');
-              if (entryId) {
-                setSelectedAnalyzedVideoId(entryId);
-                updateActiveDoc({
-                  promptConfig: {
-                    ...(activeDocRef.current?.promptConfig || activeDoc.promptConfig || {}),
-                    SELECTED_ANALYZED_VIDEO_ID: entryId,
-                    SELECTED_ANALYZED_VIDEO_CLEARED: 'NO',
-                    YOUTUBE_SELECTED_LIBRARY_LINK: String(d.entry?.url || ytLink || entryId),
-                    ESTRUCTURA_VIRAL_RESUMEN: String(d.entry?.structureSummary || text.slice(0, 4500)),
-                    ESTRUCTURA_VIRAL_TITULO: String(d.entry?.title || activeDoc.topic || ytLink),
-                    SELECTED_ANALYZED_VIDEO_SUMMARY: String(d.entry?.structureSummary || text.slice(0, 4500)),
-                    SELECTED_ANALYZED_VIDEO_TITLE: String(d.entry?.title || activeDoc.topic || ytLink),
-                  },
-                });
-              }
-            }
-          })
-          .catch(() => {});
-      }
     } else if (stageNum === 4) {
       const normalizedScript = autoFitVoiceoverScriptToDuration(
         normalizeFirstDayOfMonthInVoiceover(normalizeQuantitiesToMil(text)),
@@ -15735,8 +15349,31 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
   ]);
 
   // Text generation strictly via logged-in Gemini Web (No API Calls)
+  // Videos marked as research for this documentary whose Gemini analysis has not finished: they would be left out
+  const confirmResearchAnalysesReady = (): boolean => {
+    const doc = activeDocRef.current || activeDoc;
+    const markedIds = String(doc?.promptConfig?.SELECTED_VIDEO_ANALYSES_IDS || '')
+      .split(',')
+      .map((x) => x.trim())
+      .filter(Boolean);
+    if (markedIds.length === 0) return true;
+    const pending = researchAnalysesSnapshot.filter(
+      (v) => markedIds.includes(v.videoId) && v.analysisStatus === 'analyzing'
+    );
+    if (pending.length === 0) return true;
+    const many = pending.length > 1;
+    return window.confirm(
+      `⏳ ${pending.length} video${many ? 's' : ''} marcado${many ? 's' : ''} para la investigación todavía se está${
+        many ? 'n' : ''
+      } analizando en Gemini. Si sigues ahora, quedará${many ? 'n' : ''} fuera de este paso.\n\n¿Enviar igual?`
+    );
+  };
+
   const handleGenerateWithGemini = async (stageNum: number) => {
     if (!activeDoc) return;
+    if ((stageNum === 10 || stageNum === 1 || stageNum === 2 || stageNum === 3) && !confirmResearchAnalysesReady()) {
+      return;
+    }
     let overridePromptConfig: Record<string, string> | undefined;
     if (stageNum === 10 || stageNum === 1 || stageNum === 2 || stageNum === 3) {
       const youtubeUrl = (activeDoc.promptConfig?.YOUTUBE_VIRAL_LINK || '').trim();
@@ -19199,7 +18836,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                         type="button"
                         onClick={() => {
                           const confirmed = window.confirm(
-                            `¿Estás seguro de que deseas limpiar toda la Etapa 1 de "${activeDoc.title}"?\n\nSe borrarán:\n• Definición Histórica (Tipología, Tema Central, Tiempo/Época, Lugar y Continuidad)\n• Video Analizado Seleccionado, Link pegado y Comentarios marcados\n• Resumen por Partes de la Proposición (Paso 1)\n• Prompt de Investigación y Resultado de Investigación Profunda (Paso 2)\n• Prompt Maestro Compilado\n\n(Se conservará el Nombre del Video y su Carpeta de Descarga).`
+                            `¿Estás seguro de que deseas limpiar toda la Etapa 1 de "${activeDoc.title}"?\n\nSe borrarán:\n• Definición Histórica (Tipología, Tema Central, Tiempo/Época, Lugar y Continuidad)\n• Video de referencia, Link pegado, Comentarios marcados y Videos de investigación marcados\n• Resumen por Partes de la Proposición (Paso 1)\n• Prompt de Investigación y Resultado de Investigación Profunda (Paso 2)\n• Prompt Maestro Compilado\n\n(Se conservará el Nombre del Video y su Carpeta de Descarga).`
                           );
                           if (!confirmed) return;
                           setSelectedAnalyzedVideoId('');
@@ -19213,7 +18850,54 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             mapProductionTypeToTipoProduccion(normalizedProdType);
                           const defaultSubReels =
                             normalizedProdType === 'REEL_9X16' ? '9X16' : '16X9';
+                          const clipsModeForClear =
+                            prevCfg.DURACION_CLIPS || activeDoc.clipDurationMode || '8_SEGUNDOS';
+                          // updateActiveDoc merges promptConfig key by key: every Etapa 1 key is set to '' explicitly
+                          const clearedStage1Keys: Record<string, string> = {};
+                          for (const k of [
+                            'SELECTED_ANALYZED_VIDEO_ID',
+                            'YOUTUBE_VIRAL_LINK',
+                            'YOUTUBE_SELECTED_LIBRARY_LINK',
+                            'YOUTUBE_EXTRACTED_FOR_LINK',
+                            'YOUTUBE_VIDEO_TITLE',
+                            'YOUTUBE_VIDEO_DESCRIPTION',
+                            'YOUTUBE_VIDEO_TAGS',
+                            'YOUTUBE_VIDEO_CHANNEL',
+                            'YOUTUBE_COMMENTS_RESEARCH_BLOCK',
+                            'ESTRUCTURA_VIRAL_TITULO',
+                            'ESTRUCTURA_VIRAL_RESUMEN',
+                            'SELECTED_ANALYZED_VIDEO_TITLE',
+                            'SELECTED_ANALYZED_VIDEO_SUMMARY',
+                            'COMENTARIOS_AUDIENCIA_SELECCIONADOS',
+                            'SELECTED_AUDIENCE_COMMENTS_BLOCK',
+                            'SELECTED_RESEARCH_COMMENT_IDS',
+                            'SELECTED_VIDEO_ANALYSES_IDS',
+                            'SELECTED_VIDEO_ANALYSES_BLOCK',
+                            'TIPOLOGIA_VIDEO',
+                            'TEMA_VIDEO',
+                            'TIEMPO_EPOCA',
+                            'LUGAR_HISTORICO',
+                            'EXCLUIR_PARTES_ANTERIORES',
+                            'PROPOSICION_GANCHO',
+                            'ANGULO_CENTRAL',
+                            'CONTRADICCION_CENTRAL',
+                            'PROPOSICION_ESCALETA',
+                            'PROPOSICION_CLIMAX',
+                            'STAGE1_PART1_COMPLETED',
+                            'INVESTIGACION_COMPLETADA',
+                            'SUGGESTED_DURATION_SECONDS',
+                            'SUGGESTED_DURATION_REASON',
+                            'STAGE1_PART1_APPLIED_FOR_CMD',
+                          ]) {
+                            clearedStage1Keys[k] = '';
+                          }
+                          for (let partN = 1; partN <= 7; partN++) {
+                            clearedStage1Keys[`PROP_P${partN}_OPTIONS_JSON`] = '';
+                            for (let optN = 1; optN <= 25; optN++) clearedStage1Keys[`PROP_P${partN}_OPT${optN}`] = '';
+                          }
                           const cleanedCfg: Record<string, string> = {
+                            ...clearedStage1Keys,
+                            SELECTED_ANALYZED_VIDEO_CLEARED: 'SI',
                             TIPO_PRODUCCION: prevCfg.TIPO_PRODUCCION || defaultTipoProduccion,
                             SUB_OPCION_POST: prevCfg.SUB_OPCION_POST || 'EXPECTATIVA_ESTRENO',
                             SUB_OPCION_REELS: prevCfg.SUB_OPCION_REELS || defaultSubReels,
@@ -19228,13 +18912,10 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             DURACION_CLIP_1:
                               prevCfg.DURACION_CLIP_1 ||
                               String(activeDoc.clip1DurationSeconds || 6),
-                            DURACION_CLIPS:
-                              prevCfg.DURACION_CLIPS ||
-                              activeDoc.clipDurationMode ||
-                              '8_SEGUNDOS',
+                            DURACION_CLIPS: clipsModeForClear,
                             DURACION_CLIPS_SEGUNDOS:
                               prevCfg.DURACION_CLIPS_SEGUNDOS ||
-                              (activeDoc.clipDurationMode === '8_SEGUNDOS' ? '8' : '10'),
+                              (clipsModeForClear === '10_SEGUNDOS' ? '10' : '8'),
                             DURACION_TOTAL_SEGUNDOS:
                               prevCfg.DURACION_TOTAL_SEGUNDOS ||
                               String(activeDoc.targetDurationSeconds || 900),
@@ -19244,8 +18925,6 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                               prevCfg.BROLL_ESTATICO_INTERVALO_MIN || '2',
                             UBICACION_INTRO_MARCA:
                               prevCfg.UBICACION_INTRO_MARCA || 'INTRO_INICIO_00',
-                            CLEAN_RESET_V77: '2026_11_08_1912',
-                            V77_MULTI_PASO1_UPDATED: '2026_11_09_PENICILINA_RESTORED',
                             ...(prevCfg.GEMINI_CHAT_URL ? { GEMINI_CHAT_URL: prevCfg.GEMINI_CHAT_URL } : {}),
                             ...(getDocDeepResearchChatUrl(activeDoc)
                               ? { GEMINI_DEEP_RESEARCH_CHAT_URL: getDocDeepResearchChatUrl(activeDoc) }
@@ -19533,7 +19212,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                           Tema Central del Documental / Episodio
                         </label>
                         <span className="text-[10px] text-emerald-400 font-semibold">
-                          ✨ Se llena automáticamente luego de la investigación
+                          ✨ Si lo escribes, el Paso 1 lo respeta y propone ángulos; en blanco, se llena tras la investigación
                         </span>
                       </div>
                       <textarea
@@ -19944,12 +19623,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                       <button
                         type="button"
                         disabled={stage1LoadingLibrary}
-                        onClick={() =>
-                          loadStage1AnalyzedVideosAndComments(
-                            activeDoc.promptConfig?.YOUTUBE_VIRAL_LINK || '',
-                            activeDoc.topic || activeDoc.title || ''
-                          )
-                        }
+                        onClick={() => loadStage1AnalyzedVideosAndComments(false)}
+                        title="Recarga la biblioteca y los comentarios (no investiga el link pegado)"
                         className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs text-amber-300 font-semibold flex items-center gap-1.5 cursor-pointer"
                       >
                         <RefreshCw
@@ -19960,7 +19635,15 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                     </div>
 
                     {/* Varios videos analizados a la vez por Gemini Web; se eligen varios como material de investigación */}
-                    <MultiVideoResearchPanel activeDoc={activeDoc} updateActiveDoc={updateActiveDoc} />
+                    <MultiVideoResearchPanel
+                      activeDoc={activeDoc}
+                      updateActiveDoc={updateActiveDoc}
+                      onAnalysesChange={(vids) =>
+                        setResearchAnalysesSnapshot(
+                          vids.map((v) => ({ videoId: v.videoId, analysisStatus: v.analysisStatus, title: v.title }))
+                        )
+                      }
+                    />
 
                     {/* Dropdown de Videos Analizados Previamente */}
                     {(() => {
@@ -19971,18 +19654,21 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                       );
                       const effectiveSelectedVideoId =
                         selectedAnalyzedVideoId || effectiveSelectedVideoObj?.videoId || '';
+                      const structuralLibraryVideos = analyzedVideosLibrary.filter(
+                        (v: any) => !isResearchOnlyLibraryEntry(v)
+                      );
                       return (
                         <div className="space-y-2">
                           <label className="block text-xs font-semibold text-slate-300 mb-1">
-                            Seleccionar Estructura de Video Analizado Previamente ({analyzedVideosLibrary.length}{' '}
-                            en biblioteca — queda seleccionado para este documental en Paso 1 y Paso 2)
+                            Video de referencia de OTRO tema, usado como molde de estructura y patrones virales ({structuralLibraryVideos.length}{' '}
+                            en biblioteca — queda seleccionado para este documental en Paso 1 y Paso 2). Los videos de tu mismo tema van arriba, en «Analizar varios videos a la vez».
                           </label>
                           <select
                             value={effectiveSelectedVideoId}
                             onChange={(e) => {
                               const nextId = e.target.value;
                               setSelectedAnalyzedVideoId(nextId);
-                              const found = analyzedVideosLibrary.find((v) => v.videoId === nextId);
+                              const found = structuralLibraryVideos.find((v: any) => v.videoId === nextId);
                               if (found) {
                                 // Rule 2: Only 1 video can be used. Selecting from library clears any pasted link in the text box and locks it for this documentary.
                                 updateActiveDoc({
@@ -20029,7 +19715,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             <option value="">
                               -- Selecciona un video analizado previamente de la lista --
                             </option>
-                            {analyzedVideosLibrary.map((v) => (
+                            {structuralLibraryVideos.map((v: any) => (
                               <option key={v.videoId} value={v.videoId}>
                                 🎬 {v.title} ({v.channelTitle})
                               </option>
@@ -20329,6 +20015,11 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             </div>
                           </div>
 
+                          {isTemplateStructureSummary(String(activeVideo.structureSummary || '')) && (
+                            <div className="text-[11px] text-sky-200 bg-sky-500/10 border border-sky-500/30 rounded-lg px-3 py-2">
+                              ℹ️ Este resumen sale solo de datos públicos (título, descripción, tags y comentarios). En el Paso 1 Gemini verá el video completo y su análisis quedará guardado aquí.
+                            </div>
+                          )}
                           <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-3 max-h-56 overflow-y-auto">
                             <pre className="text-[11px] text-slate-200 whitespace-pre-wrap font-sans leading-relaxed">
                               {activeVideo.structureSummary}
@@ -20545,8 +20236,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                       .join('\n');
                                     updateActiveDoc({
                                       promptConfig: {
-                                        ...(activeDoc.promptConfig || {}),
                                         COMENTARIOS_AUDIENCIA_SELECCIONADOS: selectedLines,
+                                        SELECTED_RESEARCH_COMMENT_IDS: JSON.stringify(nextIds),
                                       },
                                     });
                                   }}
@@ -20682,31 +20373,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             activeDoc.typology,
                             optionValue
                           );
-                          const nextParts = buildStage1PropositionParts(
-                            { ...activeDoc, typology: nextCombinedTypology },
-                            selectedVideoObj,
-                            selectedComments
-                          );
-                          const nextTime = nextParts[2]?.options.includes(
-                            activeDoc.historicalTime || ''
-                          )
-                            ? activeDoc.historicalTime
-                            : nextParts[2]?.options[0] || activeDoc.historicalTime;
-                          const nextLoc = nextParts[3]?.options.includes(
-                            activeDoc.historicalLocation || ''
-                          )
-                            ? activeDoc.historicalLocation
-                            : nextParts[3]?.options[0] || activeDoc.historicalLocation;
                           updateActiveDoc({
                             typology: nextCombinedTypology,
-                            historicalTime: nextTime,
-                            historicalLocation: nextLoc,
-                            promptConfig: {
-                              ...(activeDoc.promptConfig || {}),
-                              TIPOLOGIA_VIDEO: nextCombinedTypology,
-                              TIEMPO_EPOCA: nextTime || '',
-                              LUGAR_HISTORICO: nextLoc || '',
-                            },
+                            promptConfig: { TIPOLOGIA_VIDEO: nextCombinedTypology },
                           });
                         } else if (partId === 'topic') {
                           // Cascade historical concordance automatically to Partes 3, 4, 5, 6 y 7 when changing Tema Central (Parte 2)
@@ -20821,7 +20490,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                 const patch = buildAndApplyStage1PropositionPatch(
                                   activeDoc,
                                   activeDoc.deepResearchPrompt || activeDoc.deepResearchResult,
-                                  true,
+                                  false,
                                   'PART1'
                                 );
                                 updateActiveDoc(patch);
@@ -21002,13 +20671,14 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                         <button
                           type="button"
                           disabled={aiGenerating}
-                          onClick={() =>
+                          onClick={() => {
+                            if (!confirmResearchAnalysesReady()) return;
                             handleSendStageToGeminiWeb(1, undefined, {
                               enableHighModel: false,
                               enableArgonLow: true,
                               enableDeepResearch: true,
-                            })
-                          }
+                            });
+                          }}
                           title="Activa Deep Research (+ -> More tools -> Deep research) y 4 Carbon con Thinking level en Low"
                           className="w-full sm:w-auto max-w-full px-3.5 sm:px-5 py-2.5 sm:py-3 rounded-xl font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg transition whitespace-normal text-left sm:text-center bg-gradient-to-r from-purple-500 via-indigo-500 to-amber-400 hover:from-purple-400 hover:via-indigo-400 hover:to-amber-300 disabled:opacity-50 text-slate-950 cursor-pointer shadow-purple-500/25"
                         >

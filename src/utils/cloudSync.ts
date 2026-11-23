@@ -1301,188 +1301,6 @@ Línea 2: DE HUIR DE LA GUERRA EN ESPAÑA A LEVANTAR UN IMPERIO EN AMÉRICA`;
     : nextRawClipsText;
   const nextRawReferencePrompts = doc.rawReferencePrompts || '';
   const nextCompiledMasterPrompt = normalizeEngineRefs(doc.compiledMasterPrompt);
-  const isVideo77Doc =
-    doc.id === 'doc-video-77-huellas' || /^Video\s*77\b/i.test(String(doc.title || '').trim());
-  const hasCauchoStaleData =
-    String(doc.topic || '').includes('Imperio del Caucho') ||
-    String(doc.promptConfig?.TEMA_VIDEO || '').includes('Imperio del Caucho');
-  const needsV77MultiUpdate =
-    isVideo77Doc &&
-    (hasCauchoStaleData || doc.promptConfig?.V77_MULTI_PASO1_UPDATED !== '2026_11_09_PENICILINA_PEPSI_SYNCED');
-
-  if (needsV77MultiUpdate) {
-    const p1Opts = [
-      'Tipología #9 (Nueva Tipología Arquetípica Universal #1 - Patrón Central): Crónica de colapsos repetidos, rechazos del monopolio dominante y resurrección histórica contra todo pronóstico (El Patrón del Hallazgo Despreciado que Cambió el Mundo).',
-      'Tipología #10 (Nueva Tipología Arquetípica Universal #2 - Patrón de Apertura/Crisis): El instante de liquidación total donde años de esfuerzo se pierden en segundos por un cuello de botella material o logístico.',
-      'Tipología #11 (Nueva Tipología Arquetípica Universal #3 - Patrón de Rivalidad/Secreto): La ceguera institucional de los imperios establecidos que rechazan tres veces la innovación nacida en la escasez y el secreto oculto a plena vista.',
-      'Tipología #1 del Protocolo (Un suceso histórico): La carrera contrarreloj de 1928 a 1945 para transformar un hongo inestable de laboratorio en el salvavidas industrial de la Segunda Guerra Mundial.',
-      'Tipología #2 del Protocolo (Un lugar histórico): Del desordenado sótano del Hospital St. Mary en Londres y la Enfermería Radcliffe en Oxford a los tanques de fermentación de Peoria.',
-      'Tipología #3 del Protocolo (Un personaje): El contraste psicológico entre el bacteriólogo solitario Alexander Fleming y el equipo de rescate de Howard Florey, Ernst Chain y Norman Heatley.',
-      'Tipología #4 del Protocolo (Un misterio sin resolver / Azar histórico): La anomalía estadística de la ventana entreabierta de 1928 y la espora exacta que disolvió las bacterias estafilococos.',
-      'Tipología #5 del Protocolo (Un true crime / Negligencia histórica): La tragedia evitable de los doce años de indiferencia burocrática en los que millones de pacientes perecieron teniendo la cura publicada en un boletín.',
-      'Tipología #6 del Protocolo (Una conciencia o realidad colectiva): La vida cotidiana de los trabajadores y soldados antes de los antibióticos, cuando un rasguño con una espina de rosa equivalía a una sentencia letal.',
-      'Tipología #7 del Protocolo (Una manipulación psicológica / Dogma): Cómo el dogma médico de las vacunas desestimó durante más de una década el poder químico del moho.',
-      'Tipología #8 del Protocolo (Una curiosidad): Los métodos insólitos de supervivencia científica: cultivar medicina en bacinillas de porcelana, reciclar el fármaco de la orina de los enfermos y ocultar esporas en las costuras de los abrigos.',
-    ];
-    const p2Opts = [
-      '(Tema Central Principal — Fórmula Exacta "2 Caídas y 3 Rechazos" en La Penicilina): La Penicilina: Abandonada 2 veces en el olvido, rechazada 3 veces por los gigantes médicos y farmacéuticos… y así venció a la muerte en la Segunda Guerra Mundial. Cubre el hallazgo fortuito de 1928, el abandono de 1929, la muerte del primer paciente en 1941 al agotarse la dosis, las 3 negativas británicas de escalado y la explosión industrial en Estados Unidos y Latinoamérica.',
-      '(Variante de La Penicilina — Escasez Extrema y Supervivencia Humana): El Oro Líquido Reciclado de la Orina y las Bacinillas de Oxford. Cómo cuatro científicos sin fondos cultivaron el moho salvador en latas de galletas bajo los bombardeos de 1940, viendo morir a su primer paciente tras filtrar cada gota de su orina por falta de apoyo industrial.',
-      '(Variante de La Penicilina — Secreto, Contrabando y Guerra Industrial): Las Esporas en el Abrigo y el Melón Podrido de Peoria. La misión secreta de 1941 para cruzar el Atlántico con el hongo impregnado en la ropa por temor a los submarinos alemanes y cómo un melón de mercado en Illinois multiplicó por millones un fármaco que nadie sabía producir.',
-      '(Variante de La Penicilina — Ceguera y Complacencia Institucional): Doce Años en un Estante Polvoriento. La autopsia de cómo los mayores sabios del Medical Research Council ignoraron en 1929 el descubrimiento de Alexander Fleming, demostrando que la complacencia académica es el peor enemigo del progreso humano.',
-      '(Variante de La Penicilina — Impacto Global y Huella en Hispanoamérica): De las Trincheras de Normandía a los Hospitales de La Habana, México y el Río de la Plata. Cómo la producción masiva de 650 mil millones de unidades mensuales salvó a los soldados aliados en 1944 y transformó la vida de las familias trabajadoras y migrantes en América Latina.',
-      '(Variante de La Penicilina — Paradoja Moral y Profecía Científica): El Regalo sin Patente y la Advertencia Ignorada de 1945. Por qué los creadores renunciaron a una fortuna multimillonaria para entregar la penicilina a la humanidad y cómo el propio Fleming profetizó que la soberbia humana crearía bacterias indestructibles.',
-      '(Tema Histórico Alternativo Original #1 — Hazaña de Salvamento): La Radio y el Telégrafo Inalámbrico: Destruida 2 veces por las tormentas, rechazada 3 veces por el gobierno y los físicos… y así salvó a 712 sobrevivientes del Titanic en alta mar. El rechazo oficial a Marconi en Italia y las antenas derribadas antes de salvar vidas en el Atlántico Norte.',
-      '(Tema Histórico Alternativo Original #2 — Imperio Extractivo Olvidado): El Imperio del Caucho en el Amazonas: Quebró 2 veces, fue saboteado por 3 potencias y levantó una metrópoli europea en medio de la selva antes de colapsar. El auge de los barones del caucho, el robo de 70 mil semillas y la liquidación frente a las plantaciones asiáticas.',
-    ];
-    const p3Opts = [
-      '(Arco Integral de 17 Años de La Penicilina — Recomendada): Años 1928 a 1945, Siglo XX (Desde el hallazgo del 28 de septiembre de 1928 en Londres hasta el triunfo global y el Nobel de 1945).',
-      '(Anclaje In Media Res en el Punto de Quiebre): Año 1941, Siglo XX (Con retrospectiva a 1928 y proyección a 1945; anclado en el 15 de marzo de 1941, día en que se agota el fármaco y fallece el primer paciente en Oxford).',
-      '(Anclaje en el Descubrimiento y Primer Rechazo): Años 1928 a 1929, Siglo XX (Con expansión hacia la Segunda Guerra Mundial en 1940–1944).',
-      '(Arco de Crisis Bélica e Industrialización): Años 1939 a 1944, Siglo XX (Del inicio del Blitz sobre Inglaterra al desembarco de Normandía en junio de 1944).',
-      '(Arco de Larga Duración Médica): Años 1914 a 1945, Siglo XX (Desde el trauma de Fleming viendo soldados sucumbir a la sepsis en la Primera Guerra Mundial hasta la victoria antibiótica de 1945).',
-      '(Arco de Posguerra y Expansión Internacional): Años 1928 a 1950, Siglo XX (Incluyendo la llegada masiva del antibiótico a las boticas y clínicas de Cuba, México y Sudamérica).',
-      '(Época concordante con Alternativa #1 - La Radio): Años 1895 a 1912, Siglos XIX y XX (De los primeros experimentos en Bolonia al rescate en el Atlántico en 1912).',
-      '(Época concordante con Alternativa #2 - Imperio del Caucho): Años 1879 a 1912, Finales del Siglo XIX y principios del Siglo XX (Arco de 33 años de fiebre extractiva y colapso).',
-    ];
-    const p4Opts = [
-      '(Ruta Principal Completa de La Penicilina — Recomendada): Londres y Oxford, Inglaterra (Con conexión industrial a Peoria, Estados Unidos y eco hospitalario en La Habana, Cuba, México y el Río de la Plata).',
-      '(Epicentro del Hallazgo): Hospital St. Mary, Londres, Inglaterra.',
-      '(Epicentro de la Crisis Clínica): Enfermería Radcliffe, Oxford, Inglaterra.',
-      '(Epicentro del Escalado Industrial): Peoria y Nueva York, Estados Unidos.',
-      '(Escenario de Prueba de Fuego Bélica): Playas de Normandía, Francia (En conexión con Londres, Inglaterra y Peoria, Estados Unidos).',
-      '(Ruta Transatlántica e Hispanoamericana): Londres, Inglaterra — Peoria, Estados Unidos — La Habana, Cuba — Montevideo, Uruguay.',
-      '(Lugar concordante con Alternativa #1 - La Radio): Bolonia, Italia y Cornualles, Inglaterra (Con desenlace en el Atlántico Norte).',
-      '(Lugar concordante con Alternativa #2 - Imperio del Caucho): Manaos y Belém do Pará, Brasil / Iquitos, Perú (Con conexión a Londres, Inglaterra).',
-    ];
-    const p5Opts = [
-      '(El Equivalente al Golpe de Mazo: El Frasco Vacío de 1941 — Recomendada): 00:08 - 00:16 (Clip 1 mudo): En la penumbra de la Enfermería Radcliffe, las manos temblorosas de un médico apoyan con un golpe seco el último frasco de vidrio vacío sobre la mesa metálica mientras, al fondo, una sábana blanca cubre el lecho del policía Albert Alexander. 00:16 (Voz): "Año 1941, hospital de Oxford, Inglaterra. Por la falta de apenas unos miligramos de polvo amarillo, el primer ser humano rescatado de una infección letal acababa de recaer y perder la vida." La contradicción de cómo la mayor cura de la humanidad estuvo doce años abandonada en un estante.',
-      '(El Silencio de la Sala Médica — 1929): 00:08 - 00:16 (Clip 1 mudo): Alexander Fleming termina su exposición frente al Medical Research Council; ningún médico en la sala de caoba levanta la vista mientras recogen sus papeles en absoluto silencio. 00:16 (Voz): "Año 1929, salón médico de Londres, Inglaterra. En menos de quince minutos de indiferencia, la élite científica británica archivó en el olvido la fórmula que habría salvado millones de vidas".',
-      '(La Placa al Borde del Desinfectante — 1928): 00:08 - 00:16 (Clip 1 mudo): Plano macro de las pinzas de latón de Fleming deteniéndose a un milímetro de sumergir la caja de Petri con el moho verdoso en una bandeja de ácido antiséptico. 00:16 (Voz): "Año 1928, Hospital St. Mary, Londres, Inglaterra. Una ventana mal cerrada y una pila de platos sucios olvidados durante las vacaciones estaban a un segundo de ser destruidos para siempre".',
-      '(El Contrabando en las Costuras de Lana — 1941): 00:08 - 00:16 (Clip 1 mudo): En un laboratorio a oscuras bajo el sonido distante de sirenas antiaéreas, dos científicos frotan líquido marrón con esporas de moho dentro del forro de sus abrigos antes de abordar un vuelo nocturno. 00:16 (Voz): "Año 1941, laboratorio de Oxford, Inglaterra. Rechazados tres veces por la industria de su propio país, dos investigadores ocultaron en su ropa el único cultivo capaz de cambiar el rumbo de la guerra".',
-      '(El Filtro de Orina Desesperado — 1941): 00:08 - 00:16 (Clip 1 mudo): Norman Heatley pedalea bajo la lluvia nocturna de Oxford cargando frascos de vidrio con orina de hospital para extraer en el laboratorio los últimos rastros de penicilina. 00:16 (Voz): "Año 1941, calles de Oxford, Inglaterra. Cuando los grandes laboratorios les cerraron las puertas, la única forma de mantener vivo a un paciente fue reciclar el medicamento gota a gota de su propio cuerpo".',
-      '(El Melón de Dos Dólares que Valía un Imperio — 1943): 00:08 - 00:16 (Clip 1 mudo): Sobre una mesa de acero en Illinois, un bisturí raspa la cicatriz dorada de un melón podrido recién traído de un mercado de barrio. 00:16 (Voz): "Año 1943, laboratorio de Peoria, Estados Unidos. Lo que tres potencias científicas no lograron fabricar en quince años estaba oculto en la cáscara mohosa de una fruta de mercado".',
-    ];
-    const p6Opts = [
-      '(Escaleta Espejo Exacta del Video Guía en 6 Bloques — Recomendada): Intro Oficial (00:00 - 00:08 | 1 clip) + Clip 1 Hook Mudo (00:08 - 00:16 | 1 clip) · Bloque 1 (00:16 - 02:32 | 17 clips | 11.3%): El colapso de Oxford en 1941 (el frasco vacío y la pérdida de Albert Alexander), Slogan Completo en la mesa del historiador antiguo (00:24–00:32) y la incógnita de por qué se perdieron 12 años · Bloque 2 (02:32 - 06:08 | 27 clips | 18.0%): Londres, 1928–1929. El desorden de Fleming en St. Mary, la espora accidental, la inestabilidad química y el 1.er Abandono tras la fría recepción del club médico · Bloque 3 (06:08 - 10:08 | 30 clips | 20.0%): Oxford, 1939–1941. Florey, Chain y Heatley rescatan el papel olvidado en plena guerra; cultivo en bacinillas y latas; el 2.º Colapso al agotarse el fármaco reciclado de la orina en el primer paciente humano · Bloque 4 (10:08 - 14:08 | 30 clips | 20.0%): Los 3 Rechazos de financiación y escalado industrial en Gran Bretaña; el viaje con esporas en los abrigos a Estados Unidos; el licor de maíz y el melón dorado de Mary Hunt en Peoria (1941–1943) · Bloque 5 (14:08 - 17:44 | 27 clips | 18.0%): La explosión de los tanques de fermentación profunda (Pfizer/Merck); el milagro en las playas de Normandía en 1944 y la llegada a las boticas de La Habana, México y el Río de la Plata · Bloque 6 (17:44 - 19:52 | 16 clips | 10.7%) + Outro (19:52 - 20:00 | 1 clip): El Nobel de 1945, la renuncia a las patentes personales, la advertencia profética de Fleming contra la complacencia y Slogan Corto en plano panorámico amplio.',
-      '(Escaleta de Micro-Crisis y Cuellos de Botella Encadenados — 1200s): Inspirada en la matriz de cuellos de botella en cadena: 13 bloques de 90 segundos donde cada solución técnica abre un problema mayor (descubrir el moho → no poder purificarlo → purificarlo pero no tener envases → curar pero quedarse sin dosis → fermentar en masa).',
-      '(Escaleta Forense de las 3 Negativas y 2 Muertes — 1200s): Estructura en 5 actos centrada en el contraste entre los despachos burocráticos que negaron los recursos tres veces y las salas de hospital donde se libraba la batalla minuto a minuto.',
-      '(Escaleta Biográfica Coral de los 4 Olvidados — 1200s): Divide los 20 minutos en los cuatro relevos humanos: Fleming en Londres (25%), Chain y Florey en Oxford (25%), Heatley en el diseño de extracción (25%) y Mary Hunt en los mercados de Illinois (25%).',
-      '(Escaleta Cronológica Lineal de Supervivencia — 1200s): Inicia en las trincheras infectadas de la Primera Guerra Mundial que traumatizaron a Fleming en 1914 y avanza cronológicamente hasta los hospitales de posguerra en 1945.',
-      '(Escaleta de Duelo Científico-Industrial Geopolítico — 1200s): Enfocada en la carrera secreta entre los laboratorios aliados y los científicos del Eje por dominar el primer antibiótico masivo antes del Día D.',
-    ];
-    const p7Opts = [
-      '(La Profecía de Fleming contra la Complacencia Humana — Recomendada): Tras mostrar cómo millones de soldados y trabajadores en Nueva York, La Habana, México y Sudamérica salvaron sus vidas en 1945, revelamos el discurso de Fleming advirtiendo que la soberbia y el abuso de su invento despertarían superbacterias resistentes; cierra con "Cada historia deja una huella. Aquí seguimos sus rastros." en plano panorámico del viejo laboratorio de Londres al atardecer.',
-      '(El Contraste del Frasco Vacío y los 200 Millones de Salvados): Contraposición emocional entre aquel frasco vacío de Oxford que no alcanzó para salvar al policía Albert Alexander en 1941 y los buques cargados con millones de ampollas en el Día D, respondiendo quiénes sobrevivieron gracias a que cuatro investigadores se negaron a rendirse.',
-      '(El Héroe Silencioso de las Costuras Manchadas): Revelación del destino de Norman Heatley y de cómo los creadores rechazaron enriquecerse con la patente para que cualquier hospital de barrio o bodega farmacéutica del mundo pudiera fabricarla a centavos.',
-      '(La Huella en la Vida Cotidiana Pre-Digital): Cierre nostálgico sobre cómo cambió la supervivencia de las familias trabajadoras y migrantes del siglo XX cuando la neumonía y las infecciones dejaron de vaciar hogares enteros, culminando con la pregunta reflexiva a la audiencia.',
-      '(El Veredicto de las Actas Olvidadas): Contraste visual entre el boletín médico de 1929 que nadie leyó en Londres y las estadísticas globales de esperanza de vida duplicada a mediados del siglo XX, advirtiendo cómo tres negativas nacidas de la soberbia casi privan a la humanidad de su mayor escudo biológico.',
-      '(La Paradoja del Mercado de Illinois): Reflexión final sobre cómo el remedio que la élite académica de Europa buscó en vano durante tres lustros terminó apareciendo en la fruta podrida de una trabajadora anónima en Estados Unidos, cerrando en panorámica amplia de los campos y factorías al crepúsculo.',
-    ];
-    const combinedTypology = `${p1Opts[0]} + ${p1Opts[3]} + ${p1Opts[10]}`;
-    const v77Paso1Report = [
-      '0. RESUMEN POR PARTES DE LA PROPOSICIÓN PARA NUESTRO DOCUMENTAL ORIGINAL (MÚLTIPLES OPCIONES SEGÚN LOS PATRONES DEL VIDEO ANALIZADO)',
-      'PARTE 1 — TIPOLOGÍA DEL VIDEO (ETAPA 1 DEL PROTOCOLO — PERMITE SELECCIONAR VARIAS OPCIONES)',
-      'Resumen de esta parte: El video guía se viralizó combinando el arquetipo psicológico del underdog con una doble simetría numérica de catástrofes ("2 caídas / 3 rechazos"), una apertura in media res donde décadas de esfuerzo se esfuman en un instante ante la indiferencia de una sala, y la premisa de que la complacencia destruye a los gigantes.',
-      ...p1Opts.map((o, idx) => `Opción ${idx + 1}: ${o}`),
-      'PARTE 2 — TEMA CENTRAL DEL DOCUMENTAL / EPISODIO',
-      'Resumen de esta parte: Aplicamos la fórmula de impacto, contraste numérico ("2 caídas / 3 rechazos") y tensión dramática del video guía a nuestro tema central (La Penicilina) desglosado en múltiples ángulos maestros y alternativas históricas 100% originales para "Huellas de la Humanidad":',
-      ...p2Opts.map((o, idx) => `Opción ${idx + 1}: ${o}`),
-      'PARTE 3 — TIEMPO / ÉPOCA HISTÓRICA (AÑOS EN DÍGITOS O SIGLO EN ROMANOS — EN CONCORDANCIA DIRECTA CON PARTES 1 Y 2)',
-      'Resumen de esta parte: Marcos cronológicos precisos en dígitos y números romanos que replican el arco de décadas de lucha, colapso y victoria tardía del video guía, vinculados al tema central de La Penicilina y a las opciones de la Parte 2:',
-      ...p3Opts.map((o, idx) => `Opción ${idx + 1}: ${o}`),
-      'PARTE 4 — LUGAR HISTÓRICO (CIUDAD, PAÍS — EN CONCORDANCIA DIRECTA CON PARTES 1 Y 2)',
-      'Resumen de esta parte: Escenarios con alta densidad sensorial (vidrio soplado, hollín de Londres, ladrillo gótico de Oxford, mercados agrícolas y hospitales), conectando con los intereses geográficos de la audiencia y concordantes con la Parte 2:',
-      ...p4Opts.map((o, idx) => `Opción ${idx + 1}: ${o}`),
-      'PARTE 5 — GANCHO INICIAL Y CONTRADICCIÓN / ÁNGULO CENTRAL (CLIP 1 + APERTURA)',
-      'Resumen de esta parte: Adaptamos el patrón de los primeros 30 segundos del video guía: impacto visual mudo con puro diseño Foley en 00:08–00:16, entrada de voz en 00:16 con la Tríada Obligatoria (Tiempo, Ciudad, País) y cierre del primer sub-bloque en 00:24–00:32 con el Slogan Completo sobre la mesa del historiador antiguo:',
-      ...p5Opts.map((o, idx) => `Opción ${idx + 1}: ${o}`),
-      'PARTE 6 — CALIBRACIÓN MATEMÁTICA Y ESCALETA POR ACTOS (~20 MIN / 1200s)',
-      'Resumen de esta parte: Trasladamos los porcentajes exactos del video guía a 1200 segundos (~20 minutos / 150 clips de 8s), con Intro fija (00:00–00:08), Clip 1 mudo (00:08–00:16), 1176 segundos de voz efectiva (17 mil 640 caracteres a 15 caracteres/s), Slogan Completo en la mesa del historiador (00:24–00:32), 13 micro-ganchos cada 90s y Outro fijo (19:52–20:00):',
-      ...p6Opts.map((o, idx) => `Opción ${idx + 1}: ${o}`),
-      'PARTE 7 — CLÍMAX HISTÓRICO, REVELACIÓN Y CIERRE REFLEXIVO',
-      'Resumen de esta parte: Estrategias de desenlace hacia el minuto 19:52 que responden a los comentarios de la audiencia ("la complacencia es el verdadero enemigo" y "¿quiénes se salvaron?"), cerrando con pregunta a comentarios, Slogan Corto en párrafo aparte y plano panorámico amplio antes del Outro de 8s:',
-      ...p7Opts.map((o, idx) => `Opción ${idx + 1}: ${o}`),
-      '',
-      '1. RADIOGRAFÍA DE PATRONES VIRALES DEL VIDEO INVESTIGADO (QUÉ HIZO QUE SE VIRALIZARA Y CÓMO LO USAMOS DE GUÍA)',
-      '- 1. Estructura del Título: Simetría numérica de fracaso + Giro épico ("2 veces / 3 veces") aplicada a La Penicilina: 2 abandonos/colapsos críticos (1929 y 1941) y 3 rechazos institucionales/farmacéuticos antes de salvar a 200 millones de personas.',
-      '- 2. Apertura de Descripción y Hook: 00:08–00:16: Sonido seco del último vial vacío sobre la mesa metálica en Oxford en 1941 (muerte de Albert Alexander por falta de miligramos) y la apatía del Medical Research Council en 1929 tras 12 años perdidos.',
-      '- 3. Intención de Tags y Comentarios: Contraponemos a 4 investigadores sin fondos contra la muerte infecciosa, integrando la profecía de Fleming contra la complacencia, el rescate de soldados en Normandía y la llegada del fármaco a La Habana, México y el Río de la Plata.',
-      '- 4. Porcentajes por Bloque (Escaleta): 150 clips de 8s (1200s / 20 min): Intro (1 clip) + Hook (1 clip) + Bloque 1 (17 clips) + Bloque 2 (27 clips) + Bloque 3 (30 clips) + Bloque 4 (30 clips) + Bloque 5 (27 clips) + Bloque 6 (16 clips) + Outro (1 clip).',
-    ].join('\n');
-
-    const updatedCfg: Record<string, string> = {
-      ...(doc.promptConfig || {}),
-      TIPO_PRODUCCION: doc.promptConfig?.TIPO_PRODUCCION || 'REELS',
-      SUB_OPCION_POST: doc.promptConfig?.SUB_OPCION_POST || 'EXPECTATIVA_ESTRENO',
-      SUB_OPCION_REELS: doc.promptConfig?.SUB_OPCION_REELS || '16X9',
-      SINCRONIZACION_CLIP_1: doc.promptConfig?.SINCRONIZACION_CLIP_1 || 'NO_DETENER',
-      TEXTO_PANTALLA_CLIP_1: doc.promptConfig?.TEXTO_PANTALLA_CLIP_1 || 'CAPCUT_MANUAL',
-      DURACION_CLIP_1: doc.promptConfig?.DURACION_CLIP_1 || '8',
-      DURACION_CLIPS: doc.promptConfig?.DURACION_CLIPS || '8_SEGUNDOS',
-      DURACION_CLIPS_SEGUNDOS: doc.promptConfig?.DURACION_CLIPS_SEGUNDOS || '8',
-      VOZ_NARRATIVA_EN_CLIPS: doc.promptConfig?.VOZ_NARRATIVA_EN_CLIPS || 'INCLUIR',
-      UBICACION_INTRO_MARCA: 'INTRO_INICIO_00',
-      STAGE1_PART1_COMPLETED: 'SI',
-      SELECTED_ANALYZED_VIDEO_ID: 'r5Uh1uDxrvY',
-      SELECTED_ANALYZED_VIDEO_CLEARED: 'NO',
-      YOUTUBE_SELECTED_LIBRARY_LINK: 'https://youtu.be/r5Uh1uDxrvY?is=ePIGX6c5Lnc1KHh4',
-      YOUTUBE_VIDEO_TITLE:
-        'Pepsi: Se rompió 2 veces, fue rechazada 3 veces… y así nació la mayor rival de Coca-Cola',
-      YOUTUBE_VIDEO_CHANNEL: 'Marca Cruda',
-      YOUTUBE_VIDEO_DESCRIPTION:
-        'El martillo golpeó la mesa y la historia de Pepsi cambió para siempre. Por solo 30,000 dólares, una empresa gigante fue vendida por completo.\n\nNadie en la sala levantó la vista mientras los abogados recogían los papeles. No era una liquidación común; era el fin de un imperio que llegó a tener más de 250 plantas operativas. Lo que se subastaba incluía la fórmula secreta, las instalaciones y el nombre mismo de una de las marcas icónicas más reconocidas del mundo. \n\nEste relato analiza los errores detrás de la quiebra de empresas que parecían indestructibles. Es la crónica de cómo un hombre perdió en un instante el trabajo de 30 años y por qué, en el mundo de los negocios fallidos, el éxito nunca está garantizado.\n\n🔔 Suscríbete para más historias de las marcas que cambiaron el mundo.',
-      YOUTUBE_VIDEO_TAGS: 'pepsi cola, pepsi vs coca-cola, pepsi',
-      ESTRUCTURA_VIRAL_TITULO:
-        'Pepsi: Se rompió 2 veces, fue rechazada 3 veces… y así nació la mayor rival de Coca-Cola',
-      ESTRUCTURA_VIRAL_RESUMEN:
-        '📌 TÍTULO DEL VIDEO ANALIZADO: "Pepsi: Se rompió 2 veces, fue rechazada 3 veces… y así nació la mayor rival de Coca-Cola" (Canal: Marca Cruda)\n\n🏷️ TAGS Y PALABRAS CLAVE EXTRAÍDAS (3): pepsi cola, pepsi vs coca-cola, pepsi\n\n📝 DESCRIPCIÓN DEL VIDEO ANALIZADO:\nEl martillo golpeó la mesa y la historia de Pepsi cambió para siempre. Por solo 30,000 dólares, una empresa gigante fue vendida por completo.\n\nNadie en la sala levantó la vista mientras los abogados recogían los papeles. No era una liquidación común; era el fin de un imperio que llegó a tener más de 250 plantas operativas. Lo que se subastaba incluía la fórmula secreta, las instalaciones y el nombre mismo de una de las marcas icónicas más reconocidas del mundo. \n\nEste relato analiza los errores detrás de la quiebra de empresas que parecían indestructibles. Es la crónica de cómo un hombre perdió en un instante el trabajo de 30 años y por qué, en el mundo de los negocios fallidos, el éxito nunca está garantizado.\n\n🔔 Suscríbete para más historias de las marcas que cambiaron el mundo.\n\n💬 COMENTARIOS EXTRAÍDOS Y AGRUPADOS: 21 comentarios públicos (16 únicos agrupados por repetición).\n\n🔬 INSTRUCCIÓN ACTIVA: Al ejecutar "✨ Comenzar Investigación", Gemini analizará en profundidad el Título, la Descripción, los Tags y los Comentarios de este video junto con su estructura de 8 ejes virales para integrarlos en la investigación de nuestro documental.',
-      SELECTED_ANALYZED_VIDEO_TITLE:
-        'Pepsi: Se rompió 2 veces, fue rechazada 3 veces… y así nació la mayor rival de Coca-Cola',
-      SELECTED_ANALYZED_VIDEO_SUMMARY:
-        '📌 TÍTULO DEL VIDEO ANALIZADO: "Pepsi: Se rompió 2 veces, fue rechazada 3 veces… y así nació la mayor rival de Coca-Cola" (Canal: Marca Cruda)\n\n🏷️ TAGS Y PALABRAS CLAVE EXTRAÍDAS (3): pepsi cola, pepsi vs coca-cola, pepsi\n\n📝 DESCRIPCIÓN DEL VIDEO ANALIZADO:\nEl martillo golpeó la mesa y la historia de Pepsi cambió para siempre. Por solo 30,000 dólares, una empresa gigante fue vendida por completo.\n\nNadie en la sala levantó la vista mientras los abogados recogían los papeles. No era una liquidación común; era el fin de un imperio que llegó a tener más de 250 plantas operativas. Lo que se subastaba incluía la fórmula secreta, las instalaciones y el nombre mismo de una de las marcas icónicas más reconocidas del mundo. \n\nEste relato analiza los errores detrás de la quiebra de empresas que parecían indestructibles. Es la crónica de cómo un hombre perdió en un instante el trabajo de 30 años y por qué, en el mundo de los negocios fallidos, el éxito nunca está garantizado.\n\n🔔 Suscríbete para más historias de las marcas que cambiaron el mundo.\n\n💬 COMENTARIOS EXTRAÍDOS Y AGRUPADOS: 21 comentarios públicos (16 únicos agrupados por repetición).\n\n🔬 INSTRUCCIÓN ACTIVA: Al ejecutar "✨ Comenzar Investigación", Gemini analizará en profundidad el Título, la Descripción, los Tags y los Comentarios de este video junto con su estructura de 8 ejes virales para integrarlos en la investigación de nuestro documental.',
-      TIPOLOGIA_VIDEO: combinedTypology,
-      TEMA_VIDEO: p2Opts[0],
-      TIEMPO_EPOCA: p3Opts[0],
-      LUGAR_HISTORICO: p4Opts[0],
-      PROPOSICION_GANCHO: p5Opts[0],
-      ANGULO_CENTRAL: p5Opts[0],
-      PROPOSICION_ESCALETA: p6Opts[0],
-      PROPOSICION_CLIMAX: p7Opts[0],
-      PROP_P1_OPTIONS_JSON: JSON.stringify(p1Opts),
-      PROP_P2_OPTIONS_JSON: JSON.stringify(p2Opts),
-      PROP_P3_OPTIONS_JSON: JSON.stringify(p3Opts),
-      PROP_P4_OPTIONS_JSON: JSON.stringify(p4Opts),
-      PROP_P5_OPTIONS_JSON: JSON.stringify(p5Opts),
-      PROP_P6_OPTIONS_JSON: JSON.stringify(p6Opts),
-      PROP_P7_OPTIONS_JSON: JSON.stringify(p7Opts),
-      GEMINI_DEEP_RESEARCH_CHAT_URL:
-        doc.geminiDeepResearchChatUrl ||
-        doc.promptConfig?.GEMINI_DEEP_RESEARCH_CHAT_URL ||
-        'https://gemini.google.com/app/f346b10e556e2341',
-      V77_MULTI_PASO1_UPDATED: '2026_11_09_PENICILINA_PEPSI_SYNCED',
-    };
-
-    return {
-      ...doc,
-      productionType: normalizeProductionType((doc as { productionType?: string }).productionType, updatedCfg),
-      title: 'Video 77 — La Penicilina',
-      downloadFolderName: 'Video 77 — La Penicilina',
-      geminiChatTitle: 'Video 77 — La Penicilina',
-      geminiChatUrl: doc.geminiChatUrl || 'https://gemini.google.com/app/03cabb86628532c8',
-      geminiDeepResearchChatUrl:
-        doc.geminiDeepResearchChatUrl ||
-        doc.promptConfig?.GEMINI_DEEP_RESEARCH_CHAT_URL ||
-        'https://gemini.google.com/app/f346b10e556e2341',
-      targetDurationSeconds: 1200,
-      typology: combinedTypology,
-      topic: p2Opts[0],
-      historicalTime: p3Opts[0],
-      historicalLocation: p4Opts[0],
-      deepResearchPrompt: v77Paso1Report,
-      promptConfig: updatedCfg,
-    };
-  }
-
   const hasIntroMarca = Boolean(doc.promptConfig && doc.promptConfig.UBICACION_INTRO_MARCA);
   const nextPromptConfig = hasIntroMarca
     ? doc.promptConfig
@@ -3418,6 +3236,53 @@ async function callGeminiGenerateContentClientSide(
   throw new Error(lastErr || 'No se pudo conectar con Gemini desde el navegador.');
 }
 
+/** Most of the research analyses that fit in one Etapa 1 prompt (several videos, each analyzed by Gemini). */
+const MULTI_VIDEO_RESEARCH_MAX_CHARS = 70000;
+
+/**
+ * A reference video's "structure summary" that is NOT an analysis of the video's content: the template the server
+ * writes from public data (title, description, tags, comments) or the metadata digest of older entries. With one of
+ * these, Gemini is told to watch the video itself instead of trusting the summary.
+ */
+export function isTemplateStructureSummary(summary: string): boolean {
+  return /^\s*(?:1\.\s*HOOK DECONSTRUCTION & TITLE PROMISE|📌\s*(?:ANALYZED VIDEO TITLE|TÍTULO DEL VIDEO ANALIZADO))/i.test(
+    String(summary || '')
+  );
+}
+
+/** Paso 1 sections after the 7 parts (analysis of the reference / research videos and duration), for Paso 2. */
+function extractPhase1Conclusions(phase1Text: string, maxChars = 3500): string {
+  const text = String(phase1Text || '');
+  if (!text.trim()) return '';
+  const part7Matches = [...text.matchAll(/(?:PARTE|PART)\s*7\s*[—:\-–]/gi)];
+  const part7At = part7Matches.length > 0 ? part7Matches[part7Matches.length - 1].index || 0 : 0;
+  const tail = text.slice(part7At);
+  const sectionStart = tail.search(/\n\s*1\.\s+[A-ZÁÉÍÓÚ]/);
+  if (sectionStart < 0) return '';
+  return tail.slice(sectionStart).trim().slice(0, maxChars);
+}
+
+/** For the script: only the doubtful claims and the gaps (sections 5 and 6) of each research video analysis. */
+function compactVideoAnalysesForScript(block: string, maxTotal = 14000): string {
+  const raw = String(block || '');
+  if (!raw.trim()) return '';
+  const chunks = raw.split(/(?=^=== VIDEO \d+:)/m).filter((c) => c.trim());
+  const out: string[] = [];
+  for (const chunk of chunks) {
+    const headerEnd = chunk.indexOf('\n');
+    const header = headerEnd > 0 ? chunk.slice(0, headerEnd).trim() : chunk.trim();
+    const body = headerEnd > 0 ? chunk.slice(headerEnd + 1) : '';
+    const fromDoubts = body.search(/(?:^|\n)\s*5\)\s/);
+    const toStructure = body.search(/(?:^|\n)\s*7\)\s/);
+    const picked =
+      fromDoubts >= 0
+        ? body.slice(fromDoubts, toStructure > fromDoubts ? toStructure : undefined)
+        : body.slice(0, 3000);
+    out.push(`${header}\n${picked.trim().slice(0, 4500)}`);
+  }
+  return out.join('\n\n').slice(0, maxTotal);
+}
+
 export function buildStagePromptText(
   stageNumber: number,
   doc: DocumentaryProject,
@@ -3480,9 +3345,28 @@ export function buildStagePromptText(
     youtubeCommentsResearchBlock.includes('ANÁLISIS DE TÍTULO, DESCRIPCIÓN Y TAGS DEL VIDEO DE YOUTUBE') ||
     youtubeCommentsResearchBlock.includes('YOUTUBE VIDEO TITLE, DESCRIPTION & TAGS ANALYSIS');
 
+  // Research material from several videos of the SAME topic, analyzed one by one by Gemini in Etapa 1 and selected
+  // for this documentary. Unlike the structural reference video, these ARE about our topic: facts to cross-check.
+  const selectedVideoAnalysesRaw = String(doc.promptConfig?.SELECTED_VIDEO_ANALYSES_BLOCK || '').trim();
+  const selectedVideoAnalysesCount = (selectedVideoAnalysesRaw.match(/^=== VIDEO \d+:/gm) || []).length;
+  const multiVideoResearchBlock = selectedVideoAnalysesRaw
+    ? `\n================================================================================\n📚 RESEARCH MATERIAL: ANALYSES OF ${selectedVideoAnalysesCount || 'SEVERAL'} YOUTUBE VIDEOS ABOUT OUR SAME TOPIC (selected by the producer)\n================================================================================\nEach video was analyzed separately. Use them as SOURCE MATERIAL for our own documentary: cross-check their facts against each other and against reliable historical sources, keep what is verified, flag and resolve contradictions between them, discard errors and exaggerations, and cover the gaps and unanswered questions they leave. Our documentary must be BETTER and more complete than all of them together, with its own original structure and narration: never copy their phrases, titles or order.\n\n${selectedVideoAnalysesRaw.slice(0, MULTI_VIDEO_RESEARCH_MAX_CHARS)}\n`
+    : '';
+  // "Chosen topic": the producer already picked the subject (typed it, or selected analyses of videos about it).
+  // Then a structural reference video is only a mold and never makes Gemini replace or avoid our subject.
+  const topicIsChosen = Boolean(String(doc.topic || '').trim()) || Boolean(selectedVideoAnalysesRaw);
+  const structureSummaryIsReal =
+    Boolean(selectedStructureSummary) && !isTemplateStructureSummary(selectedStructureSummary);
+  const hasReferenceVideo = structureSummaryIsReal || Boolean(youtubeViralLink);
+  const referenceOriginalityRule = topicIsChosen
+    ? 'Use it ONLY as a mold for structure and viral mechanics (hook formula, act pacing, retention micro-hooks, contrasts and psychological triggers). Our documentary keeps the subject chosen by the producer. Never copy the reference video\'s narration, phrases, titles or order of scenes; if it covers the same subject as ours, our documentary must be clearly original, more complete and better.'
+    : 'Strictly FORBIDDEN to duplicate or copy the topic, character, brand, or event of the analyzed video. Use it SOLELY as a structural mold and analysis of the viral mechanics (hook formula, act pacing, retention micro-hooks, dramatic contrasts, and psychological triggers) applied to a 100% ORIGINAL historical documentary for "Huellas de la Humanidad".';
+
   const standaloneYoutubeMetadataBlock =
     (hasExplicitMetadataFields || youtubeViralLink) && !metadataAlreadyInCommentsBlock
-      ? `\n================================================================================\n🏷️ VIRAL PATTERN ANALYSIS (TITLE, DESCRIPTION & TAGS) OF THE REFERENCE YOUTUBE VIDEO (${youtubeViralLink || youtubeVideoTitle})\n================================================================================\n- ANALYZED VIDEO TITLE (USE STRICTLY AS A VIRAL PATTERN GUIDE, NEVER DUPLICATE ITS SUBJECT): "${youtubeVideoTitle || youtubeViralLink}"${
+      ? `\n================================================================================\n🏷️ VIRAL PATTERN ANALYSIS (TITLE, DESCRIPTION & TAGS) OF THE REFERENCE YOUTUBE VIDEO (${youtubeViralLink || youtubeVideoTitle})\n================================================================================\n- ANALYZED VIDEO TITLE (USE STRICTLY AS A VIRAL PATTERN GUIDE${
+          topicIsChosen ? '' : ', NEVER DUPLICATE ITS SUBJECT'
+        }): "${youtubeVideoTitle || youtubeViralLink}"${
           youtubeVideoChannel ? `\n- SOURCE CHANNEL: ${youtubeVideoChannel}` : ''
         }\n- ANALYZED VIDEO TAGS / KEYWORDS: ${
           youtubeVideoTags || '(Analyze search intent strategy and tag psychology of the reference video)'
@@ -3490,27 +3374,37 @@ export function buildStagePromptText(
           youtubeVideoDescription
             ? youtubeVideoDescription.slice(0, 3500)
             : '(Analyze chapter architecture, narrative pacing, and retention hooks from the reference video description)'
-        }\n\n-> GOLDEN ORIGINALITY RULE (STRICTLY FORBIDDEN TO DUPLICATE THE ANALYZED VIDEO):\n   • Do NOT duplicate or create a video about the same topic, brand, person, or event as the analyzed reference video.\n   • Use the analyzed video EXCLUSIVELY as a STRUCTURAL BLUEPRINT AND VIRAL PATTERN GUIDE to extract the psychological mechanics that made it go viral on YouTube:\n     1. From the TITLE: Extract its psychological pattern and CTR formula (e.g., numeric contrast, survival paradox, hidden historical revelation) and apply that EXACT SAME PATTERN to a 100% ORIGINAL historical topic for our channel.\n     2. From the DESCRIPTION: Extract its chapter/timestamp architecture, tension cadence, act proportions, and summary hooks as a structural mold for our documentary.\n     3. From TAGS & COMMENTS: Extract curiosity triggers, human emotions, and open questions that captivated viewers to replicate that retention effect in our own original historical story.\n`
+        }\n\n${
+          topicIsChosen
+            ? `-> ORIGINALITY RULE: ${referenceOriginalityRule}\n   • From the TITLE: extract its psychological pattern and CTR formula and apply it to OUR chosen subject.\n   • From the DESCRIPTION: extract its chapter/timestamp architecture, tension cadence and act proportions as a structural mold.\n   • From TAGS & COMMENTS: extract the curiosity triggers, emotions and open questions that captivated viewers, to reach the same retention with our own story.\n`
+            : `-> GOLDEN ORIGINALITY RULE (STRICTLY FORBIDDEN TO DUPLICATE THE ANALYZED VIDEO):\n   • Do NOT duplicate or create a video about the same topic, brand, person, or event as the analyzed reference video.\n   • Use the analyzed video EXCLUSIVELY as a STRUCTURAL BLUEPRINT AND VIRAL PATTERN GUIDE to extract the psychological mechanics that made it go viral on YouTube:\n     1. From the TITLE: Extract its psychological pattern and CTR formula (e.g., numeric contrast, survival paradox, hidden historical revelation) and apply that EXACT SAME PATTERN to a 100% ORIGINAL historical topic for our channel.\n     2. From the DESCRIPTION: Extract its chapter/timestamp architecture, tension cadence, act proportions, and summary hooks as a structural mold for our documentary.\n     3. From TAGS & COMMENTS: Extract curiosity triggers, human emotions, and open questions that captivated viewers to replicate that retention effect in our own original historical story.\n`
+        }`
       : '';
 
-  const viralContextBlock = selectedStructureSummary
-    ? `\n================================================================================\n🏛️ STRUCTURAL BLUEPRINT & VIRAL PATTERNS FROM ANALYZED REFERENCE VIDEO: "${selectedStructureTitle || youtubeViralLink}"\n================================================================================\nVIRAL PATTERN BREAKDOWN & STRUCTURE EXTRACTED FROM THIS REFERENCE VIDEO:\n${selectedStructureSummary}\n\n⚠️ MANDATORY INSTRUCTION (DO NOT DUPLICATE TOPIC — USE ONLY AS STRUCTURAL & VIRAL BLUEPRINT):\nStrictly FORBIDDEN to duplicate or copy the topic, character, brand, or event of the analyzed video. Use it SOLELY as a structural mold and analysis of the viral mechanics (hook formula, act pacing, retention micro-hooks, dramatic contrasts, and psychological triggers) applied to a 100% ORIGINAL historical documentary for "Huellas de la Humanidad".\n${standaloneYoutubeMetadataBlock}${
+  const viralContextBlock = structureSummaryIsReal
+    ? `\n================================================================================\n🏛️ STRUCTURAL BLUEPRINT & VIRAL PATTERNS FROM ANALYZED REFERENCE VIDEO: "${selectedStructureTitle || youtubeViralLink}"\n================================================================================\nVIRAL PATTERN BREAKDOWN & STRUCTURE EXTRACTED FROM THIS REFERENCE VIDEO:\n${selectedStructureSummary}\n\n⚠️ MANDATORY INSTRUCTION (${
+        topicIsChosen
+          ? 'USE ONLY AS STRUCTURAL & VIRAL MOLD'
+          : 'DO NOT DUPLICATE TOPIC — USE ONLY AS STRUCTURAL & VIRAL BLUEPRINT'
+      }):\n${referenceOriginalityRule}\n${standaloneYoutubeMetadataBlock}${
         youtubeCommentsResearchBlock ? `\n${youtubeCommentsResearchBlock}\n` : ''
       }`
     : youtubeViralLink
-    ? `\n================================================================================\n🔥 REFERENCE YOUTUBE VIDEO TO ANALYZE AS STRUCTURAL & VIRAL BLUEPRINT: ${youtubeViralLink}\n================================================================================\n⚠️ MANDATORY INSTRUCTION (DO NOT DUPLICATE ANALYZED VIDEO — USE AS VIRAL PATTERN GUIDE):\nDo NOT duplicate the topic or story of the pasted video (${youtubeViralLink}). Analyze in depth WHAT PATTERNS AND DETAILS MADE IT GO VIRAL ON YOUTUBE and apply them as a structural blueprint for a 100% ORIGINAL and DIFFERENT historical documentary for our channel "Huellas de la Humanidad":\n1) Perform a viral X-ray of the reference video (${youtubeViralLink}), breaking down its TITLE (click formula & contrast), DESCRIPTION (chapter architecture & promises), TAGS (search intent), and 8 viral axes: Hook (0-30s), Percentage act outline, Retention micro-hooks, Psychological triggers, Script cadence, Visual/sound direction, Viral packaging, and Transferable Master Pattern.\n2) Apply those viral patterns, proportions, and retention mechanics to our original documentary in progress (never repeating the topic of the analyzed video).\n${standaloneYoutubeMetadataBlock}${
+    ? `\n================================================================================\n🔥 REFERENCE YOUTUBE VIDEO TO ANALYZE AS STRUCTURAL & VIRAL BLUEPRINT: ${youtubeViralLink}\n================================================================================\n⚠️ MANDATORY INSTRUCTION (${
+        topicIsChosen ? 'WATCH IT AND USE IT ONLY AS STRUCTURAL & VIRAL MOLD' : 'DO NOT DUPLICATE ANALYZED VIDEO — USE AS VIRAL PATTERN GUIDE'
+      }):\n${
+        topicIsChosen
+          ? `Watch and analyze the video at ${youtubeViralLink} in depth. ${referenceOriginalityRule}`
+          : `Do NOT duplicate the topic or story of the pasted video (${youtubeViralLink}). Analyze in depth WHAT PATTERNS AND DETAILS MADE IT GO VIRAL ON YOUTUBE and apply them as a structural blueprint for a 100% ORIGINAL and DIFFERENT historical documentary for our channel "Huellas de la Humanidad":`
+      }\n1) Perform a viral X-ray of the reference video (${youtubeViralLink}), breaking down its TITLE (click formula & contrast), DESCRIPTION (chapter architecture & promises), TAGS (search intent), and 8 viral axes: Hook (0-30s), Percentage act outline, Retention micro-hooks, Psychological triggers, Script cadence, Visual/sound direction, Viral packaging, and Transferable Master Pattern.\n2) Apply those viral patterns, proportions, and retention mechanics to ${
+        topicIsChosen
+          ? 'our documentary about the subject chosen by the producer (never copying the reference video\'s narration or phrases)'
+          : 'our original documentary in progress (never repeating the topic of the analyzed video)'
+      }.\n${standaloneYoutubeMetadataBlock}${
         youtubeCommentsResearchBlock ? `\n${youtubeCommentsResearchBlock}\n` : ''
       }`
     : standaloneYoutubeMetadataBlock || youtubeCommentsResearchBlock
     ? `\n${standaloneYoutubeMetadataBlock}${youtubeCommentsResearchBlock}\n`
-    : '';
-
-  // Research material from several videos of the SAME topic, analyzed one by one by Gemini in Etapa 1 and selected
-  // for this documentary. Unlike the structural blueprint above, these ARE about our topic: facts to cross-check.
-  const selectedVideoAnalysesRaw = String(doc.promptConfig?.SELECTED_VIDEO_ANALYSES_BLOCK || '').trim();
-  const selectedVideoAnalysesCount = (selectedVideoAnalysesRaw.match(/^=== VIDEO \d+:/gm) || []).length;
-  const multiVideoResearchBlock = selectedVideoAnalysesRaw
-    ? `\n================================================================================\n📚 RESEARCH MATERIAL: ANALYSES OF ${selectedVideoAnalysesCount || 'SEVERAL'} YOUTUBE VIDEOS ABOUT OUR SAME TOPIC (selected by the producer)\n================================================================================\nEach video was analyzed separately. Use them as SOURCE MATERIAL for our own documentary: cross-check their facts against each other and against reliable historical sources, keep what is verified, flag and resolve contradictions between them, discard errors and exaggerations, and cover the gaps and unanswered questions they leave. Our documentary must be BETTER and more complete than all of them together, with its own original structure and narration: never copy their phrases, titles or order.\n\n${selectedVideoAnalysesRaw.slice(0, 45000)}\n`
     : '';
 
   let stagePrompt = '';
@@ -3519,8 +3413,71 @@ export function buildStagePromptText(
     const cleanTypology = (doc.typology || '').trim();
     const cleanTime = (doc.historicalTime || '').trim();
     const cleanLoc = (doc.historicalLocation || '').trim();
+    const minutesLabel = (totalTargetSec / 60).toFixed(0);
+    const typologyLine =
+      cleanTypology ||
+      (hasReferenceVideo && !topicIsChosen
+        ? 'BLANK (Determine which of the 8 protocol typologies to use OR CREATE A NEW universal archetypal typology based on the VIRAL PATTERN of the analyzed video, WITHOUT copying the topic of the analyzed video)'
+        : 'BLANK (Determine which of the 8 protocol typologies fit this story OR CREATE A NEW universal archetypal typology for it)');
+    const topicLine = cleanTopic
+      ? `${cleanTopic} (CHOSEN BY THE PRODUCER — keep this exact subject; Parte 2 proposes angles for it, never a different subject)`
+      : selectedVideoAnalysesRaw
+      ? 'BLANK (Our documentary covers the SAME subject as the research videos below: write that exact subject as Opción 1 of Parte 2 and propose different angles for it as the other options)'
+      : hasReferenceVideo
+      ? 'BLANK (Propose 3+ 100% ORIGINAL, DIFFERENT, and UNPUBLISHED historical topics for "Huellas de la Humanidad" —STRICTLY FORBIDDEN to duplicate the topic of the analyzed video— applying the exact same viral patterns, contrasts, and structure)'
+      : 'BLANK (Propose 3+ strong, ORIGINAL historical topics for "Huellas de la Humanidad" with high viral potential on YouTube)';
+    const originalityRules = topicIsChosen
+      ? [
+          '⚠️ ORIGINALITY RULES:',
+          '- The subject of our documentary is the one chosen by the producer (see Central Documentary Topic, or the research videos). Never replace it with a different subject.',
+          hasReferenceVideo ? `- Reference video: ${referenceOriginalityRule}` : '',
+          selectedVideoAnalysesRaw
+            ? '- Research videos: use them only as source material; never copy their phrases, titles or order of scenes.'
+            : '',
+        ]
+      : hasReferenceVideo
+      ? [
+          '⚠️ CRITICAL ORIGINALITY RULE:',
+          '- Do NOT duplicate the analyzed video or create a documentary about the same subject/brand/event.',
+          '- Use the analyzed video EXCLUSIVELY as a structural guide to extract the PATTERNS and DETAILS that made it viral on YouTube and apply them to a 100% ORIGINAL documentary for "Huellas de la Humanidad".',
+          '- In PARTE 1 (Video Typology), NEVER write the name or specific topic of the analyzed video; define a reusable universal archetypal typology.',
+        ]
+      : [
+          '⚠️ ORIGINALITY RULE:',
+          '- Every proposal must be original: never reuse titles, phrases or structures from other channels.',
+        ];
+    const parte1Lines = hasReferenceVideo && !topicIsChosen
+      ? [
+          '     • Resumen de esta parte: [Explain in Spanish which narrative/psychological patterns made the reference video go viral and which protocol/new archetypal typologies fit our original documentary]',
+          '     • Opción 1..N: [Multiple universal archetypal typologies in Spanish — NEVER mention the specific topic of the analyzed video]',
+        ]
+      : [
+          '     • Resumen de esta parte: [Explain in Spanish which protocol typologies (or new archetypal typologies) fit our documentary and why]',
+          '     • Opción 1..N: [Multiple typologies in Spanish]',
+        ];
+    const parte2Lines = topicIsChosen
+      ? [
+          '     • Resumen de esta parte: [Explain in Spanish the strongest angles for our chosen subject and why they would work on YouTube]',
+          '     • Opción 1..N: [Multiple ANGLES for OUR chosen subject in Spanish (same subject; a different central question, protagonist or thesis in each). Start every option with the subject itself; never propose a different subject]',
+        ]
+      : [
+          `     • Resumen de esta parte: [Explain in Spanish how ${hasReferenceVideo ? 'the viral formula maps' : 'each proposal maps'} to 100% ORIGINAL historical topics for "Huellas de la Humanidad"]`,
+          '     • Opción 1..N: [Multiple 100% ORIGINAL historical topics in Spanish using strong contrast, tension, and retention mechanics]',
+        ];
+    const concordanceHint = topicIsChosen
+      ? ''
+      : ' In Partes 3 and 4, Opción k must be the era / place of Opción k of Parte 2 (same order).';
+    const section1 = hasReferenceVideo
+      ? `1. RADIOGRAFÍA DE PATRONES VIRALES DEL VIDEO INVESTIGADO:\n   - Detailed breakdown in Spanish of the exact patterns that made the reference video go viral (Title formula, Description chapter pacing, Tag intent, Comment triggers, block percentages, and psychological hooks) and how they serve as a mold for our ~${minutesLabel}-minute documentary.`
+      : selectedVideoAnalysesRaw
+      ? `1. CONTRASTE DE LOS VIDEOS DE INVESTIGACIÓN:\n   - In Spanish: the facts they agree on, the contradictions between them, the errors or exaggerations to avoid, what none of them covers, and how our ~${minutesLabel}-minute documentary will be better and more complete than all of them.`
+      : `1. POTENCIAL VIRAL DEL TEMA:\n   - In Spanish: why the chosen or proposed subject can work on YouTube (curiosity gap, emotion, contrasts) and which retention patterns fit a ~${minutesLabel}-minute documentary.`;
     stagePrompt = `Act as Chief Documentary Director and Lead Historical Researcher for the Spanish-language documentary channel "Huellas de la Humanidad".
-This is STAGE 1 — PHASE 1 (4 Carbon · Thinking level: Low · WITHOUT Deep Research): Viral pattern analysis of the reference video + Determination of Historical Definition, Continuity, and Mathematical Calibration for our ORIGINAL documentary.${viralContextBlock}${multiVideoResearchBlock}
+This is STAGE 1 — PHASE 1 (4 Carbon · Thinking level: Low · WITHOUT Deep Research): ${
+      hasReferenceVideo ? 'Viral pattern analysis of the reference video + ' : ''
+    }Determination of Historical Definition, Continuity, and Mathematical Calibration for our ${
+      topicIsChosen ? '' : 'ORIGINAL '
+    }documentary.${viralContextBlock}${multiVideoResearchBlock}
 
 CRITICAL OUTPUT LANGUAGE REQUIREMENT:
 Write all explanatory prose, summaries, and option texts in Spanish (Neutral Documentary Spanish for our producer UI), while keeping the exact structural section markers requested below.
@@ -3528,50 +3485,39 @@ Write all explanatory prose, summaries, and option texts in Spanish (Neutral Doc
 ================================================================================
 🏛️ CURRENT HISTORICAL DEFINITION & MATHEMATICAL CALIBRATION STATE TO DETERMINE
 ================================================================================
-- Protocol Typology: ${
-      cleanTypology ||
-      'BLANK (Determine which of the 8 protocol typologies to use OR CREATE A NEW universal archetypal typology based on the VIRAL PATTERN of the analyzed video, WITHOUT copying the topic of the analyzed video)'
-    }
-- Central Documentary Topic: ${
-      cleanTopic ||
-      'BLANK (Propose 3+ 100% ORIGINAL, DIFFERENT, and UNPUBLISHED historical topics for "Huellas de la Humanidad" —STRICTLY FORBIDDEN to duplicate the topic of the analyzed video— applying the exact same viral patterns, contrasts, and structure)'
-    }
+- Protocol Typology: ${typologyLine}
+- Central Documentary Topic: ${topicLine}
 - Historical Time / Era (years in digits, centuries in Roman numerals): ${
       cleanTime ||
-      'BLANK (Automatically determine with years in digits or Century in Roman numerals matching our new original topic, e.g., Año 1888 / Siglo XIX)'
+      'BLANK (Automatically determine with years in digits or Century in Roman numerals matching our topic, e.g., Año 1888 / Siglo XIX)'
     }
 - Historical Location (City, Country): ${
-      cleanLoc || 'BLANK (Automatically determine City, Country matching our new original topic)'
+      cleanLoc || 'BLANK (Automatically determine City, Country matching our topic)'
     }
 ${
   excludePreviousParts
     ? `- Continuity / FORBIDDEN Elements that MUST NOT be repeated from previous episodes: ${excludePreviousParts}\n`
     : ''
 }- ⏱️ Selected Mathematical Calibration:
-  • Target Total Project Duration: ~${totalTargetSec} seconds (~${(totalTargetSec / 60).toFixed(0)} minutes)
+  • Target Total Project Duration: ~${totalTargetSec} seconds (~${minutesLabel} minutes)
   • Official Brand Intro: 00:00 - 00:08 (${fixedIntroSec}s fixed)
   • Clip 1 (Visual Hook without voiceover): 00:08 - 00:${String(fullEntrySec).padStart(2, '0')} (${clip1TimelineSec}s)
   • Narrative Voiceover Entry & Body Clips (${clipDurationLabel} each): Second ${fullEntrySec} (00:${String(fullEntrySec).padStart(2, '0')}) for ~${effectiveNarratedSec}s of effective narration
   • Official Brand Outro at closing: Last ${fixedOutroSec} fixed seconds
 ${selectedAudienceQuestions ? `\n💬 SELECTED AUDIENCE COMMENTS & QUESTIONS:\n${selectedAudienceQuestions}\n` : ''}
 ================================================================================
-⚡ PHASE 1 TASK (VIRAL PATTERN ANALYSIS + ORIGINAL HISTORICAL DEFINITION & MATHEMATICAL CALIBRATION)
+⚡ PHASE 1 TASK (${hasReferenceVideo ? 'VIRAL PATTERN ANALYSIS + ' : ''}HISTORICAL DEFINITION & MATHEMATICAL CALIBRATION)
 ================================================================================
-⚠️ CRITICAL ORIGINALITY RULE:
-- Do NOT duplicate the analyzed video or create a documentary about the same subject/brand/event.
-- Use the analyzed video EXCLUSIVELY as a structural guide to extract the PATTERNS and DETAILS that made it viral on YouTube and apply them to a 100% ORIGINAL documentary for "Huellas de la Humanidad".
-- In PARTE 1 (Video Typology), NEVER write the name or specific topic of the analyzed video; define a reusable universal archetypal typology.
+${originalityRules.filter(Boolean).join('\n')}
 
-Deliver this structured report in Spanish with MULTIPLE OPTIONS (3, 4, 5, 6, or as many options as angles emerge from the analyzed video) preserving the exact Spanish section headers below for parser compatibility:
+Deliver this structured report in Spanish with MULTIPLE OPTIONS (3 to 6 per part), preserving the exact Spanish section headers below for parser compatibility. Write every option on its own line exactly as "Opción N: text", in a single paragraph (no line breaks or numbered sub-lists inside an option). In Partes 3 and 4 write only the value (e.g., "Opción 1: Año 1888 / Siglo XIX"), with no label or parentheses before it.${concordanceHint}
 
-0. RESUMEN POR PARTES DE LA PROPOSICIÓN PARA NUESTRO DOCUMENTAL ORIGINAL:
+0. RESUMEN POR PARTES DE LA PROPOSICIÓN PARA NUESTRO DOCUMENTAL:
    Deliver numbered options (Opción 1, Opción 2, Opción 3, Opción 4...) in Spanish for each of the 7 parts:
    - PARTE 1 — TIPOLOGÍA DEL VIDEO:
-     • Resumen de esta parte: [Explain in Spanish which narrative/psychological patterns made the reference video go viral and which protocol/new archetypal typologies fit our original documentary]
-     • Opción 1..N: [Multiple universal archetypal typologies in Spanish — NEVER mention the specific topic of the analyzed video]
+${parte1Lines.join('\n')}
    - PARTE 2 — TEMA CENTRAL DEL DOCUMENTAL / EPISODIO:
-     • Resumen de esta parte: [Explain in Spanish how the viral formula maps to 100% ORIGINAL historical topics for "Huellas de la Humanidad"]
-     • Opción 1..N: [Multiple 100% ORIGINAL historical topics in Spanish using the same contrast, tension, and retention mechanics]
+${parte2Lines.join('\n')}
    - PARTE 3 — TIEMPO / ÉPOCA HISTÓRICA:
      • Resumen de esta parte: [Justification in Spanish of the chronological timeframe matching Parts 1 & 2]
      • Opción 1..N: [Multiple chronological scopes in Spanish with years in digits and Centuries in Roman numerals, e.g., Año 1888 / Siglo XIX]
@@ -3579,17 +3525,20 @@ Deliver this structured report in Spanish with MULTIPLE OPTIONS (3, 4, 5, 6, or 
      • Resumen de esta parte: [Justification in Spanish of the geographic settings matching Parts 1 & 2]
      • Opción 1..N: [Multiple geographic settings in Spanish (City, Country)]
    - PARTE 5 — GANCHO INICIAL Y CONTRADICCIÓN / ÁNGULO CENTRAL (CLIP 1 + APERTURA):
-     • Resumen de esta parte: [How we adapt the reference video's Hook patterns to our new original documentary]
+     • Resumen de esta parte: [${
+       hasReferenceVideo
+         ? "How we adapt the reference video's Hook patterns to our documentary"
+         : 'How we open our documentary with maximum curiosity in the first seconds'
+     }]
      • Opción 1..N: [Visual/narrative Hook variants (00:08) and central paradox in Spanish]
-   - PARTE 6 — CALIBRACIÓN MATEMÁTICA Y ESCALETA POR ACTOS (~${(totalTargetSec / 60).toFixed(0)} MIN):
-     • Resumen de esta parte: [How we map block percentages and pacing to ~${(totalTargetSec / 60).toFixed(0)} min with 8s Intro and 8s Outro]
+   - PARTE 6 — CALIBRACIÓN MATEMÁTICA Y ESCALETA POR ACTOS (~${minutesLabel} MIN):
+     • Resumen de esta parte: [How we map block percentages and pacing to ~${minutesLabel} min with 8s Intro and 8s Outro]
      • Opción 1..N: [Mathematical act outlines by percentage (%) and minutes in Spanish]
    - PARTE 7 — CLÍMAX HISTÓRICO, REVELACIÓN Y CIERRE REFLEXIVO:
      • Resumen de esta parte: [Emotional and historical payoff strategy leading into the 8s Outro]
      • Opción 1..N: [Historical climax and reflective ending options in Spanish]
 
-1. RADIOGRAFÍA DE PATRONES VIRALES DEL VIDEO INVESTIGADO:
-   - Detailed breakdown in Spanish of the exact patterns that made the reference video go viral (Title formula, Description chapter pacing, Tag intent, Comment triggers, block percentages, and psychological hooks) and how they serve as a mold for our ~${(totalTargetSec / 60).toFixed(0)}-minute documentary.
+${section1}
 
 2. DURACIÓN TOTAL SUGERIDA DEL DOCUMENTAL:
    - Evaluate topic complexity, act density, plot twists, climax weight, and chronological span to recommend the optimal official studio duration (600s = 10 min, 900s = 15 min, 1200s = 20 min, 1800s = 30 min, 3600s = 1 hour, 7200s = 2 hours).
@@ -3609,7 +3558,9 @@ Deliver this structured report in Spanish with MULTIPLE OPTIONS (3, 4, 5, 6, or 
     ).trim();
     const chosenEscaletaProp = (doc.promptConfig?.PROPOSICION_ESCALETA || '').trim();
     const chosenClimaxProp = (doc.promptConfig?.PROPOSICION_CLIMAX || '').trim();
-    const part1AnalysisText = (doc.deepResearchPrompt || '').trim();
+    // Paso 1 conclusions for Deep Research: its analysis of the videos and the duration, never the lists of options
+    // the producer did not pick (they would mix other subjects into the research)
+    const part1ConclusionsText = extractPhase1Conclusions(doc.deepResearchPrompt || '');
     const referenceVideoLabel =
       selectedStructureTitle ||
       youtubeVideoTitle ||
@@ -3626,7 +3577,7 @@ Deliver the entire historical research dossier and structural outline in clear, 
 🏛️ HISTORICAL DEFINITION, REFERENCE LIBRARY VIDEO & CALIBRATION FROM PHASE 1
 ================================================================================
 ${
-  referenceVideoLabel
+  referenceVideoLabel && hasReferenceVideo
     ? `- 📚 Selected Analyzed Library / Structural Reference Video from Step 1 (PART OF THIS DEEP RESEARCH): "${referenceVideoLabel}"${
         selectedAnalyzedVideoId ? ` [ID: ${selectedAnalyzedVideoId}]` : ''
       }${youtubeViralLink ? ` (${youtubeViralLink})` : ''}\n`
@@ -3648,16 +3599,24 @@ ${chosenHookProp ? `- Selected Opening Hook & Central Paradox (Part 5): ${chosen
   • Narrative Voiceover Entry & Body Clips (${clipDurationLabel} each): Second ${fullEntrySec} (00:${String(fullEntrySec).padStart(2, '0')}) for ~${effectiveNarratedSec}s of effective narration
   • Official Brand Outro at closing: Last ${fixedOutroSec} fixed seconds
 ${selectedAudienceQuestions ? `\n💬 SELECTED AUDIENCE COMMENTS & QUESTIONS TO ANSWER IN DEEP RESEARCH:\n${selectedAudienceQuestions}\n` : ''}${
-      part1AnalysisText
-        ? `\n📌 PHASE 1 PRIOR CONCLUSIONS (DEFINITION & CALIBRATION):\n${part1AnalysisText.slice(0, 3500)}\n`
+      part1ConclusionsText
+        ? `\n📌 PHASE 1 PRIOR CONCLUSIONS (VIDEO ANALYSIS & DURATION):\n${part1ConclusionsText}\n`
         : ''
     }
 ================================================================================
 🔬 DEEP RESEARCH TASK (4 CARBON · THINKING LEVEL: LOW + DEEP RESEARCH)
 ================================================================================
-Execute an exhaustive Deep Research investigation on the topic, era, location, and structure above, integrating the Step 1 Analyzed Reference Video strictly as a structural and retention mold (never copying its topic), and deliver the report in Spanish organized into these 4 clear sections:
-1. MATHEMATICAL & STRUCTURAL BREAKDOWN BY ACTS (~${(totalTargetSec / 60).toFixed(0)} MIN WITH 8S INTRO & 8S OUTRO + VIRAL PATTERNS FROM STEP 1):
-   - Exact map of narrative acts with percentage (%), exact time range, turning points, and retention micro-hooks calibrated to the Step 1 reference blueprint.
+Execute an exhaustive Deep Research investigation on the topic, era, location, and structure above, ${
+      hasReferenceVideo
+        ? topicIsChosen
+          ? 'integrating the Step 1 reference video strictly as a structural and retention mold (never copying its narration or phrases)'
+          : 'integrating the Step 1 Analyzed Reference Video strictly as a structural and retention mold (never copying its topic)'
+        : selectedVideoAnalysesRaw
+        ? 'integrating the research material of the selected videos (verified facts only)'
+        : 'with original structure and retention design'
+    }, and deliver the report in Spanish organized into these 4 clear sections:
+1. MATHEMATICAL & STRUCTURAL BREAKDOWN BY ACTS (~${(totalTargetSec / 60).toFixed(0)} MIN WITH 8S INTRO & 8S OUTRO${hasReferenceVideo ? ' + VIRAL PATTERNS FROM STEP 1' : ''}):
+   - Exact map of narrative acts with percentage (%), exact time range, turning points, and retention micro-hooks${hasReferenceVideo ? ' calibrated to the Step 1 reference blueprint' : ''}.
 2. CHRONOLOGICAL HISTORICAL ACCOUNT, UNUSUAL FACTS & DOCUMENTED CONTRADICTIONS:
    - Deep act-by-act historical account with exact dates, verified numbers, laws, contracts, period prices, sensory details (smells, sounds, textures, architecture), and historical answers to audience questions.
 3. COMPLETE PRIMARY-SOURCE RESEARCH DOSSIER (ARCHIVES, CHRONICLES & RECORDS):
@@ -3736,7 +3695,7 @@ ${doc.deepResearchPrompt || ''}
 Deep Historical Research (Step 2 — Deep Research):
 ${doc.deepResearchResult || (!doc.deepResearchPrompt ? doc.sectionsStructure || '' : '')}${
         selectedVideoAnalysesRaw
-          ? `\nAnalyses of ${selectedVideoAnalysesCount || 'several'} YouTube videos about this same topic (research material only: use verified facts, never copy their phrasing or structure):\n${selectedVideoAnalysesRaw.slice(0, 20000)}\n`
+          ? `\nNotes from ${selectedVideoAnalysesCount || 'several'} YouTube videos about this same topic — their doubtful claims and what they leave out (use only verified facts; never copy their phrasing or structure):\n${compactVideoAnalysesForScript(selectedVideoAnalysesRaw)}\n`
           : ''
       }
 
@@ -4399,22 +4358,6 @@ UNBREAKABLE RULES:
     stagePrompt += `\n\nAdditional director instruction: ${customInstruction}`;
   }
   return stagePrompt;
-}
-
-export async function generateStageClientSide(
-  stageNumber: number,
-  doc: DocumentaryProject,
-  customInstruction?: string
-): Promise<string> {
-  const stagePrompt = buildStagePromptText(stageNumber, doc, customInstruction);
-  const rawOut = await callGeminiGenerateContentClientSide([{ text: stagePrompt }], false);
-  const sanitizedOut = stageNumber === 9 ? rawOut : sanitizeBrandSafeEditorialText(rawOut);
-  const out =
-    stageNumber === 4 ? normalizeFirstDayOfMonthInVoiceover(sanitizedOut) : sanitizedOut;
-  if (stageNumber === 8) {
-    return ensureOperationalHeaderInRawClips(out, doc.operationalHeader, doc.flowVideoEngine);
-  }
-  return out;
 }
 
 export async function generateThumbnailImageClientSide(

@@ -25,7 +25,8 @@ interface AnalyzedVideo {
   analysisError?: string;
 }
 
-const MAX_CHARS_PER_VIDEO = 9000;
+// A whole analysis (its 7 sections, ~21k characters) must reach the prompts: doubts, gaps and structure come last
+const MAX_CHARS_PER_VIDEO = 22000;
 
 function serverOrigin(): string {
   if (typeof window === 'undefined' || isLocalMediaRuntimeOrigin()) return '';
@@ -63,9 +64,11 @@ export function buildSelectedVideoAnalysesBlock(videos: AnalyzedVideo[], ids: st
 interface Props {
   activeDoc: DocumentaryProject;
   updateActiveDoc: (patch: Partial<DocumentaryProject>, options?: { docId?: string; source?: string }) => any;
+  /** Reports the analyses and their status (Paso 1 / Paso 2 warn when a marked one is still running) */
+  onAnalysesChange?: (videos: AnalyzedVideo[]) => void;
 }
 
-export default function MultiVideoResearchPanel({ activeDoc, updateActiveDoc }: Props) {
+export default function MultiVideoResearchPanel({ activeDoc, updateActiveDoc, onAnalysesChange }: Props) {
   const [videos, setVideos] = useState<AnalyzedVideo[]>([]);
   const [linksText, setLinksText] = useState('');
   const [starting, setStarting] = useState(false);
@@ -73,18 +76,33 @@ export default function MultiVideoResearchPanel({ activeDoc, updateActiveDoc }: 
   const [openId, setOpenId] = useState('');
   const docIdRef = useRef(activeDoc.id);
   docIdRef.current = activeDoc.id;
+  const videosRef = useRef<AnalyzedVideo[]>([]);
+  videosRef.current = videos;
+  const onAnalysesChangeRef = useRef(onAnalysesChange);
+  onAnalysesChangeRef.current = onAnalysesChange;
 
   const selectedIds = useMemo(
     () => parseSelectedIds(activeDoc.promptConfig?.SELECTED_VIDEO_ANALYSES_IDS),
     [activeDoc.promptConfig?.SELECTED_VIDEO_ANALYSES_IDS]
   );
 
-  const load = async () => {
+  const load = async (light = false) => {
     try {
-      const r = await fetch(api('/api/youtube/video-analysis/list'), { cache: 'no-store' });
+      const r = await fetch(api(`/api/youtube/video-analysis/list${light ? '?light=1' : ''}`), { cache: 'no-store' });
       const j = await r.json();
-      const list = Array.isArray(j) ? j : Array.isArray(j?.videos) ? j.videos : [];
-      setVideos(list);
+      const list: AnalyzedVideo[] = Array.isArray(j) ? j : Array.isArray(j?.videos) ? j.videos : [];
+      if (!light) {
+        setVideos(list);
+        onAnalysesChangeRef.current?.(list);
+        return;
+      }
+      // Light poll (statuses only, no texts): the full list is fetched once when something changed
+      const prev = videosRef.current;
+      const changed = list.some((v) => {
+        const before = prev.find((x) => x.videoId === v.videoId);
+        return !before || before.analysisStatus !== v.analysisStatus;
+      });
+      if (changed) await load(false);
     } catch {}
   };
 
@@ -96,7 +114,7 @@ export default function MultiVideoResearchPanel({ activeDoc, updateActiveDoc }: 
   const anyAnalyzing = videos.some((v) => v.analysisStatus === 'analyzing');
   useEffect(() => {
     if (!anyAnalyzing) return;
-    const t = setInterval(() => void load(), 4000);
+    const t = setInterval(() => void load(true), 4000);
     return () => clearInterval(t);
   }, [anyAnalyzing]);
 
@@ -106,13 +124,9 @@ export default function MultiVideoResearchPanel({ activeDoc, updateActiveDoc }: 
     const block = buildSelectedVideoAnalysesBlock(videos, selectedIds);
     const current = String(activeDoc.promptConfig?.SELECTED_VIDEO_ANALYSES_BLOCK || '');
     if (block !== current) {
+      // Only this key: updateActiveDoc merges it into the latest promptConfig (no stale copy of the other keys)
       updateActiveDoc(
-        {
-          promptConfig: {
-            ...(activeDoc.promptConfig || {}),
-            SELECTED_VIDEO_ANALYSES_BLOCK: block,
-          },
-        },
+        { promptConfig: { SELECTED_VIDEO_ANALYSES_BLOCK: block } },
         { docId: activeDoc.id, source: 'multi-video-research' }
       );
     }
@@ -126,13 +140,22 @@ export default function MultiVideoResearchPanel({ activeDoc, updateActiveDoc }: 
     updateActiveDoc(
       {
         promptConfig: {
-          ...(activeDoc.promptConfig || {}),
           SELECTED_VIDEO_ANALYSES_IDS: next.join(','),
           SELECTED_VIDEO_ANALYSES_BLOCK: buildSelectedVideoAnalysesBlock(videos, next),
         },
       },
       { docId: activeDoc.id, source: 'multi-video-research' }
     );
+  };
+
+  // Subject told to Gemini with each video: the documentary's topic, else its title without "Video NN —"
+  // (never the default name of a new documentary)
+  const researchTopicHint = (): string => {
+    const topic = String(activeDoc.topic || '').trim();
+    if (topic) return topic;
+    const title = String(activeDoc.title || '').trim();
+    if (!title || /^nuevo documental/i.test(title)) return '';
+    return title.replace(/^video\s*\d+\s*[—–:-]\s*/i, '').trim();
   };
 
   const start = async (urls: string[]) => {
@@ -146,7 +169,7 @@ export default function MultiVideoResearchPanel({ activeDoc, updateActiveDoc }: 
       const r = await fetch(api('/api/youtube/video-analysis/start'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ urls, topic: activeDoc.topic || activeDoc.title || '' }),
+        body: JSON.stringify({ urls, topic: researchTopicHint() }),
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok || !j?.ok) throw new Error(j?.error || `Error ${r.status}`);
@@ -157,12 +180,7 @@ export default function MultiVideoResearchPanel({ activeDoc, updateActiveDoc }: 
       const next = [...new Set([...selectedIds, ...startedIds])];
       if (docIdRef.current === activeDoc.id) {
         updateActiveDoc(
-          {
-            promptConfig: {
-              ...(activeDoc.promptConfig || {}),
-              SELECTED_VIDEO_ANALYSES_IDS: next.join(','),
-            },
-          },
+          { promptConfig: { SELECTED_VIDEO_ANALYSES_IDS: next.join(',') } },
           { docId: activeDoc.id, source: 'multi-video-research' }
         );
       }
@@ -185,7 +203,10 @@ export default function MultiVideoResearchPanel({ activeDoc, updateActiveDoc }: 
       .filter((s) => /youtu\.?be/i.test(s));
 
   // Only videos analyzed with this tool (the older library entries keep using the selector below)
-  const analysisList = videos.filter((v) => v.analysisStatus || v.geminiAnalysis);
+  // Marked videos first
+  const analysisList = videos
+    .filter((v) => v.analysisStatus || v.geminiAnalysis)
+    .sort((a, b) => Number(selectedIds.includes(b.videoId)) - Number(selectedIds.includes(a.videoId)));
   const selectedDone = analysisList.filter((v) => selectedIds.includes(v.videoId) && v.analysisStatus === 'done');
 
   return (
