@@ -19978,6 +19978,27 @@ app.get('/api/youtube/video-analysis/list', (req, res) => {
     res.status(500).json({ ok: false, error: e?.message || 'No se pudo leer la biblioteca.' });
   }
 });
+// Remove a video from the library (the page asks for confirmation first). Not while Gemini is analyzing it.
+app.delete('/api/youtube/video-analysis/:videoId', (req, res) => {
+  try {
+    const vid = String(req.params.videoId || '').trim();
+    const library = loadAnalyzedVideosLibrary();
+    const idx = library.findIndex(
+      (v) => v.videoId === vid || v.id === vid || v.id === `vid_${vid}` || (v as any).realYoutubeId === vid
+    );
+    if (idx < 0) return res.status(404).json({ ok: false, error: 'Ese video no está en la biblioteca.' });
+    const st = library[idx].analysisStatus;
+    if (st === 'queued' || st === 'analyzing') {
+      return res.status(409).json({ ok: false, error: 'Gemini lo está analizando: espera a que termine para quitarlo.' });
+    }
+    const [removed] = library.splice(idx, 1);
+    saveAnalyzedVideosLibrary(library);
+    console.log(`[VideoAnalysis] Quitado de la biblioteca: ${removed.title} (${removed.videoId})`);
+    res.json({ ok: true, removed: { videoId: removed.videoId, title: removed.title } });
+  } catch (e: any) {
+    res.status(500).json({ ok: false, error: e?.message || 'No se pudo quitar el video.' });
+  }
+});
 app.post('/api/youtube/video-analysis/result', (req, res) => {
   try {
     const vid = String(req.body?.videoId || '').trim();
