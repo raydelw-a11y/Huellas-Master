@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-11-23T02:44:27.074Z",
-    "updatedAt": "2026-11-23T06:10:31.214Z",
+    "updatedAt": "2026-11-23T06:10:32.911Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -26,13 +26,13 @@
       "REMOTE_GEMINI_STAGE_STATUS": "completed",
       "REMOTE_GEMINI_STAGE_ERROR": "",
       "FIELD_CLEARED_AT_deepResearchPrompt": "0",
-      "LUGAR_HISTORICO": "Nueva York, Estados Unidos"
+      "LUGAR_HISTORICO": "São Paulo, Brasil"
     },
     "compiledMasterPrompt": "",
     "topic": "",
     "typology": "",
     "historicalTime": "",
-    "historicalLocation": "Nueva York, Estados Unidos",
+    "historicalLocation": "São Paulo, Brasil",
     "targetDurationSeconds": 1200,
     "clipDurationMode": "8_SEGUNDOS",
     "clip1SyncMode": "VOZ_EN_CLIP_2",
