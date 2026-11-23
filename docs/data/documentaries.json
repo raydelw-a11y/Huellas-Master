@@ -3293,8 +3293,7 @@
         "videoSavedAt": 1795223135658,
         "reviewedUpdatedAt": 1795306275776,
         "discardedVideoFileName": "01_create_a_cinematic_6_second_4bcd0a45_4K.mp4",
-        "videoDiscardedAt": 1795306275776,
-        "videoFrames": []
+        "videoDiscardedAt": 1795306275776
       },
       {
         "id": "clip-2-1795229017000-2",
@@ -3318,8 +3317,7 @@
         "videoSavedAt": 1795223135658,
         "reviewedUpdatedAt": 1795306275776,
         "discardedVideoFileName": "02_Ano_1941_Enfermeria_Radcliffe_Oxford_Inglaterra_4K.mp4",
-        "videoDiscardedAt": 1795306275776,
-        "videoFrames": []
+        "videoDiscardedAt": 1795306275776
       },
       {
         "id": "clip-48-1795229017002-48",
@@ -4706,7 +4704,6 @@
         "reframeReason": "Paneo dinámico IA (78% → 28%) desde sujeto derecho hacia escena izquierda (Der → Izq)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -4737,7 +4734,6 @@
         "reframeConfidence": 0.55,
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -4766,7 +4762,6 @@
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -4795,7 +4790,6 @@
         "reframeReason": "Paneo dinámico IA (34% → 78%) entre dos sujetos (Izq → Der)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -4824,7 +4818,6 @@
         "reframeReason": "Paneo dinámico IA (67% → 54%) siguiendo acción/sujeto",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -4853,7 +4846,6 @@
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -4882,7 +4874,6 @@
         "reframeReason": "Paneo dinámico IA (31% → 16%) siguiendo acción/sujeto",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -4911,7 +4902,6 @@
         "reframeReason": "Paneo dinámico IA (24% → 76%) desde escena izquierda hacia sujeto derecho (Izq → Der)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -4940,7 +4930,6 @@
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -4969,7 +4958,6 @@
         "reframeReason": "Paneo dinámico IA (18% → 76%) desde sujeto izquierdo hacia escena derecha (Izq → Der)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -4998,7 +4986,6 @@
         "reframeReason": "Paneo dinámico IA (58% → 32%) siguiendo acción/sujeto",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -5029,7 +5016,6 @@
         "reframeReason": "Paneo dinámico IA (78% → 24%) desde sujeto derecho hacia escena izquierda (Der → Izq)",
         "videoDiscardOverriddenAt": 1794830501989,
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -5060,7 +5046,6 @@
         "reframeConfidence": 0.55,
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -5089,7 +5074,6 @@
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -5118,7 +5102,6 @@
         "reframeReason": "Paneo dinámico IA (69% → 50%) siguiendo acción/sujeto",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -5149,7 +5132,6 @@
         "reframeConfidence": 0.55,
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -5178,7 +5160,6 @@
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -5210,7 +5191,6 @@
         "reframeReason": "Paneo dinámico IA (18% → 76%) desde sujeto izquierdo hacia escena derecha (Izq → Der)",
         "previousVideoPrompt": "Clip 18 (02:24 - 02:32): Create a cinematic 8-second static B-roll video executing ONLY a smooth, continuous, ultra-steady optical Ken Burns zoom-in over the frozen scene: ONLY a slow, steady optical Ken Burns zoom-in (gradual push-in from wide to tight framing with zero lens distortion) across the 100% still archival photograph plate of the open 1929 scientific bulletin with monochrome bacterial agar illustrations resting motionless on @Mesa_Historiador, keeping the entire starting image 100% frozen as a still documentary B-roll plate from 0s to 8s with zero internal object animation, with no people present. STATIC B-ROLL PLATE LOCK (CAMERA MOTION ONLY): Treat the starting image as a 100% frozen, motionless archival B-roll still plate from 0s to 8s with strictly zero internal object animation, zero morphing, and zero lighting shifts—ONLY the virtual optical rostrum camera performs the zoom in movement. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: subtle archival library room tone, faint dry paper stillness, single continuous shot, strictly no shot changes, no music, no speech, no text. [B-Roll: STATIC_ZOOM_IN] [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -5239,7 +5219,6 @@
         "reframeReason": "Paneo dinámico IA (22% → 81%) entre dos sujetos (Izq → Der)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -5270,7 +5249,6 @@
         "reframeConfidence": 0.62,
         "reframeReason": "Paneo dinámico IA (39% → 58%) siguiendo acción/sujeto",
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -5299,7 +5277,6 @@
         "reframeReason": "Paneo manual (76% → 53%): termina con el hombre centrado",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
-        "videoFrames": [],
         "userReframed9x16": true,
         "reframeUpdatedAt": 1795055359917,
         "videoAuditReason": "",
@@ -5330,7 +5307,6 @@
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -5359,7 +5335,6 @@
         "reframeReason": "Paneo dinámico IA (82% → 24%) desde sujeto derecho hacia escena izquierda (Der → Izq)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -5388,7 +5363,6 @@
         "reframeReason": "Paneo dinámico IA (66% → 46%) siguiendo acción/sujeto",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -5417,7 +5391,6 @@
         "reframeReason": "Paneo dinámico IA (22% → 78%) entre dos sujetos (Izq → Der)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -5448,7 +5421,6 @@
         "reframeConfidence": 0.55,
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -5477,7 +5449,6 @@
         "reframeReason": "Paneo dinámico IA (22% → 76%) desde sujeto izquierdo hacia escena derecha (Izq → Der)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -5509,7 +5480,6 @@
         "reframeReason": "Enfoque inteligente IA en tercio derecho (63%)",
         "previousVideoPrompt": "Clip 28 (03:44 - 03:52): Create a cinematic 8-second static B-roll video executing ONLY a smooth, continuous, ultra-steady optical Ken Burns zoom-out over the frozen scene: ONLY a slow, steady optical Ken Burns zoom-out (gradual pull-back from close detail to wide framing revealing full context) across the 100% still archival photograph plate of the preserved 1928 Petri dish, cloth-bound notebook, and brass fountain pen frozen in slanting light on the wooden bench of @Laboratorio_St_Mary, keeping the entire starting image 100% frozen as a still documentary B-roll plate from 0s to 8s with zero internal object animation, with no people present. STATIC B-ROLL PLATE LOCK (CAMERA MOTION ONLY): Treat the starting image as a 100% frozen, motionless archival B-roll still plate from 0s to 8s with strictly zero internal object animation, zero morphing, and zero lighting shifts—ONLY the virtual optical rostrum camera performs the zoom out movement. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: quiet regulator wall clock ticking in the basement laboratory, calm room tone, single continuous shot, strictly no shot changes, no music, no speech, no text. [B-Roll: STATIC_ZOOM_OUT] [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -5538,7 +5508,6 @@
         "reframeReason": "Enfoque inteligente IA en tercio derecho (64%)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -5567,7 +5536,6 @@
         "reframeReason": "Paneo dinámico IA (82% → 24%) desde sujeto derecho hacia escena izquierda (Der → Izq)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -5596,7 +5564,6 @@
         "reframeReason": "Paneo dinámico IA (22% → 82%) entre dos sujetos (Izq → Der)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -5628,7 +5595,6 @@
         "reframeReason": "Enfoque inteligente IA en tercio izquierdo (17%)",
         "promptUpdatedAt": 1794572688032,
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -5659,7 +5625,6 @@
         "reframeConfidence": 0.66,
         "reframeReason": "Enfoque inteligente IA en tercio izquierdo (21%)",
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -5688,7 +5653,6 @@
         "reframeReason": "Enfoque inteligente IA en tercio derecho (66%)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -5717,7 +5681,6 @@
         "reframeReason": "Paneo dinámico IA (22% → 72%) entre dos sujetos (Izq → Der)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -5746,7 +5709,6 @@
         "reframeReason": "Paneo dinámico IA (84% → 66%) siguiendo acción/sujeto",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -5775,7 +5737,6 @@
         "reframeReason": "Paneo dinámico IA (22% → 76%) desde sujeto izquierdo hacia escena derecha (Izq → Der)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -5804,7 +5765,6 @@
         "reframeReason": "Paneo dinámico IA (46% → 62%) siguiendo acción/sujeto",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -5870,7 +5830,6 @@
         "reframeReason": "Paneo dinámico IA (22% → 76%) desde sujeto izquierdo hacia escena derecha (Izq → Der)",
         "promptUpdatedAt": 1794572688032,
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -5899,7 +5858,6 @@
         "reframeReason": "Paneo dinámico IA (24% → 76%) desde escena izquierda hacia sujeto derecho (Izq → Der)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -5928,7 +5886,6 @@
         "reframeReason": "Paneo dinámico IA (24% → 76%) desde escena izquierda hacia sujeto derecho (Izq → Der)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -5960,7 +5917,6 @@
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "previousVideoPrompt": "Clip 43 (05:44 - 05:52): Create a cinematic 8-second static B-roll video executing ONLY a smooth, continuous vertical rostrum camera tilt upward from bottom to top over the frozen scene: ONLY a slow, controlled vertical pedestal tilt upward from the base of the still archival frame to the top across the 100% still documentary photograph plate ascending from the lower glass milk bottles up the reclaimed oak shelving, hand-blown glass spirals, and copper coils inside @Escuela_Dunn_Oxford, keeping the entire starting image 100% frozen as a still documentary B-roll plate from 0s to 8s with zero internal object animation, with no people present. STATIC B-ROLL PLATE LOCK (CAMERA MOTION ONLY): Treat the starting image as a 100% frozen, motionless archival B-roll still plate from 0s to 8s with strictly zero internal object animation, zero morphing, and zero lighting shifts—ONLY the virtual optical rostrum camera performs the tilt arriba movement. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: soft resonant glass-and-oak laboratory room tone, distant faint condenser hum, single continuous shot, strictly no shot changes, no music, no speech, no text. [B-Roll: STATIC_TILT_UP] [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -5991,7 +5947,6 @@
         "reframeConfidence": 0.82,
         "reframeReason": "Paneo dinámico IA (78% → 24%) desde sujeto derecho hacia escena izquierda (Der → Izq)",
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6020,7 +5975,6 @@
         "reframeReason": "Enfoque inteligente IA en tercio izquierdo (32%)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6049,7 +6003,6 @@
         "reframeReason": "Paneo dinámico IA (50% → 30%) siguiendo acción/sujeto",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6084,7 +6037,6 @@
         "previousVideoPrompt": "Clip 47 (06:16 - 06:24): Create a cinematic 8-second video showing a smooth gentle arc shot inside the vintage Oxford research laboratory as the dark-haired mustachioed male biochemist in his white lab coat exchanges a quiet triumphant look with the bespectacled male pathology professor in his white lab coat over a brown tweed waistcoat beside him over the open printed medical journal pages bathed in warm late-summer daylight across the full 8 seconds, holding a natural composed frame through the final second. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous action across the full 8 seconds, holding a natural composed posture through the final frame. Fixed subject count from 0s to 8s (no new people appearing out of nowhere, vanishing, or morphing; background figures stationary in shallow optical bokeh). Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects. Cinematic historical drama reenactment featuring anonymous fictionalized theatre actors in period costume (no real public figures or prominent people, steady continuous lighting with zero sudden flashes). Ambient Foley: crisp rustle of freshly printed journal pages, distant cheerful chime of Oxford college bells, single continuous shot, strictly no shot changes, no music, no speech, no text. [Duration: 8s] [Model: Omni 1.1 Flash] fix the name",
         "promptUpdatedAt": 1794572688032,
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6116,7 +6068,6 @@
         "reframeReason": "Paneo dinámico IA (28% → 64%) siguiendo acción/sujeto",
         "previousVideoPrompt": "Clip 48 (06:24 - 06:32): Create a cinematic 8-second video showing a sweeping slow crane glide down the center aisle of @Escuela_Dunn_Oxford revealing row after row of white enameled hospital bedpans and improvised tin vessels stacked neatly from floor to ceiling, with no people present across the full 8 seconds, holding a natural composed frame through the final second. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: warm steady hum of steam heating pipes, subtle metallic creak of heavily loaded wooden racks, single continuous shot, strictly no shot changes, no music, no speech, no text. [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6145,7 +6096,6 @@
         "reframeReason": "Enfoque inteligente IA en tercio derecho (68%)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6174,7 +6124,6 @@
         "reframeReason": "Paneo dinámico IA (42% → 60%) siguiendo acción/sujeto",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6203,7 +6152,6 @@
         "reframeReason": "Enfoque inteligente IA en tercio izquierdo (17%)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6232,7 +6180,6 @@
         "reframeReason": "Paneo dinámico IA (78% → 24%) desde sujeto derecho hacia escena izquierda (Der → Izq)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6261,7 +6208,6 @@
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6290,7 +6236,6 @@
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6321,7 +6266,6 @@
         "reframeConfidence": 0.61,
         "reframeReason": "Enfoque inteligente IA en tercio izquierdo (16%)",
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6350,7 +6294,6 @@
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6379,7 +6322,6 @@
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6408,7 +6350,6 @@
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6437,7 +6378,6 @@
         "reframeReason": "Enfoque inteligente IA en tercio izquierdo (22%)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6466,7 +6406,6 @@
         "reframeReason": "Paneo dinámico IA (78% → 24%) desde sujeto derecho hacia escena izquierda (Der → Izq)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6498,7 +6437,6 @@
         "reframeReason": "Paneo dinámico IA (82% → 28%) desde sujeto derecho hacia escena izquierda (Der → Izq)",
         "previousVideoPrompt": "Clip 61 (08:08 - 08:16): Create a cinematic 8-second static B-roll video executing ONLY a smooth, continuous, ultra-steady optical Ken Burns zoom-in over the frozen scene: ONLY a slow, steady optical Ken Burns zoom-in (gradual push-in from wide to tight framing with zero lens distortion) across the 100% still macro photograph plate of the vintage syringe needle tip touching the completely dry empty glass medicine vial on sterile gauze inside @Enfermeria_Radcliffe, keeping the entire starting image 100% frozen as a still documentary B-roll plate from 0s to 8s with zero internal object animation, with no people present. STATIC B-ROLL PLATE LOCK (CAMERA MOTION ONLY): Treat the starting image as a 100% frozen, motionless archival B-roll still plate from 0s to 8s with strictly zero internal object animation, zero morphing, and zero lighting shifts—ONLY the virtual optical rostrum camera performs the zoom in movement. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: heavy solemn hospital ward silence, faint distant radiator tone, single continuous shot, strictly no shot changes, no music, no speech, no text. [B-Roll: STATIC_ZOOM_IN] [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6527,7 +6465,6 @@
         "reframeReason": "Paneo dinámico IA (54% → 24%) siguiendo acción/sujeto",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6556,7 +6493,6 @@
         "reframeReason": "Paneo dinámico IA (18% → 76%) desde sujeto izquierdo hacia escena derecha (Izq → Der)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794572688032,
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6591,7 +6527,6 @@
         "previousVideoPrompt": "Clip 64 (08:32 - 08:40): Create a cinematic 8-second video showing a slow tense dolly pull-back away from the tightly shut heavy mahogany and brass boardroom doors as cold shadow falls across the polished marble corridor floor, with no people present across the full 8 seconds, holding a natural composed frame through the final second. Strictly zero people or human figures appearing anywhere in the frame from 0s to 8s. All furniture, tables, and props remain 100% physically solid and non-deforming from 0s to 8s, with zero self-moving, floating, morphing, mutating, vanishing, or shape-shifting objects. Cinematic historical documentary still-life cinematography (no real public figures or prominent people, steady continuous lighting with zero sudden flashes). Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects, steady continuous lighting with zero sudden flashes. Ambient Foley: deep resonant thud of heavy mahogany boardroom doors latching shut, echoing silence in marble hallway, single continuous shot, strictly no shot changes, no music, no speech, no text. [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
         "promptUpdatedAt": 1794784316977,
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6656,7 +6591,6 @@
         "reframeConfidence": 0.55,
         "reframeReason": "Paneo dinámico IA (56% → 39%) siguiendo acción/sujeto",
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6685,7 +6619,6 @@
         "reframeReason": "Paneo dinámico IA (22% → 77%) entre dos sujetos (Izq → Der)",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794573067176,
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6715,7 +6648,6 @@
         "reframeReason": "Enfoque inteligente IA en tercio izquierdo (16%)",
         "videoDiscardOverriddenAt": 1794830501989,
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6750,7 +6682,6 @@
         "previousVideoPrompt": "Clip 69 (09:12 - 09:20): Create a cinematic 8-second video showing a slow lateral dolly shot across the drafting table as a senior British engineer runs his hand incredulously over the massive bottle-count calculation sheet and closes the blueprint portfolio across the full 8 seconds, holding a natural composed frame through the final second. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous action across the full 8 seconds, holding a natural composed posture through the final frame. Fixed subject count from 0s to 8s (no new people appearing out of nowhere, vanishing, or morphing; background figures stationary in shallow optical bokeh). Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects. Cinematic historical drama reenactment featuring anonymous fictionalized theatre actors in period costume (no real public figures or prominent people, steady continuous lighting with zero sudden flashes). Ambient Foley: heavy rustle of rolled blueprint sheets closing, quiet sigh in dim 1940s period office, single continuous shot, strictly no shot changes, no music, no speech, no text. [Duration: 8s] [Model: Omni 1.1 Flash] fix the name",
         "promptUpdatedAt": 1794785728722,
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6779,7 +6710,6 @@
         "reframeReason": "Paneo dinámico IA (43% → 68%) siguiendo acción/sujeto",
         "videoAuditStatus": "approved",
         "videoSavedAt": 1794573067176,
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6844,7 +6774,6 @@
         "reframeConfidence": 0.55,
         "reframeReason": "Paneo dinámico IA (65% → 38%) siguiendo acción/sujeto",
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6912,7 +6841,6 @@
         "reframeReason": "Paneo dinámico IA (18% → 76%) desde sujeto izquierdo hacia escena derecha (Izq → Der)",
         "previousVideoPrompt": "Clip 74 (09:52 - 10:00): Create a cinematic 8-second static B-roll video executing ONLY a smooth, continuous horizontal rostrum camera pan from left to right over the frozen scene: ONLY a slow, level horizontal fluid-head pan from left to right across the still archival frame across the 100% still archival photograph plate gliding laterally from the crossed-out chalk molecular ring diagrams on the slate blackboard across the row of cold inert synthesis flasks, keeping the entire starting image 100% frozen as a still documentary B-roll plate from 0s to 8s with zero internal object animation, with no people present. STATIC B-ROLL PLATE LOCK (CAMERA MOTION ONLY): Treat the starting image as a 100% frozen, motionless archival B-roll still plate from 0s to 8s with strictly zero internal object animation, zero morphing, and zero lighting shifts—ONLY the virtual optical rostrum camera performs the pan derecha movement. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: quiet ticking of a laboratory stopwatch, distant muffled wartime night stillness, single continuous shot, strictly no shot changes, no music, no speech, no text. [B-Roll: STATIC_PAN_RIGHT] [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6943,7 +6871,6 @@
         "reframeConfidence": 0.96,
         "reframeReason": "Paneo dinámico IA (18% → 72%) desde sujeto izquierdo hacia escena derecha (Izq → Der)",
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -6974,7 +6901,6 @@
         "reframeConfidence": 0.82,
         "reframeReason": "Paneo dinámico IA (82% → 24%) desde sujeto derecho hacia escena izquierda (Der → Izq)",
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7004,7 +6930,6 @@
         "reframeConfidence": 0.55,
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7034,7 +6959,6 @@
         "reframeConfidence": 0.55,
         "reframeReason": "Enfoque inteligente IA en tercio izquierdo (41%)",
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7064,7 +6988,6 @@
         "reframeConfidence": 0.55,
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7094,7 +7017,6 @@
         "reframeConfidence": 0.84,
         "reframeReason": "Paneo dinámico IA (24% → 76%) desde escena izquierda hacia sujeto derecho (Izq → Der)",
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7124,7 +7046,6 @@
         "reframeConfidence": 0.55,
         "reframeReason": "Paneo dinámico IA (39% → 21%) siguiendo acción/sujeto",
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7154,7 +7075,6 @@
         "reframeConfidence": 0.82,
         "reframeReason": "Paneo dinámico IA (78% → 28%) desde sujeto derecho hacia escena izquierda (Der → Izq)",
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7184,7 +7104,6 @@
         "reframeConfidence": 0.62,
         "reframeReason": "Paneo dinámico IA (84% → 67%) siguiendo acción/sujeto",
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7214,7 +7133,6 @@
         "reframeConfidence": 0.55,
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7244,7 +7162,6 @@
         "reframeConfidence": 0.62,
         "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7275,7 +7192,6 @@
         "videoDiscardOverriddenAt": 1794830501989,
         "videoSavedAt": 1794830501989,
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7305,7 +7221,6 @@
         "videoSavedFileName": "87_generate_a_video_in_16_9_68ccc0a1_4K.mp4",
         "videoSavedAt": 1794831222323,
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7336,7 +7251,6 @@
         "videoDiscardOverriddenAt": 1794830501883,
         "videoSavedAt": 1794830501883,
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7370,7 +7284,6 @@
         "videoSavedAt": 1794830501989,
         "previousVideoPrompt": "Clip 89 (11:52 - 12:00): Create a cinematic 8-second static B-roll video executing ONLY a smooth, continuous, ultra-steady optical Ken Burns zoom-in over the frozen scene: ONLY a slow, steady optical Ken Burns zoom-in (gradual push-in from wide to tight framing with zero lens distortion) across the 100% still macro photograph plate of the netted cantaloupe rind on the steel tray inside @Laboratorio_Peoria centering tightly on the luminous golden-yellow mold scar, keeping the entire starting image 100% frozen as a still documentary B-roll plate from 0s to 8s with zero internal object animation, with no people present. STATIC B-ROLL PLATE LOCK (CAMERA MOTION ONLY): Treat the starting image as a 100% frozen, motionless archival B-roll still plate from 0s to 8s with strictly zero internal object animation, zero morphing, and zero lighting shifts—ONLY the virtual optical rostrum camera performs the zoom in movement. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: hushed laboratory room tone, faint sterile ventilation hum, single continuous shot, strictly no shot changes, no music, no speech, no text. [B-Roll: STATIC_ZOOM_IN] [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7401,7 +7314,6 @@
         "videoDiscardOverriddenAt": 1794830668929,
         "videoSavedAt": 1794830668929,
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7432,7 +7344,6 @@
         "videoDiscardOverriddenAt": 1794830768488,
         "videoSavedAt": 1794830768488,
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7466,7 +7377,6 @@
         "videoSavedAt": 1794830768977,
         "previousVideoPrompt": "Clip 92 (12:16 - 12:24): Create a cinematic 8-second video showing a slow solemn wide tracking glide across the wet sand of @Playas_Normandia_1944 past the olive-drab medical crates toward gray Atlantic waves breaking against dark steel beach obstacles, with no people present across the full 8 seconds, holding a natural composed frame through the final second. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: rolling crash of cold English Channel waves on wet sand, sea wind snapping canvas tent ropes, single continuous shot, strictly no shot changes, no music, no speech, no text. [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7501,7 +7411,6 @@
         "previousVideoPrompt": "Clip 93: Generate a video in 16-9 horizontal aspect ratio across 8 seconds showing a slow tense push-in across the green baize conference table as a military medical officer closes a heavy leather dispatch portfolio beside a small rack of golden amber botanical solution ampoules across the full 8 seconds, holding a natural composed frame through the final second, with no people present and zero human figures, all background furniture, architectural fixtures, and tabletop props remain 100% gravity-locked and stationary while any held object moves smoothly under natural hand control, fixed subject count from 0s to 8s, single continuous shot, strictly no shot changes, with subtle ambient foley of quiet period room tone and natural atmospheric acoustics. cinematic documentary realism, safe framing composition, 8k resolution, sharp focus, no modern objects, no CGI look, no text, no spoken voice, no human speech, no music. fix the name to Clip_93_generate_a_video_in_16_9",
         "promptUpdatedAt": 1794831962791,
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7532,7 +7441,6 @@
         "videoDiscardOverriddenAt": 1794830848719,
         "videoSavedAt": 1794830848719,
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7597,7 +7505,6 @@
         "videoDiscardOverriddenAt": 1794830848719,
         "videoSavedAt": 1794830848719,
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7662,7 +7569,6 @@
         "videoDiscardOverriddenAt": 1794830848621,
         "videoSavedAt": 1794830896464,
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7693,7 +7599,6 @@
         "videoDiscardOverriddenAt": 1794830848621,
         "videoSavedAt": 1794830896464,
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7723,7 +7628,6 @@
         "videoSavedFileName": "100_generate_a_video_in_16_9_a78a4b78_4K.mp4",
         "videoSavedAt": 1794830896464,
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7754,7 +7658,6 @@
         "videoDiscardOverriddenAt": 1794833523145,
         "videoSavedAt": 1794833770519,
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7785,7 +7688,6 @@
         "videoDiscardOverriddenAt": 1794833540414,
         "videoSavedAt": 1794833770519,
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7819,7 +7721,6 @@
         "videoSavedAt": 1794833770519,
         "previousVideoPrompt": "Clip 103 (13:44 - 13:52): Create a cinematic 8-second static B-roll video executing ONLY a smooth, continuous, ultra-steady optical Ken Burns zoom-out over the frozen scene: ONLY a slow, steady optical Ken Burns zoom-out (gradual pull-back from close detail to wide framing revealing full context) across the 100% still high-angle archival photograph plate pulling back from a tight cluster of golden penicillin ampoules to reveal the vast 1944 Allied supply depot filled wall-to-wall with crates, keeping the entire starting image 100% frozen as a still documentary B-roll plate from 0s to 8s with zero internal object animation, with no people present. STATIC B-ROLL PLATE LOCK (CAMERA MOTION ONLY): Treat the starting image as a 100% frozen, motionless archival B-roll still plate from 0s to 8s with strictly zero internal object animation, zero morphing, and zero lighting shifts—ONLY the virtual optical rostrum camera performs the zoom out movement. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: deep cavernous warehouse echo, faint wooden crate stillness, single continuous shot, strictly no shot changes, no music, no speech, no text. [B-Roll: STATIC_ZOOM_OUT] [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7850,7 +7751,6 @@
         "videoDiscardOverriddenAt": 1794833737161,
         "videoSavedAt": 1794833770519,
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7881,7 +7781,6 @@
         "videoDiscardOverriddenAt": 1794833737161,
         "videoSavedAt": 1794833770519,
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7916,7 +7815,6 @@
         "previousVideoPrompt": "Clip 106 (14:08 - 14:16): Create a cinematic 8-second video showing a slow graceful macro slider shot across the marble counter from the humble vintage coins toward the abundant gleaming glass vials bathed in warm afternoon sunlight, with no people present across the full 8 seconds, holding a natural composed frame through the final second. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: warm peaceful afternoon street murmur muffled behind shop glass, quiet clock tick, single continuous shot, strictly no shot changes, no music, no speech, no text. [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
         "promptUpdatedAt": 1794834092912,
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7947,7 +7845,6 @@
         "videoDiscardOverriddenAt": 1794833737161,
         "videoSavedAt": 1794833770519,
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -7978,7 +7875,6 @@
         "videoDiscardOverriddenAt": 1794833737161,
         "videoSavedAt": 1794833770519,
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8009,7 +7905,6 @@
         "videoDiscardOverriddenAt": 1794833737161,
         "videoSavedAt": 1794833770519,
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8074,7 +7969,6 @@
         "videoDiscardOverriddenAt": 1794833880030,
         "videoSavedAt": 1794833880030,
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8105,7 +7999,6 @@
         "videoDiscardOverriddenAt": 1794833880030,
         "videoSavedAt": 1794833880030,
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8136,7 +8029,6 @@
         "videoDiscardOverriddenAt": 1794833880030,
         "videoSavedAt": 1794833880030,
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8167,7 +8059,6 @@
         "videoDiscardOverriddenAt": 1794833880030,
         "videoSavedAt": 1794833880030,
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8198,7 +8089,6 @@
         "videoDiscardOverriddenAt": 1794833880030,
         "videoSavedAt": 1794833880030,
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8229,7 +8119,6 @@
         "videoDiscardOverriddenAt": 1794834839299,
         "videoSavedAt": 1794834839299,
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8294,7 +8183,6 @@
         "videoDiscardOverriddenAt": 1794834883252,
         "videoSavedAt": 1794834883252,
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8325,7 +8213,6 @@
         "videoDiscardOverriddenAt": 1794835144268,
         "videoSavedAt": 1794835203918,
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8359,7 +8246,6 @@
         "videoSavedAt": 1794835003300,
         "previousVideoPrompt": "Clip 120 (16:00 - 16:08): Create a cinematic 8-second static B-roll video executing ONLY a smooth, continuous horizontal rostrum camera pan from right to left over the frozen scene: ONLY a slow, level horizontal fluid-head pan from right to left across the still archival frame across the 100% still archival photograph plate panning smoothly from the closed neoclassical stone ministry facade leftward toward the misty iron harbor cranes along the Rio de la Plata in 1944 Buenos Aires, keeping the entire starting image 100% frozen as a still documentary B-roll plate from 0s to 8s with zero internal object animation, with no people present. STATIC B-ROLL PLATE LOCK (CAMERA MOTION ONLY): Treat the starting image as a 100% frozen, motionless archival B-roll still plate from 0s to 8s with strictly zero internal object animation, zero morphing, and zero lighting shifts—ONLY the virtual optical rostrum camera performs the pan izquierda movement. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: distant ship foghorn echoing across river mist, cold wind over wet granite, single continuous shot, strictly no shot changes, no music, no speech, no text. [B-Roll: STATIC_PAN_LEFT] [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8424,7 +8310,6 @@
         "videoDiscardOverriddenAt": 1794835172529,
         "videoSavedAt": 1794835203918,
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8455,7 +8340,6 @@
         "videoDiscardOverriddenAt": 1794954475626,
         "videoSavedAt": 1794954475626,
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "userReframed9x16": true,
         "reframeUpdatedAt": 1795057123761,
         "videoAuditReason": "",
@@ -8488,7 +8372,6 @@
         "videoDiscardOverriddenAt": 1794835214531,
         "videoSavedAt": 1794835215441,
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8519,7 +8402,6 @@
         "videoDiscardOverriddenAt": 1794835225209,
         "videoSavedAt": 1794835226645,
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8550,7 +8432,6 @@
         "videoDiscardOverriddenAt": 1794835248432,
         "videoSavedAt": 1794835312992,
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8617,7 +8498,6 @@
         "videoDiscardOverriddenAt": 1794835071960,
         "videoSavedAt": 1794835203918,
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8648,7 +8528,6 @@
         "videoDiscardOverriddenAt": 1794835087120,
         "videoSavedAt": 1794835203918,
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8679,7 +8558,6 @@
         "videoDiscardOverriddenAt": 1794835263417,
         "videoSavedAt": 1794835312992,
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8710,7 +8588,6 @@
         "videoDiscardOverriddenAt": 1794836340448,
         "videoSavedAt": 1794836402971,
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "userReframed9x16": true,
         "reframeUpdatedAt": 1795057310443,
         "videoAuditReason": "",
@@ -8743,7 +8620,6 @@
         "videoDiscardOverriddenAt": 1794836366907,
         "videoSavedAt": 1794836402971,
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8773,7 +8649,6 @@
         "videoSavedFileName": "133_generate_a_video_in_16_9_90b71187_4K.mp4",
         "videoSavedAt": 1794839803726,
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8840,7 +8715,6 @@
         "videoDiscardOverriddenAt": 1794836406278,
         "videoSavedAt": 1794836494024,
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "userReframed9x16": true,
         "reframeUpdatedAt": 1795057358371,
         "videoAuditReason": "",
@@ -8873,7 +8747,6 @@
         "videoDiscardOverriddenAt": 1794836700830,
         "videoSavedAt": 1794836700830,
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "userReframed9x16": true,
         "reframeUpdatedAt": 1795057376889,
         "videoAuditReason": "",
@@ -8906,7 +8779,6 @@
         "videoDiscardOverriddenAt": 1794837016438,
         "videoSavedAt": 1794837074425,
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "userReframed9x16": true,
         "reframeUpdatedAt": 1795057396376,
         "videoAuditReason": "",
@@ -8942,7 +8814,6 @@
         "videoSavedAt": 1794836700983,
         "previousVideoPrompt": "Clip 138 (18:24 - 18:32): Create a cinematic 8-second static B-roll video executing ONLY a smooth, continuous vertical rostrum camera tilt downward from top to bottom over the frozen scene: ONLY a slow, controlled vertical pedestal tilt downward from the top of the still archival frame to the base detail across the 100% still overhead documentary photograph plate tilting downward across the slate bench grid of ten Petri dishes onto the four plates overrun by golden resistant bacterial colonies, keeping the entire starting image 100% frozen as a still documentary B-roll plate from 0s to 8s with zero internal object animation, with no people present. STATIC B-ROLL PLATE LOCK (CAMERA MOTION ONLY): Treat the starting image as a 100% frozen, motionless archival B-roll still plate from 0s to 8s with strictly zero internal object animation, zero morphing, and zero lighting shifts—ONLY the virtual optical rostrum camera performs the tilt abajo movement. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the 8-second shot. Sustained, unhurried continuous motion across the full 8 seconds, holding a stable composed frame through the final second. Strictly zero people and zero human figures from 0s to 8s with no people present. Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects (no unintended explosions or flashes). Ambient Foley: quiet hum of laboratory lighting ballast, cold clinical glass stillness, single continuous shot, strictly no shot changes, no music, no speech, no text. [B-Roll: STATIC_TILT_DOWN] [Duration: 8s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name",
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -8973,7 +8844,6 @@
         "videoDiscardOverriddenAt": 1794836700830,
         "videoSavedAt": 1794836700830,
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -9004,7 +8874,6 @@
         "videoDiscardOverriddenAt": 1794837076411,
         "videoSavedAt": 1794837111382,
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -9035,7 +8904,6 @@
         "videoDiscardOverriddenAt": 1794837087507,
         "videoSavedAt": 1794837111382,
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       },
@@ -9066,7 +8934,6 @@
         "videoDiscardOverriddenAt": 1794837119656,
         "videoSavedAt": 1794837119656,
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "userReframed9x16": true,
         "reframeUpdatedAt": 1795057490839,
         "videoAuditReason": "",
@@ -9098,7 +8965,6 @@
         "videoSavedFileName": "143_generate_a_video_in_16_9_c4991e65_4K.mp4",
         "videoSavedAt": 1794839561116,
         "videoAuditStatus": "approved",
-        "videoFrames": [],
         "videoAuditReason": "",
         "videoAuditIssues": []
       }
