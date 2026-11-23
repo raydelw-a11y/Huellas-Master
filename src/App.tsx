@@ -204,7 +204,7 @@ import { stampBrandMarksOnThumbnail, HD_BADGE_EMPTY_CORNER_CLAUSE, LOGO_EMPTY_CO
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '09:45 PM - 11/22/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '09:54 PM - 11/22/2026';
 
 // PRODUCTION LOCK: while promptConfig.PRODUCTION_LOCKED === 'YES' these fields never change (the server
 // enforces the same list in protectLockedDocs). Metadata, thumbnails, review marks and reframes stay editable.
@@ -6730,6 +6730,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
   const renameDebounceTimerRef = useRef<any>(null);
   const lastKnownFolderNameRef = useRef<string>('');
   const lastKnownFolderPathRef = useRef<string>('');
+  // Documentary the two refs above belong to (a new or switched documentary never inherits another one's folder)
+  const lastKnownFolderDocIdRef = useRef<string>('');
   const isTypingVideoNameRef = useRef<boolean>(false);
 
   const currentCanonicalVideoName = useMemo(() => {
@@ -6774,9 +6776,14 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
   // Sync draft input when switching documentaries or selecting a folder (unless user is actively typing in the input)
   const lastDraftDocIdRef = useRef<string>('');
   useEffect(() => {
-    if (activeDoc?.id && lastDraftDocIdRef.current !== activeDoc.id) {
+    const docChanged = Boolean(activeDoc?.id && lastDraftDocIdRef.current !== activeDoc.id);
+    if (docChanged && activeDoc) {
       lastDraftDocIdRef.current = activeDoc.id;
       isTypingVideoNameRef.current = false;
+      // Forget the previous documentary's folder: only this documentary's own data counts from here
+      lastKnownFolderDocIdRef.current = activeDoc.id;
+      lastKnownFolderNameRef.current = '';
+      lastKnownFolderPathRef.current = String(activeDoc.downloadFolderPath || '').trim();
     }
     if (isTypingVideoNameRef.current) return;
     setVideoNameDraft(currentCanonicalVideoName);
@@ -6785,7 +6792,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     } else if (activeDoc?.title) {
       lastKnownFolderNameRef.current = activeDoc.title.trim();
     }
-    if (flowServerFolderPath || activeDoc?.downloadFolderPath) {
+    // The folder path state can still be the previous documentary's right after a switch: only use it later
+    if (!docChanged && (flowServerFolderPath || activeDoc?.downloadFolderPath)) {
       lastKnownFolderPathRef.current = (flowServerFolderPath || activeDoc?.downloadFolderPath || '').trim();
     }
   }, [activeDoc?.id, currentCanonicalVideoName, effectiveDocFolderName, flowServerFolderPath]);
@@ -6798,18 +6806,19 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     const doc = activeDocRef.current || activeDoc;
     if (!cleanName || !doc) return;
 
+    // Only this documentary's own folder can be renamed: its saved folder first, the remembered one only if it
+    // was remembered for this same documentary (a new documentary once renamed Video 77's folder)
+    const refsBelongToDoc = lastKnownFolderDocIdRef.current === doc.id;
     const priorFolderName = (
-      lastKnownFolderNameRef.current ||
       doc.downloadFolderName ||
-      effectiveDocFolderName ||
+      (refsBelongToDoc ? lastKnownFolderNameRef.current : '') ||
       doc.geminiChatTitle ||
       doc.title ||
       ''
     ).trim();
     const priorFolderPath = (
-      lastKnownFolderPathRef.current ||
-      flowServerFolderPath ||
       doc.downloadFolderPath ||
+      (refsBelongToDoc ? lastKnownFolderPathRef.current : '') ||
       ''
     ).trim();
 
