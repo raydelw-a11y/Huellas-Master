@@ -39,6 +39,12 @@ function serverOrigin(): string {
 }
 const api = (p: string) => `${serverOrigin()}${p}`;
 
+/** YouTube id of a link (watch?v=, youtu.be/, shorts/, embed/). */
+function youtubeIdOf(url: string): string {
+  const m = String(url || '').match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|shorts\/|embed\/|v\/))([a-zA-Z0-9_-]{11})/);
+  return m ? m[1] : '';
+}
+
 function parseSelectedIds(raw: unknown): string[] {
   return String(raw || '')
     .split(',')
@@ -150,11 +156,46 @@ export default function MultiVideoResearchPanel({ activeDoc, updateActiveDoc, on
   };
 
   const [search, setSearch] = useState('');
+  const statusOf = (v: AnalyzedVideo) => v.analysisStatus || (v.geminiAnalysis ? 'done' : 'none');
 
-  const start = async (urls: string[]) => {
+  const start = async (requestedUrls: string[], checkAlreadyAnalyzed = false) => {
+    let urls = requestedUrls;
     if (urls.length === 0) {
       setMessage('Pega al menos un enlace de YouTube.');
       return;
+    }
+    // Pasted links that are already in the library with an analysis: ask before analyzing them again
+    if (checkAlreadyAnalyzed) {
+      const repeated = urls
+        .map((u) => ({
+          url: u,
+          entry: videos.find(
+            (v) =>
+              statusOf(v) !== 'none' &&
+              statusOf(v) !== 'error' &&
+              youtubeIdOf(u) &&
+              youtubeIdOf(v.url) === youtubeIdOf(u)
+          ),
+        }))
+        .filter((x) => x.entry);
+      if (repeated.length > 0) {
+        const again = window.confirm(
+          `${repeated.length === 1 ? 'Este video ya está analizado' : 'Estos videos ya están analizados'}:\n\n${repeated
+            .map((x) => `• ${x.entry!.title}`)
+            .join('\n')}\n\n¿Volver a analizarlo${repeated.length === 1 ? '' : 's'}?\nAceptar = analizar de nuevo · Cancelar = saltarlo${
+            repeated.length === 1 ? '' : 's'
+          }`
+        );
+        if (!again) {
+          const skip = new Set(repeated.map((x) => x.url));
+          urls = urls.filter((u) => !skip.has(u));
+          if (urls.length === 0) {
+            setLinksText('');
+            setMessage('No se envió nada: ya estaba analizado.');
+            return;
+          }
+        }
+      }
     }
     setStarting(true);
     setMessage('');
@@ -185,7 +226,23 @@ export default function MultiVideoResearchPanel({ activeDoc, updateActiveDoc, on
       .map((s) => s.trim())
       .filter((s) => /youtu\.?be/i.test(s));
 
-  const statusOf = (v: AnalyzedVideo) => v.analysisStatus || (v.geminiAnalysis ? 'done' : 'none');
+  const remove = async (v: AnalyzedVideo) => {
+    const ok = window.confirm(
+      `¿Quitar "${v.title}" de la biblioteca?\n\nSe borran su análisis de Gemini y sus comentarios, también para los otros documentales. No se puede deshacer.`
+    );
+    if (!ok) return;
+    try {
+      // Stop using it in this documentary first
+      if (selectedIds.includes(v.videoId)) toggle(v.videoId);
+      const r = await fetch(api(`/api/youtube/video-analysis/${encodeURIComponent(v.videoId)}`), { method: 'DELETE' });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j?.ok) throw new Error(j?.error || `Error ${r.status}`);
+      setMessage(`🗑️ "${v.title}" quitado de la biblioteca.`);
+      void load();
+    } catch (e: any) {
+      setMessage(`⚠️ ${e?.message || 'No se pudo quitar el video.'}`);
+    }
+  };
   const q = search.trim().toLowerCase();
   // Marked videos first, then the most recent
   const libraryList = videos
@@ -216,7 +273,7 @@ export default function MultiVideoResearchPanel({ activeDoc, updateActiveDoc, on
       <button
         type="button"
         disabled={starting || linksFromText().length === 0}
-        onClick={() => void start(linksFromText())}
+        onClick={() => void start(linksFromText(), true)}
         className="w-full py-2 rounded-lg bg-sky-500/20 hover:bg-sky-500/30 border border-sky-500/40 text-sky-200 text-xs font-bold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {starting
@@ -307,16 +364,26 @@ export default function MultiVideoResearchPanel({ activeDoc, updateActiveDoc, on
                       ) : (
                         <span className="text-[10px] text-slate-500">Aún sin análisis de Gemini</span>
                       )}
-                      {v.url && (
+                      <div className="flex items-center gap-1.5">
+                        {v.url && (
+                          <button
+                            type="button"
+                            disabled={starting}
+                            onClick={() => void start([v.url])}
+                            className="px-2 py-0.5 rounded bg-slate-900 border border-slate-700 text-[10px] text-slate-200 cursor-pointer"
+                          >
+                            {st === 'error' ? 'Reintentar' : st === 'none' ? 'Analizar' : 'Reanalizar'}
+                          </button>
+                        )}
                         <button
                           type="button"
-                          disabled={starting}
-                          onClick={() => void start([v.url])}
-                          className="px-2 py-0.5 rounded bg-slate-900 border border-slate-700 text-[10px] text-slate-200 cursor-pointer"
+                          onClick={() => void remove(v)}
+                          className="px-2 py-0.5 rounded bg-slate-900 border border-rose-500/40 text-[10px] text-rose-300 cursor-pointer"
+                          title="Quitar este video de la biblioteca"
                         >
-                          {st === 'error' ? 'Reintentar' : st === 'none' ? 'Analizar' : 'Reanalizar'}
+                          Quitar
                         </button>
-                      )}
+                      </div>
                     </div>
                   )}
                   {st === 'done' && openId === v.videoId && v.geminiAnalysis && (
