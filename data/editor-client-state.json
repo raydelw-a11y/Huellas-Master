@@ -47,7 +47,7 @@
     "_v9_9x16_logo_x10_y3": true,
     "_v10_9x16_captionBottom20": true
   },
-  "updatedAt": "2026-11-23T02:12:21.213Z",
+  "updatedAt": "2026-11-23T02:44:29.787Z",
   "overlayStyles": {
     "logoScalePct": 12,
     "logoOpacity": 95,
@@ -121,42 +121,6 @@
       "audioMuted": false
     },
     {
-      "id": "clip-1-1795229017000",
-      "clipNumber": 1,
-      "duration": 8,
-      "trimStart": 0,
-      "trimEnd": 8,
-      "speed": 1,
-      "smoothSlowMo": false,
-      "foleyVolume": 80,
-      "customVolumeSet": false,
-      "audioMuted": false
-    },
-    {
-      "id": "clip-2-1795229017000-2",
-      "clipNumber": 2,
-      "duration": 304.9,
-      "trimStart": 0,
-      "trimEnd": 10,
-      "speed": 1,
-      "smoothSlowMo": false,
-      "foleyVolume": 20,
-      "customVolumeSet": false,
-      "audioMuted": false
-    },
-    {
-      "id": "clip-48-1795229017002-48",
-      "clipNumber": 48,
-      "duration": 304.9,
-      "trimStart": 0,
-      "trimEnd": 10,
-      "speed": 1,
-      "smoothSlowMo": false,
-      "foleyVolume": 20,
-      "customVolumeSet": false,
-      "audioMuted": false
-    },
-    {
       "id": "fixed-doc-outro",
       "clipNumber": 999,
       "duration": 8,
@@ -169,5 +133,5 @@
       "audioMuted": false
     }
   ],
-  "docId": "doc-1795222673241-r5vg"
+  "docId": "doc-1795401867074-v32r"
 }
