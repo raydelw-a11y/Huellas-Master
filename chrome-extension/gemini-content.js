@@ -1678,6 +1678,16 @@
           );
         }
 
+        // While Gemini watches a YouTube video it only shows its own status lines ("Analyzing video content",
+        // "Gemini said"): that is not the answer yet, keep waiting
+        if (
+          latest.text.length < 400 &&
+          /analy[sz]ing (the )?video|analizando (el )?(contenido del )?v[ií]deo|^\s*(gemini said|gemini dijo)\s*$/im.test(latest.text) &&
+          elapsedMs < 15 * 60 * 1000
+        ) {
+          stableTicks = 0;
+        }
+
         // For Stage 8 (100-160+ Image/Clip pairs) & Stage 9 metadata, wait extra stable ticks so mid-batch thinking pauses never cut off early
         let requiredStableTicks = stageNum === 8 ? 7 : isDeepResearch ? 5 : isImageOrder ? 3 : 4;
         if (isLongMetadataStage && !semanticallyComplete && elapsedMs < 65000) {
