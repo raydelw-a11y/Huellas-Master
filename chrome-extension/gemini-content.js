@@ -1473,9 +1473,12 @@
     const initialLastImageUrl = String((meta && meta.initialLastImageUrl) || '').trim();
     const promptFingerprint = String((meta && meta.promptFingerprint) || '').trim();
     // Stage 8 (140+ Image & Clip prompts) gets 25 min; Deep Research gets 20 min; other long stages get 10 min
+    // Video analyses (975, Thinking High, Gemini watches the video and searches the web) get 20 min
     const maxTimeoutMs =
       stageNumInit === 8
         ? 1500000
+        : stageNumInit === 975
+        ? 1200000
         : isDeepResearch
         ? 1200000
         : isLongProductionStage
@@ -1682,7 +1685,7 @@
         // "Gemini said"): that is not the answer yet, keep waiting
         if (
           latest.text.length < 400 &&
-          /analy[sz]ing (the )?video|analizando (el )?(contenido del )?v[ií]deo|^\s*(gemini said|gemini dijo)\s*$/im.test(latest.text) &&
+          /analy[sz]ing (the )?video|analizando (el )?(contenido del )?v[ií]deo|buscando en la web|searching the web|^\s*(gemini said|gemini dijo|pensando|thinking)[.…]*\s*$/im.test(latest.text) &&
           elapsedMs < 15 * 60 * 1000
         ) {
           stableTicks = 0;
