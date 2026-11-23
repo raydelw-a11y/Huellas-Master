@@ -19790,6 +19790,7 @@ const VIDEO_ANALYSIS_MAX_PARALLEL = 4;
 function buildVideoAnalysisPrompt(url: string, title: string): string {
   return [
     `Analiza a fondo este video de YouTube: ${url}${title ? ` ("${title}")` : ''}.`,
+    'Usa tu herramienta de YouTube para abrir el video y obtener su transcripción y su contenido; no respondas sin haberlo visto. Si de verdad no puedes acceder al video, responde solo: NO_PUEDO_VER_EL_VIDEO.',
     'Mira el video completo (transcripción, imágenes y descripción) y responde en español neutro, sin introducción, con estas secciones:',
     '1) TEMA Y RESUMEN: el tema exacto (qué, dónde, cuándo, quién) y su tesis o explicación principal (4-6 líneas).',
     '2) HECHOS Y DATOS: lista de los hechos concretos que afirma (fechas, lugares, nombres, cifras, citas), con el minuto aproximado.',
@@ -20000,6 +20001,17 @@ app.delete('/api/youtube/video-analysis/:videoId', (req, res) => {
     res.status(500).json({ ok: false, error: e?.message || 'No se pudo quitar el video.' });
   }
 });
+// Gemini sometimes answers without opening the video ("no tengo acceso…", "pega aquí la transcripción"): that is
+// not an analysis and is saved as an error (Reintentar), never as "Listo"
+function isVideoAnalysisRefusal(text: string): boolean {
+  const t = String(text || '');
+  if (/NO_PUEDO_VER_EL_VIDEO/.test(t)) return true;
+  const sections = new Set((t.match(/(?:^|\n)\s*\**\s*([1-7])\)/g) || []).map((m) => m.replace(/\D/g, ''))).size;
+  if (sections >= 5) return false;
+  return /no (?:cuento con|tengo) acceso|no puedo (?:abrir|acceder|ver|reproducir)|(?:comparte|pega|pegues?) aquí la transcripci[oó]n|I (?:can't|cannot|am unable to) (?:access|open|watch)|don't have access to (?:the|this) video/i.test(
+    t.slice(0, 1500)
+  );
+}
 app.post('/api/youtube/video-analysis/result', (req, res) => {
   try {
     const vid = String(req.body?.videoId || '').trim();
@@ -20010,7 +20022,10 @@ app.post('/api/youtube/video-analysis/result', (req, res) => {
     const idx = library.findIndex((v) => v.videoId === vid || v.id === vid || v.id === `vid_${vid}`);
     if (idx < 0) return res.status(404).json({ ok: false, error: 'Ese video no está en la biblioteca.' });
     const e = library[idx];
-    if (text && !error) {
+    if (text && !error && isVideoAnalysisRefusal(text)) {
+      e.analysisStatus = 'error';
+      e.analysisError = 'Gemini no pudo ver el video (no usó su acceso a YouTube). Pulsa Reintentar.';
+    } else if (text && !error) {
       // The analysis is kept whole (200k is only a safety ceiling)
       e.geminiAnalysis = text.slice(0, 200000);
       e.analysisStatus = 'done';
