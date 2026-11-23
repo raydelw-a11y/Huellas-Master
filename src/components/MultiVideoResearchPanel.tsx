@@ -7,9 +7,9 @@ import {
 } from '../utils/mediaBridge';
 
 /**
- * Etapa 1 — several YouTube videos analyzed AT THE SAME TIME by Gemini Web (each in its own tab). Every analysis
- * stays in the library of analyzed videos; the documentary picks several of them as research material for the
- * Deep Research and the script (promptConfig.SELECTED_VIDEO_ANALYSES_IDS + SELECTED_VIDEO_ANALYSES_BLOCK).
+ * Etapa 1 — the library of YouTube videos analyzed by Gemini Web (4 tabs at a time, the rest queued). One complete
+ * analysis per video, valid for any documentary; each documentary marks the videos it uses and its prompts take
+ * from each one what fits (promptConfig.SELECTED_VIDEO_ANALYSES_IDS + SELECTED_VIDEO_ANALYSES_BLOCK).
  */
 
 interface AnalyzedVideo {
@@ -19,7 +19,8 @@ interface AnalyzedVideo {
   title: string;
   channelName?: string;
   geminiAnalysis?: string;
-  analysisStatus?: 'analyzing' | 'done' | 'error';
+  analysisStatus?: 'queued' | 'analyzing' | 'done' | 'error';
+  commentsCount?: number;
   analysisStartedAt?: string;
   analysisDoneAt?: string;
   analysisError?: string;
@@ -111,7 +112,7 @@ export default function MultiVideoResearchPanel({ activeDoc, updateActiveDoc, on
   }, []);
 
   // While Gemini is working, refresh the list every few seconds
-  const anyAnalyzing = videos.some((v) => v.analysisStatus === 'analyzing');
+  const anyAnalyzing = videos.some((v) => v.analysisStatus === 'analyzing' || v.analysisStatus === 'queued');
   useEffect(() => {
     if (!anyAnalyzing) return;
     const t = setInterval(() => void load(true), 4000);
@@ -148,15 +149,7 @@ export default function MultiVideoResearchPanel({ activeDoc, updateActiveDoc, on
     );
   };
 
-  // Subject told to Gemini with each video: the documentary's topic, else its title without "Video NN —"
-  // (never the default name of a new documentary)
-  const researchTopicHint = (): string => {
-    const topic = String(activeDoc.topic || '').trim();
-    if (topic) return topic;
-    const title = String(activeDoc.title || '').trim();
-    if (!title || /^nuevo documental/i.test(title)) return '';
-    return title.replace(/^video\s*\d+\s*[—–:-]\s*/i, '').trim();
-  };
+  const [search, setSearch] = useState('');
 
   const start = async (urls: string[]) => {
     if (urls.length === 0) {
@@ -169,25 +162,15 @@ export default function MultiVideoResearchPanel({ activeDoc, updateActiveDoc, on
       const r = await fetch(api('/api/youtube/video-analysis/start'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ urls, topic: researchTopicHint() }),
+        body: JSON.stringify({ urls }),
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok || !j?.ok) throw new Error(j?.error || `Error ${r.status}`);
       setLinksText('');
       void load();
-      // The videos started now are selected for this documentary right away
-      const startedIds: string[] = (j.started || []).map((s: any) => String(s.videoId));
-      const next = [...new Set([...selectedIds, ...startedIds])];
-      if (docIdRef.current === activeDoc.id) {
-        updateActiveDoc(
-          { promptConfig: { SELECTED_VIDEO_ANALYSES_IDS: next.join(',') } },
-          { docId: activeDoc.id, source: 'multi-video-research' }
-        );
-      }
+      const n = (j.started || []).length;
       setMessage(
-        `🌐 ${startedIds.length} video${startedIds.length === 1 ? '' : 's'} enviado${
-          startedIds.length === 1 ? '' : 's'
-        } a Gemini Web, cada uno en su pestaña. Los análisis aparecen aquí solos.`
+        `🌐 ${n} video${n === 1 ? '' : 's'} en cola. Gemini Web analiza 4 a la vez, cada uno en su pestaña; los análisis aparecen aquí solos.`
       );
     } catch (e: any) {
       setMessage(`⚠️ ${e?.message || 'No se pudo enviar.'}`);
@@ -202,21 +185,25 @@ export default function MultiVideoResearchPanel({ activeDoc, updateActiveDoc, on
       .map((s) => s.trim())
       .filter((s) => /youtu\.?be/i.test(s));
 
-  // Only videos analyzed with this tool (the older library entries keep using the selector below)
-  // Marked videos first
-  const analysisList = videos
-    .filter((v) => v.analysisStatus || v.geminiAnalysis)
+  const statusOf = (v: AnalyzedVideo) => v.analysisStatus || (v.geminiAnalysis ? 'done' : 'none');
+  const q = search.trim().toLowerCase();
+  // Marked videos first, then the most recent
+  const libraryList = videos
+    .filter((v) => !q || `${v.title} ${v.channelName || ''}`.toLowerCase().includes(q))
     .sort((a, b) => Number(selectedIds.includes(b.videoId)) - Number(selectedIds.includes(a.videoId)));
-  const selectedDone = analysisList.filter((v) => selectedIds.includes(v.videoId) && v.analysisStatus === 'done');
+  const selectedDone = videos.filter((v) => selectedIds.includes(v.videoId) && statusOf(v) === 'done');
+  const pendingCount = videos.filter((v) => v.analysisStatus === 'queued' || v.analysisStatus === 'analyzing').length;
 
   return (
     <div className="bg-slate-950/70 border border-sky-500/30 rounded-xl p-3 space-y-3 min-w-0 max-w-full">
       <div>
-        <h4 className="font-bold text-sky-300 text-sm">🧪 Analizar varios videos a la vez (Gemini Web)</h4>
+        <h4 className="font-bold text-sky-300 text-sm">🧪 Videos analizados con Gemini Web</h4>
         <p className="text-[11px] text-slate-400">
-          Pega varios enlaces de YouTube (uno por línea). Gemini analiza cada video por separado, todos al mismo
-          tiempo en pestañas distintas. Marca los que quieras usar: entran en la investigación profunda y en el
-          guion de este documental.
+          Pega enlaces de YouTube (uno por línea), de cualquier tema o de tu canal. Gemini analiza cada video (4 a la
+          vez) y guarda su análisis y sus comentarios en la biblioteca, para este y otros documentales. Marca los que
+          quieras usar aquí: el Paso 1, la investigación profunda y el guion tomarán de cada uno lo que corresponda
+          (hechos si es de nuestro tema; estructura y ganchos de cualquiera). Si no escribes el Tema, el Paso 1
+          propone uno por cada video marcado.
         </p>
       </div>
       <textarea
@@ -234,19 +221,29 @@ export default function MultiVideoResearchPanel({ activeDoc, updateActiveDoc, on
       >
         {starting
           ? 'Enviando…'
-          : `Analizar ${linksFromText().length || ''} video${linksFromText().length === 1 ? '' : 's'} en paralelo`}
+          : `Analizar ${linksFromText().length || ''} video${linksFromText().length === 1 ? '' : 's'} con Gemini`}
       </button>
       {message && <p className="text-[11px] text-slate-300">{message}</p>}
 
-      {analysisList.length > 0 && (
+      {videos.length > 0 && (
         <div className="space-y-1.5">
-          <div className="text-[11px] font-semibold text-slate-300">
-            Videos analizados ({analysisList.length}) · usados en este documental: {selectedDone.length}
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div className="text-[11px] font-semibold text-slate-300">
+              Biblioteca ({videos.length}) · usados en este documental: {selectedDone.length}
+              {pendingCount > 0 ? ` · ${pendingCount} en proceso` : ''}
+            </div>
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Buscar video..."
+              className="w-40 min-w-0 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-[11px] text-slate-200"
+            />
           </div>
           <div className="max-h-[360px] overflow-y-auto overscroll-contain space-y-1.5 pr-0.5">
-            {analysisList.map((v) => {
+            {libraryList.map((v) => {
               const checked = selectedIds.includes(v.videoId);
-              const st = v.analysisStatus || (v.geminiAnalysis ? 'done' : '');
+              const st = statusOf(v);
               return (
                 <div
                   key={v.videoId}
@@ -258,13 +255,18 @@ export default function MultiVideoResearchPanel({ activeDoc, updateActiveDoc, on
                     <input
                       type="checkbox"
                       checked={checked}
+                      disabled={st === 'none' && !checked}
                       onChange={() => toggle(v.videoId)}
-                      className="mt-0.5 shrink-0 accent-sky-500 cursor-pointer"
+                      className="mt-0.5 shrink-0 accent-sky-500 cursor-pointer disabled:cursor-not-allowed"
                       aria-label={`Usar ${v.title}`}
+                      title={st === 'none' ? 'Analízalo primero con Gemini' : 'Usar en este documental'}
                     />
                     <div className="min-w-0 flex-1">
                       <div className="font-semibold text-slate-100 break-words">{v.title}</div>
-                      <div className="text-[10px] text-slate-500 truncate">{v.channelName}</div>
+                      <div className="text-[10px] text-slate-500 truncate">
+                        {v.channelName}
+                        {Number(v.commentsCount || 0) > 0 ? ` · ${v.commentsCount} comentarios` : ''}
+                      </div>
                     </div>
                     <span
                       className={`shrink-0 px-1.5 py-0.5 rounded text-[10px] font-bold ${
@@ -272,39 +274,54 @@ export default function MultiVideoResearchPanel({ activeDoc, updateActiveDoc, on
                           ? 'bg-emerald-500/20 text-emerald-300'
                           : st === 'analyzing'
                           ? 'bg-amber-500/20 text-amber-300 animate-pulse'
+                          : st === 'queued'
+                          ? 'bg-slate-700/60 text-slate-200'
+                          : st === 'none'
+                          ? 'bg-slate-800 text-slate-400'
                           : 'bg-rose-500/20 text-rose-300'
                       }`}
                     >
-                      {st === 'done' ? '✓ Listo' : st === 'analyzing' ? 'Analizando…' : 'Error'}
+                      {st === 'done'
+                        ? '✓ Listo'
+                        : st === 'analyzing'
+                        ? 'Analizando…'
+                        : st === 'queued'
+                        ? 'En cola'
+                        : st === 'none'
+                        ? 'Sin analizar'
+                        : 'Error'}
                     </span>
                   </div>
-                  {st === 'error' && (
+                  {(st === 'error' || st === 'none' || st === 'done') && (
                     <div className="mt-1.5 flex items-center justify-between gap-2 flex-wrap">
-                      <span className="text-[10px] text-rose-300">{v.analysisError}</span>
-                      <button
-                        type="button"
-                        disabled={starting}
-                        onClick={() => void start([v.url])}
-                        className="px-2 py-0.5 rounded bg-slate-900 border border-slate-700 text-[10px] text-slate-200 cursor-pointer"
-                      >
-                        Reintentar
-                      </button>
+                      {st === 'error' ? (
+                        <span className="text-[10px] text-rose-300">{v.analysisError}</span>
+                      ) : st === 'done' && v.geminiAnalysis ? (
+                        <button
+                          type="button"
+                          onClick={() => setOpenId(openId === v.videoId ? '' : v.videoId)}
+                          className="text-[10px] text-sky-300 underline cursor-pointer"
+                        >
+                          {openId === v.videoId ? 'Ocultar análisis' : 'Ver análisis'}
+                        </button>
+                      ) : (
+                        <span className="text-[10px] text-slate-500">Aún sin análisis de Gemini</span>
+                      )}
+                      {v.url && (
+                        <button
+                          type="button"
+                          disabled={starting}
+                          onClick={() => void start([v.url])}
+                          className="px-2 py-0.5 rounded bg-slate-900 border border-slate-700 text-[10px] text-slate-200 cursor-pointer"
+                        >
+                          {st === 'error' ? 'Reintentar' : st === 'none' ? 'Analizar' : 'Reanalizar'}
+                        </button>
+                      )}
                     </div>
                   )}
-                  {st === 'done' && v.geminiAnalysis && (
-                    <div className="mt-1.5">
-                      <button
-                        type="button"
-                        onClick={() => setOpenId(openId === v.videoId ? '' : v.videoId)}
-                        className="text-[10px] text-sky-300 underline cursor-pointer"
-                      >
-                        {openId === v.videoId ? 'Ocultar análisis' : 'Ver análisis'}
-                      </button>
-                      {openId === v.videoId && (
-                        <div className="mt-1 max-h-[260px] overflow-y-auto whitespace-pre-wrap text-[11px] text-slate-300 bg-black/30 rounded p-2">
-                          {v.geminiAnalysis}
-                        </div>
-                      )}
+                  {st === 'done' && openId === v.videoId && v.geminiAnalysis && (
+                    <div className="mt-1 max-h-[260px] overflow-y-auto whitespace-pre-wrap text-[11px] text-slate-300 bg-black/30 rounded p-2">
+                      {v.geminiAnalysis}
                     </div>
                   )}
                 </div>

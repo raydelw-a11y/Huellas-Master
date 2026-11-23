@@ -3310,11 +3310,13 @@ export function buildStagePromptText(
   const selectedVideoAnalysesRaw = String(doc.promptConfig?.SELECTED_VIDEO_ANALYSES_BLOCK || '').trim();
   const selectedVideoAnalysesCount = (selectedVideoAnalysesRaw.match(/^=== VIDEO \d+:/gm) || []).length;
   const multiVideoResearchBlock = selectedVideoAnalysesRaw
-    ? `\n================================================================================\n📚 RESEARCH MATERIAL: ANALYSES OF ${selectedVideoAnalysesCount || 'SEVERAL'} YOUTUBE VIDEOS ABOUT OUR SAME TOPIC (selected by the producer)\n================================================================================\nEach video was analyzed separately. Use them as SOURCE MATERIAL for our own documentary: cross-check their facts against each other and against reliable historical sources, keep what is verified, flag and resolve contradictions between them, discard errors and exaggerations, and cover the gaps and unanswered questions they leave. Our documentary must be BETTER and more complete than all of them together, with its own original structure and narration: never copy their phrases, titles or order.\n\n${selectedVideoAnalysesRaw.slice(0, MULTI_VIDEO_RESEARCH_MAX_CHARS)}\n`
+    ? `\n================================================================================\n📚 ANALYSES OF ${selectedVideoAnalysesCount || 'SEVERAL'} YOUTUBE VIDEOS MARKED BY THE PRODUCER (they may be about our subject or about other subjects)\n================================================================================\nEach video was analyzed separately by Gemini. Take from each one what fits OUR documentary:\n- If a video is about our subject (or overlaps it), use its facts as SOURCE MATERIAL: cross-check them against the other videos and against reliable historical sources, keep what is verified, resolve contradictions, discard errors and exaggerations, and cover the gaps and unanswered questions it leaves.\n- From ANY video, whatever its subject, you may take ideas of structure, hooks, pacing and why it works with the audience.\n- Never copy their phrases, titles or order of scenes, and never let a video about another subject change our subject. Our documentary must be better and more complete than all of them.\n\n${selectedVideoAnalysesRaw.slice(0, MULTI_VIDEO_RESEARCH_MAX_CHARS)}\n`
     : '';
-  // "Chosen topic": the producer already picked the subject (typed it, or selected analyses of videos about it).
-  // Then a structural reference video is only a mold and never makes Gemini replace or avoid our subject.
-  const topicIsChosen = Boolean(String(doc.topic || '').trim()) || Boolean(selectedVideoAnalysesRaw);
+  // "Chosen topic": the producer typed the subject. Then a structural reference video is only a mold and never
+  // makes Gemini replace or avoid our subject. Without a topic and with marked videos, Paso 1 proposes one topic
+  // per marked video.
+  const topicIsChosen = Boolean(String(doc.topic || '').trim());
+  const hasMarkedVideos = Boolean(selectedVideoAnalysesRaw);
   const structureSummaryIsReal =
     Boolean(selectedStructureSummary) && !isTemplateStructureSummary(selectedStructureSummary);
   const hasReferenceVideo = structureSummaryIsReal || Boolean(youtubeViralLink);
@@ -3376,24 +3378,30 @@ export function buildStagePromptText(
     const minutesLabel = (totalTargetSec / 60).toFixed(0);
     const typologyLine =
       cleanTypology ||
-      (hasReferenceVideo && !topicIsChosen
+      (hasReferenceVideo && !topicIsChosen && !hasMarkedVideos
         ? 'BLANK (Determine which of the 8 protocol typologies to use OR CREATE A NEW universal archetypal typology based on the VIRAL PATTERN of the analyzed video, WITHOUT copying the topic of the analyzed video)'
         : 'BLANK (Determine which of the 8 protocol typologies fit this story OR CREATE A NEW universal archetypal typology for it)');
     const topicLine = cleanTopic
       ? `${cleanTopic} (CHOSEN BY THE PRODUCER — keep this exact subject; Parte 2 proposes angles for it, never a different subject)`
-      : selectedVideoAnalysesRaw
-      ? 'BLANK (Our documentary covers the SAME subject as the research videos below: write that exact subject as Opción 1 of Parte 2 and propose different angles for it as the other options)'
+      : hasMarkedVideos
+      ? `BLANK (Propose ONE topic per marked video below, in the same order: Opción 1 = the subject of VIDEO 1, Opción 2 = the subject of VIDEO 2, and so on (${selectedVideoAnalysesCount || 'one per video'}). If two videos share a subject, propose it once with a different angle for the second. The producer picks one)`
       : hasReferenceVideo
       ? 'BLANK (Propose 3+ 100% ORIGINAL, DIFFERENT, and UNPUBLISHED historical topics for "Huellas de la Humanidad" —STRICTLY FORBIDDEN to duplicate the topic of the analyzed video— applying the exact same viral patterns, contrasts, and structure)'
       : 'BLANK (Propose 3+ strong, ORIGINAL historical topics for "Huellas de la Humanidad" with high viral potential on YouTube)';
     const originalityRules = topicIsChosen
       ? [
           '⚠️ ORIGINALITY RULES:',
-          '- The subject of our documentary is the one chosen by the producer (see Central Documentary Topic, or the research videos). Never replace it with a different subject.',
+          '- The subject of our documentary is the one chosen by the producer (see Central Documentary Topic). Never replace it with a different subject.',
           hasReferenceVideo ? `- Reference video: ${referenceOriginalityRule}` : '',
-          selectedVideoAnalysesRaw
-            ? '- Research videos: use them only as source material; never copy their phrases, titles or order of scenes.'
+          hasMarkedVideos
+            ? '- Marked videos: take facts only from those about our subject, and structure ideas from any of them; never copy their phrases, titles or order of scenes.'
             : '',
+        ]
+      : hasMarkedVideos
+      ? [
+          '⚠️ ORIGINALITY RULES:',
+          '- Our documentary will be about the subject of ONE of the marked videos (the producer picks it in Parte 2). Each topic option must be faithful to its video\'s subject, but our version must be original, more complete and better.',
+          '- Never copy their phrases, titles or order of scenes.',
         ]
       : hasReferenceVideo
       ? [
@@ -3406,7 +3414,7 @@ export function buildStagePromptText(
           '⚠️ ORIGINALITY RULE:',
           '- Every proposal must be original: never reuse titles, phrases or structures from other channels.',
         ];
-    const parte1Lines = hasReferenceVideo && !topicIsChosen
+    const parte1Lines = hasReferenceVideo && !topicIsChosen && !hasMarkedVideos
       ? [
           '     • Resumen de esta parte: [Explain in Spanish which narrative/psychological patterns made the reference video go viral and which protocol/new archetypal typologies fit our original documentary]',
           '     • Opción 1..N: [Multiple universal archetypal typologies in Spanish — NEVER mention the specific topic of the analyzed video]',
@@ -3415,7 +3423,12 @@ export function buildStagePromptText(
           '     • Resumen de esta parte: [Explain in Spanish which protocol typologies (or new archetypal typologies) fit our documentary and why]',
           '     • Opción 1..N: [Multiple typologies in Spanish]',
         ];
-    const parte2Lines = topicIsChosen
+    const parte2Lines = !topicIsChosen && hasMarkedVideos
+      ? [
+          '     • Resumen de esta parte: [Explain in Spanish, for each marked video, the topic it gives our documentary and why it would work on YouTube]',
+          '     • Opción 1..N: [ONE topic per marked video, in the same order as the videos (Opción 1 = VIDEO 1…), each written as our documentary\'s subject in Spanish]',
+        ]
+      : topicIsChosen
       ? [
           '     • Resumen de esta parte: [Explain in Spanish the strongest angles for our chosen subject and why they would work on YouTube]',
           '     • Opción 1..N: [Multiple ANGLES for OUR chosen subject in Spanish (same subject; a different central question, protagonist or thesis in each). Start every option with the subject itself; never propose a different subject]',
@@ -3427,10 +3440,10 @@ export function buildStagePromptText(
     const concordanceHint = topicIsChosen
       ? ''
       : ' In Partes 3 and 4, Opción k must be the era / place of Opción k of Parte 2 (same order).';
-    const section1 = hasReferenceVideo
+    const section1 = hasMarkedVideos
+      ? `1. ANÁLISIS DE LOS VIDEOS MARCADOS:\n   - In Spanish: which marked videos are about our subject (or about each proposed topic) and what their facts agree on or contradict, the errors or exaggerations to avoid, what none of them covers, and which structure and hook ideas from any of them fit our ~${minutesLabel}-minute documentary.`
+      : hasReferenceVideo
       ? `1. RADIOGRAFÍA DE PATRONES VIRALES DEL VIDEO INVESTIGADO:\n   - Detailed breakdown in Spanish of the exact patterns that made the reference video go viral (Title formula, Description chapter pacing, Tag intent, Comment triggers, block percentages, and psychological hooks) and how they serve as a mold for our ~${minutesLabel}-minute documentary.`
-      : selectedVideoAnalysesRaw
-      ? `1. CONTRASTE DE LOS VIDEOS DE INVESTIGACIÓN:\n   - In Spanish: the facts they agree on, the contradictions between them, the errors or exaggerations to avoid, what none of them covers, and how our ~${minutesLabel}-minute documentary will be better and more complete than all of them.`
       : `1. POTENCIAL VIRAL DEL TEMA:\n   - In Spanish: why the chosen or proposed subject can work on YouTube (curiosity gap, emotion, contrasts) and which retention patterns fit a ~${minutesLabel}-minute documentary.`;
     stagePrompt = `Act as Chief Documentary Director and Lead Historical Researcher for the Spanish-language documentary channel "Huellas de la Humanidad".
 This is STAGE 1 — PHASE 1 (4 Carbon · Thinking level: Low · WITHOUT Deep Research): ${
@@ -3572,7 +3585,7 @@ Execute an exhaustive Deep Research investigation on the topic, era, location, a
           ? 'integrating the Step 1 reference video strictly as a structural and retention mold (never copying its narration or phrases)'
           : 'integrating the Step 1 Analyzed Reference Video strictly as a structural and retention mold (never copying its topic)'
         : selectedVideoAnalysesRaw
-        ? 'integrating the research material of the selected videos (verified facts only)'
+        ? 'using from the marked videos what fits (verified facts from those about our subject, structure ideas from any of them)'
         : 'with original structure and retention design'
     }, and deliver the report in Spanish organized into these 4 clear sections:
 1. MATHEMATICAL & STRUCTURAL BREAKDOWN BY ACTS (~${(totalTargetSec / 60).toFixed(0)} MIN WITH 8S INTRO & 8S OUTRO${hasReferenceVideo ? ' + VIRAL PATTERNS FROM STEP 1' : ''}):
@@ -3655,7 +3668,7 @@ ${doc.deepResearchPrompt || ''}
 Deep Historical Research (Step 2 — Deep Research):
 ${doc.deepResearchResult || (!doc.deepResearchPrompt ? doc.sectionsStructure || '' : '')}${
         selectedVideoAnalysesRaw
-          ? `\nNotes from ${selectedVideoAnalysesCount || 'several'} YouTube videos about this same topic — their doubtful claims and what they leave out (use only verified facts; never copy their phrasing or structure):\n${compactVideoAnalysesForScript(selectedVideoAnalysesRaw)}\n`
+          ? `\nNotes from the ${selectedVideoAnalysesCount || 'several'} marked YouTube videos — their doubtful claims and what they leave out (use only what concerns our subject and is verified; never copy their phrasing or structure):\n${compactVideoAnalysesForScript(selectedVideoAnalysesRaw)}\n`
           : ''
       }
 

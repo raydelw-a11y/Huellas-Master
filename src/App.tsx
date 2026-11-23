@@ -204,7 +204,7 @@ import { stampBrandMarksOnThumbnail, HD_BADGE_EMPTY_CORNER_CLAUSE, LOGO_EMPTY_CO
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '10:07 PM - 11/22/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '11:18 PM - 11/22/2026';
 
 // PRODUCTION LOCK: while promptConfig.PRODUCTION_LOCKED === 'YES' these fields never change (the server
 // enforces the same list in protectLockedDocs). Metadata, thumbnails, review marks and reframes stay editable.
@@ -19627,11 +19627,10 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                     <div className="flex items-center justify-between flex-wrap gap-2">
                       <div>
                         <h3 className="font-bold text-amber-300 text-base flex items-center gap-2">
-                          📊 Estructura de Videos Analizados Previamente
+                          📊 Videos Analizados
                         </h3>
                         <p className="text-xs text-slate-400">
-                          Selecciona un video ya investigado para ver su explicación estructural y usar su
-                          esqueleto de retención (incluyendo Intro 8s y Outro 8s), o pega un link nuevo.
+                          Analiza videos de YouTube con Gemini y marca los que este documental debe usar.
                         </p>
                       </div>
                       <button
@@ -19648,400 +19647,23 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                       </button>
                     </div>
 
-                    {/* Varios videos analizados a la vez por Gemini Web; se eligen varios como material de investigación */}
+                    {/* La biblioteca de videos analizados por Gemini Web; cada documental marca los que usa */}
                     <MultiVideoResearchPanel
                       activeDoc={activeDoc}
                       updateActiveDoc={updateActiveDoc}
-                      onAnalysesChange={(vids) =>
+                      onAnalysesChange={(vids) => {
+                        const doneBefore = researchAnalysesSnapshot.filter((v) => v.analysisStatus === 'done').length;
+                        const doneNow = vids.filter((v) => v.analysisStatus === 'done').length;
                         setResearchAnalysesSnapshot(
                           vids.map((v) => ({ videoId: v.videoId, analysisStatus: v.analysisStatus, title: v.title }))
-                        )
-                      }
+                        );
+                        // A finished analysis also brings its comments: refresh the comments list
+                        if (doneNow !== doneBefore && researchAnalysesSnapshot.length > 0) {
+                          void loadStage1AnalyzedVideosAndComments(false);
+                        }
+                      }}
                     />
 
-                    {/* Dropdown de Videos Analizados Previamente */}
-                    {(() => {
-                      const effectiveSelectedVideoObj = resolveSelectedLibraryVideoForDoc(
-                        activeDoc,
-                        analyzedVideosLibrary,
-                        selectedAnalyzedVideoId
-                      );
-                      const effectiveSelectedVideoId =
-                        selectedAnalyzedVideoId || effectiveSelectedVideoObj?.videoId || '';
-                      const structuralLibraryVideos = analyzedVideosLibrary.filter(
-                        (v: any) => !isResearchOnlyLibraryEntry(v)
-                      );
-                      return (
-                        <div className="space-y-2">
-                          <label className="block text-xs font-semibold text-slate-300 mb-1">
-                            Video de referencia de OTRO tema, usado como molde de estructura y patrones virales ({structuralLibraryVideos.length}{' '}
-                            en biblioteca — queda seleccionado para este documental en Paso 1 y Paso 2). Los videos de tu mismo tema van arriba, en «Analizar varios videos a la vez».
-                          </label>
-                          <select
-                            value={effectiveSelectedVideoId}
-                            onChange={(e) => {
-                              const nextId = e.target.value;
-                              setSelectedAnalyzedVideoId(nextId);
-                              const found = structuralLibraryVideos.find((v: any) => v.videoId === nextId);
-                              if (found) {
-                                // Rule 2: Only 1 video can be used. Selecting from library clears any pasted link in the text box and locks it for this documentary.
-                                updateActiveDoc({
-                                  promptConfig: {
-                                    ...(activeDoc.promptConfig || {}),
-                                    SELECTED_ANALYZED_VIDEO_ID: String(found.videoId || found.id || ''),
-                                    SELECTED_ANALYZED_VIDEO_CLEARED: 'NO',
-                                    YOUTUBE_VIRAL_LINK: '',
-                                    YOUTUBE_SELECTED_LIBRARY_LINK: found.url || found.videoId,
-                                    ESTRUCTURA_VIRAL_RESUMEN: found.structureSummary,
-                                    ESTRUCTURA_VIRAL_TITULO: found.title,
-                                    SELECTED_ANALYZED_VIDEO_SUMMARY: found.structureSummary,
-                                    SELECTED_ANALYZED_VIDEO_TITLE: found.title,
-                                    YOUTUBE_VIDEO_TITLE: found.title,
-                                    YOUTUBE_VIDEO_DESCRIPTION: found.description || '',
-                                    YOUTUBE_VIDEO_TAGS: Array.isArray(found.tags)
-                                      ? found.tags.join(', ')
-                                      : '',
-                                    YOUTUBE_VIDEO_CHANNEL: found.channelTitle || '',
-                                  },
-                                });
-                              } else {
-                                updateActiveDoc({
-                                  promptConfig: {
-                                    ...(activeDoc.promptConfig || {}),
-                                    SELECTED_ANALYZED_VIDEO_ID: '',
-                                    SELECTED_ANALYZED_VIDEO_CLEARED: 'SI',
-                                    YOUTUBE_VIRAL_LINK: '',
-                                    YOUTUBE_SELECTED_LIBRARY_LINK: '',
-                                    ESTRUCTURA_VIRAL_RESUMEN: '',
-                                    ESTRUCTURA_VIRAL_TITULO: '',
-                                    SELECTED_ANALYZED_VIDEO_SUMMARY: '',
-                                    SELECTED_ANALYZED_VIDEO_TITLE: '',
-                                    YOUTUBE_VIDEO_TITLE: '',
-                                    YOUTUBE_VIDEO_DESCRIPTION: '',
-                                    YOUTUBE_VIDEO_TAGS: '',
-                                    YOUTUBE_VIDEO_CHANNEL: '',
-                                  },
-                                });
-                              }
-                            }}
-                            className="w-full max-w-full min-w-0 truncate bg-slate-950 border border-amber-500/40 rounded-xl px-3 py-2.5 text-xs sm:text-sm font-semibold text-amber-200"
-                          >
-                            <option value="">
-                              -- Selecciona un video analizado previamente de la lista --
-                            </option>
-                            {structuralLibraryVideos.map((v: any) => (
-                              <option key={v.videoId} value={v.videoId}>
-                                🎬 {v.title} ({v.channelTitle})
-                              </option>
-                            ))}
-                          </select>
-                          {effectiveSelectedVideoObj && (
-                            <div className="flex items-center justify-between flex-wrap gap-2 px-3 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-[11px] text-emerald-300 max-w-full min-w-0">
-                              <span className="min-w-0 break-words">
-                                🔒 <strong>Fijado para {activeDoc.title}:</strong> &quot;{effectiveSelectedVideoObj.title}&quot; permanece seleccionado tras el Paso 1 y forma parte de la investigación <strong>Deep Research en el Paso 2</strong>.
-                              </span>
-                              <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-200 font-black text-[10px]">
-                                ✓ Paso 1 + Paso 2 (Deep Research)
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })()}
-
-                    {/* Input para pegar un Link de YouTube adicional o nuevo */}
-                    {(() => {
-                      const pastedUrlValue = activeDoc.promptConfig?.YOUTUBE_VIRAL_LINK || '';
-                      const duplicateInvestigatedVideo = findAlreadyInvestigatedLibraryVideo(
-                        pastedUrlValue
-                      );
-                      return (
-                        <div className="space-y-2 max-w-full min-w-0">
-                          <label className="block text-xs font-semibold text-slate-300 mb-1">
-                            O pega el Link de un Video de YouTube Nuevo (Pulsa "Investigar Video" para
-                            investigarlo ahora, o "✨ Comenzar Investigación" para investigarlo junto con
-                            nuestro documental)
-                          </label>
-                          <div className="flex flex-col sm:flex-row gap-2 w-full min-w-0">
-                            <input
-                              type="text"
-                              value={pastedUrlValue}
-                              onChange={(e) => {
-                                const urlVal = e.target.value;
-                                // Rule 2: Only ONE video can be used. Typing/pasting a link clears the dropdown selection above.
-                                if (urlVal.trim()) {
-                                  setSelectedAnalyzedVideoId('');
-                                }
-                                updateActiveDoc({
-                                  promptConfig: {
-                                    ...(activeDoc.promptConfig || {}),
-                                    YOUTUBE_VIRAL_LINK: urlVal,
-                                    YOUTUBE_SELECTED_LIBRARY_LINK: urlVal.trim()
-                                      ? ''
-                                      : activeDoc.promptConfig?.YOUTUBE_SELECTED_LIBRARY_LINK || '',
-                                    ESTRUCTURA_VIRAL_RESUMEN: urlVal.trim()
-                                      ? ''
-                                      : activeDoc.promptConfig?.ESTRUCTURA_VIRAL_RESUMEN || '',
-                                    ESTRUCTURA_VIRAL_TITULO: urlVal.trim()
-                                      ? ''
-                                      : activeDoc.promptConfig?.ESTRUCTURA_VIRAL_TITULO || '',
-                                    SELECTED_ANALYZED_VIDEO_SUMMARY: urlVal.trim()
-                                      ? ''
-                                      : activeDoc.promptConfig?.SELECTED_ANALYZED_VIDEO_SUMMARY || '',
-                                    SELECTED_ANALYZED_VIDEO_TITLE: urlVal.trim()
-                                      ? ''
-                                      : activeDoc.promptConfig?.SELECTED_ANALYZED_VIDEO_TITLE || '',
-                                    YOUTUBE_VIDEO_TITLE: urlVal.trim()
-                                      ? ''
-                                      : activeDoc.promptConfig?.YOUTUBE_VIDEO_TITLE || '',
-                                    YOUTUBE_VIDEO_DESCRIPTION: urlVal.trim()
-                                      ? ''
-                                      : activeDoc.promptConfig?.YOUTUBE_VIDEO_DESCRIPTION || '',
-                                    YOUTUBE_VIDEO_TAGS: urlVal.trim()
-                                      ? ''
-                                      : activeDoc.promptConfig?.YOUTUBE_VIDEO_TAGS || '',
-                                  },
-                                });
-                              }}
-                              placeholder="https://www.youtube.com/watch?v=... (deja en blanco si usas uno de la lista o ninguno)"
-                              className={`flex-1 min-w-0 w-full bg-slate-950 border rounded-xl px-3 py-2 text-xs text-slate-100 ${
-                                duplicateInvestigatedVideo
-                                  ? 'border-rose-500 ring-1 ring-rose-500/50'
-                                  : 'border-slate-800'
-                              }`}
-                            />
-                            <button
-                              type="button"
-                              disabled={stage1LoadingLibrary || Boolean(duplicateInvestigatedVideo)}
-                              onClick={handleInvestigateVideoButton}
-                              className={`px-3.5 py-2 rounded-xl border text-xs font-bold whitespace-nowrap transition ${
-                                duplicateInvestigatedVideo
-                                  ? 'bg-slate-900 border-slate-800 text-slate-500 cursor-not-allowed opacity-60'
-                                  : 'bg-amber-500/20 hover:bg-amber-500/30 border-amber-500/40 text-amber-300 cursor-pointer'
-                              }`}
-                            >
-                              {stage1LoadingLibrary ? 'Investigando...' : 'Investigar Video'}
-                            </button>
-                          </div>
-
-                          {duplicateInvestigatedVideo && (
-                            <div className="bg-rose-950/70 border border-rose-500/60 rounded-xl p-3 text-xs text-rose-200 space-y-2">
-                              <p className="font-bold text-rose-300">
-                                ⚠️ Este link corresponde a un video que ya fue investigado antes: «
-                                {duplicateInvestigatedVideo.title}»
-                              </p>
-                              <p className="text-[11px] text-rose-200/90 leading-relaxed">
-                                No se permite investigarlo nuevamente ni pulsar{' '}
-                                <strong>"✨ Comenzar Investigación"</strong> mientras este link
-                                repetido esté en la caja de texto. Deja la caja en blanco (o selecciona
-                                su investigación previa arriba) o pega el link de otro video que aún no
-                                haya sido investigado.
-                              </p>
-                              <div className="flex flex-wrap gap-2 pt-0.5">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setSelectedAnalyzedVideoId(duplicateInvestigatedVideo.videoId);
-                                    updateActiveDoc({
-                                      promptConfig: {
-                                        ...(activeDoc.promptConfig || {}),
-                                        YOUTUBE_VIRAL_LINK: '',
-                                        YOUTUBE_SELECTED_LIBRARY_LINK:
-                                          duplicateInvestigatedVideo.url ||
-                                          duplicateInvestigatedVideo.videoId,
-                                        ESTRUCTURA_VIRAL_RESUMEN:
-                                          duplicateInvestigatedVideo.structureSummary,
-                                        ESTRUCTURA_VIRAL_TITULO: duplicateInvestigatedVideo.title,
-                                        SELECTED_ANALYZED_VIDEO_SUMMARY:
-                                          duplicateInvestigatedVideo.structureSummary,
-                                        SELECTED_ANALYZED_VIDEO_TITLE:
-                                          duplicateInvestigatedVideo.title,
-                                        YOUTUBE_VIDEO_TITLE: duplicateInvestigatedVideo.title,
-                                        YOUTUBE_VIDEO_DESCRIPTION:
-                                          duplicateInvestigatedVideo.description || '',
-                                        YOUTUBE_VIDEO_TAGS: Array.isArray(
-                                          duplicateInvestigatedVideo.tags
-                                        )
-                                          ? duplicateInvestigatedVideo.tags.join(', ')
-                                          : '',
-                                        YOUTUBE_VIDEO_CHANNEL:
-                                          duplicateInvestigatedVideo.channelTitle || '',
-                                      },
-                                    });
-                                  }}
-                                  className="px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-[11px] cursor-pointer"
-                                >
-                                  ✓ Usar Investigación Previa y Dejar Caja en Blanco
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    updateActiveDoc({
-                                      promptConfig: {
-                                        ...(activeDoc.promptConfig || {}),
-                                        YOUTUBE_VIRAL_LINK: '',
-                                      },
-                                    })
-                                  }
-                                  className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-rose-400/40 text-rose-200 font-bold text-[11px] cursor-pointer"
-                                >
-                                  🧹 Dejar Caja en Blanco
-                                </button>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })()}
-
-                    {/* EXPLICACIÓN DE LA INVESTIGACIÓN DEL VIDEO SELECCIONADO + BARRA VISUAL DE TIEMPOS */}
-                    {(() => {
-                      const activeVideo = resolveSelectedLibraryVideoForDoc(
-                        activeDoc,
-                        analyzedVideosLibrary,
-                        selectedAnalyzedVideoId
-                      );
-                      if (!activeVideo) return null;
-                      const videoTagsList =
-                        Array.isArray(activeVideo.tags) && activeVideo.tags.length > 0
-                          ? activeVideo.tags
-                          : (activeDoc.promptConfig?.YOUTUBE_VIDEO_TAGS || '')
-                              .split(',')
-                              .map((s) => s.trim())
-                              .filter(Boolean);
-                      const videoDescriptionText =
-                        activeVideo.description ||
-                        activeDoc.promptConfig?.YOUTUBE_VIDEO_DESCRIPTION ||
-                        '';
-                      const totalSec = activeDoc.targetDurationSeconds || 120;
-                      const FIXED_INTRO_SEC = 8;
-                      const FIXED_OUTRO_SEC = 8;
-                      const narrativeBodySec = Math.max(
-                        20,
-                        totalSec - FIXED_INTRO_SEC - FIXED_OUTRO_SEC
-                      );
-                      const fmtTime = (s: number) =>
-                        `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(
-                          Math.floor(s % 60)
-                        ).padStart(2, '0')}`;
-                      return (
-                        <div className="bg-slate-950 border border-amber-500/30 rounded-xl p-4 space-y-3">
-                          <div className="flex items-start justify-between gap-2">
-                            <div>
-                              <span className="text-[10px] uppercase tracking-wider font-black text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded">
-                                ✓ Título, Descripción, Tags y Estructura del Video Analizado
-                              </span>
-                              <h4 className="text-xs sm:text-sm font-bold text-amber-200 mt-1">
-                                📌 Título: {activeVideo.title}
-                              </h4>
-                              <p className="text-[11px] text-slate-400">
-                                Canal: {activeVideo.channelTitle} · Analizado:{' '}
-                                {new Date(activeVideo.analyzedAt).toLocaleDateString()} · Incluido en la investigación del documental
-                              </p>
-                            </div>
-                          </div>
-
-                          {(videoTagsList.length > 0 || videoDescriptionText) && (
-                            <div className="bg-slate-900/80 border border-amber-500/20 rounded-xl p-3 space-y-2">
-                              {videoTagsList.length > 0 && (
-                                <div>
-                                  <div className="text-[10px] font-bold uppercase tracking-wider text-amber-300 mb-1">
-                                    🏷️ Tags / Palabras Clave del Video ({videoTagsList.length}):
-                                  </div>
-                                  <div className="flex flex-wrap gap-1">
-                                    {videoTagsList.slice(0, 28).map((tag: string, idx: number) => (
-                                      <span
-                                        key={`${tag}-${idx}`}
-                                        className="px-2 py-0.5 rounded-md bg-amber-500/10 border border-amber-500/30 text-[10px] text-amber-200"
-                                      >
-                                        {tag}
-                                      </span>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-                              {videoDescriptionText && (
-                                <div>
-                                  <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-300 mb-1">
-                                    📝 Descripción Extraída del Video (Incluida en la Investigación):
-                                  </div>
-                                  <pre className="text-[11px] text-slate-300 whitespace-pre-wrap font-sans max-h-32 overflow-y-auto leading-relaxed bg-slate-950/70 p-2 rounded-lg border border-slate-800">
-                                    {videoDescriptionText}
-                                  </pre>
-                                </div>
-                              )}
-                            </div>
-                          )}
-
-                          {/* Barra Visual Recalibrada a la Duración del Documental Actual (incluyendo Intro 8s y Outro 8s) */}
-                          <div className="space-y-1.5">
-                            <div className="text-[11px] font-semibold text-slate-300">
-                              📐 Mapa Estructural Recalibrado a tus {totalSec}s (Intro 8s + Bloques +
-                              Outro 8s):
-                            </div>
-                            <div className="w-full h-6 rounded-lg overflow-hidden flex border border-slate-800 text-[9px] font-black">
-                              <div
-                                style={{ width: '9%' }}
-                                className="bg-amber-500 text-slate-950 flex items-center justify-center truncate px-1"
-                                title="Intro Oficial (00:00 - 00:08)"
-                              >
-                                Intro 8s
-                              </div>
-                              <div
-                                style={{ width: '14%' }}
-                                className="bg-rose-500/90 text-white flex items-center justify-center truncate px-1"
-                                title={`Hook / Paradoja (00:08 - ${fmtTime(
-                                  FIXED_INTRO_SEC + Math.round(narrativeBodySec * 0.14)
-                                )})`}
-                              >
-                                Hook 14%
-                              </div>
-                              <div
-                                style={{ width: '24%' }}
-                                className="bg-blue-500/85 text-white flex items-center justify-center truncate px-1"
-                                title="Contexto Material e Inmersión Sensorial (24%)"
-                              >
-                                Contexto 24%
-                              </div>
-                              <div
-                                style={{ width: '28%' }}
-                                className="bg-emerald-500/85 text-slate-950 flex items-center justify-center truncate px-1"
-                                title="Giro Documental y Evidencia Física (28%)"
-                              >
-                                Giro 28%
-                              </div>
-                              <div
-                                style={{ width: '16%' }}
-                                className="bg-indigo-500/85 text-white flex items-center justify-center truncate px-1"
-                                title="Clímax y Legado Histórico (16%)"
-                              >
-                                Clímax 16%
-                              </div>
-                              <div
-                                style={{ width: '9%' }}
-                                className="bg-purple-500 text-white flex items-center justify-center truncate px-1"
-                                title={`Outro Oficial (${fmtTime(
-                                  totalSec - FIXED_OUTRO_SEC
-                                )} - ${fmtTime(totalSec)})`}
-                              >
-                                Outro 8s
-                              </div>
-                            </div>
-                          </div>
-
-                          {isTemplateStructureSummary(String(activeVideo.structureSummary || '')) && (
-                            <div className="text-[11px] text-sky-200 bg-sky-500/10 border border-sky-500/30 rounded-lg px-3 py-2">
-                              ℹ️ Este resumen sale solo de datos públicos (título, descripción, tags y comentarios). En el Paso 1 Gemini verá el video completo y su análisis quedará guardado aquí.
-                            </div>
-                          )}
-                          <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-3 max-h-56 overflow-y-auto">
-                            <pre className="text-[11px] text-slate-200 whitespace-pre-wrap font-sans leading-relaxed">
-                              {activeVideo.structureSummary}
-                            </pre>
-                          </div>
-                        </div>
-                      );
-                    })()}
                   </div>
 
                   {/* COLUMNA DERECHA: LISTADO DE COMENTARIOS DE MIS VIDEOS Y OTROS VIDEOS ANALIZADOS (AGRUPADOS POR REPETICIÓN ×N) */}
@@ -20312,7 +19934,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                           1º Investigación del Otro Video + Determinación de 🏛️ Definición Histórica y Continuidad y ⏱️ Calibración Matemática
                         </h4>
                         <p className="text-xs text-slate-300 leading-relaxed break-words">
-                          Analiza rápidamente el video referente (Título, Descripción, Tags, Comentarios <code className="text-amber-300">×N</code> y estructura) en <strong>4 Carbon con Thinking level en Low (sin activar Deep Research)</strong>, llena automáticamente la <strong>Tipología</strong>, el <strong>Tema Central</strong>, el <strong>Tiempo / Época</strong> y el <strong>Lugar Histórico</strong>, y te entrega <strong>3 opciones seleccionables para cada parte</strong>.
+                          Usa los videos marcados (Videos Analizados) y los comentarios <code className="text-amber-300">×N</code> seleccionados en <strong>4 Carbon con Thinking level en Low (sin activar Deep Research)</strong>, llena automáticamente la <strong>Tipología</strong>, el <strong>Tema Central</strong>, el <strong>Tiempo / Época</strong> y el <strong>Lugar Histórico</strong>, y te entrega <strong>3 opciones seleccionables para cada parte</strong>.
                         </p>
                       </div>
 
@@ -20345,7 +19967,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                 ? 'Procesando en Gemini...'
                                 : duplicateBlockForStart
                                 ? '🔒 Link Ya Investigado (Limpia la Caja)'
-                                : '⚡ Paso 1: Investigar Video y Determinar Definición + Calibración (Low)'}
+                                : '⚡ Paso 1: Determinar Definición + Calibración (Low)'}
                             </span>
                           </button>
                         );
@@ -20477,7 +20099,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                       if (!isPart1OrPart2Done) {
                         return (
                           <div className="bg-slate-900/70 border border-slate-800 rounded-xl p-3.5 text-xs text-slate-400">
-                            💡 Al pulsar <strong>&quot;⚡ Paso 1: Investigar Video y Determinar Definición + Calibración (Low)&quot;</strong>, Gemini analizará el otro video sin usar Deep Research (con <strong>4 Carbon · Thinking level: Low</strong>), llenará automáticamente <strong>🏛️ Definición Histórica y Continuidad</strong> (permitiendo seleccionar varias tipologías) y mostrará aquí <strong>tantas opciones por cada parte como patrones extraiga del video analizado</strong> antes de pasar al Paso 2.
+                            💡 Al pulsar <strong>&quot;⚡ Paso 1: Determinar Definición + Calibración (Low)&quot;</strong>, Gemini (sin Deep Research, con <strong>4 Carbon · Thinking level: Low</strong>) usará los videos marcados y llenará <strong>🏛️ Definición Histórica y Continuidad</strong>. Si no escribiste el Tema, propondrá uno por cada video marcado; aquí verás las opciones de cada parte antes de pasar al Paso 2.
                           </div>
                         );
                       }
