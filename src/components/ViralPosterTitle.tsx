@@ -17,7 +17,7 @@ function ensureLeagueGothicFace() {
 }
 
 const WORN_MASK_URL =
-  "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='260'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='2' seed='7'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 -13 8.9'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")";
+  "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='260'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='2' seed='7'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 -13 9.9'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")";
 
 export interface ViralPosterTitleProps {
   lines: string[];
@@ -66,7 +66,8 @@ export function useViralPosterFontPx(
       if (ctx) {
         ctx.font = `100px "${L.fontFamily}", Impact, sans-serif`;
         for (const line of lines) {
-          const w = ctx.measureText(line).width + L.spacing * L.assHeightRatio * 100 * line.length;
+          const plain = line.replace('|', ' ');
+          const w = ctx.measureText(plain).width + L.spacing * L.assHeightRatio * 100 * plain.length;
           if (w > widest) widest = w;
         }
       }
@@ -123,7 +124,7 @@ export const ViralPosterTitle: React.FC<ViralPosterTitleProps> = ({
       <div style={{ ...base, color: 'transparent', textShadow: '0 0 0.1em rgba(0,0,0,0.95), 0 0 0.22em rgba(0,0,0,0.85)' }}>
         {lines.map((line, i) => (
           <div key={i} style={{ WebkitTextStroke: '0.12em rgba(0,0,0,0.9)' }}>
-            {line}
+            {line.replace('|', ' ')}
           </div>
         ))}
       </div>
@@ -137,9 +138,23 @@ export const ViralPosterTitle: React.FC<ViralPosterTitleProps> = ({
         }}
       >
         {lines.map((line, i) => {
-          const color = i === lines.length - 1 ? L.gold : L.boneWhite;
+          const ink = (color: string): React.CSSProperties => ({
+            color,
+            WebkitTextStroke: `${strokeEm}em ${color}`,
+            paintOrder: 'stroke fill',
+          });
+          // "white part|gold part" on one line; otherwise white, or gold when it is the last line
+          if (line.includes('|')) {
+            const [whitePart, goldPart] = line.split('|');
+            return (
+              <div key={i}>
+                <span style={ink(L.boneWhite)}>{whitePart.trim()} </span>
+                <span style={ink(L.gold)}>{String(goldPart).trim()}</span>
+              </div>
+            );
+          }
           return (
-            <div key={i} style={{ color, WebkitTextStroke: `${strokeEm}em ${color}`, paintOrder: 'stroke fill' }}>
+            <div key={i} style={ink(i === lines.length - 1 ? L.gold : L.boneWhite)}>
               {line}
             </div>
           );

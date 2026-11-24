@@ -31,7 +31,12 @@ import {
 } from 'lucide-react';
 import { DocumentaryProject } from '../types';
 import { ViralPosterTitle, useViralPosterFontPx, viralPosterTextHeightPx } from './ViralPosterTitle';
-import { VIRAL_TITLE_LOOK, splitViralTitleLines, computeViralTitleTimeline } from '../utils/viralTitle';
+import {
+  VIRAL_TITLE_LOOK,
+  splitViralTitleLines,
+  buildViralSmallTitleLines,
+  computeViralTitleTimeline,
+} from '../utils/viralTitle';
 import { sendCommandToWebBridge } from '../utils/webStudioBridge';
 import {
   getMediaBridgeSnapshot,
@@ -1317,12 +1322,13 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
     [showHookBanner, selectedClip?.hookBannerText]
   );
   const previewFrameW = (previewFrameH * 9) / 16;
+  const posterSmallLines = useMemo(() => buildViralSmallTitleLines(posterTitleLines), [posterTitleLines]);
   const posterSmallFontPx = useViralPosterFontPx(
-    posterTitleLines,
+    posterSmallLines,
     previewFrameW,
     previewFrameH,
-    VIRAL_TITLE_LOOK.bigTextWFrac * VIRAL_TITLE_LOOK.smallScale,
-    VIRAL_TITLE_LOOK.bigFontHFrac * VIRAL_TITLE_LOOK.smallScale
+    VIRAL_TITLE_LOOK.smallTextWFrac,
+    VIRAL_TITLE_LOOK.bigFontHFrac * VIRAL_TITLE_LOOK.smallFontScale
   );
   const posterTitle = useMemo(() => {
     const timeline = computeViralTitleTimeline(clipCuts ? clipCuts.totalDurSec : 0, {
@@ -1333,10 +1339,11 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
     // The notice sits under the small title (under the logo when the yellow banner is used instead)
     const smallTextH =
       titleStyle === 'poster_gold' && timeline.small
-        ? viralPosterTextHeightPx(posterTitleLines.length, posterSmallFontPx)
+        ? viralPosterTextHeightPx(posterSmallLines.length, posterSmallFontPx)
         : 0;
     return {
       lines: posterTitleLines,
+      smallLines: posterSmallLines,
       timeline,
       frameW: previewFrameW,
       topPx,
@@ -1345,6 +1352,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
   }, [
     clipCuts,
     posterTitleLines,
+    posterSmallLines,
     showYoutubeNotice,
     previewFrameH,
     previewFrameW,
@@ -2048,11 +2056,11 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                 )}
                 {titleStyle === 'poster_gold' && posterTitle.timeline.small && (
                   <ViralPosterTitle
-                    lines={posterTitle.lines}
+                    lines={posterTitle.smallLines}
                     frameW={posterTitle.frameW}
                     frameH={previewFrameH}
-                    maxTextWFrac={VIRAL_TITLE_LOOK.bigTextWFrac * VIRAL_TITLE_LOOK.smallScale}
-                    maxFontHFrac={VIRAL_TITLE_LOOK.bigFontHFrac * VIRAL_TITLE_LOOK.smallScale}
+                    maxTextWFrac={VIRAL_TITLE_LOOK.smallTextWFrac}
+                    maxFontHFrac={VIRAL_TITLE_LOOK.bigFontHFrac * VIRAL_TITLE_LOOK.smallFontScale}
                     topPx={posterTitle.topPx}
                     visible={captionSec >= posterTitle.timeline.small.startSec}
                   />

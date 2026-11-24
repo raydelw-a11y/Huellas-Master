@@ -56,10 +56,18 @@ function buildTitleAss(opts: {
   lines.forEach((line, i) => {
     const y = Math.round(topY + i * lineStep);
     const isGold = i === lines.length - 1;
-    const tags = shadow
-      ? `\\1c&H000000&\\3c&H000000&\\bord${Math.max(4, fontSize * 0.075).toFixed(2)}\\blur${Math.max(5, fontSize * 0.085).toFixed(1)}\\1a&H12&\\3a&H12&`
-      : `\\1c${isGold ? GOLD_ASS : BONE_WHITE_ASS}\\3c${isGold ? GOLD_ASS : BONE_WHITE_ASS}\\bord${inkBord.toFixed(2)}`;
-    head.push(`Dialogue: 0,0:00:00.00,0:00:10.00,T,,0,0,0,,{\\an8\\pos(${cx},${y})${tags}}${line}`);
+    const ink = (color: string) => `\\1c${color}\\3c${color}\\bord${inkBord.toFixed(2)}`;
+    // "white part|gold part" on one line; otherwise the whole line is white, or gold when it is the last
+    const [whitePart, goldPart] = line.includes('|') ? line.split('|') : [null, null];
+    let text: string;
+    if (shadow) {
+      text = `{\\1c&H000000&\\3c&H000000&\\bord${Math.max(4, fontSize * 0.075).toFixed(2)}\\blur${Math.max(5, fontSize * 0.085).toFixed(1)}\\1a&H12&\\3a&H12&}${line.replace('|', ' ')}`;
+    } else if (whitePart !== null) {
+      text = `{${ink(BONE_WHITE_ASS)}}${whitePart.trim()} {${ink(GOLD_ASS)}}${String(goldPart).trim()}`;
+    } else {
+      text = `{${ink(isGold ? GOLD_ASS : BONE_WHITE_ASS)}}${line}`;
+    }
+    head.push(`Dialogue: 0,0:00:00.00,0:00:10.00,T,,0,0,0,,{\\an8\\pos(${cx},${y})}${text}`);
   });
   return head.join('\n');
 }
@@ -161,10 +169,10 @@ export function renderViralTitleArt(opts: {
       `[t1]alphaextract,format=gray[ta]`,
       `${src(`255*${hash(11)}`, canvasW / g, canvasH / g)},${up('bilinear')}[nfine]`,
       `${src(`255*${hash(23)}`, canvasW / (g * 34), canvasH / (g * 34))},${up('bicubic')}[nlow]`,
-      `[nfine][nlow]blend=all_expr='if(gt(A,192+B*0.27),0,255)',gblur=sigma=0.7[mpit]`,
-      `${src(`255*${hash(37)}`, canvasW / (g * 4.5), canvasH / (g * 4.5))},${up('bicubic')},lutyuv=y='if(gt(val,220),0,255)'[mchip]`,
-      `${src(`if(gt(${hash(51)},0.99),0,255)`, canvasW / (g * 20), canvasH / (g * 0.7))},${up('bilinear')}[mscrh]`,
-      `${src(`if(gt(${hash(67)},0.995),0,255)`, canvasW / (g * 0.7), canvasH / (g * 16))},${up('bilinear')}[mscrv]`,
+      `[nfine][nlow]blend=all_expr='if(gt(A,226+B*0.2),0,255)',gblur=sigma=0.7[mpit]`,
+      `${src(`255*${hash(37)}`, canvasW / (g * 4.5), canvasH / (g * 4.5))},${up('bicubic')},lutyuv=y='if(gt(val,240),0,255)'[mchip]`,
+      `${src(`if(gt(${hash(51)},0.997),0,255)`, canvasW / (g * 20), canvasH / (g * 0.7))},${up('bilinear')}[mscrh]`,
+      `${src(`if(gt(${hash(67)},0.9985),0,255)`, canvasW / (g * 0.7), canvasH / (g * 16))},${up('bilinear')}[mscrv]`,
       `[mpit][mchip]blend=all_mode=multiply[m1]`,
       `[mscrh][mscrv]blend=all_mode=multiply[m2]`,
       `[m1][m2]blend=all_mode=multiply[mask]`,
