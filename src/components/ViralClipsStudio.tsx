@@ -152,7 +152,7 @@ const VIRAL_DESCRIPTION_CTA: Record<ViralLinkPlace, string> = {
 // Second comment to post under every clip: the same for all clips, it invites people to the channel.
 // On Facebook it carries the channel's link; TikTok and Instagram do not allow links in comments.
 const VIRAL_CHANNEL_COMMENT: Record<ViralLinkPlace, string> = {
-  bio: 'Para ver nuestros documentales en formato horizontal panorámico, búscanos en YouTube como Huellas de la Humanidad. ¡Qué los disfrutes! 🙏',
+  bio: 'Para ver nuestros documentales en formato horizontal panorámico, estamos en YouTube, el enlace en la biografía. ¡Qué los disfrutes! 🙏',
   comments:
     'Para ver nuestros documentales en formato horizontal panorámico, búscanos en YouTube como Huellas de la Humanidad. ¡Qué los disfrutes! 👉 https://youtube.com/@huellas_de_la_humanidad',
 };
