@@ -219,13 +219,29 @@ export function estimateViralBigTitleHeightFrac(lines: string[]): number {
   return ((lines.length - 1) * VIRAL_TITLE_LOOK.lineStep + 0.6) * fontFrac;
 }
 
-/** Top of the title on the cover: its usual place, or below a face — but always in the upper half. */
-export function computeViralCoverTitleTopFrac(opts: {
+/**
+ * Where the title goes on the cover: its usual place, or just below a face — always in the upper half.
+ * When it does not fit below the face at full size, it is made a little smaller (down to 60%) until it does.
+ * `covered` is true when, even so, it still sits on a face.
+ */
+export function computeViralCoverTitlePlacement(opts: {
   defaultTopFrac: number;
   textHeightFrac: number;
   faces: ViralFaceBox[];
-}): number {
-  return computeViralBigTitleTopFrac({ ...opts, maxBottomFrac: VIRAL_COVER_MAX_BOTTOM_FRAC });
+}): { topFrac: number; scale: number; covered: boolean } {
+  const faces = (opts.faces || []).filter((f) => f && f.h >= 0.05);
+  for (const scale of [1, 0.88, 0.76, 0.66, 0.6]) {
+    const textHeightFrac = opts.textHeightFrac * scale;
+    const topFrac = computeViralBigTitleTopFrac({
+      defaultTopFrac: opts.defaultTopFrac,
+      textHeightFrac,
+      faces: opts.faces,
+      maxBottomFrac: VIRAL_COVER_MAX_BOTTOM_FRAC,
+    });
+    const covered = faces.some((f) => f.y < topFrac + textHeightFrac && f.y + f.h > topFrac);
+    if (!covered) return { topFrac, scale, covered: false };
+  }
+  return { topFrac: opts.defaultTopFrac, scale: 1, covered: true };
 }
 
 /**
@@ -251,13 +267,14 @@ export function scoreViralCoverFrame(opts: {
   else if (opts.luma < 0.25) score -= 0.25;
   else if (opts.luma > 0.88) score -= 0.3;
   if (opts.textHeightFrac > 0) {
-    const top = computeViralCoverTitleTopFrac({
+    const place = computeViralCoverTitlePlacement({
       defaultTopFrac: opts.defaultTopFrac,
       textHeightFrac: opts.textHeightFrac,
       faces: opts.faces,
     });
-    const covered = faces.some((f) => f.y < top + opts.textHeightFrac && f.y + f.h > top);
-    if (covered) score -= 1;
+    // A title on someone's face rules the frame out; a title that had to shrink counts a little against it
+    if (place.covered) score -= 2;
+    else score -= (1 - place.scale) * 0.5;
   }
   return Number(score.toFixed(3));
 }
