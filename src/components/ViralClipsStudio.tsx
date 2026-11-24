@@ -106,6 +106,9 @@ export interface ViralClipSuggestion {
   hashtags: string;
   /** Comment to pin under the post: a question that invites replies about the clip's topic */
   pinnedComment?: string;
+  /** Marked by hand once the clip is posted; saved with the list, so it shows on the Mac and on the iPhone */
+  published?: boolean;
+  publishedAt?: string;
   transcriptExcerpt: string;
   words: WordTimestamp[];
   reframeMode: 'center_fill' | 'fit_blur' | 'auto_pan';
@@ -1910,6 +1913,11 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                     <div className="flex items-start justify-between gap-2">
                       <span className="text-xs font-black text-slate-100 leading-snug">
                         #{clip.rank} • {clip.title}
+                        {clip.published && (
+                          <span className="ml-1.5 px-1.5 py-0.5 rounded bg-emerald-500/20 border border-emerald-500/50 text-[10px] font-bold text-emerald-300 whitespace-nowrap">
+                            ✓ Publicado
+                          </span>
+                        )}
                       </span>
                       <span
                         className={`px-2 py-0.5 rounded-lg text-xs font-black shrink-0 ${
@@ -2511,6 +2519,41 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                     placeholder="Pregunta para fijar como primer comentario"
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-200 outline-none"
                   />
+                </div>
+
+                {/* Posted or not: marked by hand after publishing the clip */}
+                <div className="flex items-center justify-between gap-2 pt-1">
+                  <span className="text-[11px] font-bold text-slate-300">📣 Estado de este clip:</span>
+                  <div className="flex items-center gap-2">
+                    {selectedClip.published && selectedClip.publishedAt && (
+                      <span className="text-[10px] text-emerald-400 font-mono">
+                        {new Date(selectedClip.publishedAt).toLocaleDateString('es', {
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: 'numeric',
+                        })}
+                      </span>
+                    )}
+                    <select
+                      value={selectedClip.published ? 'published' : 'pending'}
+                      onChange={(e) => {
+                        const isPublished = e.target.value === 'published';
+                        updateSelectedClip({
+                          published: isPublished,
+                          publishedAt: isPublished ? selectedClip.publishedAt || new Date().toISOString() : undefined,
+                        });
+                      }}
+                      className={`rounded-lg px-2 py-1 text-[11px] font-bold border outline-none ${
+                        selectedClip.published
+                          ? 'bg-emerald-500/15 border-emerald-500/60 text-emerald-300'
+                          : 'bg-slate-950 border-slate-700 text-slate-200'
+                      }`}
+                      title="Marca este clip como publicado"
+                    >
+                      <option value="pending">Sin publicar</option>
+                      <option value="published">✓ Publicado</option>
+                    </select>
+                  </div>
                 </div>
               </div>
 
