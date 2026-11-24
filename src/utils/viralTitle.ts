@@ -130,3 +130,56 @@ export function computeViralTitleTimeline(
   }
   return { big, small, morph, notices };
 }
+
+// ---------------------------------------------------------------------------
+// Big title vs. faces: when the opening title would sit on someone's face, it starts below the face
+// instead (and still glides up to its usual small line afterwards).
+// ---------------------------------------------------------------------------
+
+/** A face found in the picture: fractions of the frame, measured from its top-left corner. */
+export interface ViralFaceBox {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/** Clip seconds where faces are looked for: spread over the time the big title is on screen. */
+export function viralTitleFaceSampleTimes(totalDurSec: number): number[] {
+  const end = Math.max(0.4, Math.min(8, Number(totalDurSec) || 0) - 0.3);
+  return [0.06, 0.25, 0.5, 0.75, 0.97].map((f) => Number((end * f).toFixed(2)));
+}
+
+/** Lowest point the big title may reach: it never comes down onto the captions. */
+export function viralTitleMaxBottomFrac(captionYPercent: number): number {
+  const captionBottom = Math.max(20, Math.min(88, Number(captionYPercent) || 75)) / 100;
+  return captionBottom - 0.09;
+}
+
+/**
+ * Top of the big title (fraction of the frame height). It stays at `defaultTopFrac` unless a face is under
+ * it; then it goes just below that face, and below the next one if it lands on another. When there is no
+ * room left above the captions, it stays where it always is.
+ */
+export function computeViralBigTitleTopFrac(opts: {
+  defaultTopFrac: number;
+  textHeightFrac: number;
+  faces: ViralFaceBox[];
+  maxBottomFrac: number;
+}): number {
+  const { defaultTopFrac, textHeightFrac, maxBottomFrac } = opts;
+  const GAP = 0.025;
+  // Small faces in a crowd are not worth moving the title for; the title spans the middle 84% of the width
+  const faces = (opts.faces || []).filter(
+    (f) => f && f.h >= 0.05 && f.w > 0 && f.x < 0.92 && f.x + f.w > 0.08
+  );
+  if (faces.length === 0 || !(textHeightFrac > 0)) return defaultTopFrac;
+  let top = defaultTopFrac;
+  for (let i = 0; i < 8; i++) {
+    const under = faces.filter((f) => f.y < top + textHeightFrac && f.y + f.h > top);
+    if (under.length === 0) break;
+    top = Math.max(...under.map((f) => f.y + f.h)) + GAP;
+    if (top + textHeightFrac > maxBottomFrac) return defaultTopFrac;
+  }
+  return top;
+}

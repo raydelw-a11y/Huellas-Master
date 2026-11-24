@@ -65,7 +65,12 @@ import {
   splitViralTitleLines,
   buildViralSmallTitleLines,
   computeViralTitleTimeline,
+  viralTitleFaceSampleTimes,
+  viralTitleMaxBottomFrac,
+  computeViralBigTitleTopFrac,
+  type ViralFaceBox,
 } from './src/utils/viralTitle';
+import { detectViralFaces, ensureViralFaceDetector } from './server/viralFaceZones';
 
 // Ensure sufficient libuv I/O worker threads for local + iCloud operations
 process.env.UV_THREADPOOL_SIZE = process.env.UV_THREADPOOL_SIZE || '32';
@@ -23267,6 +23272,77 @@ function buildOpusClipAssSubtitles(params: {
   return assLines.join('\n');
 }
 
+// Faces in the opening seconds of a clip (while the big title is on screen), as fractions of the vertical
+// frame, so the title can start below them. Shared by the render and by the page's preview; results are
+// remembered for a while because the preview asks again every time the clip is opened.
+const VIRAL_FACE_BIN_DIR = path.join(VIRAL_CLIPS_DIR, 'bin');
+const viralTitleFacesCache = new Map<string, { at: number; faces: ViralFaceBox[] }>();
+// The detector is compiled once (about half a minute): do it shortly after start, not during the first export
+setTimeout(() => {
+  void ensureViralFaceDetector(VIRAL_FACE_BIN_DIR);
+}, 20000);
+async function detectViralClipTitleFaces(p: {
+  sourceVideoPath: string;
+  sourceIsViralMaster: boolean;
+  viralMasterSkipRanges: Array<{ start: number; end: number }>;
+  cuts: ReturnType<typeof computeViralClipCuts>;
+  reframeMode: string;
+  focusX: number;
+}): Promise<ViralFaceBox[]> {
+  try {
+    if (!p.sourceVideoPath || !fs.existsSync(p.sourceVideoPath) || p.cuts.parts.length === 0) return [];
+    const stat = fs.statSync(p.sourceVideoPath);
+    const key = JSON.stringify([
+      p.sourceVideoPath,
+      Math.round(stat.mtimeMs),
+      p.sourceIsViralMaster,
+      p.cuts.parts.map((x) => [Number(x.srcStart.toFixed(2)), Number(x.dur.toFixed(2))]),
+      p.reframeMode,
+      Math.round(Number(p.focusX) || 50),
+    ]);
+    const hit = viralTitleFacesCache.get(key);
+    if (hit && Date.now() - hit.at < 6 * 60 * 60 * 1000) return hit.faces;
+    const total = p.cuts.totalDurSec;
+    const hasBurnedDocCaptions =
+      !p.sourceIsViralMaster && /[\\/]06_Video_Final[\\/]/i.test(String(p.sourceVideoPath || ''));
+    const preCrop = hasBurnedDocCaptions ? 'crop=iw:trunc(ih*0.78/2)*2:0:0,' : '';
+    const fX = Math.max(0, Math.min(1, (Number(p.focusX) || 50) / 100));
+    // The same framing as the render, on a small 360×640 picture
+    const geometryVf = (clipSec: number) => {
+      if (p.sourceIsViralMaster) return 'scale=360:640';
+      if (p.reframeMode === 'fit_blur') {
+        return `${preCrop}scale=360:640:force_original_aspect_ratio=decrease,pad=360:640:(ow-iw)/2:(oh-ih)/2`;
+      }
+      const panX = p.reframeMode === 'auto_pan' ? 0.25 + 0.5 * Math.min(1, clipSec / Math.max(1, total)) : fX;
+      return `${preCrop}scale=360:640:force_original_aspect_ratio=increase,crop=360:640:(iw-ow)*${panX.toFixed(3)}:(ih-oh)/2`;
+    };
+    const samples = viralTitleFaceSampleTimes(total).map((clipSec) => {
+      let part = p.cuts.parts[0];
+      for (const x of p.cuts.parts) if (x.clipStart <= clipSec) part = x;
+      const srcSec = part.srcStart + Math.max(0, Math.min(part.dur - 0.05, clipSec - part.clipStart));
+      return {
+        sourceSec: p.sourceIsViralMaster ? timelineToMasterTime(srcSec, p.viralMasterSkipRanges) : srcSec,
+        vf: geometryVf(clipSec),
+      };
+    });
+    const faces = await detectViralFaces({
+      ffmpegBin: getFfmpegPath(),
+      binDir: VIRAL_FACE_BIN_DIR,
+      sourceVideoPath: p.sourceVideoPath,
+      samples,
+    });
+    viralTitleFacesCache.set(key, { at: Date.now(), faces });
+    if (viralTitleFacesCache.size > 200) {
+      const oldest = [...viralTitleFacesCache.entries()].sort((a, b) => a[1].at - b[1].at)[0];
+      if (oldest) viralTitleFacesCache.delete(oldest[0]);
+    }
+    return faces;
+  } catch (e) {
+    console.warn('[ViralClips] No se pudieron buscar caras para el título:', e);
+    return [];
+  }
+}
+
 // 5. Render Viral Clip to 9:16 MP4 (/api/viral-clips/render)
 async function renderViralClipMp4Internal(params: {
   sourceVideoPath: string;
@@ -23371,6 +23447,29 @@ async function renderViralClipMp4Internal(params: {
   let titleWordsArt: ViralTitleWordsArt | null = null;
   let titleWordsMorph: { startSec: number; durSec: number; staggerSec: number } | null = null;
   const titleTopY = Math.round((outH * (look916.hookBannerTopPct ?? 13.5)) / 100);
+  // Where the BIG title starts: its usual place, or just below a face it would otherwise cover
+  let titleBigTopY = titleTopY;
+  const titleFaces: ViralFaceBox[] =
+    titleStyle === 'poster_gold' && showHookBanner && String(hookBannerText || '').trim()
+      ? await detectViralClipTitleFaces({
+          sourceVideoPath,
+          sourceIsViralMaster,
+          viralMasterSkipRanges,
+          cuts,
+          reframeMode,
+          focusX,
+        })
+      : [];
+  const bigTitleTopFor = (textHeightPx: number) =>
+    Math.round(
+      outH *
+        computeViralBigTitleTopFrac({
+          defaultTopFrac: titleTopY / outH,
+          textHeightFrac: textHeightPx / outH,
+          faces: titleFaces,
+          maxBottomFrac: viralTitleMaxBottomFrac(captionYPercent),
+        })
+    );
   let posterTitleDrawn = false;
   {
     try {
@@ -23417,6 +23516,7 @@ async function renderViralClipMp4Internal(params: {
           posterTitleDrawn = true;
           titleWordsArt = wordsArt;
           titleWordsMorph = timeline.morph;
+          titleBigTopY = bigTitleTopFor(wordsArt.bigTextHeight);
           for (const w of wordsArt.words) titleArtFiles.push(w.path);
           if (timeline.morph) smallTextBottomY = titleTopY + wordsArt.smallTextBottom;
         } else {
@@ -23426,7 +23526,7 @@ async function renderViralClipMp4Internal(params: {
             posterTitleDrawn = true;
             titleOverlays.push({
               art: big,
-              y: titleTopY - big.padTop,
+              y: bigTitleTopFor(big.height - 2 * big.padTop) - big.padTop,
               startSec: timeline.big.startSec,
               durSec: timeline.big.endSec - timeline.big.startSec,
               fadeOut: true,
@@ -23609,6 +23709,7 @@ async function renderViralClipMp4Internal(params: {
         firstInputIdx: nextTitleInputIdx,
         inLabel: lastVideoLabel,
         titleTopY,
+        bigTopY: titleBigTopY,
         totalDurSec: totalClipDurSec,
         morph: titleWordsMorph,
       });
@@ -24182,6 +24283,43 @@ app.post('/api/viral-clips/render', async (req, res) => {
       ok: false,
       error: err?.message || 'Error al renderizar el clip viral.',
     });
+  }
+});
+
+// Faces under the big title of a clip, for the page's preview (the render finds them by itself)
+app.post('/api/viral-clips/title-faces', async (req, res) => {
+  try {
+    const body = req.body || {};
+    const docId = String(body.docId || '');
+    let sourceVideoPath = String(body.sourceVideoPath || '');
+    let sourceIsViralMaster = false;
+    let viralMasterSkipRanges: Array<{ start: number; end: number }> = [];
+    // Clips of a documentary are cut from its clean 9:16 master when it is ready, exactly as the render does
+    if (docId) {
+      const st = viralMasterState(docId);
+      if (st.fresh) {
+        sourceVideoPath = st.files.video;
+        sourceIsViralMaster = true;
+        viralMasterSkipRanges = Array.isArray(st.meta?.skipRanges916) ? st.meta.skipRanges916 : [];
+      }
+    }
+    const cuts = computeViralClipCuts({
+      startSec: Number(body.startSec) || 0,
+      endSec: Number(body.endSec) || 0,
+      segments: body.segments,
+      words: Array.isArray(body.words) ? body.words : [],
+    });
+    const faces = await detectViralClipTitleFaces({
+      sourceVideoPath,
+      sourceIsViralMaster,
+      viralMasterSkipRanges,
+      cuts,
+      reframeMode: String(body.reframeMode || 'center_fill'),
+      focusX: Number(body.focusX) || 50,
+    });
+    res.json({ ok: true, faces });
+  } catch (err: any) {
+    res.json({ ok: true, faces: [] });
   }
 });
 

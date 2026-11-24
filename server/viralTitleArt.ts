@@ -43,6 +43,8 @@ export interface ViralTitleWordsArt {
   scale: number;
   /** Bottom of the small line's letters, from the title's top (to stack the notice under it) */
   smallTextBottom: number;
+  /** Height of the big title's letters, first line's top to last line's bottom */
+  bigTextHeight: number;
 }
 
 interface TitleWord {
@@ -437,7 +439,8 @@ export function renderViralTitleWords(opts: {
         };
       });
       const smallTextBottom = Math.max(...(smallBoxes as Box[]).map((b) => b.y2)) - smallInkTop;
-      return { words, scale, smallTextBottom };
+      const bigTextHeight = Math.max(...(bigBoxes as Box[]).map((b) => b.y2)) - bigInkTop;
+      return { words, scale, smallTextBottom, bigTextHeight };
     } finally {
       for (const f of seqFiles) {
         try {
@@ -462,8 +465,10 @@ export function buildViralTitleWordFilters(opts: {
   art: ViralTitleWordsArt;
   firstInputIdx: number;
   inLabel: string;
-  /** Frame y where the title's letters start */
+  /** Frame y where the small line's letters start (the title's usual place under the logo) */
   titleTopY: number;
+  /** Frame y where the big title's letters start; lower than `titleTopY` when it has to clear a face */
+  bigTopY?: number;
   totalDurSec: number;
   morph: { startSec: number; durSec: number; staggerSec: number } | null;
 }): { inputArgs: string[]; chain: string; outLabel: string } {
@@ -475,7 +480,7 @@ export function buildViralTitleWordFilters(opts: {
   art.words.forEach((w, k) => {
     inputArgs.push('-loop', '1', '-framerate', '30', '-t', f(totalDurSec + 0.5), '-i', w.path);
     const x0 = w.bigX;
-    const y0 = titleTopY + w.bigY;
+    const y0 = (opts.bigTopY ?? titleTopY) + w.bigY;
     let scaleFilter = '';
     let xExpr = f(x0);
     let yExpr = f(y0);
