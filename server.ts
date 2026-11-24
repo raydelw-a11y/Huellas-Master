@@ -69,9 +69,13 @@ import {
   viralNoticeFaceSampleTimes,
   viralTitleMaxBottomFrac,
   computeViralBigTitleTopFrac,
+  viralCoverCandidateTimes,
+  estimateViralBigTitleHeightFrac,
+  computeViralCoverTitleTopFrac,
+  scoreViralCoverFrame,
   type ViralFaceBox,
 } from './src/utils/viralTitle';
-import { detectViralFaces, ensureViralFaceDetector } from './server/viralFaceZones';
+import { analyzeViralFrames, ensureViralFaceDetector, type ViralFrameInfo } from './server/viralFaceZones';
 
 // Ensure sufficient libuv I/O worker threads for local + iCloud operations
 process.env.UV_THREADPOOL_SIZE = process.env.UV_THREADPOOL_SIZE || '32';
@@ -23273,31 +23277,41 @@ function buildOpusClipAssSubtitles(params: {
   return assLines.join('\n');
 }
 
-// Faces in the opening seconds of a clip (while the big title is on screen), as fractions of the vertical
-// frame, so the title can start below them. Shared by the render and by the page's preview; results are
-// remembered for a while because the preview asks again every time the clip is opened.
+// What is in some frames of a clip, as it will look in the vertical picture: the faces (fractions of the
+// frame, so the big title and the YouTube notice can keep off them) and each frame's sharpness and
+// brightness (to choose the cover). Shared by the render and by the page; results are remembered for a
+// while because the page asks again every time the clip is opened.
 const VIRAL_FACE_BIN_DIR = path.join(VIRAL_CLIPS_DIR, 'bin');
-const viralTitleFacesCache = new Map<string, { at: number; faces: ViralFaceBox[] }>();
+const viralFramesCache = new Map<string, { at: number; infos: Array<ViralFrameInfo | null> }>();
 // The detector is compiled once (about half a minute): do it shortly after start, not during the first export
 setTimeout(() => {
   void ensureViralFaceDetector(VIRAL_FACE_BIN_DIR);
 }, 20000);
-async function detectViralClipTitleFaces(p: {
+interface ViralClipFrameSource {
   sourceVideoPath: string;
   sourceIsViralMaster: boolean;
   viralMasterSkipRanges: Array<{ start: number; end: number }>;
   cuts: ReturnType<typeof computeViralClipCuts>;
   reframeMode: string;
   focusX: number;
-  /** Clip seconds to look at; by default the ones where the big title is on screen */
-  clipTimes?: number[];
-}): Promise<ViralFaceBox[]> {
+}
+/** Second of the source file that shows the given second of the clip. */
+function viralClipSecToSourceSec(p: ViralClipFrameSource, clipSec: number): number {
+  let part = p.cuts.parts[0];
+  for (const x of p.cuts.parts) if (x.clipStart <= clipSec) part = x;
+  const srcSec = part.srcStart + Math.max(0, Math.min(part.dur - 0.05, clipSec - part.clipStart));
+  return p.sourceIsViralMaster ? timelineToMasterTime(srcSec, p.viralMasterSkipRanges) : srcSec;
+}
+async function analyzeViralClipFrames(
+  p: ViralClipFrameSource,
+  rawClipTimes: number[],
+  withThumbs = false
+): Promise<Array<ViralFrameInfo | null>> {
+  const none = rawClipTimes.map(() => null);
   try {
-    if (!p.sourceVideoPath || !fs.existsSync(p.sourceVideoPath) || p.cuts.parts.length === 0) return [];
+    if (!p.sourceVideoPath || !fs.existsSync(p.sourceVideoPath) || p.cuts.parts.length === 0) return none;
     const total = p.cuts.totalDurSec;
-    const clipTimes = (p.clipTimes && p.clipTimes.length > 0 ? p.clipTimes : viralTitleFaceSampleTimes(total))
-      .map((t) => Math.max(0, Math.min(Math.max(0, total - 0.1), Number(t) || 0)))
-      .slice(0, 8);
+    const clipTimes = rawClipTimes.map((t) => Math.max(0, Math.min(Math.max(0, total - 0.1), Number(t) || 0)));
     const stat = fs.statSync(p.sourceVideoPath);
     const key = JSON.stringify([
       p.sourceVideoPath,
@@ -23307,9 +23321,10 @@ async function detectViralClipTitleFaces(p: {
       p.reframeMode,
       Math.round(Number(p.focusX) || 50),
       clipTimes.map((t) => Number(t.toFixed(1))),
+      withThumbs,
     ]);
-    const hit = viralTitleFacesCache.get(key);
-    if (hit && Date.now() - hit.at < 6 * 60 * 60 * 1000) return hit.faces;
+    const hit = viralFramesCache.get(key);
+    if (hit && Date.now() - hit.at < 6 * 60 * 60 * 1000) return hit.infos;
     const hasBurnedDocCaptions =
       !p.sourceIsViralMaster && /[\\/]06_Video_Final[\\/]/i.test(String(p.sourceVideoPath || ''));
     const preCrop = hasBurnedDocCaptions ? 'crop=iw:trunc(ih*0.78/2)*2:0:0,' : '';
@@ -23323,31 +23338,67 @@ async function detectViralClipTitleFaces(p: {
       const panX = p.reframeMode === 'auto_pan' ? 0.25 + 0.5 * Math.min(1, clipSec / Math.max(1, total)) : fX;
       return `${preCrop}scale=360:640:force_original_aspect_ratio=increase,crop=360:640:(iw-ow)*${panX.toFixed(3)}:(ih-oh)/2`;
     };
-    const samples = clipTimes.map((clipSec) => {
-      let part = p.cuts.parts[0];
-      for (const x of p.cuts.parts) if (x.clipStart <= clipSec) part = x;
-      const srcSec = part.srcStart + Math.max(0, Math.min(part.dur - 0.05, clipSec - part.clipStart));
-      return {
-        sourceSec: p.sourceIsViralMaster ? timelineToMasterTime(srcSec, p.viralMasterSkipRanges) : srcSec,
-        vf: geometryVf(clipSec),
-      };
-    });
-    const faces = await detectViralFaces({
+    const infos = await analyzeViralFrames({
       ffmpegBin: getFfmpegPath(),
       binDir: VIRAL_FACE_BIN_DIR,
       sourceVideoPath: p.sourceVideoPath,
-      samples,
+      samples: clipTimes.map((clipSec) => ({ sourceSec: viralClipSecToSourceSec(p, clipSec), vf: geometryVf(clipSec) })),
+      withThumbs,
     });
-    viralTitleFacesCache.set(key, { at: Date.now(), faces });
-    if (viralTitleFacesCache.size > 200) {
-      const oldest = [...viralTitleFacesCache.entries()].sort((a, b) => a[1].at - b[1].at)[0];
-      if (oldest) viralTitleFacesCache.delete(oldest[0]);
+    // Nothing read at all (detector still compiling, file busy…): do not remember that as the answer
+    if (infos.some((x) => x)) {
+      viralFramesCache.set(key, { at: Date.now(), infos });
+      if (viralFramesCache.size > 120) {
+        const oldest = [...viralFramesCache.entries()].sort((a, b) => a[1].at - b[1].at)[0];
+        if (oldest) viralFramesCache.delete(oldest[0]);
+      }
     }
-    return faces;
+    return infos;
   } catch (e) {
-    console.warn('[ViralClips] No se pudieron buscar caras para el título:', e);
-    return [];
+    console.warn('[ViralClips] No se pudieron analizar los fotogramas del clip:', e);
+    return none;
   }
+}
+/** Faces on screen at the given clip seconds (by default, while the big title is up). */
+async function detectViralClipTitleFaces(p: ViralClipFrameSource & { clipTimes?: number[] }): Promise<ViralFaceBox[]> {
+  const times = (p.clipTimes && p.clipTimes.length > 0 ? p.clipTimes : viralTitleFaceSampleTimes(p.cuts.totalDurSec)).slice(0, 8);
+  const infos = await analyzeViralClipFrames(p, times);
+  return infos.flatMap((x) => (x ? x.faces : []));
+}
+/**
+ * Cover candidates of a clip, each with its score; `best` is the one the page proposes. `titleLines` are the
+ * big title's lines (the score checks that the title fits in the upper half without covering a face).
+ */
+async function listViralCoverCandidates(
+  p: ViralClipFrameSource,
+  titleLines: string[],
+  defaultTopFrac: number,
+  withThumbs: boolean
+): Promise<{ candidates: Array<{ clipSec: number; score: number; faces: ViralFaceBox[]; thumb?: string }>; bestClipSec: number | null }> {
+  const times = viralCoverCandidateTimes(p.cuts.totalDurSec);
+  const infos = await analyzeViralClipFrames(p, times, withThumbs);
+  const maxSharp = Math.max(1, ...infos.map((x) => (x ? x.sharp : 0)));
+  const textHeightFrac = estimateViralBigTitleHeightFrac(titleLines);
+  const candidates = infos
+    .map((info, i) =>
+      info
+        ? {
+            clipSec: times[i],
+            score: scoreViralCoverFrame({
+              faces: info.faces,
+              sharpNorm: info.sharp / maxSharp,
+              luma: info.luma,
+              defaultTopFrac,
+              textHeightFrac,
+            }),
+            faces: info.faces,
+            ...(info.thumb ? { thumb: info.thumb } : {}),
+          }
+        : null
+    )
+    .filter((c): c is NonNullable<typeof c> => Boolean(c));
+  const best = candidates.reduce<(typeof candidates)[number] | null>((a, b) => (!a || b.score > a.score ? b : a), null);
+  return { candidates, bestClipSec: best ? best.clipSec : null };
 }
 
 // 5. Render Viral Clip to 9:16 MP4 (/api/viral-clips/render)
@@ -23375,6 +23426,10 @@ async function renderViralClipMp4Internal(params: {
   titleStyle?: 'poster_gold' | 'yellow_box';
   /** "VIDEO COMPLETO EN YOUTUBE": 5 s around the middle and the last 5 s of the clip (default on) */
   showYoutubeNotice?: boolean;
+  /** Cover: the clip's last frame is a still of the clip with the big title (default on) */
+  showCover?: boolean;
+  /** Clip second used for the cover; when absent the best-scoring frame is used */
+  coverClipSec?: number;
   docId?: string;
   /** Position of the clip in the documentary's list (1-based): used in the file name */
   clipNumber?: number;
@@ -23408,6 +23463,7 @@ async function renderViralClipMp4Internal(params: {
     showHookBanner = true,
     titleStyle = 'poster_gold',
     showYoutubeNotice = true,
+    showCover = true,
     docId = '',
     clipNumber = 0,
     sourceIsViralMaster = false,
@@ -23755,9 +23811,76 @@ async function renderViralClipMp4Internal(params: {
       titleChain += `;[${inputIdx}:v]format=rgba,${fades.join(',')},setpts=PTS+${ov.startSec.toFixed(3)}/TB[tart${k}];[${lastVideoLabel}][tart${k}]overlay=0:${Math.round(ov.y)}:eof_action=pass:format=auto[${nextLabel}]`;
       lastVideoLabel = nextLabel;
     });
+    // Cover: one last frame after the clip — a still of the clip with the big title, no captions and no
+    // notice — so it can be chosen as the cover on any network. The frame is the one the page picked, or the
+    // best-scoring one; the title keeps to the upper half and off faces.
+    let closingChain = `;[${lastVideoLabel}]null[vout]`;
+    let coverExtraSec = 0;
+    if (showCover && titleWordsArt) {
+      try {
+        const frameSource: ViralClipFrameSource = {
+          sourceVideoPath,
+          sourceIsViralMaster,
+          viralMasterSkipRanges,
+          cuts,
+          reframeMode,
+          focusX,
+        };
+        const askedSec = Number(params.coverClipSec);
+        let coverSec = Number.isFinite(askedSec) && params.coverClipSec !== undefined && askedSec >= 0 ? askedSec : -1;
+        let coverFaces: ViralFaceBox[] = [];
+        if (coverSec < 0) {
+          const picked = await listViralCoverCandidates(
+            frameSource,
+            splitViralTitleLines(hookBannerText),
+            titleTopY / outH,
+            false
+          );
+          coverSec = picked.bestClipSec ?? totalClipDurSec / 2;
+          coverFaces = picked.candidates.find((c) => c.clipSec === coverSec)?.faces || [];
+        } else {
+          coverSec = Math.min(coverSec, Math.max(0, totalClipDurSec - 0.1));
+          coverFaces = (await analyzeViralClipFrames(frameSource, [coverSec]))[0]?.faces || [];
+        }
+        const coverTopY = Math.round(
+          outH *
+            computeViralCoverTitleTopFrac({
+              defaultTopFrac: titleTopY / outH,
+              textHeightFrac: titleWordsArt.bigTextHeight / outH,
+              faces: coverFaces,
+            })
+        );
+        const coverPath = path.join(os.tmpdir(), `viral_cover_${stamp}.png`);
+        // The frame goes through the clip's own framing (without captions), then every word of the title on top
+        const coverVf = reframeVf.replace(`,ass='${escapedAssPath}'`, '');
+        const coverArgs = ['-hide_banner', '-v', 'error', '-y', '-ss', viralClipSecToSourceSec(frameSource, coverSec).toFixed(3), '-i', sourceVideoPath];
+        let coverGraph = `[0:v]${coverVf}[cv0]`;
+        titleWordsArt.words.forEach((w, k) => {
+          coverArgs.push('-i', w.path);
+          coverGraph += `;[cv${k}][${k + 1}:v]overlay=${Math.round(w.bigX)}:${Math.round(coverTopY + w.bigY)}:format=auto[cv${k + 1}]`;
+        });
+        coverArgs.push('-filter_complex', coverGraph, '-map', `[cv${titleWordsArt.words.length}]`, '-frames:v', '1', coverPath);
+        const coverOk = await new Promise<boolean>((resolve) => {
+          execFile(ffmpegBin, coverArgs, { timeout: 120000 }, (err) => resolve(!err && fs.existsSync(coverPath)));
+        });
+        if (coverOk) {
+          titleArtFiles.push(coverPath);
+          const coverInputIdx = nextTitleInputIdx + titleOverlays.length;
+          inputArgs.push('-loop', '1', '-framerate', '30', '-t', '0.034', '-i', coverPath);
+          coverExtraSec = 1 / 30;
+          // The clip is cut to its exact length first, so the cover is truly its last frame
+          closingChain =
+            `;[${lastVideoLabel}]trim=end=${totalClipDurSec.toFixed(3)},setpts=PTS-STARTPTS,fps=30,format=yuv420p,setsar=1[vmainc]` +
+            `;[${coverInputIdx}:v]scale=${outW}:${outH}:flags=lanczos,fps=30,format=yuv420p,setsar=1[vcover]` +
+            `;[vmainc][vcover]concat=n=2:v=1:a=0[vout]`;
+        }
+      } catch (e) {
+        console.warn('[ViralClips] Portada no disponible:', e);
+      }
+    }
     const complexFilter = `${chains.join(';')};${concatIn}concat=n=${n}:v=1:a=${sourceHasAudio ? 1 : 0}[vc]${
       sourceHasAudio ? '[aout]' : ''
-    };[vc]${reframeVf}[vbase]${titleChain};[${lastVideoLabel}]null[vout]`;
+    };[vc]${reframeVf}[vbase]${titleChain}${closingChain}`;
 
     await new Promise<void>((resolve, reject) => {
       const args = [
@@ -23784,9 +23907,9 @@ async function renderViralClipMp4Internal(params: {
           ...(sourceHasAudio ? ['-c:a', 'aac', '-b:a', '192k'] : []),
           '-movflags',
           '+faststart',
-          // The looped title stills must never make the file longer than the clip
+          // The looped title stills must never make the file longer than the clip (plus its cover frame)
           '-t',
-          totalClipDurSec.toFixed(3),
+          (totalClipDurSec + coverExtraSec + (coverExtraSec > 0 ? 0.004 : 0)).toFixed(3),
           outputFilePath,
         ];
       // Progress: ffmpeg writes "out_time_us=…" lines to stdout (-progress pipe:1)
@@ -24314,37 +24437,41 @@ app.post('/api/viral-clips/render', async (req, res) => {
   }
 });
 
-// Faces under the big title of a clip, for the page's preview (the render finds them by itself)
+// The clip's source exactly as the render will read it: its clean 9:16 master when that is ready
+function viralFrameSourceFromBody(body: any): ViralClipFrameSource {
+  const docId = String(body?.docId || '');
+  let sourceVideoPath = String(body?.sourceVideoPath || '');
+  let sourceIsViralMaster = false;
+  let viralMasterSkipRanges: Array<{ start: number; end: number }> = [];
+  if (docId) {
+    const st = viralMasterState(docId);
+    if (st.fresh) {
+      sourceVideoPath = st.files.video;
+      sourceIsViralMaster = true;
+      viralMasterSkipRanges = Array.isArray(st.meta?.skipRanges916) ? st.meta.skipRanges916 : [];
+    }
+  }
+  return {
+    sourceVideoPath,
+    sourceIsViralMaster,
+    viralMasterSkipRanges,
+    cuts: computeViralClipCuts({
+      startSec: Number(body?.startSec) || 0,
+      endSec: Number(body?.endSec) || 0,
+      segments: body?.segments,
+      words: Array.isArray(body?.words) ? body.words : [],
+    }),
+    reframeMode: String(body?.reframeMode || 'center_fill'),
+    focusX: Number(body?.focusX) || 50,
+  };
+}
+
+// Faces under the big title and under each YouTube notice of a clip, for the page's preview (the render
+// finds them by itself)
 app.post('/api/viral-clips/title-faces', async (req, res) => {
   try {
     const body = req.body || {};
-    const docId = String(body.docId || '');
-    let sourceVideoPath = String(body.sourceVideoPath || '');
-    let sourceIsViralMaster = false;
-    let viralMasterSkipRanges: Array<{ start: number; end: number }> = [];
-    // Clips of a documentary are cut from its clean 9:16 master when it is ready, exactly as the render does
-    if (docId) {
-      const st = viralMasterState(docId);
-      if (st.fresh) {
-        sourceVideoPath = st.files.video;
-        sourceIsViralMaster = true;
-        viralMasterSkipRanges = Array.isArray(st.meta?.skipRanges916) ? st.meta.skipRanges916 : [];
-      }
-    }
-    const cuts = computeViralClipCuts({
-      startSec: Number(body.startSec) || 0,
-      endSec: Number(body.endSec) || 0,
-      segments: body.segments,
-      words: Array.isArray(body.words) ? body.words : [],
-    });
-    const common = {
-      sourceVideoPath,
-      sourceIsViralMaster,
-      viralMasterSkipRanges,
-      cuts,
-      reframeMode: String(body.reframeMode || 'center_fill'),
-      focusX: Number(body.focusX) || 50,
-    };
+    const common = viralFrameSourceFromBody(body);
     const faces = await detectViralClipTitleFaces(common);
     // Faces while each YouTube notice is on screen (same order as the spans sent by the page)
     const noticeSpans: Array<{ startSec: number; endSec: number }> = (Array.isArray(body.noticeSpans) ? body.noticeSpans : [])
@@ -24357,6 +24484,23 @@ app.post('/api/viral-clips/title-faces', async (req, res) => {
     res.json({ ok: true, faces, noticeFaces });
   } catch (err: any) {
     res.json({ ok: true, faces: [], noticeFaces: [] });
+  }
+});
+
+// Frames of a clip offered as its cover (small pictures, their faces and score) and the one proposed
+app.post('/api/viral-clips/cover-candidates', async (req, res) => {
+  try {
+    const body = req.body || {};
+    const look = getViral916Look(String(body.docId || ''));
+    const result = await listViralCoverCandidates(
+      viralFrameSourceFromBody(body),
+      splitViralTitleLines(String(body.hookBannerText || '')),
+      (look.hookBannerTopPct ?? 13.5) / 100,
+      true
+    );
+    res.json({ ok: true, ...result });
+  } catch (err: any) {
+    res.json({ ok: true, candidates: [], bestClipSec: null });
   }
 });
 

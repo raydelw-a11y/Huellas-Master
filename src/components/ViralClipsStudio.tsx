@@ -31,6 +31,7 @@ import {
 } from 'lucide-react';
 import { DocumentaryProject } from '../types';
 import { ViralPosterTitle, useViralPosterFontPx, viralPosterTextHeightPx } from './ViralPosterTitle';
+import { ViralCoverPicker, type ViralCoverCandidate } from './ViralCoverPicker';
 import {
   VIRAL_TITLE_LOOK,
   splitViralTitleLines,
@@ -109,6 +110,8 @@ export interface ViralClipSuggestion {
   hashtags: string;
   /** Comment to pin under the post: a question that invites replies about the clip's topic */
   pinnedComment?: string;
+  /** Clip second of the cover frame chosen by hand (absent = the one the page proposes) */
+  coverSec?: number;
   /** Marked by hand once the clip is posted; saved with the list, so it shows on the Mac and on the iPhone */
   published?: boolean;
   publishedAt?: string;
@@ -387,6 +390,24 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
     } catch {}
   }, [linkPlace]);
   const [docYoutubeUrl, setDocYoutubeUrl] = useState<string>('');
+  // Cover: the clip's last frame is a still of the clip with the big title
+  const [showCover, setShowCover] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('huellas_viral_cover') !== 'off';
+    } catch {
+      return true;
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem('huellas_viral_cover', showCover ? 'on' : 'off');
+    } catch {}
+  }, [showCover]);
+  const [coverCandidates, setCoverCandidates] = useState<{ candidates: ViralCoverCandidate[]; bestClipSec: number | null }>({
+    candidates: [],
+    bestClipSec: null,
+  });
+  const [coverLoading, setCoverLoading] = useState<boolean>(false);
   // "VIDEO COMPLETO EN YOUTUBE" for 8 s in the middle of the clip
   const [showYoutubeNotice, setShowYoutubeNotice] = useState<boolean>(() => {
     try {
@@ -1457,6 +1478,51 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
     VIRAL_TITLE_LOOK.noticeTextWFrac,
     VIRAL_TITLE_LOOK.noticeFontHFrac
   );
+  // Frames offered as the clip's cover, with the one the page proposes
+  const coverWanted = Boolean(selectedClip) && showCover && titleStyle === 'poster_gold' && showHookBanner;
+  const coverTitleKey = posterTitleLines.join('|');
+  useEffect(() => {
+    setCoverCandidates({ candidates: [], bestClipSec: null });
+    if (!selectedClip || !coverWanted || posterTitleLines.length === 0) return;
+    let cancelled = false;
+    setCoverLoading(true);
+    const timer = window.setTimeout(() => {
+      fetch(viralApi('/api/viral-clips/cover-candidates'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          docId: sourceMode === 'doc' ? selectedDocId : '',
+          sourceVideoPath: sourceLocalPath,
+          startSec: selectedClip.startSec,
+          endSec: selectedClip.endSec,
+          segments: selectedClip.segments,
+          words: selectedClip.words,
+          reframeMode: selectedClip.reframeMode,
+          focusX: selectedClip.focusX,
+          hookBannerText: selectedClip.hookBannerText,
+        }),
+      })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          if (cancelled) return;
+          if (d?.ok && Array.isArray(d.candidates)) {
+            setCoverCandidates({
+              candidates: d.candidates,
+              bestClipSec: typeof d.bestClipSec === 'number' ? d.bestClipSec : null,
+            });
+          }
+        })
+        .catch(() => {})
+        .finally(() => {
+          if (!cancelled) setCoverLoading(false);
+        });
+    }, 900);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+      setCoverLoading(false);
+    };
+  }, [titleFacesKey, coverWanted, coverTitleKey, sourceMode]);
   const posterBigFontPx = useViralPosterFontPx(
     posterTitleLines,
     previewFrameW,
@@ -1669,6 +1735,8 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
           showHookBanner,
           titleStyle,
           showYoutubeNotice,
+          showCover,
+          coverClipSec: typeof clip.coverSec === 'number' ? clip.coverSec : undefined,
           // Background job in the Mac's queue (through the tunnel a request open more than 100 s is cut)
           async: true,
         }),
@@ -2619,6 +2687,31 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                   />
                   Aviso "VIDEO COMPLETO EN YOUTUBE" (5 s al encogerse el título y 5 s al final)
                 </label>
+                <label className="flex items-center gap-2 font-bold text-amber-300 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={showCover}
+                    onChange={(e) => setShowCover(e.target.checked)}
+                    className="accent-amber-400"
+                  />
+                  Portada con el título como último fotograma del clip
+                </label>
+                {coverWanted && (
+                  <ViralCoverPicker
+                    candidates={coverCandidates.candidates}
+                    bestClipSec={coverCandidates.bestClipSec}
+                    chosenClipSec={selectedClip.coverSec}
+                    onChoose={(sec) => updateSelectedClip({ coverSec: sec })}
+                    titleLines={posterTitle.lines}
+                    titleTopPct={look916?.hookBannerTopPct ?? 13.5}
+                    loading={coverLoading}
+                  />
+                )}
+                {showCover && titleStyle !== 'poster_gold' && (
+                  <p className="text-[11px] text-slate-400 italic px-1">
+                    La portada solo se añade con el título "Póster dorado".
+                  </p>
+                )}
 
                 <div className="space-y-1">
                   {/* Network being posted to: it decides where the text says the link is */}
