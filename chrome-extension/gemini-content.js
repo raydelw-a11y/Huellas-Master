@@ -1454,6 +1454,12 @@
     let lastObservedText = '';
     let maxObservedLen = 0;
     let lastTextGrowthAtMs = 0;
+    // Real clock of the last change in the answer text. With the Mac screen locked (or the window covered)
+    // Chrome freezes the page: timers run once a minute and Gemini never swaps its "Stop" button for the
+    // finished state, so the tick counters above are useless there.
+    let frozenWatchText = '';
+    let frozenWatchChangedAt = Date.now();
+    let hasReportedFrozenFinish = false;
     let hasStarted = false;
     let hasClickedStartResearchPlan = false;
     let planClickedAtMs = 0;
@@ -1533,7 +1539,27 @@
       const responses = getModelResponseElements();
       const currentCount = responses.length;
       const latest = extractLatestGeminiResponse();
-      const stillStreaming = isGeminiStillGenerating() || (isDeepResearch && isDeepResearchActivelyBrowsing());
+      const stillStreamingRaw = isGeminiStillGenerating() || (isDeepResearch && isDeepResearchActivelyBrowsing());
+      if (latest.text !== frozenWatchText) {
+        frozenWatchText = latest.text;
+        frozenWatchChangedAt = Date.now();
+      }
+      // Hidden page + answer text untouched for 5 real minutes = Gemini finished but could not repaint its
+      // buttons. Deep Research and image orders are excluded: they legitimately sit still for many minutes.
+      const hiddenFrozenFinish =
+        stillStreamingRaw &&
+        document.hidden &&
+        !isDeepResearch &&
+        !isImageOrder &&
+        latest.text.length >= 1500 &&
+        Date.now() - frozenWatchChangedAt >= 300000;
+      if (hiddenFrozenFinish && !hasReportedFrozenFinish) {
+        hasReportedFrozenFinish = true;
+        try {
+          chrome.runtime.sendMessage({ type: 'HUELLAS_DEBUG_LOG', event: 'gemini:hidden-frozen-finish', data: { stage: meta && meta.stageNumber, len: latest.text.length } }).catch(() => {});
+        } catch {}
+      }
+      const stillStreaming = stillStreamingRaw && !hiddenFrozenFinish;
 
       const userQueryNodes = Array.from(
         document.querySelectorAll('user-query, [data-message-author-role="user"]')
@@ -1697,6 +1723,11 @@
         let requiredStableTicks = stageNum === 8 ? 7 : isDeepResearch ? 5 : isImageOrder ? 3 : 4;
         if (isLongMetadataStage && !semanticallyComplete && elapsedMs < 65000) {
           requiredStableTicks = hasFooterActions ? 10 : 18;
+        }
+
+        // The frozen page ticks once a minute: do not wait four more minutes for the stable count
+        if (hiddenFrozenFinish && latest.text === lastObservedText) {
+          stableTicks = Math.max(stableTicks, requiredStableTicks);
         }
 
         if (stableTicks >= requiredStableTicks) {
