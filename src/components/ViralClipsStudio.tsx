@@ -148,6 +148,10 @@ const VIRAL_CHANNEL_COMMENT: Record<ViralLinkPlace, string> = {
     'Para ver nuestros documentales en formato horizontal panorámico, búscanos en YouTube como Huellas de la Humanidad. ¡Qué los disfrutes! 👉 https://youtube.com/@huellas_de_la_humanidad',
 };
 
+// Third comment, for Facebook only (the only one of the three networks where a link in a comment works)
+const VIRAL_WEBSITE_COMMENT =
+  'Explora nuestro archivo independiente, participa en el muro de la comunidad y vota por el tema del próximo documental en nuestro sitio web oficial 👇\nhttps://huellasdelahumanidad.com';
+
 /** The pinned comment without any line about YouTube or the link (older lists carry "…(enlace en la bio)"). */
 function viralCommentQuestionOnly(comment: string): string {
   const sentences = String(comment || '')
@@ -2618,6 +2622,26 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                     {VIRAL_CHANNEL_COMMENT[linkPlace]}
                   </p>
                 </div>
+
+                {/* Website comment: Facebook only */}
+                {linkPlace === 'comments' && (
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-slate-300">🌐 Comentario del sitio web (solo Facebook):</span>
+                      <button
+                        type="button"
+                        onClick={() => copyText('website', VIRAL_WEBSITE_COMMENT)}
+                        className="text-[11px] text-amber-300 hover:text-amber-200 flex items-center gap-1 cursor-pointer"
+                      >
+                        {copiedField === 'website' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                        <span>{copiedField === 'website' ? '¡Copiado!' : 'Copiar comentario del sitio web'}</span>
+                      </button>
+                    </div>
+                    <p className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-300 break-words whitespace-pre-line">
+                      {VIRAL_WEBSITE_COMMENT}
+                    </p>
+                  </div>
+                )}
 
                 {/* Posted or not: marked by hand after publishing the clip */}
                 <div className="flex items-center justify-between gap-2 pt-1">
