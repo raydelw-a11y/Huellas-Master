@@ -2554,165 +2554,8 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
 
             {/* RIGHT 5 COLS: Virality Score Breakdown + Social Copy + Render & Publish to Instagram (Reel) */}
             <div className="lg:col-span-5 space-y-3.5">
-              {/* Virality Score Card */}
-              <div className="bg-[#14110d] border border-amber-500/25 rounded-2xl p-4 space-y-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400">
-                      Análisis de Potencial Viral (Opus IA)
-                    </span>
-                    <input
-                      type="text"
-                      value={selectedClip.title}
-                      onChange={(e) => updateSelectedClip({ title: e.target.value })}
-                      className="w-full bg-transparent text-base font-black text-amber-200 outline-none border-b border-transparent focus:border-amber-500/40 mt-0.5"
-                    />
-                  </div>
-                  <div className="px-3 py-1.5 rounded-2xl bg-gradient-to-br from-emerald-400 to-teal-500 text-slate-950 text-center shrink-0 shadow-lg">
-                    <div className="text-lg font-black leading-none">
-                      {selectedClip.viralityScore}
-                    </div>
-                    <div className="text-[9px] font-black uppercase">/ 100</div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-4 gap-2 text-center">
-                  {[
-                    { label: 'Hook (3s)', val: selectedClip.scoreBreakdown.hook },
-                    { label: 'Retención', val: selectedClip.scoreBreakdown.retention },
-                    { label: 'Emoción', val: selectedClip.scoreBreakdown.emotion },
-                    { label: 'Cierre', val: selectedClip.scoreBreakdown.completeness },
-                  ].map((item) => (
-                    <div
-                      key={item.label}
-                      className="bg-slate-950 border border-slate-800 rounded-xl p-2"
-                    >
-                      <div className="text-xs font-black text-amber-300">{item.val}%</div>
-                      <div className="text-[10px] text-slate-400">{item.label}</div>
-                    </div>
-                  ))}
-                </div>
-
-                <p className="text-xs text-slate-300 bg-slate-950/80 border border-slate-800/80 rounded-xl p-2.5 leading-relaxed">
-                  💡 {selectedClip.viralityReason}
-                </p>
-
-                {/* Structure Mode & Fine Timing */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs pt-1">
-                  <div className="bg-slate-950 border border-slate-800 rounded-xl p-2.5 space-y-1">
-                    <span className="text-[10px] text-slate-400 font-bold block">
-                      Tramos del Documental (en orden)
-                    </span>
-                    <div className="flex flex-wrap gap-1">
-                      {normalizeViralSegments(selectedClip).map((seg, i) => (
-                        <span
-                          key={i}
-                          className="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-700 font-mono text-[11px] text-amber-200"
-                        >
-                          {i > 0 ? '✂ ' : ''}
-                          {formatMMSS(seg.startSec)}→{formatMMSS(seg.endSec)}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="bg-slate-950 border border-slate-800 rounded-xl p-2.5 space-y-1">
-                    <span className="text-[10px] text-slate-400 font-bold block">
-                      Ajuste Fino de Tiempos (Segundos)
-                    </span>
-                    <div className="flex items-center gap-1.5">
-                      <input
-                        type="number"
-                        step="0.5"
-                        value={selectedClip.startSec}
-                        onChange={(e) =>
-                          updateSelectedClip({ startSec: Math.max(0, Number(e.target.value)) })
-                        }
-                        className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs font-mono text-amber-200"
-                      />
-                      <span className="text-slate-500">→</span>
-                      <input
-                        type="number"
-                        step="0.5"
-                        value={selectedClip.endSec}
-                        onChange={(e) =>
-                          updateSelectedClip({
-                            endSec: Math.max(selectedClip.startSec + 5, Number(e.target.value)),
-                          })
-                        }
-                        className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs font-mono text-amber-200"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Hook Banner, Caption & Hashtags */}
+              {/* Description, comments and "published" mark: first, it is what gets copied when posting */}
               <div className="bg-[#14110d] border border-amber-500/25 rounded-2xl p-4 space-y-3 text-xs">
-                <div className="flex items-center justify-between">
-                  <label className="flex items-center gap-2 font-bold text-amber-300 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={showHookBanner}
-                      onChange={(e) => setShowHookBanner(e.target.checked)}
-                      className="accent-amber-400"
-                    />
-                    Título en pantalla
-                  </label>
-                  <select
-                    value={titleStyle}
-                    onChange={(e) => setTitleStyle(e.target.value === 'yellow_box' ? 'yellow_box' : 'poster_gold')}
-                    className="bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-[11px] font-semibold text-amber-100"
-                    title="Estilo del título en pantalla"
-                  >
-                    <option value="poster_gold">Póster dorado (grande 8 s y luego se encoge)</option>
-                    <option value="yellow_box">Cartel amarillo (solo primeros 8 s)</option>
-                  </select>
-                </div>
-                {showHookBanner && (
-                  <input
-                    type="text"
-                    value={selectedClip.hookBannerText}
-                    onChange={(e) => updateSelectedClip({ hookBannerText: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-xs font-black text-amber-200 uppercase"
-                    placeholder="TEXTO GANCHO EN PANTALLA..."
-                  />
-                )}
-                <label className="flex items-center gap-2 font-bold text-amber-300 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={showYoutubeNotice}
-                    onChange={(e) => setShowYoutubeNotice(e.target.checked)}
-                    className="accent-amber-400"
-                  />
-                  Aviso "VIDEO COMPLETO EN YOUTUBE" (5 s al encogerse el título y 5 s al final)
-                </label>
-                <label className="flex items-center gap-2 font-bold text-amber-300 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={showCover}
-                    onChange={(e) => setShowCover(e.target.checked)}
-                    className="accent-amber-400"
-                  />
-                  Portada con el título como último fotograma del clip
-                </label>
-                {coverWanted && (
-                  <ViralCoverPicker
-                    candidates={coverCandidates.candidates}
-                    bestClipSec={coverCandidates.bestClipSec}
-                    chosenClipSec={selectedClip.coverSec}
-                    onChoose={(sec) => updateSelectedClip({ coverSec: sec })}
-                    titleLines={posterTitle.lines}
-                    titleTopPct={look916?.hookBannerTopPct ?? 13.5}
-                    loading={coverLoading}
-                  />
-                )}
-                {showCover && titleStyle !== 'poster_gold' && (
-                  <p className="text-[11px] text-slate-400 italic px-1">
-                    La portada solo se añade con el título "Póster dorado".
-                  </p>
-                )}
-
                 <div className="space-y-1">
                   {/* Network being posted to: it decides where the text says the link is */}
                   <div className="flex items-center justify-between gap-2 pb-1">
@@ -2899,6 +2742,166 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                     </select>
                   </div>
                 </div>
+              </div>
+
+              {/* Virality Score Card */}
+              <div className="bg-[#14110d] border border-amber-500/25 rounded-2xl p-4 space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400">
+                      Análisis de Potencial Viral (Opus IA)
+                    </span>
+                    <input
+                      type="text"
+                      value={selectedClip.title}
+                      onChange={(e) => updateSelectedClip({ title: e.target.value })}
+                      className="w-full bg-transparent text-base font-black text-amber-200 outline-none border-b border-transparent focus:border-amber-500/40 mt-0.5"
+                    />
+                  </div>
+                  <div className="px-3 py-1.5 rounded-2xl bg-gradient-to-br from-emerald-400 to-teal-500 text-slate-950 text-center shrink-0 shadow-lg">
+                    <div className="text-lg font-black leading-none">
+                      {selectedClip.viralityScore}
+                    </div>
+                    <div className="text-[9px] font-black uppercase">/ 100</div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-4 gap-2 text-center">
+                  {[
+                    { label: 'Hook (3s)', val: selectedClip.scoreBreakdown.hook },
+                    { label: 'Retención', val: selectedClip.scoreBreakdown.retention },
+                    { label: 'Emoción', val: selectedClip.scoreBreakdown.emotion },
+                    { label: 'Cierre', val: selectedClip.scoreBreakdown.completeness },
+                  ].map((item) => (
+                    <div
+                      key={item.label}
+                      className="bg-slate-950 border border-slate-800 rounded-xl p-2"
+                    >
+                      <div className="text-xs font-black text-amber-300">{item.val}%</div>
+                      <div className="text-[10px] text-slate-400">{item.label}</div>
+                    </div>
+                  ))}
+                </div>
+
+                <p className="text-xs text-slate-300 bg-slate-950/80 border border-slate-800/80 rounded-xl p-2.5 leading-relaxed">
+                  💡 {selectedClip.viralityReason}
+                </p>
+
+                {/* Structure Mode & Fine Timing */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs pt-1">
+                  <div className="bg-slate-950 border border-slate-800 rounded-xl p-2.5 space-y-1">
+                    <span className="text-[10px] text-slate-400 font-bold block">
+                      Tramos del Documental (en orden)
+                    </span>
+                    <div className="flex flex-wrap gap-1">
+                      {normalizeViralSegments(selectedClip).map((seg, i) => (
+                        <span
+                          key={i}
+                          className="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-700 font-mono text-[11px] text-amber-200"
+                        >
+                          {i > 0 ? '✂ ' : ''}
+                          {formatMMSS(seg.startSec)}→{formatMMSS(seg.endSec)}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-950 border border-slate-800 rounded-xl p-2.5 space-y-1">
+                    <span className="text-[10px] text-slate-400 font-bold block">
+                      Ajuste Fino de Tiempos (Segundos)
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="number"
+                        step="0.5"
+                        value={selectedClip.startSec}
+                        onChange={(e) =>
+                          updateSelectedClip({ startSec: Math.max(0, Number(e.target.value)) })
+                        }
+                        className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs font-mono text-amber-200"
+                      />
+                      <span className="text-slate-500">→</span>
+                      <input
+                        type="number"
+                        step="0.5"
+                        value={selectedClip.endSec}
+                        onChange={(e) =>
+                          updateSelectedClip({
+                            endSec: Math.max(selectedClip.startSec + 5, Number(e.target.value)),
+                          })
+                        }
+                        className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs font-mono text-amber-200"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Hook Banner, Caption & Hashtags */}
+              <div className="bg-[#14110d] border border-amber-500/25 rounded-2xl p-4 space-y-3 text-xs">
+                <div className="flex items-center justify-between">
+                  <label className="flex items-center gap-2 font-bold text-amber-300 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={showHookBanner}
+                      onChange={(e) => setShowHookBanner(e.target.checked)}
+                      className="accent-amber-400"
+                    />
+                    Título en pantalla
+                  </label>
+                  <select
+                    value={titleStyle}
+                    onChange={(e) => setTitleStyle(e.target.value === 'yellow_box' ? 'yellow_box' : 'poster_gold')}
+                    className="bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-[11px] font-semibold text-amber-100"
+                    title="Estilo del título en pantalla"
+                  >
+                    <option value="poster_gold">Póster dorado (grande 8 s y luego se encoge)</option>
+                    <option value="yellow_box">Cartel amarillo (solo primeros 8 s)</option>
+                  </select>
+                </div>
+                {showHookBanner && (
+                  <input
+                    type="text"
+                    value={selectedClip.hookBannerText}
+                    onChange={(e) => updateSelectedClip({ hookBannerText: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-xs font-black text-amber-200 uppercase"
+                    placeholder="TEXTO GANCHO EN PANTALLA..."
+                  />
+                )}
+                <label className="flex items-center gap-2 font-bold text-amber-300 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={showYoutubeNotice}
+                    onChange={(e) => setShowYoutubeNotice(e.target.checked)}
+                    className="accent-amber-400"
+                  />
+                  Aviso "VIDEO COMPLETO EN YOUTUBE" (5 s al encogerse el título y 5 s al final)
+                </label>
+                <label className="flex items-center gap-2 font-bold text-amber-300 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={showCover}
+                    onChange={(e) => setShowCover(e.target.checked)}
+                    className="accent-amber-400"
+                  />
+                  Portada con el título como último fotograma del clip
+                </label>
+                {coverWanted && (
+                  <ViralCoverPicker
+                    candidates={coverCandidates.candidates}
+                    bestClipSec={coverCandidates.bestClipSec}
+                    chosenClipSec={selectedClip.coverSec}
+                    onChoose={(sec) => updateSelectedClip({ coverSec: sec })}
+                    titleLines={posterTitle.lines}
+                    titleTopPct={look916?.hookBannerTopPct ?? 13.5}
+                    loading={coverLoading}
+                  />
+                )}
+                {showCover && titleStyle !== 'poster_gold' && (
+                  <p className="text-[11px] text-slate-400 italic px-1">
+                    La portada solo se añade con el título "Póster dorado".
+                  </p>
+                )}
               </div>
 
               {/* EXPORT TO 07_VIRAL_CLIPS */}
