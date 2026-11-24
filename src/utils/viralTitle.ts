@@ -196,8 +196,6 @@ export function computeViralBigTitleTopFrac(opts: {
 // notice), so it can be picked as the cover on any network. The page chooses the frame; it can be changed.
 // ---------------------------------------------------------------------------
 
-/** On the cover the title never reaches below the middle of the picture. */
-export const VIRAL_COVER_MAX_BOTTOM_FRAC = 0.5;
 
 /** Clip seconds offered as cover frames: twelve, spread over the clip (never its very first or last instant). */
 export function viralCoverCandidateTimes(totalDurSec: number): number[] {
@@ -211,18 +209,18 @@ export function viralCoverCandidateTimes(totalDurSec: number): number[] {
 export function estimateViralBigTitleHeightFrac(lines: string[]): number {
   if (lines.length === 0) return 0;
   const widest = Math.max(...lines.map((l) => l.replace('|', ' ').length));
-  // League Gothic capitals: about 0.31 font sizes wide each; the frame is 9:16
+  // League Gothic capitals: about 0.235 font sizes wide each (measured on real titles); the frame is 9:16
   const fontFrac = Math.min(
     VIRAL_TITLE_LOOK.bigFontHFrac,
-    (VIRAL_TITLE_LOOK.bigTextWFrac * 0.5625) / Math.max(1, widest * 0.31)
+    (VIRAL_TITLE_LOOK.bigTextWFrac * 0.5625) / Math.max(1, widest * 0.235)
   );
-  return ((lines.length - 1) * VIRAL_TITLE_LOOK.lineStep + 0.6) * fontFrac;
+  return ((lines.length - 1) * VIRAL_TITLE_LOOK.lineStep + 0.62) * fontFrac;
 }
 
 /**
- * Where the title goes on the cover: its usual place, or just below a face — always in the upper half.
- * When it does not fit below the face at full size, it is made a little smaller (down to 60%) until it does.
- * `covered` is true when, even so, it still sits on a face.
+ * Where the title goes on the cover: always its usual place under the logo, at full size, even when a face
+ * is there (the user's choice: a big title in a fixed place matters more than a clear face).
+ * `covered` tells whether it lands on a face, so the page can prefer frames where it does not.
  */
 export function computeViralCoverTitlePlacement(opts: {
   defaultTopFrac: number;
@@ -230,24 +228,15 @@ export function computeViralCoverTitlePlacement(opts: {
   faces: ViralFaceBox[];
 }): { topFrac: number; scale: number; covered: boolean } {
   const faces = (opts.faces || []).filter((f) => f && f.h >= 0.05);
-  for (const scale of [1, 0.88, 0.76, 0.66, 0.6]) {
-    const textHeightFrac = opts.textHeightFrac * scale;
-    const topFrac = computeViralBigTitleTopFrac({
-      defaultTopFrac: opts.defaultTopFrac,
-      textHeightFrac,
-      faces: opts.faces,
-      maxBottomFrac: VIRAL_COVER_MAX_BOTTOM_FRAC,
-    });
-    const covered = faces.some((f) => f.y < topFrac + textHeightFrac && f.y + f.h > topFrac);
-    if (!covered) return { topFrac, scale, covered: false };
-  }
-  return { topFrac: opts.defaultTopFrac, scale: 1, covered: true };
+  const topFrac = opts.defaultTopFrac;
+  const covered = faces.some((f) => f.y < topFrac + opts.textHeightFrac && f.y + f.h > topFrac);
+  return { topFrac, scale: 1, covered };
 }
 
 /**
  * How good a frame is as a cover: a big, centred face; a sharp picture (`sharpNorm` is its sharpness
- * relative to the sharpest candidate, 0–1); neither too dark nor burnt; and room for the title in the upper
- * half without it landing on a face.
+ * relative to the sharpest candidate, 0–1); neither too dark nor burnt; and, as a small extra, a title
+ * that does not land on a face.
  */
 export function scoreViralCoverFrame(opts: {
   faces: ViralFaceBox[];
@@ -272,9 +261,8 @@ export function scoreViralCoverFrame(opts: {
       textHeightFrac: opts.textHeightFrac,
       faces: opts.faces,
     });
-    // A title on someone's face rules the frame out; a title that had to shrink counts a little against it
-    if (place.covered) score -= 2;
-    else score -= (1 - place.scale) * 0.5;
+    // Between two similar frames, the one where the title does not land on a face is preferred
+    if (place.covered) score -= 0.3;
   }
   return Number(score.toFixed(3));
 }
