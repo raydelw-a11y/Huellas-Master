@@ -53,7 +53,13 @@ import {
   trimDuplicatedTakeInPcm,
 } from './src/utils/geminiTtsAudioClean';
 import { buildSegmentAss, resolveExportFont, type ExportHookConfig } from './server/exportOverlayAss';
-import { renderViralTitleArt, type ViralTitleArt } from './server/viralTitleArt';
+import {
+  renderViralTitleArt,
+  renderViralTitleWords,
+  buildViralTitleWordFilters,
+  type ViralTitleArt,
+  type ViralTitleWordsArt,
+} from './server/viralTitleArt';
 import {
   VIRAL_TITLE_LOOK,
   splitViralTitleLines,
@@ -23275,7 +23281,7 @@ async function renderViralClipMp4Internal(params: {
   /** 'poster_gold' (default): condensed poster title, bone white + gold, worn texture, big for 8 s and then
    *  small until the end. 'yellow_box': the earlier yellow banner, first 8 s only. */
   titleStyle?: 'poster_gold' | 'yellow_box';
-  /** "VIDEO COMPLETO EN YOUTUBE" for 8 s in the middle of the clip (default on) */
+  /** "VIDEO COMPLETO EN YOUTUBE": 5 s around the middle and the last 5 s of the clip (default on) */
   showYoutubeNotice?: boolean;
   docId?: string;
   /** Position of the clip in the documentary's list (1-based): used in the file name */
@@ -23348,16 +23354,18 @@ async function renderViralClipMp4Internal(params: {
   const stamp = Date.now();
 
   // On-screen title and YouTube notice drawn as images (poster letters with a worn texture). The title is
-  // big for the first 8 seconds and then stays small under the logo until the end; the notice shows for
-  // 8 seconds around the middle of the clip. If an image cannot be drawn, the clip is made without it
-  // (the title falls back to the yellow banner).
+  // big for the first 8 seconds; then each word shrinks and glides to a small line under the logo that stays
+  // until the end. The notice shows for 5 seconds around the middle and for the last 5 seconds. If an image
+  // cannot be drawn, the clip is made without it (the title falls back to the yellow banner).
   const titleArtFiles: string[] = [];
   const titleOverlays: Array<{ art: ViralTitleArt; y: number; startSec: number; durSec: number; fadeOut: boolean }> = [];
+  let titleWordsArt: ViralTitleWordsArt | null = null;
+  let titleWordsMorph: { startSec: number; durSec: number; staggerSec: number } | null = null;
+  const titleTopY = Math.round((outH * (look916.hookBannerTopPct ?? 13.5)) / 100);
   let posterTitleDrawn = false;
   {
     try {
       const fontsDir = path.join(process.cwd(), 'data', 'fonts');
-      const titleTopY = Math.round((outH * (look916.hookBannerTopPct ?? 13.5)) / 100);
       const draw = (name: string, lines: string[], maxTextWidthPx: number, maxFontSize: number) => {
         const outPath = path.join(os.tmpdir(), `viral_title_${stamp}_${name}.png`);
         const art = renderViralTitleArt({
@@ -23376,53 +23384,74 @@ async function renderViralClipMp4Internal(params: {
       const bigTextW = outW * L.bigTextWFrac;
       const bigFont = outH * L.bigFontHFrac;
       const titleLines = showHookBanner ? splitViralTitleLines(hookBannerText) : [];
+      const smallLines = buildViralSmallTitleLines(titleLines);
       const timeline = computeViralTitleTimeline(totalClipDurSec, {
         hasTitle: titleLines.length > 0,
         showNotice: showYoutubeNotice,
       });
       let smallTextBottomY = titleTopY;
       if (timeline.big && titleStyle === 'poster_gold') {
-        const big = draw('big', titleLines, bigTextW, bigFont);
-        if (big) {
+        // One image per word, so each word can shrink and move on its own
+        const wordsArt = renderViralTitleWords({
+          ffmpegBin: getFfmpegPath(),
+          fontsDir,
+          bigLines: titleLines,
+          smallLines,
+          frameW: outW,
+          bigMaxTextWidthPx: bigTextW,
+          bigMaxFontSize: bigFont,
+          smallMaxTextWidthPx: outW * L.smallTextWFrac,
+          smallMaxFontSize: bigFont * L.smallFontScale,
+          outPrefix: path.join(os.tmpdir(), `viral_title_${stamp}_word`),
+        });
+        if (wordsArt) {
           posterTitleDrawn = true;
-          titleOverlays.push({
-            art: big,
-            y: titleTopY - big.padTop,
-            startSec: timeline.big.startSec,
-            durSec: timeline.big.endSec - timeline.big.startSec,
-            fadeOut: true,
-          });
-          if (timeline.small) {
-            const small = draw(
-              'small',
-              buildViralSmallTitleLines(titleLines),
-              outW * L.smallTextWFrac,
-              bigFont * L.smallFontScale
-            );
-            if (small) {
-              titleOverlays.push({
-                art: small,
-                y: titleTopY - small.padTop,
-                startSec: timeline.small.startSec,
-                durSec: timeline.small.endSec - timeline.small.startSec + 0.5,
-                fadeOut: false,
-              });
-              smallTextBottomY = titleTopY + (small.height - 2 * small.padTop);
+          titleWordsArt = wordsArt;
+          titleWordsMorph = timeline.morph;
+          for (const w of wordsArt.words) titleArtFiles.push(w.path);
+          if (timeline.morph) smallTextBottomY = titleTopY + wordsArt.smallTextBottom;
+        } else {
+          // Words could not be drawn one by one: whole-title stills, big and then small, without the animation
+          const big = draw('big', titleLines, bigTextW, bigFont);
+          if (big) {
+            posterTitleDrawn = true;
+            titleOverlays.push({
+              art: big,
+              y: titleTopY - big.padTop,
+              startSec: timeline.big.startSec,
+              durSec: timeline.big.endSec - timeline.big.startSec,
+              fadeOut: true,
+            });
+            if (timeline.small) {
+              const small = draw('small', smallLines, outW * L.smallTextWFrac, bigFont * L.smallFontScale);
+              if (small) {
+                titleOverlays.push({
+                  art: small,
+                  y: titleTopY - small.padTop,
+                  startSec: timeline.small.startSec,
+                  durSec: timeline.small.endSec - timeline.small.startSec + 0.5,
+                  fadeOut: false,
+                });
+                smallTextBottomY = titleTopY + (small.height - 2 * small.padTop);
+              }
             }
           }
         }
       }
       // The notice is shown with either title style (with the yellow banner it comes after the banner is gone)
-      if (timeline.notice) {
+      if (timeline.notices.length > 0) {
         const notice = draw('yt', [...L.noticeLines], outW * L.noticeTextWFrac, outH * L.noticeFontHFrac);
         if (notice) {
-          titleOverlays.push({
-            art: notice,
-            y: smallTextBottomY + Math.round(outH * L.noticeGapHFrac) - notice.padTop,
-            startSec: timeline.notice.startSec,
-            durSec: timeline.notice.endSec - timeline.notice.startSec,
-            fadeOut: true,
-          });
+          for (const span of timeline.notices) {
+            titleOverlays.push({
+              art: notice,
+              y: smallTextBottomY + Math.round(outH * L.noticeGapHFrac) - notice.padTop,
+              startSec: span.startSec,
+              durSec: span.endSec - span.startSec,
+              // The closing notice stays until the clip's last frame
+              fadeOut: span.endSec < totalClipDurSec - 0.2,
+            });
+          }
         }
       }
     } catch (e) {
@@ -23564,8 +23593,23 @@ async function renderViralClipMp4Internal(params: {
     // Title images: one looped still per overlay, faded in (and out), delayed to its moment and laid on top
     let titleChain = '';
     let lastVideoLabel = 'vbase';
+    let nextTitleInputIdx = n;
+    if (titleWordsArt) {
+      const wordFilters = buildViralTitleWordFilters({
+        art: titleWordsArt,
+        firstInputIdx: nextTitleInputIdx,
+        inLabel: lastVideoLabel,
+        titleTopY,
+        totalDurSec: totalClipDurSec,
+        morph: titleWordsMorph,
+      });
+      inputArgs.push(...wordFilters.inputArgs);
+      titleChain += wordFilters.chain;
+      lastVideoLabel = wordFilters.outLabel;
+      nextTitleInputIdx += titleWordsArt.words.length;
+    }
     titleOverlays.forEach((ov, k) => {
-      const inputIdx = n + k;
+      const inputIdx = nextTitleInputIdx + k;
       inputArgs.push('-loop', '1', '-framerate', '30', '-t', Math.max(0.5, ov.durSec).toFixed(3), '-i', ov.art.path);
       const fades = [`fade=t=in:st=0:d=0.25:alpha=1`];
       if (ov.fadeOut) fades.push(`fade=t=out:st=${Math.max(0, ov.durSec - 0.3).toFixed(3)}:d=0.3:alpha=1`);

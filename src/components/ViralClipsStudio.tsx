@@ -2042,7 +2042,8 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                   </div>
                 )}
 
-                {/* Poster title (big for 8 s, then small to the end) and the YouTube notice, as in the render */}
+                {/* Poster title (big for 8 s, then small to the end) and the YouTube notice, as in the render.
+                    The render moves and shrinks each word on its own; here the two sizes simply cross-fade. */}
                 {titleStyle === 'poster_gold' && posterTitle.timeline.big && (
                   <ViralPosterTitle
                     lines={posterTitle.lines}
@@ -2065,7 +2066,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                     visible={captionSec >= posterTitle.timeline.small.startSec}
                   />
                 )}
-                {posterTitle.timeline.notice && (
+                {posterTitle.timeline.notices.length > 0 && (
                   <ViralPosterTitle
                     lines={[...VIRAL_TITLE_LOOK.noticeLines]}
                     frameW={posterTitle.frameW}
@@ -2073,10 +2074,9 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                     maxTextWFrac={VIRAL_TITLE_LOOK.noticeTextWFrac}
                     maxFontHFrac={VIRAL_TITLE_LOOK.noticeFontHFrac}
                     topPx={posterTitle.noticeTopPx}
-                    visible={
-                      captionSec >= posterTitle.timeline.notice.startSec &&
-                      captionSec < posterTitle.timeline.notice.endSec
-                    }
+                    visible={posterTitle.timeline.notices.some(
+                      (span) => captionSec >= span.startSec && captionSec < span.endSec + 0.05
+                    )}
                   />
                 )}
 
@@ -2417,7 +2417,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                     className="bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-[11px] font-semibold text-amber-100"
                     title="Estilo del título en pantalla"
                   >
-                    <option value="poster_gold">Póster dorado (grande 8 s y luego pequeño)</option>
+                    <option value="poster_gold">Póster dorado (grande 8 s y luego se encoge)</option>
                     <option value="yellow_box">Cartel amarillo (solo primeros 8 s)</option>
                   </select>
                 </div>
@@ -2437,7 +2437,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                     onChange={(e) => setShowYoutubeNotice(e.target.checked)}
                     className="accent-amber-400"
                   />
-                  Aviso "VIDEO COMPLETO EN YOUTUBE" (8 s a mitad del clip)
+                  Aviso "VIDEO COMPLETO EN YOUTUBE" (5 s a la mitad y 5 s al final)
                 </label>
 
                 <div className="space-y-1">
