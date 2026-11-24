@@ -22169,6 +22169,8 @@ app.get('/api/viral-clips/saved', (req, res) => {
       clips: Array.isArray(data?.clips) ? data.clips : [],
       selectedClipId: String(data?.selectedClipId || ''),
       savedAt: Number(data?.savedAt || 0),
+      // Link to the full documentary on YouTube (goes in the pinned comment of Facebook posts)
+      youtubeUrl: String(data?.youtubeUrl || ''),
       ...(data?.pendingGeminiAnswer?.text ? { pendingGeminiAnswer: data.pendingGeminiAnswer } : {}),
     });
   } catch (err: any) {
@@ -22184,9 +22186,15 @@ app.post('/api/viral-clips/saved', (req, res) => {
     fs.mkdirSync(VIRAL_SAVED_DIR, { recursive: true });
     const f = viralSavedFileFor(docId);
     let prevPending: any = null;
+    let prevYoutubeUrl = '';
     try {
-      prevPending = fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, 'utf8'))?.pendingGeminiAnswer || null : null;
+      const prev = fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, 'utf8')) : null;
+      prevPending = prev?.pendingGeminiAnswer || null;
+      prevYoutubeUrl = String(prev?.youtubeUrl || '');
     } catch {}
+    // An older page does not send the link: keep the saved one
+    const youtubeUrl =
+      typeof req.body?.youtubeUrl === 'string' ? req.body.youtubeUrl.trim().slice(0, 300) : prevYoutubeUrl;
     // A Gemini answer waiting to be turned into clips survives list saves until the page says it applied it
     const clearedAt = Number(req.body?.clearPendingGeminiAt || 0);
     const keepPending = prevPending && !(clearedAt > 0 && clearedAt >= Number(prevPending.at || 0));
@@ -22197,6 +22205,7 @@ app.post('/api/viral-clips/saved', (req, res) => {
         clips,
         selectedClipId: String(req.body?.selectedClipId || ''),
         savedAt: Date.now(),
+        ...(youtubeUrl ? { youtubeUrl } : {}),
         ...(keepPending ? { pendingGeminiAnswer: prevPending } : {}),
       })
     );
