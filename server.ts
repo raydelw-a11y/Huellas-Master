@@ -53,6 +53,8 @@ import {
   trimDuplicatedTakeInPcm,
 } from './src/utils/geminiTtsAudioClean';
 import { buildSegmentAss, resolveExportFont, type ExportHookConfig } from './server/exportOverlayAss';
+import { renderViralTitleArt, type ViralTitleArt } from './server/viralTitleArt';
+import { VIRAL_TITLE_LOOK, splitViralTitleLines, computeViralTitleTimeline } from './src/utils/viralTitle';
 
 // Ensure sufficient libuv I/O worker threads for local + iCloud operations
 process.env.UV_THREADPOOL_SIZE = process.env.UV_THREADPOOL_SIZE || '32';
@@ -23265,6 +23267,11 @@ async function renderViralClipMp4Internal(params: {
   words: WordTimestamp[];
   hookBannerText?: string;
   showHookBanner?: boolean;
+  /** 'poster_gold' (default): condensed poster title, bone white + gold, worn texture, big for 8 s and then
+   *  small until the end. 'yellow_box': the earlier yellow banner, first 8 s only. */
+  titleStyle?: 'poster_gold' | 'yellow_box';
+  /** "VIDEO COMPLETO EN YOUTUBE" for 8 s in the middle of the clip (default on) */
+  showYoutubeNotice?: boolean;
   docId?: string;
   /** Position of the clip in the documentary's list (1-based): used in the file name */
   clipNumber?: number;
@@ -23296,6 +23303,8 @@ async function renderViralClipMp4Internal(params: {
     words = [],
     hookBannerText = '',
     showHookBanner = true,
+    titleStyle = 'poster_gold',
+    showYoutubeNotice = true,
     docId = '',
     clipNumber = 0,
     sourceIsViralMaster = false,
@@ -23331,6 +23340,86 @@ async function renderViralClipMp4Internal(params: {
   // Words on the clip's own timeline [0, totalClipDurSec]
   const localWords: WordTimestamp[] = buildViralLocalWords(cuts, words);
 
+  const stamp = Date.now();
+
+  // On-screen title and YouTube notice drawn as images (poster letters with a worn texture). The title is
+  // big for the first 8 seconds and then stays small under the logo until the end; the notice shows for
+  // 8 seconds around the middle of the clip. If an image cannot be drawn, the clip is made without it
+  // (the title falls back to the yellow banner).
+  const titleArtFiles: string[] = [];
+  const titleOverlays: Array<{ art: ViralTitleArt; y: number; startSec: number; durSec: number; fadeOut: boolean }> = [];
+  let posterTitleDrawn = false;
+  {
+    try {
+      const fontsDir = path.join(process.cwd(), 'data', 'fonts');
+      const titleTopY = Math.round((outH * (look916.hookBannerTopPct ?? 13.5)) / 100);
+      const draw = (name: string, lines: string[], maxTextWidthPx: number, maxFontSize: number) => {
+        const outPath = path.join(os.tmpdir(), `viral_title_${stamp}_${name}.png`);
+        const art = renderViralTitleArt({
+          ffmpegBin: getFfmpegPath(),
+          fontsDir,
+          lines,
+          frameW: outW,
+          maxTextWidthPx,
+          maxFontSize,
+          outPath,
+        });
+        if (art) titleArtFiles.push(art.path);
+        return art;
+      };
+      const L = VIRAL_TITLE_LOOK;
+      const bigTextW = outW * L.bigTextWFrac;
+      const bigFont = outH * L.bigFontHFrac;
+      const titleLines = showHookBanner ? splitViralTitleLines(hookBannerText) : [];
+      const timeline = computeViralTitleTimeline(totalClipDurSec, {
+        hasTitle: titleLines.length > 0,
+        showNotice: showYoutubeNotice,
+      });
+      let smallTextBottomY = titleTopY;
+      if (timeline.big && titleStyle === 'poster_gold') {
+        const big = draw('big', titleLines, bigTextW, bigFont);
+        if (big) {
+          posterTitleDrawn = true;
+          titleOverlays.push({
+            art: big,
+            y: titleTopY - big.padTop,
+            startSec: timeline.big.startSec,
+            durSec: timeline.big.endSec - timeline.big.startSec,
+            fadeOut: true,
+          });
+          if (timeline.small) {
+            const small = draw('small', titleLines, bigTextW * L.smallScale, bigFont * L.smallScale);
+            if (small) {
+              titleOverlays.push({
+                art: small,
+                y: titleTopY - small.padTop,
+                startSec: timeline.small.startSec,
+                durSec: timeline.small.endSec - timeline.small.startSec + 0.5,
+                fadeOut: false,
+              });
+              smallTextBottomY = titleTopY + (small.height - 2 * small.padTop);
+            }
+          }
+        }
+      }
+      // The notice is shown with either title style (with the yellow banner it comes after the banner is gone)
+      if (timeline.notice) {
+        const notice = draw('yt', [...L.noticeLines], outW * L.noticeTextWFrac, outH * L.noticeFontHFrac);
+        if (notice) {
+          titleOverlays.push({
+            art: notice,
+            y: smallTextBottomY + Math.round(outH * L.noticeGapHFrac) - notice.padTop,
+            startSec: timeline.notice.startSec,
+            durSec: timeline.notice.endSec - timeline.notice.startSec,
+            fadeOut: true,
+          });
+        }
+      }
+    } catch (e) {
+      console.warn('[ViralClips] Título en imagen no disponible:', e);
+    }
+  }
+
   const assContent = buildOpusClipAssSubtitles({
     outW,
     outH,
@@ -23341,13 +23430,13 @@ async function renderViralClipMp4Internal(params: {
     captionYPercent,
     captionEmOfHeight: look916.captionEmOfHeight,
     hookBannerText,
-    showHookBanner,
+    // The poster title is an image laid over the video; the yellow banner is drawn with the captions
+    showHookBanner: showHookBanner && !posterTitleDrawn,
     totalClipDurSec,
     chunkBreaks: viralCutTimes(cuts),
     hookBannerTopPct: look916.hookBannerTopPct,
   });
 
-  const stamp = Date.now();
   const assPath = path.join(os.tmpdir(), `viral_ass_${stamp}.ass`);
   fs.writeFileSync(assPath, assContent, 'utf8');
   const escapedAssPath = assPath.replace(/\\/g, '/').replace(/:/g, '\\:');
@@ -23462,9 +23551,21 @@ async function renderViralClipMp4Internal(params: {
         concatIn += `[v${i}]`;
       }
     });
+    // Title images: one looped still per overlay, faded in (and out), delayed to its moment and laid on top
+    let titleChain = '';
+    let lastVideoLabel = 'vbase';
+    titleOverlays.forEach((ov, k) => {
+      const inputIdx = n + k;
+      inputArgs.push('-loop', '1', '-framerate', '30', '-t', Math.max(0.5, ov.durSec).toFixed(3), '-i', ov.art.path);
+      const fades = [`fade=t=in:st=0:d=0.25:alpha=1`];
+      if (ov.fadeOut) fades.push(`fade=t=out:st=${Math.max(0, ov.durSec - 0.3).toFixed(3)}:d=0.3:alpha=1`);
+      const nextLabel = `vt${k}`;
+      titleChain += `;[${inputIdx}:v]format=rgba,${fades.join(',')},setpts=PTS+${ov.startSec.toFixed(3)}/TB[tart${k}];[${lastVideoLabel}][tart${k}]overlay=0:${Math.round(ov.y)}:eof_action=pass:format=auto[${nextLabel}]`;
+      lastVideoLabel = nextLabel;
+    });
     const complexFilter = `${chains.join(';')};${concatIn}concat=n=${n}:v=1:a=${sourceHasAudio ? 1 : 0}[vc]${
       sourceHasAudio ? '[aout]' : ''
-    };[vc]${reframeVf}[vout]`;
+    };[vc]${reframeVf}[vbase]${titleChain};[${lastVideoLabel}]null[vout]`;
 
     await new Promise<void>((resolve, reject) => {
       const args = [
@@ -23491,6 +23592,9 @@ async function renderViralClipMp4Internal(params: {
           ...(sourceHasAudio ? ['-c:a', 'aac', '-b:a', '192k'] : []),
           '-movflags',
           '+faststart',
+          // The looped title stills must never make the file longer than the clip
+          '-t',
+          totalClipDurSec.toFixed(3),
           outputFilePath,
         ];
       // Progress: ffmpeg writes "out_time_us=…" lines to stdout (-progress pipe:1)
@@ -23532,6 +23636,11 @@ async function renderViralClipMp4Internal(params: {
     try {
       if (logoPngPath && fs.existsSync(logoPngPath)) fs.unlinkSync(logoPngPath);
     } catch {}
+    for (const f of titleArtFiles) {
+      try {
+        if (fs.existsSync(f)) fs.unlinkSync(f);
+      } catch {}
+    }
   }
 
   let savedInDocFolderPath: string | undefined;

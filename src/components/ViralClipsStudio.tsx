@@ -30,6 +30,8 @@ import {
   Wand2,
 } from 'lucide-react';
 import { DocumentaryProject } from '../types';
+import { ViralPosterTitle, useViralPosterFontPx, viralPosterTextHeightPx } from './ViralPosterTitle';
+import { VIRAL_TITLE_LOOK, splitViralTitleLines, computeViralTitleTimeline } from '../utils/viralTitle';
 import { sendCommandToWebBridge } from '../utils/webStudioBridge';
 import {
   getMediaBridgeSnapshot,
@@ -315,6 +317,29 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
   const previewFrameRef = useRef<HTMLDivElement | null>(null);
   const [previewFrameH, setPreviewFrameH] = useState<number>(551);
   const [showHookBanner, setShowHookBanner] = useState<boolean>(true);
+  // Title look: 'poster_gold' = condensed poster letters (bone white + gold, worn), big for 8 s and then
+  // small until the end; 'yellow_box' = the earlier yellow banner (first 8 s only)
+  const [titleStyle, setTitleStyle] = useState<'poster_gold' | 'yellow_box'>(() => {
+    try {
+      return localStorage.getItem('huellas_viral_title_style') === 'yellow_box' ? 'yellow_box' : 'poster_gold';
+    } catch {
+      return 'poster_gold';
+    }
+  });
+  // "VIDEO COMPLETO EN YOUTUBE" for 8 s in the middle of the clip
+  const [showYoutubeNotice, setShowYoutubeNotice] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('huellas_viral_youtube_notice') !== 'off';
+    } catch {
+      return true;
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem('huellas_viral_title_style', titleStyle);
+      localStorage.setItem('huellas_viral_youtube_notice', showYoutubeNotice ? 'on' : 'off');
+    } catch {}
+  }, [titleStyle, showYoutubeNotice]);
 
   // 5. Video Preview Player State
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -1286,6 +1311,48 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
     return null;
   }, [clipCuts, clipLocalWords, captionSec, wordsPerLine]);
 
+  // Poster title in the preview: the same lines, moments and places as the render
+  const posterTitleLines = useMemo(
+    () => (showHookBanner ? splitViralTitleLines(selectedClip?.hookBannerText || '') : []),
+    [showHookBanner, selectedClip?.hookBannerText]
+  );
+  const previewFrameW = (previewFrameH * 9) / 16;
+  const posterSmallFontPx = useViralPosterFontPx(
+    posterTitleLines,
+    previewFrameW,
+    previewFrameH,
+    VIRAL_TITLE_LOOK.bigTextWFrac * VIRAL_TITLE_LOOK.smallScale,
+    VIRAL_TITLE_LOOK.bigFontHFrac * VIRAL_TITLE_LOOK.smallScale
+  );
+  const posterTitle = useMemo(() => {
+    const timeline = computeViralTitleTimeline(clipCuts ? clipCuts.totalDurSec : 0, {
+      hasTitle: posterTitleLines.length > 0,
+      showNotice: showYoutubeNotice,
+    });
+    const topPx = (previewFrameH * (look916?.hookBannerTopPct ?? 13.5)) / 100;
+    // The notice sits under the small title (under the logo when the yellow banner is used instead)
+    const smallTextH =
+      titleStyle === 'poster_gold' && timeline.small
+        ? viralPosterTextHeightPx(posterTitleLines.length, posterSmallFontPx)
+        : 0;
+    return {
+      lines: posterTitleLines,
+      timeline,
+      frameW: previewFrameW,
+      topPx,
+      noticeTopPx: topPx + smallTextH + previewFrameH * VIRAL_TITLE_LOOK.noticeGapHFrac,
+    };
+  }, [
+    clipCuts,
+    posterTitleLines,
+    showYoutubeNotice,
+    previewFrameH,
+    previewFrameW,
+    look916?.hookBannerTopPct,
+    titleStyle,
+    posterSmallFontPx,
+  ]);
+
   // Exports ("Guardar Clip ##"): each click queues a render on the Mac; several can run at once (the Mac
   // encodes two at a time, the rest wait). The list under the button comes from the Mac, so it survives a
   // reload and is the same from the iPhone.
@@ -1423,6 +1490,8 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
           words: clip.words,
           hookBannerText: clip.hookBannerText,
           showHookBanner,
+          titleStyle,
+          showYoutubeNotice,
           // Background job in the Mac's queue (through the tunnel a request open more than 100 s is cut)
           async: true,
         }),
@@ -1965,8 +2034,47 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                   </div>
                 )}
 
-                {/* Top Hook Banner (first 8 seconds of the clip, same as the render) */}
-                {showHookBanner &&
+                {/* Poster title (big for 8 s, then small to the end) and the YouTube notice, as in the render */}
+                {titleStyle === 'poster_gold' && posterTitle.timeline.big && (
+                  <ViralPosterTitle
+                    lines={posterTitle.lines}
+                    frameW={posterTitle.frameW}
+                    frameH={previewFrameH}
+                    maxTextWFrac={VIRAL_TITLE_LOOK.bigTextWFrac}
+                    maxFontHFrac={VIRAL_TITLE_LOOK.bigFontHFrac}
+                    topPx={posterTitle.topPx}
+                    visible={captionSec < posterTitle.timeline.big.endSec - 0.15}
+                  />
+                )}
+                {titleStyle === 'poster_gold' && posterTitle.timeline.small && (
+                  <ViralPosterTitle
+                    lines={posterTitle.lines}
+                    frameW={posterTitle.frameW}
+                    frameH={previewFrameH}
+                    maxTextWFrac={VIRAL_TITLE_LOOK.bigTextWFrac * VIRAL_TITLE_LOOK.smallScale}
+                    maxFontHFrac={VIRAL_TITLE_LOOK.bigFontHFrac * VIRAL_TITLE_LOOK.smallScale}
+                    topPx={posterTitle.topPx}
+                    visible={captionSec >= posterTitle.timeline.small.startSec}
+                  />
+                )}
+                {posterTitle.timeline.notice && (
+                  <ViralPosterTitle
+                    lines={[...VIRAL_TITLE_LOOK.noticeLines]}
+                    frameW={posterTitle.frameW}
+                    frameH={previewFrameH}
+                    maxTextWFrac={VIRAL_TITLE_LOOK.noticeTextWFrac}
+                    maxFontHFrac={VIRAL_TITLE_LOOK.noticeFontHFrac}
+                    topPx={posterTitle.noticeTopPx}
+                    visible={
+                      captionSec >= posterTitle.timeline.notice.startSec &&
+                      captionSec < posterTitle.timeline.notice.endSec
+                    }
+                  />
+                )}
+
+                {/* Yellow banner (first 8 seconds of the clip, same as the render) */}
+                {titleStyle === 'yellow_box' &&
+                  showHookBanner &&
                   selectedClip.hookBannerText &&
                   captionSec < 8 && (
                   <div
@@ -2293,8 +2401,17 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                       onChange={(e) => setShowHookBanner(e.target.checked)}
                       className="accent-amber-400"
                     />
-                    Cartel Gancho Superior (Primeros 8s)
+                    Título en pantalla
                   </label>
+                  <select
+                    value={titleStyle}
+                    onChange={(e) => setTitleStyle(e.target.value === 'yellow_box' ? 'yellow_box' : 'poster_gold')}
+                    className="bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-[11px] font-semibold text-amber-100"
+                    title="Estilo del título en pantalla"
+                  >
+                    <option value="poster_gold">Póster dorado (grande 8 s y luego pequeño)</option>
+                    <option value="yellow_box">Cartel amarillo (solo primeros 8 s)</option>
+                  </select>
                 </div>
                 {showHookBanner && (
                   <input
@@ -2305,6 +2422,15 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                     placeholder="TEXTO GANCHO EN PANTALLA..."
                   />
                 )}
+                <label className="flex items-center gap-2 font-bold text-amber-300 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={showYoutubeNotice}
+                    onChange={(e) => setShowYoutubeNotice(e.target.checked)}
+                    className="accent-amber-400"
+                  />
+                  Aviso "VIDEO COMPLETO EN YOUTUBE" (8 s a mitad del clip)
+                </label>
 
                 <div className="space-y-1">
                   <div className="flex items-center justify-between">
