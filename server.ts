@@ -66,6 +66,7 @@ import {
   buildViralSmallTitleLines,
   computeViralTitleTimeline,
   viralTitleFaceSampleTimes,
+  viralNoticeFaceSampleTimes,
   viralTitleMaxBottomFrac,
   computeViralBigTitleTopFrac,
   type ViralFaceBox,
@@ -23288,9 +23289,15 @@ async function detectViralClipTitleFaces(p: {
   cuts: ReturnType<typeof computeViralClipCuts>;
   reframeMode: string;
   focusX: number;
+  /** Clip seconds to look at; by default the ones where the big title is on screen */
+  clipTimes?: number[];
 }): Promise<ViralFaceBox[]> {
   try {
     if (!p.sourceVideoPath || !fs.existsSync(p.sourceVideoPath) || p.cuts.parts.length === 0) return [];
+    const total = p.cuts.totalDurSec;
+    const clipTimes = (p.clipTimes && p.clipTimes.length > 0 ? p.clipTimes : viralTitleFaceSampleTimes(total))
+      .map((t) => Math.max(0, Math.min(Math.max(0, total - 0.1), Number(t) || 0)))
+      .slice(0, 8);
     const stat = fs.statSync(p.sourceVideoPath);
     const key = JSON.stringify([
       p.sourceVideoPath,
@@ -23299,10 +23306,10 @@ async function detectViralClipTitleFaces(p: {
       p.cuts.parts.map((x) => [Number(x.srcStart.toFixed(2)), Number(x.dur.toFixed(2))]),
       p.reframeMode,
       Math.round(Number(p.focusX) || 50),
+      clipTimes.map((t) => Number(t.toFixed(1))),
     ]);
     const hit = viralTitleFacesCache.get(key);
     if (hit && Date.now() - hit.at < 6 * 60 * 60 * 1000) return hit.faces;
-    const total = p.cuts.totalDurSec;
     const hasBurnedDocCaptions =
       !p.sourceIsViralMaster && /[\\/]06_Video_Final[\\/]/i.test(String(p.sourceVideoPath || ''));
     const preCrop = hasBurnedDocCaptions ? 'crop=iw:trunc(ih*0.78/2)*2:0:0,' : '';
@@ -23316,7 +23323,7 @@ async function detectViralClipTitleFaces(p: {
       const panX = p.reframeMode === 'auto_pan' ? 0.25 + 0.5 * Math.min(1, clipSec / Math.max(1, total)) : fX;
       return `${preCrop}scale=360:640:force_original_aspect_ratio=increase,crop=360:640:(iw-ow)*${panX.toFixed(3)}:(ih-oh)/2`;
     };
-    const samples = viralTitleFaceSampleTimes(total).map((clipSec) => {
+    const samples = clipTimes.map((clipSec) => {
       let part = p.cuts.parts[0];
       for (const x of p.cuts.parts) if (x.clipStart <= clipSec) part = x;
       const srcSec = part.srcStart + Math.max(0, Math.min(part.dur - 0.05, clipSec - part.clipStart));
@@ -23551,10 +23558,31 @@ async function renderViralClipMp4Internal(params: {
       if (timeline.notices.length > 0) {
         const notice = draw('yt', [...L.noticeLines], outW * L.noticeTextWFrac, outH * L.noticeFontHFrac);
         if (notice) {
+          const noticeDefaultTopY = smallTextBottomY + Math.round(outH * L.noticeGapHFrac);
+          const noticeTextH = notice.height - 2 * notice.padTop;
           for (const span of timeline.notices) {
+            // The notice also keeps off faces: it goes just below one it would cover while it is on screen
+            const noticeFaces = await detectViralClipTitleFaces({
+              sourceVideoPath,
+              sourceIsViralMaster,
+              viralMasterSkipRanges,
+              cuts,
+              reframeMode,
+              focusX,
+              clipTimes: viralNoticeFaceSampleTimes(span),
+            });
+            const noticeTopY = Math.round(
+              outH *
+                computeViralBigTitleTopFrac({
+                  defaultTopFrac: noticeDefaultTopY / outH,
+                  textHeightFrac: noticeTextH / outH,
+                  faces: noticeFaces,
+                  maxBottomFrac: viralTitleMaxBottomFrac(captionYPercent),
+                })
+            );
             titleOverlays.push({
               art: notice,
-              y: smallTextBottomY + Math.round(outH * L.noticeGapHFrac) - notice.padTop,
+              y: noticeTopY - notice.padTop,
               startSec: span.startSec,
               durSec: span.endSec - span.startSec,
               // The closing notice stays until the clip's last frame
@@ -24309,17 +24337,26 @@ app.post('/api/viral-clips/title-faces', async (req, res) => {
       segments: body.segments,
       words: Array.isArray(body.words) ? body.words : [],
     });
-    const faces = await detectViralClipTitleFaces({
+    const common = {
       sourceVideoPath,
       sourceIsViralMaster,
       viralMasterSkipRanges,
       cuts,
       reframeMode: String(body.reframeMode || 'center_fill'),
       focusX: Number(body.focusX) || 50,
-    });
-    res.json({ ok: true, faces });
+    };
+    const faces = await detectViralClipTitleFaces(common);
+    // Faces while each YouTube notice is on screen (same order as the spans sent by the page)
+    const noticeSpans: Array<{ startSec: number; endSec: number }> = (Array.isArray(body.noticeSpans) ? body.noticeSpans : [])
+      .slice(0, 4)
+      .map((s: any) => ({ startSec: Number(s?.startSec) || 0, endSec: Number(s?.endSec) || 0 }));
+    const noticeFaces: ViralFaceBox[][] = [];
+    for (const span of noticeSpans) {
+      noticeFaces.push(await detectViralClipTitleFaces({ ...common, clipTimes: viralNoticeFaceSampleTimes(span) }));
+    }
+    res.json({ ok: true, faces, noticeFaces });
   } catch (err: any) {
-    res.json({ ok: true, faces: [] });
+    res.json({ ok: true, faces: [], noticeFaces: [] });
   }
 });
 
