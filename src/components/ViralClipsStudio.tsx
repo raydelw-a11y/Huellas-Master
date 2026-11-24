@@ -2119,7 +2119,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
             {/* LEFT 3 COLS: Ranked Viral Clips List */}
             {/* On a phone the list shows about three clips and scrolls for the rest */}
-            <div className="lg:col-span-3 bg-[#14110d] border border-amber-500/25 rounded-2xl p-3 space-y-2 max-h-[372px] lg:max-h-[760px] overflow-y-auto overscroll-contain">
+            <div className="order-[-2] lg:order-none lg:col-span-3 bg-[#14110d] border border-amber-500/25 rounded-2xl p-3 space-y-2 max-h-[372px] lg:max-h-[760px] overflow-y-auto overscroll-contain">
               <div className="sticky -top-3 z-10 -mx-3 -mt-3 px-4 pt-3 pb-1 bg-[#14110d] flex items-center justify-between border-b border-slate-800">
                 <span className="text-xs font-black text-amber-300 uppercase">
                   🏆 Clips Detectados ({viralClips.length})
@@ -2554,10 +2554,10 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
 
             {/* RIGHT 5 COLS: Virality Score Breakdown + Social Copy + Render & Publish to Instagram (Reel) */}
             {/* On a phone this column dissolves into the page's single column, so its first panel can go
-                above everything (clip list and preview included) */}
+                right after the clip list, above the preview */}
             <div className="contents lg:block lg:col-span-5 lg:space-y-3.5">
               {/* Description, comments and "published" mark: first, it is what gets copied when posting */}
-              <div className="order-first lg:order-none bg-[#14110d] border border-amber-500/25 rounded-2xl p-4 space-y-3 text-xs">
+              <div className="order-[-1] lg:order-none bg-[#14110d] border border-amber-500/25 rounded-2xl p-4 space-y-3 text-xs">
                 <div className="space-y-1">
                   {/* Network being posted to: it decides where the text says the link is */}
                   <div className="flex items-center justify-between gap-2 pb-1">
