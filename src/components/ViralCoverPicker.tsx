@@ -3,7 +3,7 @@ import { ViralPosterTitle, useViralPosterFontPx, viralPosterTextHeightPx } from 
 import { VIRAL_TITLE_LOOK, computeViralCoverTitlePlacement, type ViralFaceBox } from '../utils/viralTitle';
 
 // Cover of a viral clip: the clip's last frame is a still with the big title. Shows the cover as it will be
-// exported (picture + title, in the upper half and off faces) and the frames it can be changed to.
+// exported (picture + title in its usual place, full size) and the frames it can be changed to.
 
 export interface ViralCoverCandidate {
   clipSec: number;

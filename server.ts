@@ -23472,7 +23472,7 @@ async function detectViralClipTitleFaces(p: ViralClipFrameSource & { clipTimes?:
 }
 /**
  * Cover candidates of a clip, each with its score; `best` is the one the page proposes. `titleLines` are the
- * big title's lines (the score checks that the title fits in the upper half without covering a face).
+ * big title's lines (the score slightly prefers frames where the title does not land on a face).
  */
 async function listViralCoverCandidates(
   p: ViralClipFrameSource,
@@ -23921,7 +23921,7 @@ async function renderViralClipMp4Internal(params: {
     });
     // Cover: one last frame after the clip — a still of the clip with the big title, no captions and no
     // notice — so it can be chosen as the cover on any network. The frame is the one the page picked, or the
-    // best-scoring one; the title keeps to the upper half and off faces.
+    // best-scoring one; the title goes in its usual place under the logo, at full size.
     let closingChain = `;[${lastVideoLabel}]null[vout]`;
     let coverExtraSec = 0;
     if (showCover && titleWordsArt) {
