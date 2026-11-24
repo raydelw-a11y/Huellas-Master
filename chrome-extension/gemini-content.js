@@ -1505,8 +1505,17 @@
       meta
     );
 
+    let lastUnattendedFocusAskAt = 0;
     activeWatchTimer = setInterval(() => {
       elapsedMs += 800;
+
+      // Hidden page while an order runs: ask to be put in front (granted only if nobody is at the Mac)
+      if (document.hidden && Date.now() - lastUnattendedFocusAskAt > 30000) {
+        lastUnattendedFocusAskAt = Date.now();
+        try {
+          chrome.runtime.sendMessage({ type: 'GEMINI_FOCUS_TAB_IF_UNATTENDED' }).catch(() => {});
+        } catch {}
+      }
 
       // Auto-click "Iniciar investigación" / "Start research" when Deep Research presents its research plan!
       if (isDeepResearch && !hasClickedStartResearchPlan) {

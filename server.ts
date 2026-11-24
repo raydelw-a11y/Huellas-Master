@@ -25285,6 +25285,25 @@ function closeTemporaryGrokWindowFailsafe(opts: {
   }, 2500);
 }
 
+// Nobody is at the Mac when its lid is closed or its screen is locked. Chrome then stops repainting every
+// tab except the selected one, so the extension asks this before putting the Gemini tab in front.
+let macUnattendedCache = { at: 0, value: false };
+function refreshMacUnattended() {
+  macUnattendedCache.at = Date.now();
+  execFile('ioreg', ['-r', '-k', 'AppleClamshellState', '-d', '4'], { timeout: 4000 }, (errLid, lidOut) => {
+    const lidClosed = !errLid && /"AppleClamshellState"\s*=\s*Yes/.test(String(lidOut || ''));
+    execFile('ioreg', ['-n', 'Root', '-d1', '-a'], { timeout: 4000 }, (errLock, lockOut) => {
+      const locked =
+        !errLock && /CGSSessionScreenIsLocked<\/key>\s*<true\/>/.test(String(lockOut || ''));
+      macUnattendedCache = { at: Date.now(), value: lidClosed || locked };
+    });
+  });
+}
+app.get('/api/extension/mac-unattended', (_req, res) => {
+  if (Date.now() - macUnattendedCache.at > 8000) refreshMacUnattended();
+  res.json({ ok: true, unattended: macUnattendedCache.value });
+});
+
 app.get('/api/extension/fingerprint', (req, res) => {
   const fp = computeChromeExtensionFingerprint();
   const now = Date.now();
