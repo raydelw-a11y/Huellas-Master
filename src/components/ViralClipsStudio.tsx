@@ -158,6 +158,30 @@ const VIRAL_CHANNEL_COMMENT: Record<ViralLinkPlace, string> = {
 const VIRAL_WEBSITE_COMMENT =
   'Explora nuestro archivo independiente, participa en el muro de la comunidad y vota por el tema del próximo documental en nuestro sitio web oficial 👇\nhttps://huellasdelahumanidad.com';
 
+// "Published" marks made while the Mac was off wait here (per documentary and clip) until the Mac's list
+// can be read again; then they are applied to it and saved there.
+const VIRAL_PUBLISHED_QUEUE_KEY = 'huellas_viral_published_queue_v1';
+type ViralPublishedQueue = Record<string, Record<string, { published: boolean; publishedAt?: string }>>;
+function readViralPublishedQueue(): ViralPublishedQueue {
+  try {
+    const q = JSON.parse(localStorage.getItem(VIRAL_PUBLISHED_QUEUE_KEY) || '{}');
+    return q && typeof q === 'object' ? q : {};
+  } catch {
+    return {};
+  }
+}
+function writeViralPublishedQueue(q: ViralPublishedQueue) {
+  try {
+    localStorage.setItem(VIRAL_PUBLISHED_QUEUE_KEY, JSON.stringify(q));
+  } catch {}
+}
+/** The clips with the waiting "published" marks of that documentary applied. */
+function applyViralPublishedQueue<T extends { id: string }>(docId: string, clips: T[]): T[] {
+  const marks = readViralPublishedQueue()[docId];
+  if (!marks) return clips;
+  return clips.map((c) => (marks[c.id] ? { ...c, published: marks[c.id].published, publishedAt: marks[c.id].publishedAt } : c));
+}
+
 /** The pinned comment without any line about YouTube or the link (older lists carry "…(enlace en la bio)"). */
 function viralCommentQuestionOnly(comment: string): string {
   const sentences = String(comment || '')
@@ -630,6 +654,9 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
   // `viralClipsDocIdRef` is the documentary the list on screen belongs to (never saved under another one).
   const viralClipsDocIdRef = useRef<string>('');
   const viralSaveTimerRef = useRef<number | null>(null);
+  // The Mac cannot be reached: the list on screen is the copy of the texts kept on GitHub (read and copy
+  // only; "published" marks wait on this device until the Mac is back)
+  const [viralOffline, setViralOffline] = useState<boolean>(false);
   useEffect(() => {
     if (sourceMode !== 'doc' || !selectedDocId) return;
     let cancelled = false;
@@ -638,10 +665,41 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
       setSelectedClipId('');
     }
     viralClipsDocIdRef.current = '';
+    setViralOffline(false);
     (async () => {
+      let triedPublicCopy = false;
       // The page reloads itself right after a server update, while the server may still be starting:
-      // keep asking for a while instead of showing an empty list (the clips are still saved on the Mac).
-      for (let attempt = 0; attempt < 40 && !cancelled; attempt++) {
+      // keep asking instead of showing an empty list (the clips are still saved on the Mac). After a couple
+      // of failed tries the texts kept on GitHub are shown meanwhile; the Mac keeps being asked, more slowly.
+      for (let attempt = 0; !cancelled; attempt++) {
+        if (attempt === 2 && !triedPublicCopy) {
+          triedPublicCopy = true;
+          try {
+            const safeId = selectedDocId.replace(/[^a-zA-Z0-9_-]+/g, '_');
+            const copyResp = await fetch(`${import.meta.env.BASE_URL}data/viral_clips_${safeId}.json?t=${Date.now()}`, {
+              cache: 'no-store',
+            });
+            const copy = copyResp.ok ? await copyResp.json() : null;
+            const copyClips = Array.isArray(copy?.clips) ? copy.clips : [];
+            if (!cancelled && copyClips.length > 0 && !viralClipsDocIdRef.current) {
+              setDocYoutubeUrl(String(copy.youtubeUrl || ''));
+              setViralClips(
+                applyViralPublishedQueue(
+                  selectedDocId,
+                  copyClips.map((c: any) => ({
+                    ...c,
+                    words: [],
+                    transcriptExcerpt: '',
+                    hashtags: limitToFiveHashtags(c?.hashtags || ''),
+                    pinnedComment: viralCommentQuestionOnly(c?.pinnedComment || '') || String(c?.pinnedComment || ''),
+                  }))
+                )
+              );
+              setSelectedClipId(String(copyClips[0].id));
+              setViralOffline(true);
+            }
+          } catch {}
+        }
         try {
           const resp = await fetch(viralApi(`/api/viral-clips/saved?docId=${encodeURIComponent(selectedDocId)}`), {
             cache: 'no-store',
@@ -649,8 +707,17 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
           const data = resp.ok ? await resp.json() : null;
           if (cancelled) return;
           if (!data?.ok) throw new Error('not ready');
-          const saved = Array.isArray(data.clips) ? data.clips : [];
+          // Marks made while the Mac was off go onto its list now (and are saved there by the effect below)
+          const saved = applyViralPublishedQueue<any>(selectedDocId, Array.isArray(data.clips) ? data.clips : []);
+          {
+            const q = readViralPublishedQueue();
+            if (q[selectedDocId]) {
+              delete q[selectedDocId];
+              writeViralPublishedQueue(q);
+            }
+          }
           viralClipsDocIdRef.current = selectedDocId;
+          setViralOffline(false);
           setDocYoutubeUrl(String(data.youtubeUrl || ''));
           if (data.pendingGeminiAnswer?.text && Number(data.pendingGeminiAnswer.at) > appliedGeminiAnswerAtRef.current) {
             pendingGeminiAnswerRef.current = {
@@ -677,7 +744,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
           }
           return;
         } catch {
-          await new Promise((r) => window.setTimeout(r, 3000));
+          await new Promise((r) => window.setTimeout(r, attempt < 40 ? 3000 : 20000));
         }
       }
       // Never saves over the Mac's list unless it was read (the ref stays empty)
@@ -2558,6 +2625,12 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
             <div className="contents lg:block lg:col-span-5 lg:space-y-3.5">
               {/* Description, comments and "published" mark: first, it is what gets copied when posting */}
               <div className="order-[-1] lg:order-none bg-[#14110d] border border-amber-500/25 rounded-2xl p-4 space-y-3 text-xs">
+                {viralOffline && (
+                  <p className="rounded-lg border border-sky-500/40 bg-sky-500/10 px-2.5 py-1.5 text-[11px] text-sky-200">
+                    La Mac no responde: ves la copia guardada de los textos. Puedes copiarlos y marcar "Publicado";
+                    la marca se enviará a la Mac cuando vuelva a estar encendida. Los cambios de texto no se guardan.
+                  </p>
+                )}
                 <div className="space-y-1">
                   {/* Network being posted to: it decides where the text says the link is */}
                   <div className="flex items-center justify-between gap-2 pb-1">
@@ -2727,10 +2800,14 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                       value={selectedClip.published ? 'published' : 'pending'}
                       onChange={(e) => {
                         const isPublished = e.target.value === 'published';
-                        updateSelectedClip({
-                          published: isPublished,
-                          publishedAt: isPublished ? selectedClip.publishedAt || new Date().toISOString() : undefined,
-                        });
+                        const publishedAt = isPublished ? selectedClip.publishedAt || new Date().toISOString() : undefined;
+                        updateSelectedClip({ published: isPublished, publishedAt });
+                        // Mac off: the mark waits on this device and reaches the Mac when it is back
+                        if (viralOffline && selectedDocId) {
+                          const q = readViralPublishedQueue();
+                          q[selectedDocId] = { ...(q[selectedDocId] || {}), [selectedClip.id]: { published: isPublished, publishedAt } };
+                          writeViralPublishedQueue(q);
+                        }
                       }}
                       className={`rounded-lg px-2 py-1 text-[11px] font-bold border outline-none ${
                         selectedClip.published
