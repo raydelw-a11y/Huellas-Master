@@ -204,7 +204,7 @@ import { stampBrandMarksOnThumbnail, HD_BADGE_EMPTY_CORNER_CLAUSE, LOGO_EMPTY_CO
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '04:12 PM - 11/23/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '05:57 AM - 11/24/2026';
 
 // PRODUCTION LOCK: while promptConfig.PRODUCTION_LOCKED === 'YES' these fields never change (the server
 // enforces the same list in protectLockedDocs). Metadata, thumbnails, review marks and reframes stay editable.
@@ -1974,6 +1974,8 @@ export default function App() {
 
   // Stage-specific transient states
   const [aiGenerating, setAiGenerating] = useState(false);
+  // Which stage Gemini is busy with, so each button only says "its" work is running when it really is.
+  const [aiGeneratingStage, setAiGeneratingStage] = useState<number | null>(null);
   const [thumbOptionsGenerating, setThumbOptionsGenerating] = useState(false);
   const [aiCustomInstruction, setAiCustomInstruction] = useState('');
   const [ttsGenerating, setTtsGenerating] = useState(false);
@@ -14974,6 +14976,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           updatedAt: new Date().toISOString(),
         };
         updateActiveDoc(remotePatch);
+        setAiGeneratingStage(stageNum);
         setAiGenerating(true);
         setBridgeStatusType('WORKING');
         setBridgeStatusMsg(
@@ -15124,6 +15127,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         sessionStorage.setItem(`huellas_stage5_sent_${currentDoc.id}`, String(Date.now()));
       } catch {}
     }
+    setAiGeneratingStage(stageNum);
     setAiGenerating(true);
     try {
       sessionStorage.setItem(
@@ -20579,7 +20583,11 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                         className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-bold text-xs flex items-center gap-1.5 cursor-pointer"
                       >
                         <Wand2 className="w-3.5 h-3.5" />
-                        {aiGenerating ? 'Redactando Guion...' : '✨ Redactar Guion con Gemini'}
+                        {aiGenerating
+                          ? aiGeneratingStage === 4
+                            ? 'Redactando Guion...'
+                            : 'Gemini ocupado...'
+                          : '✨ Redactar Guion con Gemini'}
                       </button>
                       <button
                         onClick={() => copyText(activeDoc.voiceoverScript, 'copy-vo')}
