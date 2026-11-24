@@ -94,25 +94,37 @@ export interface ViralTitleSpan {
 }
 
 /**
- * When each piece is on screen: the big title for the first 8 seconds, the small one from then to the end,
- * and the YouTube notice for up to 8 seconds around the middle (only when the clip has room for it).
+ * When each piece is on screen: the big title for the first 8 seconds, then every word shrinks and glides to
+ * the small line that stays until the end (`morph`), and the YouTube notice for 5 seconds around the middle
+ * and again for the last 5 seconds (the middle one only when the clip is long enough to keep them apart).
  */
 export function computeViralTitleTimeline(
   totalDurSec: number,
   opts: { hasTitle: boolean; showNotice: boolean }
-): { big: ViralTitleSpan | null; small: ViralTitleSpan | null; notice: ViralTitleSpan | null } {
+): {
+  big: ViralTitleSpan | null;
+  small: ViralTitleSpan | null;
+  /** Big → small: each word starts `staggerSec` after the previous one and takes `durSec` */
+  morph: { startSec: number; durSec: number; staggerSec: number } | null;
+  notices: ViralTitleSpan[];
+} {
   const total = Math.max(0, Number(totalDurSec) || 0);
   const bigEnd = opts.hasTitle ? Math.min(total, 8) : 0;
   const big = opts.hasTitle && total > 0 ? { startSec: 0, endSec: bigEnd } : null;
-  // Starts as the big one finishes fading out, so the two are never on screen together
   const small = opts.hasTitle && total > bigEnd + 1 ? { startSec: bigEnd - 0.05, endSec: total } : null;
-  let notice: ViralTitleSpan | null = null;
-  if (opts.showNotice && total >= 16) {
-    const dur = Math.min(8, total - bigEnd - 2);
-    if (dur >= 4) {
-      const start = Math.max(bigEnd + 1, total / 2 - dur / 2);
-      notice = { startSec: start, endSec: start + dur };
+  const morph = small ? { startSec: bigEnd - 0.4, durSec: 0.6, staggerSec: 0.04 } : null;
+  const notices: ViralTitleSpan[] = [];
+  if (opts.showNotice) {
+    const NOTICE_SEC = 5;
+    const endStart = total - NOTICE_SEC;
+    if (endStart >= bigEnd + 1) {
+      const midStart = total / 2 - NOTICE_SEC / 2;
+      // The middle one needs air on both sides: after the big title, and well before the closing one
+      if (midStart >= bigEnd + 1 && midStart + NOTICE_SEC <= endStart - 2) {
+        notices.push({ startSec: midStart, endSec: midStart + NOTICE_SEC });
+      }
+      notices.push({ startSec: endStart, endSec: total });
     }
   }
-  return { big, small, notice };
+  return { big, small, morph, notices };
 }
