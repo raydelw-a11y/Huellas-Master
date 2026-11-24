@@ -149,15 +149,7 @@ const VIRAL_DESCRIPTION_CTA: Record<ViralLinkPlace, string> = {
   comments: '¡Para ver el documental completo, visita nuestro canal de YouTube, el enlace está en los comentarios!',
 };
 
-// Second comment to post under every clip: the same for all clips, it invites people to the channel.
-// On Facebook it carries the channel's link; TikTok and Instagram do not allow links in comments.
-const VIRAL_CHANNEL_COMMENT: Record<ViralLinkPlace, string> = {
-  bio: 'Para ver nuestros documentales en formato horizontal panorámico, estamos en YouTube, el enlace en la biografía. ¡Qué los disfrutes! 🙏',
-  comments:
-    'Para ver nuestros documentales en formato horizontal panorámico, estamos en YouTube. ¡Qué los disfrutes! 👉 https://youtube.com/@huellas_de_la_humanidad',
-};
-
-// Third comment, for Facebook only (the only one of the three networks where a link in a comment works)
+// Second comment, for Facebook only (the only one of the three networks where a link in a comment works)
 const VIRAL_WEBSITE_COMMENT =
   'Explora nuestro archivo independiente, participa en el muro de la comunidad y vota por el tema del próximo documental en nuestro sitio web oficial 👇\nhttps://huellasdelahumanidad.com';
 
@@ -264,9 +256,10 @@ async function pushViralPublishedMarksToGitHub(docId: string, newMarks: ViralPub
   }
 }
 
-// Fixed closing paragraph of the pinned comment on Facebook (the documentary's link, when given, goes after it)
-const VIRAL_FACEBOOK_COMMENT_CLOSING =
-  '¡Para ver el documental completo, visita nuestro canal de YouTube, búscanos como Huellas de la Humanidad!';
+// Closing line of the pinned comment on Facebook: it carries the link the description promises ("el enlace
+// está en los comentarios") — the documentary's own link when it was pasted, otherwise the channel's
+const VIRAL_FACEBOOK_COMMENT_CLOSING = '¡Para ver el documental completo, visita nuestro canal de YouTube!';
+const VIRAL_YOUTUBE_CHANNEL_URL = 'https://youtube.com/@huellas_de_la_humanidad';
 
 /** The pinned comment without any line about YouTube or the link (older lists carry "…(enlace en la bio)"). */
 function viralCommentQuestionOnly(comment: string): string {
@@ -281,10 +274,8 @@ function viralCommentQuestionOnly(comment: string): string {
 function buildViralPinnedComment(comment: string, place: ViralLinkPlace, youtubeUrl: string): string {
   const question = viralCommentQuestionOnly(comment) || String(comment || '').trim();
   if (place !== 'comments') return question;
-  const link = String(youtubeUrl || '').trim();
-  return [question, VIRAL_FACEBOOK_COMMENT_CLOSING, link ? `👉 ${link}` : '']
-    .filter(Boolean)
-    .join('\n\n');
+  const link = String(youtubeUrl || '').trim() || VIRAL_YOUTUBE_CHANNEL_URL;
+  return [question, `${VIRAL_FACEBOOK_COMMENT_CLOSING} 👉 ${link}`].filter(Boolean).join('\n\n');
 }
 
 /** Description as it is copied: the clip's text, the fixed closing paragraph of the network and the 5 hashtags. */
@@ -2838,7 +2829,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                         className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-200 outline-none"
                       />
                       <span className="text-[11px] font-bold text-slate-300 block">
-                        Enlace del documental en YouTube (opcional, se añade al comentario de Facebook):
+                        Enlace del documental en YouTube (opcional; si falta, el comentario de Facebook lleva el del canal):
                       </span>
                       <input
                         type="url"
@@ -2849,24 +2840,6 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                       />
                     </div>
                   )}
-                </div>
-
-                {/* Channel comment: the same under every clip, its text depends on the network */}
-                <div className="space-y-1">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-bold text-slate-300">📺 Comentario del canal:</span>
-                    <button
-                      type="button"
-                      onClick={() => copyText('channel', VIRAL_CHANNEL_COMMENT[linkPlace])}
-                      className="text-[11px] text-amber-300 hover:text-amber-200 flex items-center gap-1 cursor-pointer"
-                    >
-                      {copiedField === 'channel' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                      <span>{copiedField === 'channel' ? '¡Copiado!' : 'Copiar comentario del canal'}</span>
-                    </button>
-                  </div>
-                  <p className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-300 break-words">
-                    {VIRAL_CHANNEL_COMMENT[linkPlace]}
-                  </p>
                 </div>
 
                 {/* Website comment: Facebook only */}
