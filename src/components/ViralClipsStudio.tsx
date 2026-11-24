@@ -140,6 +140,14 @@ const VIRAL_DESCRIPTION_CTA: Record<ViralLinkPlace, string> = {
   comments: '¡Para ver el documental completo, visita nuestro canal de YouTube, el enlace está en los comentarios!',
 };
 
+// Second comment to post under every clip: the same for all clips, it invites people to the channel.
+// On Facebook it carries the channel's link; TikTok and Instagram do not allow links in comments.
+const VIRAL_CHANNEL_COMMENT: Record<ViralLinkPlace, string> = {
+  bio: 'Para ver nuestros documentales en formato horizontal panorámico, búscanos en YouTube como Huellas de la Humanidad. ¡Qué los disfrutes! 🙏',
+  comments:
+    'Para ver nuestros documentales en formato horizontal panorámico, búscanos en YouTube como Huellas de la Humanidad. ¡Qué los disfrutes! 👉 https://youtube.com/@huellas_de_la_humanidad',
+};
+
 /** The pinned comment without any line about YouTube or the link (older lists carry "…(enlace en la bio)"). */
 function viralCommentQuestionOnly(comment: string): string {
   const sentences = String(comment || '')
@@ -2590,6 +2598,24 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                     {linkPlace === 'comments'
                       ? 'Al copiar: solo la pregunta + el enlace del documental en YouTube.'
                       : 'Al copiar: solo la pregunta, sin mencionar YouTube (ya va en el video y en la descripción).'}
+                  </p>
+                </div>
+
+                {/* Channel comment: the same under every clip, its text depends on the network */}
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-slate-300">📺 Comentario del canal:</span>
+                    <button
+                      type="button"
+                      onClick={() => copyText('channel', VIRAL_CHANNEL_COMMENT[linkPlace])}
+                      className="text-[11px] text-amber-300 hover:text-amber-200 flex items-center gap-1 cursor-pointer"
+                    >
+                      {copiedField === 'channel' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                      <span>{copiedField === 'channel' ? '¡Copiado!' : 'Copiar comentario del canal'}</span>
+                    </button>
+                  </div>
+                  <p className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-300 break-words">
+                    {VIRAL_CHANNEL_COMMENT[linkPlace]}
                   </p>
                 </div>
 
