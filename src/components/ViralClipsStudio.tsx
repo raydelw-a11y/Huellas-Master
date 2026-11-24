@@ -42,6 +42,7 @@ import {
   type ViralFaceBox,
 } from '../utils/viralTitle';
 import { sendCommandToWebBridge } from '../utils/webStudioBridge';
+import { getBrowserGitHubToken, GITHUB_OWNER, GITHUB_REPO, GITHUB_BRANCH } from '../utils/cloudSync';
 import {
   getMediaBridgeSnapshot,
   getOrderedMediaBridgeBases,
@@ -110,6 +111,8 @@ export interface ViralClipSuggestion {
   hashtags: string;
   /** Comment to pin under the post: a question that invites replies about the clip's topic */
   pinnedComment?: string;
+  /** When "published" was last changed for this clip (ms): older marks from other devices do not override it */
+  publishedChangedAt?: number;
   /** Clip second of the cover frame chosen by hand (absent = the one the page proposes) */
   coverSec?: number;
   /** Marked by hand once the clip is posted; saved with the list, so it shows on the Mac and on the iPhone */
@@ -158,10 +161,19 @@ const VIRAL_CHANNEL_COMMENT: Record<ViralLinkPlace, string> = {
 const VIRAL_WEBSITE_COMMENT =
   'Explora nuestro archivo independiente, participa en el muro de la comunidad y vota por el tema del próximo documental en nuestro sitio web oficial 👇\nhttps://huellasdelahumanidad.com';
 
-// "Published" marks made while the Mac was off wait here (per documentary and clip) until the Mac's list
-// can be read again; then they are applied to it and saved there.
+// "Published" marks made while the Mac is off. The page writes them straight to GitHub
+// (docs/data/viral_published_<docId>.json), so every device sees them and the Mac picks them up when it is
+// back. If GitHub cannot be reached at that moment, the mark waits on this device and is sent later.
+// A mark only replaces what a clip has when it is newer than the clip's own last change (`publishedChangedAt`).
 const VIRAL_PUBLISHED_QUEUE_KEY = 'huellas_viral_published_queue_v1';
-type ViralPublishedQueue = Record<string, Record<string, { published: boolean; publishedAt?: string }>>;
+interface ViralPublishedMark {
+  published: boolean;
+  publishedAt?: string;
+  /** When the mark was made (ms) */
+  at?: number;
+}
+type ViralPublishedMarks = Record<string, ViralPublishedMark>;
+type ViralPublishedQueue = Record<string, ViralPublishedMarks>;
 function readViralPublishedQueue(): ViralPublishedQueue {
   try {
     const q = JSON.parse(localStorage.getItem(VIRAL_PUBLISHED_QUEUE_KEY) || '{}');
@@ -175,11 +187,81 @@ function writeViralPublishedQueue(q: ViralPublishedQueue) {
     localStorage.setItem(VIRAL_PUBLISHED_QUEUE_KEY, JSON.stringify(q));
   } catch {}
 }
-/** The clips with the waiting "published" marks of that documentary applied. */
-function applyViralPublishedQueue<T extends { id: string }>(docId: string, clips: T[]): T[] {
-  const marks = readViralPublishedQueue()[docId];
+/** The clips with the given marks applied (only marks newer than the clip's own last change). */
+function applyViralPublishedMarks<T extends { id: string }>(clips: T[], marks?: ViralPublishedMarks | null): T[] {
   if (!marks) return clips;
-  return clips.map((c) => (marks[c.id] ? { ...c, published: marks[c.id].published, publishedAt: marks[c.id].publishedAt } : c));
+  let changed = false;
+  const next = clips.map((c) => {
+    const m = marks[c.id];
+    const markAt = Number(m?.at) || 1;
+    if (!m || markAt <= (Number((c as any).publishedChangedAt) || 0)) return c;
+    changed = true;
+    return { ...c, published: Boolean(m.published), publishedAt: m.published ? m.publishedAt : undefined, publishedChangedAt: markAt };
+  });
+  return changed ? next : clips;
+}
+const viralPublishedRepoPath = (docId: string) =>
+  `docs/data/viral_published_${String(docId).replace(/[^a-zA-Z0-9_-]+/g, '_')}.json`;
+/** Marks kept on GitHub for a documentary (null when they cannot be read). */
+async function fetchViralPublishedMarksFromGitHub(
+  docId: string
+): Promise<{ marks: ViralPublishedMarks; sha?: string } | null> {
+  try {
+    const token = getBrowserGitHubToken();
+    const headers: Record<string, string> = { Accept: 'application/vnd.github+json' };
+    if (token) headers.Authorization = `token ${token}`;
+    const resp = await fetch(
+      `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${viralPublishedRepoPath(docId)}?ref=${GITHUB_BRANCH}&t=${Date.now()}`,
+      { headers, cache: 'no-store' }
+    );
+    if (resp.status === 404) return { marks: {} };
+    if (!resp.ok) return null;
+    const info = await resp.json();
+    const text = decodeURIComponent(escape(atob(String(info?.content || '').replace(/\s+/g, ''))));
+    const parsed = JSON.parse(text || '{}');
+    return { marks: parsed && typeof parsed.marks === 'object' && parsed.marks ? parsed.marks : {}, sha: info?.sha };
+  } catch {
+    return null;
+  }
+}
+/** Adds marks to the documentary's file on GitHub (newest mark of each clip wins). False if it could not. */
+async function pushViralPublishedMarksToGitHub(docId: string, newMarks: ViralPublishedMarks): Promise<boolean> {
+  try {
+    const token = getBrowserGitHubToken();
+    if (!token) return false;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const current = await fetchViralPublishedMarksFromGitHub(docId);
+      if (!current) return false;
+      const merged: ViralPublishedMarks = { ...current.marks };
+      for (const [clipId, m] of Object.entries(newMarks)) {
+        if (!merged[clipId] || (Number(m.at) || 0) >= (Number(merged[clipId].at) || 0)) merged[clipId] = m;
+      }
+      const body = JSON.stringify({ docId, marks: merged }, null, 2);
+      const resp = await fetch(
+        `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${viralPublishedRepoPath(docId)}`,
+        {
+          method: 'PUT',
+          headers: {
+            Accept: 'application/vnd.github+json',
+            Authorization: `token ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            message: 'Marcas de publicado de viral clips',
+            content: btoa(unescape(encodeURIComponent(body))),
+            branch: GITHUB_BRANCH,
+            ...(current.sha ? { sha: current.sha } : {}),
+          }),
+        }
+      );
+      if (resp.ok) return true;
+      // 409/422: someone else wrote in between — read again and retry once
+      if (resp.status !== 409 && resp.status !== 422) return false;
+    }
+    return false;
+  } catch {
+    return false;
+  }
 }
 
 /** The pinned comment without any line about YouTube or the link (older lists carry "…(enlace en la bio)"). */
@@ -684,19 +766,24 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
             if (!cancelled && copyClips.length > 0 && !viralClipsDocIdRef.current) {
               setDocYoutubeUrl(String(copy.youtubeUrl || ''));
               setViralClips(
-                applyViralPublishedQueue(
-                  selectedDocId,
+                applyViralPublishedMarks(
                   copyClips.map((c: any) => ({
                     ...c,
                     words: [],
                     transcriptExcerpt: '',
                     hashtags: limitToFiveHashtags(c?.hashtags || ''),
                     pinnedComment: viralCommentQuestionOnly(c?.pinnedComment || '') || String(c?.pinnedComment || ''),
-                  }))
+                  })),
+                  readViralPublishedQueue()[selectedDocId]
                 )
               );
               setSelectedClipId(String(copyClips[0].id));
               setViralOffline(true);
+              // Marks made from any device while the Mac is off
+              void fetchViralPublishedMarksFromGitHub(selectedDocId).then((remote) => {
+                if (cancelled || !remote || viralClipsDocIdRef.current) return;
+                setViralClips((prev) => applyViralPublishedMarks(prev, remote.marks));
+              });
             }
           } catch {}
         }
@@ -707,8 +794,12 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
           const data = resp.ok ? await resp.json() : null;
           if (cancelled) return;
           if (!data?.ok) throw new Error('not ready');
-          // Marks made while the Mac was off go onto its list now (and are saved there by the effect below)
-          const saved = applyViralPublishedQueue<any>(selectedDocId, Array.isArray(data.clips) ? data.clips : []);
+          // Marks made while the Mac was off go onto its list now (and are saved there by the effect below):
+          // the ones still waiting on this device, and then the ones kept on GitHub by any device
+          const saved = applyViralPublishedMarks<any>(
+            Array.isArray(data.clips) ? data.clips : [],
+            readViralPublishedQueue()[selectedDocId]
+          );
           {
             const q = readViralPublishedQueue();
             if (q[selectedDocId]) {
@@ -716,6 +807,10 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
               writeViralPublishedQueue(q);
             }
           }
+          void fetchViralPublishedMarksFromGitHub(selectedDocId).then((remote) => {
+            if (cancelled || !remote || viralClipsDocIdRef.current !== selectedDocId) return;
+            setViralClips((prev) => applyViralPublishedMarks(prev, remote.marks));
+          });
           viralClipsDocIdRef.current = selectedDocId;
           setViralOffline(false);
           setDocYoutubeUrl(String(data.youtubeUrl || ''));
@@ -2628,7 +2723,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                 {viralOffline && (
                   <p className="rounded-lg border border-sky-500/40 bg-sky-500/10 px-2.5 py-1.5 text-[11px] text-sky-200">
                     La Mac no responde: ves la copia guardada de los textos. Puedes copiarlos y marcar "Publicado";
-                    la marca se enviará a la Mac cuando vuelva a estar encendida. Los cambios de texto no se guardan.
+                    la marca se guarda en GitHub y la Mac la recoge al encenderse. Los cambios de texto no se guardan.
                   </p>
                 )}
                 <div className="space-y-1">
@@ -2801,12 +2896,28 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                       onChange={(e) => {
                         const isPublished = e.target.value === 'published';
                         const publishedAt = isPublished ? selectedClip.publishedAt || new Date().toISOString() : undefined;
-                        updateSelectedClip({ published: isPublished, publishedAt });
-                        // Mac off: the mark waits on this device and reaches the Mac when it is back
+                        const at = Date.now();
+                        updateSelectedClip({ published: isPublished, publishedAt, publishedChangedAt: at });
+                        // Mac off: the mark goes to GitHub (every device sees it and the Mac picks it up when it
+                        // is back). It also waits on this device until GitHub has it.
                         if (viralOffline && selectedDocId) {
+                          const docId = selectedDocId;
+                          const clipId = selectedClip.id;
+                          const mark: ViralPublishedMark = { published: isPublished, publishedAt, at };
                           const q = readViralPublishedQueue();
-                          q[selectedDocId] = { ...(q[selectedDocId] || {}), [selectedClip.id]: { published: isPublished, publishedAt } };
+                          q[docId] = { ...(q[docId] || {}), [clipId]: mark };
                           writeViralPublishedQueue(q);
+                          void pushViralPublishedMarksToGitHub(docId, q[docId]).then((ok) => {
+                            if (!ok) return;
+                            const q2 = readViralPublishedQueue();
+                            const waiting = q2[docId] || {};
+                            for (const id of Object.keys(waiting)) {
+                              if ((Number(waiting[id].at) || 0) <= at) delete waiting[id];
+                            }
+                            if (Object.keys(waiting).length === 0) delete q2[docId];
+                            else q2[docId] = waiting;
+                            writeViralPublishedQueue(q2);
+                          });
                         }
                       }}
                       className={`rounded-lg px-2 py-1 text-[11px] font-bold border outline-none ${
