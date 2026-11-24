@@ -2505,7 +2505,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                     onChange={(e) => setShowYoutubeNotice(e.target.checked)}
                     className="accent-amber-400"
                   />
-                  Aviso "VIDEO COMPLETO EN YOUTUBE" (5 s a la mitad y 5 s al final)
+                  Aviso "VIDEO COMPLETO EN YOUTUBE" (5 s al encogerse el título y 5 s al final)
                 </label>
 
                 <div className="space-y-1">

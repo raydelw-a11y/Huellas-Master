@@ -95,8 +95,9 @@ export interface ViralTitleSpan {
 
 /**
  * When each piece is on screen: the big title for the first 8 seconds, then every word shrinks and glides to
- * the small line that stays until the end (`morph`), and the YouTube notice for 5 seconds around the middle
- * and again for the last 5 seconds (the middle one only when the clip is long enough to keep them apart).
+ * the small line that stays until the end (`morph`), and the YouTube notice for 5 seconds right after the
+ * title has shrunk and again for the last 5 seconds (the first one only when the clip is long enough to
+ * keep them apart).
  */
 export function computeViralTitleTimeline(
   totalDurSec: number,
@@ -118,10 +119,11 @@ export function computeViralTitleTimeline(
     const NOTICE_SEC = 5;
     const endStart = total - NOTICE_SEC;
     if (endStart >= bigEnd + 1) {
-      const midStart = total / 2 - NOTICE_SEC / 2;
-      // The middle one needs air on both sides: after the big title, and well before the closing one
-      if (midStart >= bigEnd + 1 && midStart + NOTICE_SEC <= endStart - 2) {
-        notices.push({ startSec: midStart, endSec: midStart + NOTICE_SEC });
+      // The first one comes in just as the title settles into its small line (with no title, mid-clip),
+      // and only when it leaves air before the closing one
+      const firstStart = morph ? morph.startSec + morph.durSec + 0.4 : total / 2 - NOTICE_SEC / 2;
+      if (firstStart >= bigEnd && firstStart + NOTICE_SEC <= endStart - 2) {
+        notices.push({ startSec: firstStart, endSec: firstStart + NOTICE_SEC });
       }
       notices.push({ startSec: endStart, endSec: total });
     }
