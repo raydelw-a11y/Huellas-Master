@@ -1,12 +1,12 @@
 [
   {
     "id": "doc-1795401867074-v32r",
-    "title": "Video 31",
+    "title": "Video 31 Construcción del Empire State",
     "subtitle": "",
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-11-23T02:44:27.074Z",
-    "updatedAt": "2026-11-24T10:56:38.868Z",
+    "updatedAt": "2026-11-24T12:08:26.412Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -318,9 +318,9 @@
     "youtubeTags": "",
     "pinnedComment": "",
     "flowVideoEngine": "HYBRID_PEOPLE_OMNI_REST_LOWER",
-    "downloadFolderName": "Video 31",
-    "downloadFolderPath": "/Users/raydelsantana/Library/Mobile Documents/com~apple~CloudDocs/0YouTube/Huellas de la Humanidad/Videos/Video 31",
-    "geminiChatTitle": "Video 31",
+    "downloadFolderName": "Video 31 Construcción del Empire State",
+    "downloadFolderPath": "/Users/raydelsantana/Library/Mobile Documents/com~apple~CloudDocs/0YouTube/Huellas de la Humanidad/Videos/Video 31 Construcción del Empire State",
+    "geminiChatTitle": "Video 31 Construcción del Empire State",
     "geminiChatUrl": "https://gemini.google.com/app/5c0be2edb7da67b8"
   },
   {
