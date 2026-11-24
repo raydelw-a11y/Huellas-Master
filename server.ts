@@ -54,7 +54,12 @@ import {
 } from './src/utils/geminiTtsAudioClean';
 import { buildSegmentAss, resolveExportFont, type ExportHookConfig } from './server/exportOverlayAss';
 import { renderViralTitleArt, type ViralTitleArt } from './server/viralTitleArt';
-import { VIRAL_TITLE_LOOK, splitViralTitleLines, computeViralTitleTimeline } from './src/utils/viralTitle';
+import {
+  VIRAL_TITLE_LOOK,
+  splitViralTitleLines,
+  buildViralSmallTitleLines,
+  computeViralTitleTimeline,
+} from './src/utils/viralTitle';
 
 // Ensure sufficient libuv I/O worker threads for local + iCloud operations
 process.env.UV_THREADPOOL_SIZE = process.env.UV_THREADPOOL_SIZE || '32';
@@ -23388,7 +23393,12 @@ async function renderViralClipMp4Internal(params: {
             fadeOut: true,
           });
           if (timeline.small) {
-            const small = draw('small', titleLines, bigTextW * L.smallScale, bigFont * L.smallScale);
+            const small = draw(
+              'small',
+              buildViralSmallTitleLines(titleLines),
+              outW * L.smallTextWFrac,
+              bigFont * L.smallFontScale
+            );
             if (small) {
               titleOverlays.push({
                 art: small,

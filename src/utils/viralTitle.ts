@@ -6,10 +6,13 @@ export const VIRAL_TITLE_LOOK = {
   bigTextWFrac: 0.84,
   /** Largest ASS font size of the big title, as a fraction of the frame height */
   bigFontHFrac: 0.14,
-  /** The title that stays on screen after the first seconds, relative to the big one */
-  smallScale: 0.42,
-  noticeTextWFrac: 0.5,
-  noticeFontHFrac: 0.05,
+  /** The title that stays on screen after the first seconds: one line as wide as the big title
+   *  (two lines for a very long title), never taller than this share of the big title's letters */
+  smallTextWFrac: 0.84,
+  smallFontScale: 0.6,
+  /** "VIDEO COMPLETO EN YOUTUBE": one wide line */
+  noticeTextWFrac: 0.78,
+  noticeFontHFrac: 0.075,
   /** Gap between the small title and the YouTube notice, fraction of the frame height */
   noticeGapHFrac: 0.022,
   /** Distance between lines, in ASS font sizes (tight, like a film poster) */
@@ -21,14 +24,15 @@ export const VIRAL_TITLE_LOOK = {
   assHeightRatio: 1.3015,
   boneWhite: '#EFE7D6',
   gold: '#E3AA3C',
-  noticeLines: ['VIDEO COMPLETO', 'EN YOUTUBE'],
+  /** A "|" inside a line: what comes before it is bone white, what comes after is gold */
+  noticeLines: ['VIDEO COMPLETO|EN YOUTUBE'],
   fontFamily: 'League Gothic',
 } as const;
 
 /** Title in capitals, split into balanced lines: 1 line for a couple of words, up to 4 for a long title. */
 export function splitViralTitleLines(rawText: string): string[] {
   const clean = String(rawText || '')
-    .replace(/[{}\\]/g, '')
+    .replace(/[{}\\|]/g, '')
     .replace(/\s+/g, ' ')
     .trim()
     .toUpperCase()
@@ -58,6 +62,30 @@ export function splitViralTitleLines(rawText: string): string[] {
   };
   walk(0, lineCount, []);
   return best;
+}
+
+/**
+ * Lines of the small title that stays on screen: the whole title on ONE line, as wide as the big title, with
+ * the big title's last line still in gold (the "|" marks where the gold starts). A very long title would be
+ * unreadable on one line, so it goes on two.
+ */
+export function buildViralSmallTitleLines(bigLines: string[]): string[] {
+  const lines = bigLines.map((l) => String(l || '').trim()).filter(Boolean);
+  if (lines.length <= 1) return lines;
+  const whitePart = lines.slice(0, -1).join(' ');
+  const goldPart = lines[lines.length - 1];
+  if (whitePart.length + 1 + goldPart.length <= 52) return [`${whitePart}|${goldPart}`];
+  const words = lines.join(' ').split(' ');
+  let best = Math.ceil(words.length / 2);
+  let bestDiff = Infinity;
+  for (let i = 1; i < words.length; i++) {
+    const diff = Math.abs(words.slice(0, i).join(' ').length - words.slice(i).join(' ').length);
+    if (diff < bestDiff) {
+      bestDiff = diff;
+      best = i;
+    }
+  }
+  return [words.slice(0, best).join(' '), words.slice(best).join(' ')];
 }
 
 export interface ViralTitleSpan {
