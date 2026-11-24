@@ -6554,6 +6554,24 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             it.originalSlotDuration = stdDur;
           }
         });
+        // Opción B: the Intro must start exactly where the opening Slogan ends in the narration, because the
+        // voice is paused at the Intro's first frame. Fit the clips before it to that point (a few tenths per
+        // clip) instead of leaving the Intro on the 8-second grid, where it could cut a sentence in half.
+        if (
+          isFullScheduleReviewed &&
+          effectiveVoiceDurationSec > sloganSplitAudioSec + 10 &&
+          preClips.length > 0
+        ) {
+          const preTargetSpan = Number(
+            (voiceEntrySec + sloganSplitAudioSec - actualClip1SpanSec).toFixed(2)
+          );
+          if (
+            preTargetSpan >= preClips.length * 2 &&
+            preTargetSpan <= preClips.length * stdDur * 1.25
+          ) {
+            scaleClipsToExactSpan(preClips, preTargetSpan, false);
+          }
+        }
         if (
           isFullScheduleReviewed &&
           effectiveVoiceDurationSec > sloganSplitAudioSec + 10 &&

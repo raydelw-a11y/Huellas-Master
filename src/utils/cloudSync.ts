@@ -3612,8 +3612,13 @@ Execute an exhaustive Deep Research investigation on the topic, era, location, a
     const introPlacement = doc.promptConfig?.UBICACION_INTRO_MARCA || 'INTRO_INICIO_00';
     const FIXED_INTRO_SEC = 8;
     const FIXED_OUTRO_SEC = 8;
-    const effectiveVoiceEntrySec =
-      introPlacement === 'INTRO_INICIO_00' ? voiceEntrySec + FIXED_INTRO_SEC : voiceEntrySec;
+    // The 8s Intro takes its time in both options (at 00:00, or right after the opening Slogan while the
+    // editor pauses the narration), so the word budget always reserves the hook plus those 8 seconds.
+    const effectiveVoiceEntrySec = voiceEntrySec + FIXED_INTRO_SEC;
+    const nonSpokenOpeningLabel =
+      introPlacement === 'INTRO_POST_SLOGAN'
+        ? `${effectiveVoiceEntrySec}s without narration (the ${voiceEntrySec}s opening Hook plus the ${FIXED_INTRO_SEC}s Official Brand Intro that the editor inserts right after the opening Slogan)`
+        : `${effectiveVoiceEntrySec}s of initial non-spoken intro`;
     const budget = computeCalibratedVoiceoverBudget(
       doc.targetDurationSeconds || 900,
       effectiveVoiceEntrySec,
@@ -3658,7 +3663,9 @@ REWRITE AND CALIBRATE this Spanish historical script so it matches EXACTLY ${bud
 - Mandatorily preserve in Spanish:
   1) The opening triad first sentence closed with a period: "Año [digits], [Place, City, Country]. [Intriguing premise]." (Never write "en el" after the year).
   2) Independent Paragraph 2 with the Full Channel Slogan: "En los próximos minutos... Si quieres seguir cruzando el umbral del tiempo para vivir la historia desde dentro, dale like a este video, compártelo y suscríbete. Cada historia deja una huella. Aquí seguimos sus rastros."${
-    introPlacement === 'INTRO_POST_SLOGAN' ? ' followed immediately by [pausa: 8s]' : ''
+    introPlacement === 'INTRO_POST_SLOGAN'
+      ? ' followed immediately by [pausa: 2s] (the 8-second Official Brand Intro is inserted there by the editor: NEVER write an 8-second pause for it)'
+      : ''
   }.
   3) Strategic pause tags [pausa: 1.5s] or [pausa: 2s] (~${budget.estPauseSec}s total pauses).
   4) The final paragraph starting with "Déjanos saber en los comentarios..." and closing with "Cada historia deja una huella. Aquí seguimos sus rastros.".
@@ -3686,7 +3693,7 @@ ${doc.deepResearchResult || (!doc.deepResearchPrompt ? doc.sectionsStructure || 
 
 CRITICAL OUTPUT LANGUAGE REQUIREMENT:
 Write the complete VOICEOVER SCRIPT 100% in Neutral Latin American Documentary Spanish (Español Neutro Documental) obeying every unbreakable rule below:
-- STRICT DURATION & WORD BUDGET (${budget.totalMinutesLabel} REAL MINUTES IN VOXFLOW): Our TTS narrator (Charon) speaks at 147 words per minute. Subtracting ${effectiveVoiceEntrySec}s of initial non-spoken intro, ${FIXED_OUTRO_SEC}s of closing Outro, and ~${budget.estPauseSec}s of [pausa: Xs] tags leaves ~${budget.netSpeechSec}s of net speech. Therefore, THE ENTIRE SPANISH SCRIPT MUST CONTAIN BETWEEN ${budget.minWords} AND ${budget.maxWords} WORDS (exact target: ~${budget.targetWords} words / ~${budget.targetChars} characters; ~${perActWords6} words across each of 6 internal narrative blocks). Strictly FORBIDDEN to exceed ${budget.maxWords} words.
+- STRICT DURATION & WORD BUDGET (${budget.totalMinutesLabel} REAL MINUTES IN VOXFLOW): Our TTS narrator (Charon) speaks at 147 words per minute. Subtracting ${nonSpokenOpeningLabel}, ${FIXED_OUTRO_SEC}s of closing Outro, and ~${budget.estPauseSec}s of [pausa: Xs] tags leaves ~${budget.netSpeechSec}s of net speech. Therefore, THE ENTIRE SPANISH SCRIPT MUST CONTAIN BETWEEN ${budget.minWords} AND ${budget.maxWords} WORDS (exact target: ~${budget.targetWords} words / ~${budget.targetChars} characters; ~${perActWords6} words across each of 6 internal narrative blocks). Strictly FORBIDDEN to exceed ${budget.maxWords} words.
 - 100% PURE SPOKEN NARRATION FORMAT (ZERO HEADERS OR TIMESTAMPS): Output SOLELY the exact spoken Spanish prose read by the narrator (plus [pausa: Xs] tags). Strictly FORBIDDEN to write titles ("STAGE 4", "GUION"), act names, timestamps like "(00:00 - 00:08 | Intro...)", camera/sound notes in parentheses, or word-count reports at the end. Begin directly with the first spoken Spanish word ("Año ...") and finish directly with "...Aquí seguimos sus rastros.".
 - Open mandatorily with the triad in the very first sentence closed by a period: "Año [year in digits], [Place, City, Country]. [Intriguing premise]." (Never write "en el" after the year).
 - Write years in digits, centuries and monarchs in Roman numerals (e.g., siglo XIX, Felipe II), thousands with the word "mil" (e.g., "70 mil"), and ZERO exclamation marks (!).
@@ -3694,7 +3701,7 @@ Write the complete VOICEOVER SCRIPT 100% in Neutral Latin American Documentary S
 - Include strategic pause tags such as [pausa: 1.5s] or [pausa: 2s].
 - For long-form documentaries, include before second 30 the Full Channel Slogan as a standalone Paragraph 2 ("En los próximos minutos... Cada historia deja una huella. Aquí seguimos sus rastros.")${
         introPlacement === 'INTRO_POST_SLOGAN'
-          ? ' and IMMEDIATELY at the end of Paragraph 2 place the mandatory tag [pausa: 8s] so the 8-second Official Brand Intro (Intro.mp4) plays cleanly before Paragraph 3'
+          ? ' and IMMEDIATELY at the end of Paragraph 2 place the mandatory tag [pausa: 2s]: the editor inserts the 8-second Official Brand Intro (Intro.mp4) exactly there and pauses the narration by itself, so NEVER write an 8-second pause for it, and start Paragraph 3 as a clean new beginning (Chapter 1) that does not depend on the previous sentence'
           : ''
       }.
 - Close in a standalone final paragraph starting with "Déjanos saber en los comentarios..." and ending with the exact slogan: "Cada historia deja una huella. Aquí seguimos sus rastros."`;
