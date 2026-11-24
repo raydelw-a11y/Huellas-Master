@@ -22167,6 +22167,109 @@ const VIRAL_SAVED_DIR = path.join(VIRAL_CLIPS_DIR, 'saved');
 const viralSavedFileFor = (docId: string) =>
   path.join(VIRAL_SAVED_DIR, `${String(docId || '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 80)}.json`);
 
+// Copy of each documentary's clip texts on GitHub Pages (docs/data/viral_clips_<docId>.json): titles,
+// descriptions, hashtags, comments and the "published" mark, without words or transcripts. With the Mac
+// off, the phone still shows them and their copy buttons. Written a little after each save, and only when
+// something changed.
+const viralPublicCopyTimers = new Map<string, NodeJS.Timeout>();
+const viralPublicCopyLastHash = new Map<string, string>();
+function buildViralPublicCopy(docId: string): string | null {
+  try {
+    const f = viralSavedFileFor(docId);
+    if (!fs.existsSync(f)) return null;
+    const data = JSON.parse(fs.readFileSync(f, 'utf8'));
+    const clips = (Array.isArray(data?.clips) ? data.clips : []).map((c: any) => {
+      const { words, transcriptExcerpt, ...rest } = c || {};
+      return rest;
+    });
+    if (clips.length === 0) return null;
+    return JSON.stringify({
+      docId,
+      savedAt: Number(data?.savedAt || 0),
+      youtubeUrl: String(data?.youtubeUrl || ''),
+      clips,
+    });
+  } catch {
+    return null;
+  }
+}
+async function pushViralPublicCopy(docId: string): Promise<void> {
+  try {
+    const content = buildViralPublicCopy(docId);
+    if (!content) return;
+    const safe = docId.replace(/[^a-zA-Z0-9_-]+/g, '_');
+    const fileName = `viral_clips_${safe}.json`;
+    // `savedAt` changes on every save: compare what matters
+    const hash = crypto.createHash('sha1').update(content.replace(/"savedAt":\d+,/, '')).digest('hex');
+    if (viralPublicCopyLastHash.get(docId) === hash) return;
+    writePublicDataCopy(fileName, JSON.parse(content));
+    const token = getLocalGitHubToken();
+    if (!token) return;
+    const repoPath = `docs/data/${fileName}`;
+    const headers = {
+      Accept: 'application/vnd.github+json',
+      Authorization: `token ${token}`,
+      'Content-Type': 'application/json',
+      'User-Agent': 'HuellasMaster-Studio',
+    };
+    const apiUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${repoPath}`;
+    let sha: string | undefined;
+    const getRes = await fetch(`${apiUrl}?ref=${GITHUB_BRANCH}&t=${Date.now()}`, { headers });
+    if (getRes.ok) {
+      const info: any = await getRes.json();
+      if (info && typeof info.sha === 'string') sha = info.sha;
+      // Already the same on GitHub: nothing to upload
+      try {
+        const remote = Buffer.from(String(info?.content || ''), 'base64').toString('utf8');
+        if (remote && crypto.createHash('sha1').update(JSON.stringify(JSON.parse(remote)).replace(/"savedAt":\d+,/, '')).digest('hex') === hash) {
+          viralPublicCopyLastHash.set(docId, hash);
+          return;
+        }
+      } catch {}
+    }
+    const putRes = await fetch(apiUrl, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify({
+        message: 'Sync textos de viral clips',
+        content: Buffer.from(JSON.stringify(JSON.parse(content), null, 2), 'utf8').toString('base64'),
+        branch: GITHUB_BRANCH,
+        ...(sha ? { sha } : {}),
+      }),
+    });
+    if (putRes.ok) viralPublicCopyLastHash.set(docId, hash);
+    else console.warn('[ViralClips] No se pudo subir la copia de textos a GitHub:', putRes.status);
+  } catch (e: any) {
+    console.warn('[ViralClips] Copia de textos en GitHub:', e?.message || e);
+  }
+}
+function scheduleViralPublicCopy(docId: string, delayMs = 15000): void {
+  if (!docId) return;
+  const prev = viralPublicCopyTimers.get(docId);
+  if (prev) clearTimeout(prev);
+  viralPublicCopyTimers.set(
+    docId,
+    setTimeout(() => {
+      viralPublicCopyTimers.delete(docId);
+      void pushViralPublicCopy(docId);
+    }, delayMs)
+  );
+}
+// Lists saved before this copy existed get theirs shortly after the server starts
+setTimeout(() => {
+  try {
+    if (!fs.existsSync(VIRAL_SAVED_DIR)) return;
+    fs.readdirSync(VIRAL_SAVED_DIR)
+      .filter((n) => n.endsWith('.json'))
+      .forEach((n, i) => {
+        try {
+          const docId = String(JSON.parse(fs.readFileSync(path.join(VIRAL_SAVED_DIR, n), 'utf8'))?.docId || '');
+          if (docId) scheduleViralPublicCopy(docId, 5000 + i * 4000);
+        } catch {}
+      });
+  } catch {}
+}, 60000);
+
 app.get('/api/viral-clips/saved', (req, res) => {
   try {
     const docId = String(req.query.docId || '').trim();
@@ -22219,6 +22322,7 @@ app.post('/api/viral-clips/saved', (req, res) => {
         ...(keepPending ? { pendingGeminiAnswer: prevPending } : {}),
       })
     );
+    scheduleViralPublicCopy(docId);
     res.json({ ok: true });
   } catch (err: any) {
     res.status(500).json({ ok: false, error: err?.message || 'No se pudieron guardar los clips.' });
