@@ -71,7 +71,7 @@ import {
   computeViralBigTitleTopFrac,
   viralCoverCandidateTimes,
   estimateViralBigTitleHeightFrac,
-  computeViralCoverTitleTopFrac,
+  computeViralCoverTitlePlacement,
   scoreViralCoverFrame,
   type ViralFaceBox,
 } from './src/utils/viralTitle';
@@ -23373,12 +23373,15 @@ async function listViralCoverCandidates(
   p: ViralClipFrameSource,
   titleLines: string[],
   defaultTopFrac: number,
-  withThumbs: boolean
+  withThumbs: boolean,
+  /** The title's real height when it is already drawn (otherwise it is estimated from its lines) */
+  knownTextHeightFrac?: number
 ): Promise<{ candidates: Array<{ clipSec: number; score: number; faces: ViralFaceBox[]; thumb?: string }>; bestClipSec: number | null }> {
   const times = viralCoverCandidateTimes(p.cuts.totalDurSec);
   const infos = await analyzeViralClipFrames(p, times, withThumbs);
   const maxSharp = Math.max(1, ...infos.map((x) => (x ? x.sharp : 0)));
-  const textHeightFrac = estimateViralBigTitleHeightFrac(titleLines);
+  const textHeightFrac =
+    knownTextHeightFrac && knownTextHeightFrac > 0 ? knownTextHeightFrac : estimateViralBigTitleHeightFrac(titleLines);
   const candidates = infos
     .map((info, i) =>
       info
@@ -23834,7 +23837,8 @@ async function renderViralClipMp4Internal(params: {
             frameSource,
             splitViralTitleLines(hookBannerText),
             titleTopY / outH,
-            false
+            false,
+            titleWordsArt.bigTextHeight / outH
           );
           coverSec = picked.bestClipSec ?? totalClipDurSec / 2;
           coverFaces = picked.candidates.find((c) => c.clipSec === coverSec)?.faces || [];
@@ -23842,14 +23846,13 @@ async function renderViralClipMp4Internal(params: {
           coverSec = Math.min(coverSec, Math.max(0, totalClipDurSec - 0.1));
           coverFaces = (await analyzeViralClipFrames(frameSource, [coverSec]))[0]?.faces || [];
         }
-        const coverTopY = Math.round(
-          outH *
-            computeViralCoverTitleTopFrac({
-              defaultTopFrac: titleTopY / outH,
-              textHeightFrac: titleWordsArt.bigTextHeight / outH,
-              faces: coverFaces,
-            })
-        );
+        const coverPlace = computeViralCoverTitlePlacement({
+          defaultTopFrac: titleTopY / outH,
+          textHeightFrac: titleWordsArt.bigTextHeight / outH,
+          faces: coverFaces,
+        });
+        const coverTopY = Math.round(outH * coverPlace.topFrac);
+        const coverScale = coverPlace.scale;
         const coverPath = path.join(os.tmpdir(), `viral_cover_${stamp}.png`);
         // The frame goes through the clip's own framing (without captions), then every word of the title on top
         const coverVf = reframeVf.replace(`,ass='${escapedAssPath}'`, '');
@@ -23857,7 +23860,14 @@ async function renderViralClipMp4Internal(params: {
         let coverGraph = `[0:v]${coverVf}[cv0]`;
         titleWordsArt.words.forEach((w, k) => {
           coverArgs.push('-i', w.path);
-          coverGraph += `;[cv${k}][${k + 1}:v]overlay=${Math.round(w.bigX)}:${Math.round(coverTopY + w.bigY)}:format=auto[cv${k + 1}]`;
+          // A title made smaller to clear a face shrinks towards the middle of the picture
+          const wx = Math.round(outW / 2 + (w.bigX - outW / 2) * coverScale);
+          const wy = Math.round(coverTopY + w.bigY * coverScale);
+          const sized =
+            coverScale < 0.999
+              ? `[${k + 1}:v]scale=${Math.max(2, Math.round(w.width * coverScale))}:${Math.max(2, Math.round(w.height * coverScale))}:flags=lanczos[cw${k}];`
+              : '';
+          coverGraph += `;${sized}[cv${k}]${sized ? `[cw${k}]` : `[${k + 1}:v]`}overlay=${wx}:${wy}:format=auto[cv${k + 1}]`;
         });
         coverArgs.push('-filter_complex', coverGraph, '-map', `[cv${titleWordsArt.words.length}]`, '-frames:v', '1', coverPath);
         const coverOk = await new Promise<boolean>((resolve) => {

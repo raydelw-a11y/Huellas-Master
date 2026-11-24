@@ -1,6 +1,6 @@
 import React from 'react';
 import { ViralPosterTitle, useViralPosterFontPx, viralPosterTextHeightPx } from './ViralPosterTitle';
-import { VIRAL_TITLE_LOOK, computeViralCoverTitleTopFrac, type ViralFaceBox } from '../utils/viralTitle';
+import { VIRAL_TITLE_LOOK, computeViralCoverTitlePlacement, type ViralFaceBox } from '../utils/viralTitle';
 
 // Cover of a viral clip: the clip's last frame is a still with the big title. Shows the cover as it will be
 // exported (picture + title, in the upper half and off faces) and the frames it can be changed to.
@@ -39,13 +39,12 @@ export const ViralCoverPicker: React.FC<{
     VIRAL_TITLE_LOOK.bigTextWFrac,
     VIRAL_TITLE_LOOK.bigFontHFrac
   );
-  const topPx =
-    COVER_H *
-    computeViralCoverTitleTopFrac({
-      defaultTopFrac: titleTopPct / 100,
-      textHeightFrac: viralPosterTextHeightPx(titleLines.length, fontPx) / COVER_H,
-      faces: active ? active.faces : [],
-    });
+  const place = computeViralCoverTitlePlacement({
+    defaultTopFrac: titleTopPct / 100,
+    textHeightFrac: viralPosterTextHeightPx(titleLines.length, fontPx) / COVER_H,
+    faces: active ? active.faces : [],
+  });
+  const topPx = COVER_H * place.topFrac;
   const mmss = (sec: number) => `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2, '0')}`;
 
   if (candidates.length === 0) {
@@ -68,8 +67,8 @@ export const ViralCoverPicker: React.FC<{
           lines={titleLines}
           frameW={COVER_W}
           frameH={COVER_H}
-          maxTextWFrac={VIRAL_TITLE_LOOK.bigTextWFrac}
-          maxFontHFrac={VIRAL_TITLE_LOOK.bigFontHFrac}
+          maxTextWFrac={VIRAL_TITLE_LOOK.bigTextWFrac * place.scale}
+          maxFontHFrac={VIRAL_TITLE_LOOK.bigFontHFrac * place.scale}
           topPx={topPx}
           visible
         />
