@@ -638,7 +638,15 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
           }
           if (saved.length > 0) {
             // Lists saved before the 5-hashtag rule can carry 6 or more: keep exactly 5
-            setViralClips(saved.map((c: any) => ({ ...c, hashtags: limitToFiveHashtags(c?.hashtags || '') })));
+            // Older lists also carry a YouTube line in the pinned comment: it is kept as the question alone
+            // (the box then shows what the clip really carries; the link is added when copying for Facebook)
+            setViralClips(
+              saved.map((c: any) => ({
+                ...c,
+                hashtags: limitToFiveHashtags(c?.hashtags || ''),
+                pinnedComment: viralCommentQuestionOnly(c?.pinnedComment || '') || String(c?.pinnedComment || ''),
+              }))
+            );
             const sel = saved.find((c: any) => c.id === data.selectedClipId) || saved[0];
             setSelectedClipId(sel.id);
             setPlayheadSec(Number(sel.startSec) || 0);
@@ -2598,11 +2606,20 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                     placeholder="Pregunta para fijar como primer comentario"
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-200 outline-none"
                   />
-                  <p className="text-[11px] text-slate-400 italic px-1">
-                    {linkPlace === 'comments'
-                      ? 'Al copiar: solo la pregunta + el enlace del documental en YouTube.'
-                      : 'Al copiar: solo la pregunta, sin mencionar YouTube (ya va en el video y en la descripción).'}
-                  </p>
+                  {/* Exactly what the button copies (on Facebook: the question plus the documentary's link) */}
+                  {linkPlace === 'comments' && (
+                    <div className="space-y-0.5">
+                      <span className="text-[11px] text-slate-400 italic px-1">Así se copia para Facebook:</span>
+                      <p className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-300 break-words whitespace-pre-line">
+                        {buildViralPinnedComment(String(selectedClip.pinnedComment || ''), linkPlace, docYoutubeUrl)}
+                      </p>
+                      {!docYoutubeUrl.trim() && (
+                        <p className="text-[11px] text-amber-300/90 px-1">
+                          Falta pegar arriba el enlace del documental en YouTube: sin él, el comentario no lleva enlace.
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Channel comment: the same under every clip, its text depends on the network */}
