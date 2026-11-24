@@ -22,7 +22,16 @@ function getStatsHeader(sentences: Sentence[]): string {
     spokenSentences.length > 0
       ? spokenSentences.reduce((max, s) => Math.max(max, s.end), 0)
       : maxEnd;
-  const spokenSpanSecs = Math.max(1, maxSpokenEnd - minSpokenStart);
+  // Opción B: the 8s Intro sits in the middle of the narration (right after the Slogan) and is not voice time
+  const midIntroSecs = sentences
+    .filter(
+      (s) =>
+        /^\[SIN\s+VOZ\s+NARRATIVA[^\]]*Intro\s+Oficial/i.test(String(s.text || '').trim()) &&
+        s.start >= minSpokenStart &&
+        s.end <= maxSpokenEnd
+    )
+    .reduce((acc, s) => acc + Math.max(0, s.end - s.start), 0);
+  const spokenSpanSecs = Math.max(1, maxSpokenEnd - minSpokenStart - midIntroSecs);
   const nonVoiceEdgeSecs = Math.max(0, Math.round(maxEnd - spokenSpanSecs));
   const wpm = totalWords > 0 ? ((totalWords * 60) / spokenSpanSecs).toFixed(1) : '0.0';
   const voiceFormatted = formatTimestamp(spokenSpanSecs, 'MM:SS');

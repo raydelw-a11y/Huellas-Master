@@ -2581,9 +2581,10 @@ export function getStage1ClipDurations(doc?: any): {
   }
 
   const voiceEntrySec = clip1Sec <= 6 ? clip1Sec + 2 : clip1Sec;
-  const introPlacement = doc?.promptConfig?.UBICACION_INTRO_MARCA || 'INTRO_INICIO_00';
-  const effectiveVoiceEntrySec =
-    introPlacement === 'INTRO_INICIO_00' ? voiceEntrySec + 8 : voiceEntrySec;
+  // Seconds of the video WITHOUT narration besides the Outro: the Clip 1 hook plus the 8s Official Brand Intro.
+  // The Intro takes its 8 seconds in both options — at 00:00 (Opción A) or right after the opening Slogan
+  // (Opción B, where the editor pauses the voice for it) — so the word budget must reserve them either way.
+  const effectiveVoiceEntrySec = voiceEntrySec + 8;
   const rawTargetDur =
     Number(doc?.targetDurationSeconds) ||
     parseInt(String(doc?.promptConfig?.DURACION_TOTAL_SEGUNDOS || ''), 10);
@@ -3059,12 +3060,182 @@ function splitParagraphIntoSentencesWithPauses(paragraph: string): string[] {
  *    la cronología de cada párrafo, los nombres propios, las preguntas de retención, todas las etiquetas [pausa: Xs]
  *    y el Cierre Institucional.
  */
+/**
+ * Opción B (Intro tras el Slogan): the editor and the exporter pause the narration for the 8s Intro by
+ * themselves. A script that ALSO carries a long pause right after the opening Slogan ("[pausa: 8s]", as
+ * older orders asked) would leave a double hole, so that pause is brought down to a short breath.
+ */
+export function normalizeOpeningSloganIntroPause(script: string): string {
+  const text = String(script || '');
+  const m = /seguimos\s+sus\s+rastros[.…"”»']*/i.exec(text.slice(0, 4000));
+  if (!m) return text;
+  const afterIdx = m.index + m[0].length;
+  const rest = text.slice(afterIdx);
+  const pauseRe = new RegExp(`^(\\s*)(?:${UNIVERSAL_PAUSE_REGEX.source})`, 'i');
+  const pm = pauseRe.exec(rest);
+  if (!pm) return text;
+  const tag = pm[0].slice(pm[1].length);
+  const info = extractPausesInfo(tag);
+  if (!(info.totalSeconds >= 5)) return text;
+  return `${text.slice(0, afterIdx)}${pm[1]}[pausa: 2s]${rest.slice(pm[0].length)}`;
+}
+
+export interface NarrationGridItem {
+  kind: 'word' | 'pause';
+  text: string;
+  start: number;
+  end: number;
+  mid: number;
+}
+
+/**
+ * Opción B (Intro tras el Slogan) — narration table on the video's real clock.
+ * Finds where the opening Slogan ("...Aquí seguimos sus rastros.") ends in the narration, splits the clips
+ * before it into equal slots that end exactly there, reserves the 8 seconds of the Official Brand Intro,
+ * and restarts the regular grid after it (everything after the Slogan moves 8 seconds later).
+ * Returns null when the Slogan cannot be located, so the caller keeps its plain continuous grid.
+ */
+export function buildPostSloganIntroGridBlocks(
+  positioned: NarrationGridItem[],
+  opts: { voiceStartSec: number; voiceEndSec: number; segLen: number; introSec?: number }
+): {
+  sentences: Array<{ text: string; start: number; end: number }>;
+  srtSentences: Array<{ text: string; start: number; end: number }>;
+  introStartSec: number;
+} | null {
+  const introSec = opts.introSec && opts.introSec > 0 ? opts.introSec : 8;
+  const segLen = Math.max(2, Number(opts.segLen) || 8);
+  const voiceStartSec = Number(opts.voiceStartSec) || 0;
+  const norm = (t: string) =>
+    String(t || '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]/g, '');
+  const wordIdxs: number[] = [];
+  positioned.forEach((p, i) => {
+    if (p.kind === 'word') wordIdxs.push(i);
+  });
+  let sloganLastWordPos = -1;
+  for (let w = 2; w < wordIdxs.length; w++) {
+    const cur = positioned[wordIdxs[w]];
+    if (cur.start > voiceStartSec + 150) break;
+    if (
+      norm(cur.text) === 'rastros' &&
+      norm(positioned[wordIdxs[w - 1]].text) === 'sus' &&
+      norm(positioned[wordIdxs[w - 2]].text) === 'seguimos'
+    ) {
+      sloganLastWordPos = w;
+      break;
+    }
+  }
+  // The Slogan must be followed by more narration, and sit far enough from the start to hold at least one clip
+  if (sloganLastWordPos < 0 || sloganLastWordPos >= wordIdxs.length - 1) return null;
+  const sloganEndSec = positioned[wordIdxs[sloganLastWordPos]].end;
+  const nextWordStartSec = positioned[wordIdxs[sloganLastWordPos + 1]].start;
+  const gapSec = Math.max(0, nextWordStartSec - sloganEndSec);
+  const splitSec = sloganEndSec + Math.min(gapSec / 2, 1.5);
+  const introStartSec = Math.round(splitSec);
+  const preSpan = introStartSec - voiceStartSec;
+  if (preSpan < 3) return null;
+
+  const preItems = positioned.filter((p) => p.start < splitSec);
+  const postItems = positioned
+    .filter((p) => p.start >= splitSec)
+    .map((p) => ({ ...p, start: p.start + introSec, end: p.end + introSec, mid: p.mid + introSec }));
+
+  const sentences: Array<{ text: string; start: number; end: number }> = [];
+  const srtSentences: Array<{ text: string; start: number; end: number }> = [];
+  const pushBlock = (inWindow: NarrationGridItem[], blockStart: number, blockEnd: number) => {
+    const blockDur = Math.max(1, Math.round(blockEnd - blockStart));
+    const spoken = inWindow.filter((p) => p.kind === 'word');
+    if (spoken.length === 0) {
+      sentences.push({
+        text: `[SIN VOZ NARRATIVA — Pausa / Silencio Dramático (${blockDur}s)]`,
+        start: blockStart,
+        end: blockEnd,
+      });
+      return;
+    }
+    const textLine = inWindow
+      .map((p) => p.text)
+      .join(' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    sentences.push({ text: textLine, start: blockStart, end: blockEnd });
+    const realStart = Number(
+      Math.max(blockStart, Math.min(blockEnd - 0.4, spoken[0].start)).toFixed(2)
+    );
+    const realEnd = Number(
+      Math.min(blockEnd, Math.max(realStart + 0.5, spoken[spoken.length - 1].end)).toFixed(2)
+    );
+    srtSentences.push({ text: textLine, start: realStart, end: realEnd });
+  };
+
+  // 1) Clips before the Intro: equal whole-second slots (never longer than a regular clip) ending at the Slogan
+  const preCount = Math.max(1, Math.ceil((preSpan - 0.15) / segLen));
+  for (let b = 0; b < preCount; b++) {
+    const isLast = b === preCount - 1;
+    const blockStart = voiceStartSec + Math.round((b * preSpan) / preCount);
+    const blockEnd = isLast ? introStartSec : voiceStartSec + Math.round(((b + 1) * preSpan) / preCount);
+    pushBlock(
+      preItems.filter((p) =>
+        isLast ? p.mid >= blockStart : b === 0 ? p.mid < blockEnd : p.mid >= blockStart && p.mid < blockEnd
+      ),
+      blockStart,
+      blockEnd
+    );
+  }
+
+  // 2) The 8 seconds of the Official Brand Intro (the narration waits)
+  const introBlock = {
+    text: `[SIN VOZ NARRATIVA — Intro Oficial de Marca (${introSec}s)]`,
+    start: introStartSec,
+    end: introStartSec + introSec,
+  };
+  sentences.push(introBlock);
+  srtSentences.push(introBlock);
+
+  // 3) Regular grid for the rest of the narration, 8 seconds later on the video's clock
+  const gridStart = introStartSec + introSec;
+  const exactVoiceEndSec = Math.max(gridStart + 1, Math.round((Number(opts.voiceEndSec) || 0) + introSec));
+  const span = Math.max(1, exactVoiceEndSec - gridStart);
+  const rawBlocks = Math.max(1, Math.ceil((span - 0.15) / segLen));
+  const tailRemainder = span - (rawBlocks - 1) * segLen;
+  const totalBlocks = rawBlocks > 1 && tailRemainder > 0 && tailRemainder < 2 ? rawBlocks - 1 : rawBlocks;
+  for (let b = 0; b < totalBlocks; b++) {
+    const isLast = b === totalBlocks - 1;
+    const blockStart = gridStart + b * segLen;
+    const blockEnd = isLast ? exactVoiceEndSec : blockStart + segLen;
+    pushBlock(
+      postItems.filter((p) =>
+        isLast && b === 0
+          ? true
+          : isLast
+          ? p.mid >= blockStart
+          : b === 0
+          ? p.mid < blockEnd
+          : p.mid >= blockStart && p.mid < blockEnd
+      ),
+      blockStart,
+      blockEnd
+    );
+  }
+  return { sentences, srtSentences, introStartSec };
+}
+
 export function autoFitVoiceoverScriptToDuration(
   rawText: string,
   docOrTargetSec?: any
 ): string {
-  const cleaned = cleanVoiceoverNarrationOnly(rawText);
-  if (!cleaned) return '';
+  const cleanedRaw = cleanVoiceoverNarrationOnly(rawText);
+  if (!cleanedRaw) return '';
+  const cleaned =
+    docOrTargetSec &&
+    typeof docOrTargetSec === 'object' &&
+    docOrTargetSec?.promptConfig?.UBICACION_INTRO_MARCA === 'INTRO_POST_SLOGAN'
+      ? normalizeOpeningSloganIntroPause(cleanedRaw)
+      : cleanedRaw;
 
   let targetDurationSec = 900;
   let effectiveVoiceEntrySec = 16;

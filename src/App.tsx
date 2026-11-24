@@ -106,6 +106,7 @@ import {
   stripPauseTags,
   cleanVoiceoverNarrationOnly,
   computeCalibratedVoiceoverBudget,
+  buildPostSloganIntroGridBlocks,
   autoFitVoiceoverScriptToDuration,
   CALIBRATED_TTS_WORDS_PER_SEC,
   parseTimelineTextToSentences,
@@ -204,7 +205,7 @@ import { stampBrandMarksOnThumbnail, HD_BADGE_EMPTY_CORNER_CLAUSE, LOGO_EMPTY_CO
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '07:28 AM - 11/24/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '07:43 AM - 11/24/2026';
 
 // PRODUCTION LOCK: while promptConfig.PRODUCTION_LOCKED === 'YES' these fields never change (the server
 // enforces the same list in protectLockedDocs). Metadata, thumbnails, review marks and reframes stay editable.
@@ -16271,6 +16272,23 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           currentTokens = [];
         }
       });
+    } else if (
+      (() => {
+        // Opción B: the Intro plays right after the opening Slogan. The table follows the video's real clock:
+        // equal clips up to the end of the Slogan, the 8s of the Intro, then the regular grid 8 seconds later.
+        if (introPlacement !== 'INTRO_POST_SLOGAN') return false;
+        const postSloganGrid = buildPostSloganIntroGridBlocks(positioned, {
+          voiceStartSec,
+          voiceEndSec,
+          segLen,
+        });
+        if (!postSloganGrid) return false;
+        sentences.push(...postSloganGrid.sentences);
+        srtSentences.push(...postSloganGrid.srtSentences);
+        return true;
+      })()
+    ) {
+      // Blocks already added above
     } else {
       // Exact 8-second (default) / 10-second / 4-second grid blocks from voiceStartSec to exactVoiceEndSec
       const exactVoiceEndSec = Math.max(voiceStartSec + 1, Math.round(voiceEndSec));
@@ -16640,7 +16658,19 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       const refAudioDur = quickDur > 2 ? quickDur : storedTrackDur;
       if (refAudioDur <= 2) return;
 
-      const expectedTotalEnd = Math.round(leadInSec + refAudioDur) + 8;
+      // Opción B tables carry the 8s Intro as a row of its own right after the Slogan (8 more seconds of video)
+      const isIntroRow = (s?: { text?: string }) =>
+        /^\[SIN\s+VOZ\s+NARRATIVA[^\]]*Intro\s+Oficial/i.test(String(s?.text || '').trim());
+      const tlRows = activeDoc.timelineSentences || [];
+      const hasMidIntroRow =
+        introPlacement === 'INTRO_POST_SLOGAN' && tlRows.slice(1).some((s) => isIntroRow(s));
+      // The table was built for the other Intro option (it was changed afterwards): rebuild it
+      const introLayoutMismatch =
+        tlRows.length > 0 &&
+        (introPlacement === 'INTRO_POST_SLOGAN'
+          ? isIntroRow(tlRows[0])
+          : tlRows.slice(1).some((s) => isIntroRow(s)));
+      const expectedTotalEnd = Math.round(leadInSec + refAudioDur) + 8 + (hasMidIntroRow ? 8 : 0);
       const currentTlMaxEnd = (activeDoc.timelineSentences || []).reduce(
         (m, s) => Math.max(m, Number(s?.end) || 0),
         0
@@ -16653,7 +16683,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         hasNonVoiceMarkers &&
         hasVoiceBreakdownHeader &&
         !trackDurStale &&
-        !timelineEndStale
+        !timelineEndStale &&
+        !introLayoutMismatch
       ) {
         return;
       }
@@ -16709,6 +16740,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     activeDoc?.voiceoverScript,
     activeDoc?.audioTracks?.length,
     activeDoc?.audioTracks?.[0]?.audioUrl,
+    activeDoc?.promptConfig?.UBICACION_INTRO_MARCA,
     folderVoiceoverUrl,
   ]);
 
