@@ -22179,7 +22179,8 @@ function buildViralPublicCopy(docId: string): string | null {
     if (!fs.existsSync(f)) return null;
     const data = JSON.parse(fs.readFileSync(f, 'utf8'));
     const clips = (Array.isArray(data?.clips) ? data.clips : []).map((c: any) => {
-      const { words, transcriptExcerpt, ...rest } = c || {};
+      // Not needed away from the Mac, and they carry its folder paths
+      const { words, transcriptExcerpt, savedDocFolderPath, renderedReelUrl, ...rest } = c || {};
       return rest;
     });
     if (clips.length === 0) return null;
