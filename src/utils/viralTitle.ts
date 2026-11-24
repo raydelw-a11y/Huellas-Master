@@ -150,6 +150,13 @@ export function viralTitleFaceSampleTimes(totalDurSec: number): number[] {
   return [0.06, 0.25, 0.5, 0.75, 0.97].map((f) => Number((end * f).toFixed(2)));
 }
 
+/** Clip seconds where faces are looked for while a YouTube notice is on screen. */
+export function viralNoticeFaceSampleTimes(span: ViralTitleSpan): number[] {
+  const start = span.startSec + 0.3;
+  const end = Math.max(start, span.endSec - 0.3);
+  return [start, (start + end) / 2, end].map((t) => Number(t.toFixed(2)));
+}
+
 /** Lowest point the big title may reach: it never comes down onto the captions. */
 export function viralTitleMaxBottomFrac(captionYPercent: number): number {
   const captionBottom = Math.max(20, Math.min(88, Number(captionYPercent) || 75)) / 100;

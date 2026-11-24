@@ -1391,6 +1391,17 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
   const posterSmallLines = useMemo(() => buildViralSmallTitleLines(posterTitleLines), [posterTitleLines]);
   // Faces under the big title (found by the Mac in the clip's opening seconds): the title starts below them
   const [titleFaces, setTitleFaces] = useState<ViralFaceBox[]>([]);
+  // The same while each YouTube notice is on screen (one list per notice, in order)
+  const [noticeFaces, setNoticeFaces] = useState<ViralFaceBox[][]>([]);
+  const noticeSpansForFaces = useMemo(
+    () =>
+      computeViralTitleTimeline(clipCuts ? clipCuts.totalDurSec : 0, {
+        hasTitle: posterTitleLines.length > 0,
+        showNotice: showYoutubeNotice,
+      }).notices,
+    [clipCuts, posterTitleLines.length, showYoutubeNotice]
+  );
+  const noticeSpansKey = noticeSpansForFaces.map((n) => `${n.startSec.toFixed(1)}-${n.endSec.toFixed(1)}`).join(',');
   const titleFacesKey = selectedClip
     ? [
         selectedDocId,
@@ -1405,7 +1416,10 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
     : '';
   useEffect(() => {
     setTitleFaces([]);
-    if (!selectedClip || titleStyle !== 'poster_gold' || !showHookBanner) return;
+    setNoticeFaces([]);
+    if (!selectedClip) return;
+    const wantsTitle = titleStyle === 'poster_gold' && showHookBanner;
+    if (!wantsTitle && noticeSpansForFaces.length === 0) return;
     let cancelled = false;
     const timer = window.setTimeout(() => {
       fetch(viralApi('/api/viral-clips/title-faces'), {
@@ -1420,11 +1434,14 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
           words: selectedClip.words,
           reframeMode: selectedClip.reframeMode,
           focusX: selectedClip.focusX,
+          noticeSpans: noticeSpansForFaces,
         }),
       })
         .then((r) => (r.ok ? r.json() : null))
         .then((d) => {
-          if (!cancelled && d?.ok && Array.isArray(d.faces)) setTitleFaces(d.faces);
+          if (cancelled || !d?.ok) return;
+          if (Array.isArray(d.faces)) setTitleFaces(d.faces);
+          if (Array.isArray(d.noticeFaces)) setNoticeFaces(d.noticeFaces);
         })
         .catch(() => {});
     }, 500);
@@ -1432,7 +1449,14 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [titleFacesKey, titleStyle, showHookBanner, sourceMode]);
+  }, [titleFacesKey, titleStyle, showHookBanner, sourceMode, noticeSpansKey]);
+  const posterNoticeFontPx = useViralPosterFontPx(
+    VIRAL_TITLE_LOOK.noticeLines as unknown as string[],
+    previewFrameW,
+    previewFrameH,
+    VIRAL_TITLE_LOOK.noticeTextWFrac,
+    VIRAL_TITLE_LOOK.noticeFontHFrac
+  );
   const posterBigFontPx = useViralPosterFontPx(
     posterTitleLines,
     previewFrameW,
@@ -1467,6 +1491,18 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
         faces: titleFaces,
         maxBottomFrac: viralTitleMaxBottomFrac(captionYPercent),
       });
+    const noticeTopPx = topPx + smallTextH + previewFrameH * VIRAL_TITLE_LOOK.noticeGapHFrac;
+    // Each notice goes below a face it would cover while it is on screen, as in the render
+    const noticeTopsPx = timeline.notices.map(
+      (_span, i) =>
+        previewFrameH *
+        computeViralBigTitleTopFrac({
+          defaultTopFrac: noticeTopPx / Math.max(1, previewFrameH),
+          textHeightFrac: viralPosterTextHeightPx(1, posterNoticeFontPx) / Math.max(1, previewFrameH),
+          faces: noticeFaces[i] || [],
+          maxBottomFrac: viralTitleMaxBottomFrac(captionYPercent),
+        })
+    );
     return {
       lines: posterTitleLines,
       smallLines: posterSmallLines,
@@ -1474,7 +1510,8 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
       frameW: previewFrameW,
       topPx,
       bigTopPx,
-      noticeTopPx: topPx + smallTextH + previewFrameH * VIRAL_TITLE_LOOK.noticeGapHFrac,
+      noticeTopPx,
+      noticeTopsPx,
     };
   }, [
     clipCuts,
@@ -1487,7 +1524,9 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
     titleStyle,
     posterSmallFontPx,
     posterBigFontPx,
+    posterNoticeFontPx,
     titleFaces,
+    noticeFaces,
     captionYPercent,
   ]);
 
@@ -2208,7 +2247,13 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                     frameH={previewFrameH}
                     maxTextWFrac={VIRAL_TITLE_LOOK.noticeTextWFrac}
                     maxFontHFrac={VIRAL_TITLE_LOOK.noticeFontHFrac}
-                    topPx={posterTitle.noticeTopPx}
+                    topPx={(() => {
+                      // The notice on screen now, or the next one to come, so it is already in place
+                      const spans = posterTitle.timeline.notices;
+                      let idx = spans.findIndex((sp) => captionSec < sp.endSec + 0.05);
+                      if (idx < 0) idx = spans.length - 1;
+                      return posterTitle.noticeTopsPx[idx] ?? posterTitle.noticeTopPx;
+                    })()}
                     visible={posterTitle.timeline.notices.some(
                       (span) => captionSec >= span.startSec && captionSec < span.endSec + 0.05
                     )}
