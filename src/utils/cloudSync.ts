@@ -3298,6 +3298,22 @@ export function buildStagePromptText(
   const fullEntrySec = fixedIntroSec + clip1TimelineSec;
   const totalTargetSec = doc.targetDurationSeconds || 120;
   const effectiveNarratedSec = Math.max(20, totalTargetSec - fullEntrySec - fixedOutroSec);
+  // Where the 8s Official Brand Intro goes: Option A opens the video with it (00:00 - 00:08);
+  // Option B opens with the Clip 1 hook at 00:00 and plays the Intro right after the opening Slogan.
+  const introIsPostSlogan = doc.promptConfig?.UBICACION_INTRO_MARCA === 'INTRO_POST_SLOGAN';
+  const fmtCalibClock = (sec: number) =>
+    `${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(Math.round(sec % 60)).padStart(2, '0')}`;
+  const hookStartClock = introIsPostSlogan ? '00:00' : fmtCalibClock(fixedIntroSec);
+  const voiceEntryCalibSec = introIsPostSlogan ? clip1TimelineSec : fullEntrySec;
+  const buildIntroCalibrationLines = (clip1Label: string, introNote: string) =>
+    introIsPostSlogan
+      ? `  • Clip 1 (${clip1Label}): 00:00 - ${fmtCalibClock(clip1TimelineSec)} (${clip1TimelineSec}s) — THE VIDEO OPENS DIRECTLY WITH THE HOOK, there is NO Intro at 00:00
+  • Narrative Voiceover Entry: Second ${voiceEntryCalibSec} (${fmtCalibClock(voiceEntryCalibSec)}), opening paragraph + Slogan Completo ("...Aquí seguimos sus rastros.")
+  • Official Brand Intro: ${fixedIntroSec}s fixed${introNote}, placed IMMEDIATELY AFTER the opening Slogan Completo (the narration pauses exactly ${fixedIntroSec}s there, no clip is cut)
+  • Body Clips (${clipDurationLabel} each) resume right after that Intro, for ~${effectiveNarratedSec}s of effective narration in total`
+      : `  • Official Brand Intro: 00:00 - 00:08 (${fixedIntroSec}s fixed${introNote})
+  • Clip 1 (${clip1Label}): 00:08 - ${fmtCalibClock(fullEntrySec)} (${clip1TimelineSec}s)
+  • Narrative Voiceover Entry & Body Clips (${clipDurationLabel} each): Second ${fullEntrySec} (${fmtCalibClock(fullEntrySec)}) for ~${effectiveNarratedSec}s of effective narration`;
 
   const hasExplicitMetadataFields = Boolean(
     youtubeVideoTitle || youtubeVideoDescription || youtubeVideoTags
@@ -3474,9 +3490,7 @@ ${
     : ''
 }- ⏱️ Selected Mathematical Calibration:
   • Target Total Project Duration: ~${totalTargetSec} seconds (~${minutesLabel} minutes)
-  • Official Brand Intro: 00:00 - 00:08 (${fixedIntroSec}s fixed)
-  • Clip 1 (Visual Hook without voiceover): 00:08 - 00:${String(fullEntrySec).padStart(2, '0')} (${clip1TimelineSec}s)
-  • Narrative Voiceover Entry & Body Clips (${clipDurationLabel} each): Second ${fullEntrySec} (00:${String(fullEntrySec).padStart(2, '0')}) for ~${effectiveNarratedSec}s of effective narration
+${buildIntroCalibrationLines('Visual Hook without voiceover', '')}
   • Official Brand Outro at closing: Last ${fixedOutroSec} fixed seconds
 ${selectedAudienceQuestions ? `\n💬 SELECTED AUDIENCE COMMENTS & QUESTIONS:\n${selectedAudienceQuestions}\n` : ''}
 ================================================================================
@@ -3503,9 +3517,9 @@ ${parte2Lines.join('\n')}
          ? "How we adapt the reference video's Hook patterns to our documentary"
          : 'How we open our documentary with maximum curiosity in the first seconds'
      }]
-     • Opción 1..N: [Visual/narrative Hook variants (00:08) and central paradox in Spanish]
+     • Opción 1..N: [Visual/narrative Hook variants (${hookStartClock}) and central paradox in Spanish]
    - PARTE 5 — CALIBRACIÓN MATEMÁTICA Y ESCALETA POR ACTOS (~${minutesLabel} MIN):
-     • Resumen de esta parte: [How we map block percentages and pacing to ~${minutesLabel} min with 8s Intro and 8s Outro]
+     • Resumen de esta parte: [How we map block percentages and pacing to ~${minutesLabel} min with the 8s Intro${introIsPostSlogan ? ' placed right after the opening Slogan (NOT at 00:00)' : ' at 00:00'} and the 8s Outro]
      • Opción 1..N: [Mathematical act outlines by percentage (%) and minutes in Spanish]
    - PARTE 6 — CLÍMAX HISTÓRICO, REVELACIÓN Y CIERRE REFLEXIVO:
      • Resumen de esta parte: [Emotional and historical payoff strategy leading into the 8s Outro]
@@ -3567,9 +3581,7 @@ ${chosenHookProp ? `- Selected Opening Hook & Central Paradox (Part 4): ${chosen
         : ''
     }- ⏱️ Video Mathematical Calibration (with 8s Official Brand Intro & Outro):
   • Target Total Project Duration: ~${totalTargetSec} seconds (~${(totalTargetSec / 60).toFixed(1)} min)
-  • Official Brand Intro: 00:00 - 00:08 (${fixedIntroSec}s fixed — no voiceover or background music)
-  • Clip 1 (Visual Hook with On-Screen Text, no voiceover): 00:08 - 00:${String(fullEntrySec).padStart(2, '0')} (${clip1TimelineSec}s)
-  • Narrative Voiceover Entry & Body Clips (${clipDurationLabel} each): Second ${fullEntrySec} (00:${String(fullEntrySec).padStart(2, '0')}) for ~${effectiveNarratedSec}s of effective narration
+${buildIntroCalibrationLines('Visual Hook with On-Screen Text, no voiceover', ' — no voiceover or background music')}
   • Official Brand Outro at closing: Last ${fixedOutroSec} fixed seconds
 ${selectedAudienceQuestions ? `\n💬 SELECTED AUDIENCE COMMENTS & QUESTIONS TO ANSWER IN DEEP RESEARCH:\n${selectedAudienceQuestions}\n` : ''}${
       part1ConclusionsText
@@ -3588,7 +3600,7 @@ Execute an exhaustive Deep Research investigation on the topic, era, location, a
         ? 'using from the marked videos what fits (verified facts from those about our subject, structure ideas from any of them)'
         : 'with original structure and retention design'
     }, and deliver the report in Spanish organized into these 4 clear sections:
-1. MATHEMATICAL & STRUCTURAL BREAKDOWN BY ACTS (~${(totalTargetSec / 60).toFixed(0)} MIN WITH 8S INTRO & 8S OUTRO${hasReferenceVideo ? ' + VIRAL PATTERNS FROM STEP 1' : ''}):
+1. MATHEMATICAL & STRUCTURAL BREAKDOWN BY ACTS (~${(totalTargetSec / 60).toFixed(0)} MIN WITH 8S INTRO${introIsPostSlogan ? ' RIGHT AFTER THE OPENING SLOGAN (NOT AT 00:00)' : ' AT 00:00'} & 8S OUTRO${hasReferenceVideo ? ' + VIRAL PATTERNS FROM STEP 1' : ''}):
    - Exact map of narrative acts with percentage (%), exact time range, turning points, and retention micro-hooks${hasReferenceVideo ? ' calibrated to the Step 1 reference blueprint' : ''}.
 2. CHRONOLOGICAL HISTORICAL ACCOUNT, UNUSUAL FACTS & DOCUMENTED CONTRADICTIONS:
    - Deep act-by-act historical account with exact dates, verified numbers, laws, contracts, period prices, sensory details (smells, sounds, textures, architecture), and historical answers to audience questions.
