@@ -3997,6 +3997,20 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   // Navigate the Gemini tab by URL (full load) and RESUME the same order after the page loads.
   // The order is persisted in chrome.storage.session so it survives the reload and service-worker restarts.
+  // With the Mac lid closed or the screen locked, Chrome only repaints the selected tab: Gemini never
+  // finishes an answer in a background tab. Put the working Gemini tab in front, but only when nobody
+  // is at the Mac, so it never steals the screen from the user.
+  if (message.type === 'GEMINI_FOCUS_TAB_IF_UNATTENDED' && sender?.tab?.id) {
+    const focusTabId = sender.tab.id;
+    fetch('http://localhost:4200/api/extension/mac-unattended', { cache: 'no-store' })
+      .then((r) => r.json())
+      .then((d) => {
+        if (d && d.unattended) chrome.tabs.update(focusTabId, { active: true }).catch(() => {});
+      })
+      .catch(() => {});
+    return false;
+  }
+
   if (message.type === 'GEMINI_NAVIGATE_AND_RESUME' && sender?.tab?.id) {
     const navTabId = sender.tab.id;
     const navUrl = String(message.url || '');
