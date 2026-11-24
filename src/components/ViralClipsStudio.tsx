@@ -36,6 +36,9 @@ import {
   splitViralTitleLines,
   buildViralSmallTitleLines,
   computeViralTitleTimeline,
+  viralTitleMaxBottomFrac,
+  computeViralBigTitleTopFrac,
+  type ViralFaceBox,
 } from '../utils/viralTitle';
 import { sendCommandToWebBridge } from '../utils/webStudioBridge';
 import {
@@ -1386,6 +1389,57 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
   );
   const previewFrameW = (previewFrameH * 9) / 16;
   const posterSmallLines = useMemo(() => buildViralSmallTitleLines(posterTitleLines), [posterTitleLines]);
+  // Faces under the big title (found by the Mac in the clip's opening seconds): the title starts below them
+  const [titleFaces, setTitleFaces] = useState<ViralFaceBox[]>([]);
+  const titleFacesKey = selectedClip
+    ? [
+        selectedDocId,
+        sourceLocalPath,
+        selectedClip.id,
+        selectedClip.startSec,
+        selectedClip.endSec,
+        JSON.stringify(selectedClip.segments || []),
+        selectedClip.reframeMode,
+        selectedClip.focusX,
+      ].join('|')
+    : '';
+  useEffect(() => {
+    setTitleFaces([]);
+    if (!selectedClip || titleStyle !== 'poster_gold' || !showHookBanner) return;
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      fetch(viralApi('/api/viral-clips/title-faces'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          docId: sourceMode === 'doc' ? selectedDocId : '',
+          sourceVideoPath: sourceLocalPath,
+          startSec: selectedClip.startSec,
+          endSec: selectedClip.endSec,
+          segments: selectedClip.segments,
+          words: selectedClip.words,
+          reframeMode: selectedClip.reframeMode,
+          focusX: selectedClip.focusX,
+        }),
+      })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          if (!cancelled && d?.ok && Array.isArray(d.faces)) setTitleFaces(d.faces);
+        })
+        .catch(() => {});
+    }, 500);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [titleFacesKey, titleStyle, showHookBanner, sourceMode]);
+  const posterBigFontPx = useViralPosterFontPx(
+    posterTitleLines,
+    previewFrameW,
+    previewFrameH,
+    VIRAL_TITLE_LOOK.bigTextWFrac,
+    VIRAL_TITLE_LOOK.bigFontHFrac
+  );
   const posterSmallFontPx = useViralPosterFontPx(
     posterSmallLines,
     previewFrameW,
@@ -1404,12 +1458,22 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
       titleStyle === 'poster_gold' && timeline.small
         ? viralPosterTextHeightPx(posterSmallLines.length, posterSmallFontPx)
         : 0;
+    // The big title goes below a face it would cover, as in the render
+    const bigTopPx =
+      previewFrameH *
+      computeViralBigTitleTopFrac({
+        defaultTopFrac: topPx / Math.max(1, previewFrameH),
+        textHeightFrac: viralPosterTextHeightPx(posterTitleLines.length, posterBigFontPx) / Math.max(1, previewFrameH),
+        faces: titleFaces,
+        maxBottomFrac: viralTitleMaxBottomFrac(captionYPercent),
+      });
     return {
       lines: posterTitleLines,
       smallLines: posterSmallLines,
       timeline,
       frameW: previewFrameW,
       topPx,
+      bigTopPx,
       noticeTopPx: topPx + smallTextH + previewFrameH * VIRAL_TITLE_LOOK.noticeGapHFrac,
     };
   }, [
@@ -1422,6 +1486,9 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
     look916?.hookBannerTopPct,
     titleStyle,
     posterSmallFontPx,
+    posterBigFontPx,
+    titleFaces,
+    captionYPercent,
   ]);
 
   // Exports ("Guardar Clip ##"): each click queues a render on the Mac; several can run at once (the Mac
@@ -2119,7 +2186,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                     frameH={previewFrameH}
                     maxTextWFrac={VIRAL_TITLE_LOOK.bigTextWFrac}
                     maxFontHFrac={VIRAL_TITLE_LOOK.bigFontHFrac}
-                    topPx={posterTitle.topPx}
+                    topPx={posterTitle.bigTopPx}
                     visible={captionSec < posterTitle.timeline.big.endSec - 0.15}
                   />
                 )}
