@@ -264,6 +264,10 @@ async function pushViralPublishedMarksToGitHub(docId: string, newMarks: ViralPub
   }
 }
 
+// Fixed closing paragraph of the pinned comment on Facebook (the documentary's link, when given, goes after it)
+const VIRAL_FACEBOOK_COMMENT_CLOSING =
+  '¡Para ver el documental completo, visita nuestro canal de YouTube, búscanos como Huellas de la Humanidad!';
+
 /** The pinned comment without any line about YouTube or the link (older lists carry "…(enlace en la bio)"). */
 function viralCommentQuestionOnly(comment: string): string {
   const sentences = String(comment || '')
@@ -278,7 +282,14 @@ function buildViralPinnedComment(comment: string, place: ViralLinkPlace, youtube
   const question = viralCommentQuestionOnly(comment) || String(comment || '').trim();
   if (place !== 'comments') return question;
   const link = String(youtubeUrl || '').trim();
-  return [question, link ? `👉 Documental completo en YouTube: ${link}` : '👉 El documental completo está en nuestro canal de YouTube.']
+  return [question, VIRAL_FACEBOOK_COMMENT_CLOSING, link ? `👉 ${link}` : '']
+    .filter(Boolean)
+    .join('\n\n');
+}
+
+/** Description as it is copied: the clip's text, the fixed closing paragraph of the network and the 5 hashtags. */
+function buildViralDescription(caption: string, hashtags: string, place: ViralLinkPlace): string {
+  return [String(caption || '').trim(), VIRAL_DESCRIPTION_CTA[place], limitToFiveHashtags(hashtags)]
     .filter(Boolean)
     .join('\n\n');
 }
@@ -514,6 +525,8 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
     bestClipSec: null,
   });
   const [coverLoading, setCoverLoading] = useState<boolean>(false);
+  // Description and comment are shown as they will be copied; their editable parts open on demand
+  const [editViralTexts, setEditViralTexts] = useState<boolean>(false);
   // "VIDEO COMPLETO EN YOUTUBE" for 8 s in the middle of the clip
   const [showYoutubeNotice, setShowYoutubeNotice] = useState<boolean>(() => {
     try {
@@ -2726,43 +2739,28 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                     la marca se guarda en GitHub y la Mac la recoge al encenderse. Los cambios de texto no se guardan.
                   </p>
                 )}
+                {/* Network being posted to: it decides where the text says the link is */}
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-bold text-slate-300">🔗 Red donde lo publicas:</span>
+                  <select
+                    value={linkPlace}
+                    onChange={(e) => setLinkPlace(e.target.value === 'comments' ? 'comments' : 'bio')}
+                    className="bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-[11px] font-semibold text-amber-100"
+                    title="Cambia el texto final de la descripción y lo que se copia como comentario"
+                  >
+                    <option value="bio">TikTok / Instagram (enlace en la biografía)</option>
+                    <option value="comments">Facebook (enlace en los comentarios)</option>
+                  </select>
+                </div>
+
+                {/* Description: one box with the text exactly as it is copied */}
                 <div className="space-y-1">
-                  {/* Network being posted to: it decides where the text says the link is */}
-                  <div className="flex items-center justify-between gap-2 pb-1">
-                    <span className="text-[11px] font-bold text-slate-300">🔗 Red donde lo publicas:</span>
-                    <select
-                      value={linkPlace}
-                      onChange={(e) => setLinkPlace(e.target.value === 'comments' ? 'comments' : 'bio')}
-                      className="bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-[11px] font-semibold text-amber-100"
-                      title="Cambia el texto final de la descripción y lo que se copia como comentario"
-                    >
-                      <option value="bio">TikTok / Instagram (enlace en la biografía)</option>
-                      <option value="comments">Facebook (enlace en los comentarios)</option>
-                    </select>
-                  </div>
-                  {linkPlace === 'comments' && (
-                    <input
-                      type="url"
-                      value={docYoutubeUrl}
-                      onChange={(e) => setDocYoutubeUrl(e.target.value)}
-                      placeholder="Enlace del documental en YouTube (va en el comentario)"
-                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-sky-300"
-                    />
-                  )}
                   <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-bold text-slate-300">
-                      Descripción para Reels / Shorts / TikTok / Facebook:
-                    </span>
+                    <span className="text-[11px] font-bold text-slate-300">📝 Descripción:</span>
                     <button
                       type="button"
                       onClick={() =>
-                        copyText(
-                          'caption',
-                          // The title is not part of the description: only the description and its 5 hashtags
-                          [String(selectedClip.socialCaption || '').trim(), VIRAL_DESCRIPTION_CTA[linkPlace], limitToFiveHashtags(selectedClip.hashtags)]
-                            .filter(Boolean)
-                            .join('\n\n')
-                        )
+                        copyText('caption', buildViralDescription(selectedClip.socialCaption, selectedClip.hashtags, linkPlace))
                       }
                       className="text-[11px] text-amber-300 hover:text-amber-200 flex items-center gap-1 cursor-pointer"
                     >
@@ -2771,34 +2769,15 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                       ) : (
                         <Copy className="w-3 h-3" />
                       )}
-                      <span>{copiedField === 'caption' ? '¡Copiado!' : 'Copiar descripción + hashtags'}</span>
+                      <span>{copiedField === 'caption' ? '¡Copiado!' : 'Copiar descripción'}</span>
                     </button>
                   </div>
-                  <textarea
-                    rows={3}
-                    value={selectedClip.socialCaption}
-                    onChange={(e) => updateSelectedClip({ socialCaption: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-200 outline-none"
-                  />
-                  <p className="text-[11px] text-slate-400 italic px-1">
-                    + párrafo final fijo: {VIRAL_DESCRIPTION_CTA[linkPlace]}
+                  <p className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-200 break-words whitespace-pre-line">
+                    {buildViralDescription(selectedClip.socialCaption, selectedClip.hashtags, linkPlace)}
                   </p>
                 </div>
 
-                <div className="space-y-1">
-                  <span className="text-[11px] font-bold text-slate-300 block">
-                    Hashtags (5): {limitToFiveHashtags(selectedClip.hashtags).split(' ').filter(Boolean).length}/5
-                  </span>
-                  <input
-                    type="text"
-                    value={selectedClip.hashtags}
-                    onChange={(e) => updateSelectedClip({ hashtags: e.target.value })}
-                    onBlur={(e) => updateSelectedClip({ hashtags: limitToFiveHashtags(e.target.value) })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-sky-300 font-mono"
-                  />
-                </div>
-
-                {/* Comment to pin under the post (copied on its own) */}
+                {/* Comment to pin under the post: one box with the text exactly as it is copied */}
                 <div className="space-y-1">
                   <div className="flex items-center justify-between">
                     <span className="text-[11px] font-bold text-slate-300">📌 Comentario fijado:</span>
@@ -2817,25 +2796,57 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                       <span>{copiedField === 'pinned' ? '¡Copiado!' : 'Copiar comentario'}</span>
                     </button>
                   </div>
-                  <textarea
-                    rows={2}
-                    value={selectedClip.pinnedComment || ''}
-                    onChange={(e) => updateSelectedClip({ pinnedComment: e.target.value })}
-                    placeholder="Pregunta para fijar como primer comentario"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-200 outline-none"
-                  />
-                  {/* Exactly what the button copies (on Facebook: the question plus the documentary's link) */}
-                  {linkPlace === 'comments' && (
-                    <div className="space-y-0.5">
-                      <span className="text-[11px] text-slate-400 italic px-1">Así se copia para Facebook:</span>
-                      <p className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-300 break-words whitespace-pre-line">
-                        {buildViralPinnedComment(String(selectedClip.pinnedComment || ''), linkPlace, docYoutubeUrl)}
-                      </p>
-                      {!docYoutubeUrl.trim() && (
-                        <p className="text-[11px] text-amber-300/90 px-1">
-                          Falta pegar arriba el enlace del documental en YouTube: sin él, el comentario no lleva enlace.
-                        </p>
-                      )}
+                  <p className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-200 break-words whitespace-pre-line">
+                    {buildViralPinnedComment(String(selectedClip.pinnedComment || ''), linkPlace, docYoutubeUrl) || '—'}
+                  </p>
+                </div>
+
+                {/* The parts that can be changed by hand, out of the way until they are needed */}
+                <div className="space-y-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setEditViralTexts((v) => !v)}
+                    className="text-[11px] text-slate-400 hover:text-slate-200 cursor-pointer"
+                  >
+                    {editViralTexts ? '▾ Ocultar edición de textos' : '▸ Editar textos de este clip'}
+                  </button>
+                  {editViralTexts && (
+                    <div className="space-y-1.5 rounded-xl border border-slate-800 p-2">
+                      <span className="text-[11px] font-bold text-slate-300 block">Texto de la descripción:</span>
+                      <textarea
+                        rows={3}
+                        value={selectedClip.socialCaption}
+                        onChange={(e) => updateSelectedClip({ socialCaption: e.target.value })}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-200 outline-none"
+                      />
+                      <span className="text-[11px] font-bold text-slate-300 block">
+                        Hashtags (5): {limitToFiveHashtags(selectedClip.hashtags).split(' ').filter(Boolean).length}/5
+                      </span>
+                      <input
+                        type="text"
+                        value={selectedClip.hashtags}
+                        onChange={(e) => updateSelectedClip({ hashtags: e.target.value })}
+                        onBlur={(e) => updateSelectedClip({ hashtags: limitToFiveHashtags(e.target.value) })}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-sky-300 font-mono"
+                      />
+                      <span className="text-[11px] font-bold text-slate-300 block">Pregunta del comentario fijado:</span>
+                      <textarea
+                        rows={2}
+                        value={selectedClip.pinnedComment || ''}
+                        onChange={(e) => updateSelectedClip({ pinnedComment: e.target.value })}
+                        placeholder="Pregunta para fijar como primer comentario"
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-200 outline-none"
+                      />
+                      <span className="text-[11px] font-bold text-slate-300 block">
+                        Enlace del documental en YouTube (opcional, se añade al comentario de Facebook):
+                      </span>
+                      <input
+                        type="url"
+                        value={docYoutubeUrl}
+                        onChange={(e) => setDocYoutubeUrl(e.target.value)}
+                        placeholder="https://youtu.be/…"
+                        className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-sky-300"
+                      />
                     </div>
                   )}
                 </div>
