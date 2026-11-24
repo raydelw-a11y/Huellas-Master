@@ -132,8 +132,32 @@ const isRemoteViralDevice =
   typeof window !== 'undefined' && !/^(localhost|127\.0\.0\.1|\[::1\])$/i.test(window.location.hostname);
 
 /** Closing paragraph of every clip description (its own paragraph, after the description). */
-const VIRAL_DESCRIPTION_CTA =
-  '¡Para ver el documental completo, visita nuestro canal de YouTube, el enlace está en la biografía!';
+// Where the link to the full documentary is, which depends on the network the clip is posted on:
+// TikTok and Instagram only allow a link in the profile; on Facebook it goes in the pinned comment.
+type ViralLinkPlace = 'bio' | 'comments';
+const VIRAL_DESCRIPTION_CTA: Record<ViralLinkPlace, string> = {
+  bio: '¡Para ver el documental completo, visita nuestro canal de YouTube, el enlace está en la biografía!',
+  comments: '¡Para ver el documental completo, visita nuestro canal de YouTube, el enlace está en los comentarios!',
+};
+
+/** The pinned comment without any line about YouTube or the link (older lists carry "…(enlace en la bio)"). */
+function viralCommentQuestionOnly(comment: string): string {
+  const sentences = String(comment || '')
+    .trim()
+    .split(/(?<=[.!?…])\s+/)
+    .filter((s) => s && !/youtube|enlace|\bbio\b|biograf[ií]a|documental completo|video completo/i.test(s));
+  return sentences.join(' ').trim();
+}
+
+/** Pinned comment as it is copied: the question alone, plus the link line on Facebook. */
+function buildViralPinnedComment(comment: string, place: ViralLinkPlace, youtubeUrl: string): string {
+  const question = viralCommentQuestionOnly(comment) || String(comment || '').trim();
+  if (place !== 'comments') return question;
+  const link = String(youtubeUrl || '').trim();
+  return [question, link ? `👉 Documental completo en YouTube: ${link}` : '👉 El documental completo está en nuestro canal de YouTube.']
+    .filter(Boolean)
+    .join('\n\n');
+}
 
 /** Each clip's description carries exactly 5 hashtags (extra ones are dropped, duplicates removed). */
 function limitToFiveHashtags(raw: string): string {
@@ -334,6 +358,20 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
       return 'poster_gold';
     }
   });
+  // Where the link to the full documentary is for the network being posted to, and the link itself
+  const [linkPlace, setLinkPlace] = useState<ViralLinkPlace>(() => {
+    try {
+      return localStorage.getItem('huellas_viral_link_place') === 'comments' ? 'comments' : 'bio';
+    } catch {
+      return 'bio';
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem('huellas_viral_link_place', linkPlace);
+    } catch {}
+  }, [linkPlace]);
+  const [docYoutubeUrl, setDocYoutubeUrl] = useState<string>('');
   // "VIDEO COMPLETO EN YOUTUBE" for 8 s in the middle of the clip
   const [showYoutubeNotice, setShowYoutubeNotice] = useState<boolean>(() => {
     try {
@@ -577,6 +615,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
           if (!data?.ok) throw new Error('not ready');
           const saved = Array.isArray(data.clips) ? data.clips : [];
           viralClipsDocIdRef.current = selectedDocId;
+          setDocYoutubeUrl(String(data.youtubeUrl || ''));
           if (data.pendingGeminiAnswer?.text && Number(data.pendingGeminiAnswer.at) > appliedGeminiAnswerAtRef.current) {
             pendingGeminiAnswerRef.current = {
               docId: selectedDocId,
@@ -615,11 +654,12 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
           docId,
           clips: viralClips,
           selectedClipId,
+          youtubeUrl: docYoutubeUrl,
           clearPendingGeminiAt: appliedGeminiAnswerAtRef.current || undefined,
         }),
       }).catch(() => {});
     }, 800);
-  }, [viralClips, selectedClipId]);
+  }, [viralClips, selectedClipId, docYoutubeUrl]);
 
   // Upload Local Video Handler
   const handleUploadLocalVideo = async (file: File) => {
@@ -1832,7 +1872,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                     : '';
                   const webPrompt = `Act as OpusClip Pro and an expert viral short-form video editor. From the following timestamped Spanish transcript of "${
                     (ctxDoc?.publishTitle as string) || sourceTitle
-                  }",${docContextBlock} ${desiredClipCount > 0 ? `select the ${desiredClipCount} most viral standalone clips` : 'decide yourself how many standalone clips this transcript genuinely supports with strong viral potential (at most about one per 75 seconds of narration, so a longer documentary can give more, never fewer than 3, and never a weak one just to reach a number), and select them'}, each lasting between ${minDur}s and ${maxDur}s IN TOTAL. CLIP STRUCTURE: a clip is built from 1 to 4 pieces ("segments") of the transcript, ALWAYS in chronological order (never a flash-forward, hook teaser or any later moment placed before an earlier one). Use several pieces only when cutting out filler, a tangent or a slow passage makes the clip stronger: skip what is in between and keep the best lines. Every piece starts at the beginning of a phrase and ends at the end of a phrase (never in the middle of a sentence), is at least 4 seconds long, and the pieces together must read as one clear, self-contained story. The first piece opens with the strongest possible line, because the first 3 seconds decide whether people keep watching. If the moment already works as one continuous stretch, use a single piece. The clip length is the SUM of its pieces. CRITICAL OUTPUT LANGUAGE REQUIREMENT: Return ONLY a valid JSON object (no markdown commentary) where all audience-facing text fields ("title", "viralityReason", "hookBannerText", "socialCaption", "hashtags", "pinnedComment") are written in Neutral Spanish: {"clips":[{"title":"...","viralityScore":96,"viralityReason":"...","segments":[{"startSec":120.5,"endSec":138.2},{"startSec":146.0,"endSec":171.4}],"hookBannerText":"...","socialCaption":"...","hashtags":"#Uno #Dos #Tres #Cuatro #Cinco","pinnedComment":"..."}]}. EVERY clip has its OWN publication text, written for that clip only, for a COLD VIEWER who has never seen the channel or the documentary and scrolls past in 2 seconds: every text must say WHERE and WHEN (or WHO) it happens and why it matters, never vague abstractions like "El lujo mortal" or "La gran paradoja", never pronouns or references that only make sense inside the documentary ("él", "esto", "la fortaleza" without naming it). "hookBannerText" is the on-screen title shown during the first 8 seconds (UPPERCASE, max 55 characters): it names the concrete place/era or protagonist AND the intrigue, e.g. "PARÍS, AÑO 1200: EL LUJO QUE ENVENENABA A LOS REYES". "title" is a clear headline for that clip (max 70 characters), also with place/era or protagonist, used only as the clip name and NEVER repeated inside the description. "socialCaption" is 2 or 3 short sentences in this order: (1) the context in one line (where, when, who, e.g. "En el París del año 1200, dentro de la fortaleza del Louvre…"), (2) the specific fact or revelation this clip shows, (3) an open question or curiosity gap about what the full documentary explains, so the viewer wants to watch it; it must not start with or contain the title, and it must NOT include links or invitations like "mira el video completo" or "enlace en la bio" (a fixed closing paragraph with that invitation is added automatically). "hashtags" holds EXACTLY 5 hashtags specific to that clip (no generic repeats across all clips, never more than 5, never fewer), and EVERY hashtag is made of EXACTLY TWO Spanish words joined in CamelCase with no spaces or accents (e.g. #HistoriaMedieval #EdadMedia #DatosCuriosos), never a single-word hashtag like #Historia or #Reels. "pinnedComment" is the comment the channel pins under that clip: 1 or 2 short sentences starting with one emoji, with a concrete, easy question about the clip's topic that makes people want to answer (an opinion, a choice, or "¿sabías que…?"), plus a short line saying the full documentary is on the YouTube channel (link in bio); no hashtags, different for every clip. TIMESTAMPED TRANSCRIPT: ${formattedTranscript}`;
+                  }",${docContextBlock} ${desiredClipCount > 0 ? `select the ${desiredClipCount} most viral standalone clips` : 'decide yourself how many standalone clips this transcript genuinely supports with strong viral potential (at most about one per 75 seconds of narration, so a longer documentary can give more, never fewer than 3, and never a weak one just to reach a number), and select them'}, each lasting between ${minDur}s and ${maxDur}s IN TOTAL. CLIP STRUCTURE: a clip is built from 1 to 4 pieces ("segments") of the transcript, ALWAYS in chronological order (never a flash-forward, hook teaser or any later moment placed before an earlier one). Use several pieces only when cutting out filler, a tangent or a slow passage makes the clip stronger: skip what is in between and keep the best lines. Every piece starts at the beginning of a phrase and ends at the end of a phrase (never in the middle of a sentence), is at least 4 seconds long, and the pieces together must read as one clear, self-contained story. The first piece opens with the strongest possible line, because the first 3 seconds decide whether people keep watching. If the moment already works as one continuous stretch, use a single piece. The clip length is the SUM of its pieces. CRITICAL OUTPUT LANGUAGE REQUIREMENT: Return ONLY a valid JSON object (no markdown commentary) where all audience-facing text fields ("title", "viralityReason", "hookBannerText", "socialCaption", "hashtags", "pinnedComment") are written in Neutral Spanish: {"clips":[{"title":"...","viralityScore":96,"viralityReason":"...","segments":[{"startSec":120.5,"endSec":138.2},{"startSec":146.0,"endSec":171.4}],"hookBannerText":"...","socialCaption":"...","hashtags":"#Uno #Dos #Tres #Cuatro #Cinco","pinnedComment":"..."}]}. EVERY clip has its OWN publication text, written for that clip only, for a COLD VIEWER who has never seen the channel or the documentary and scrolls past in 2 seconds: every text must say WHERE and WHEN (or WHO) it happens and why it matters, never vague abstractions like "El lujo mortal" or "La gran paradoja", never pronouns or references that only make sense inside the documentary ("él", "esto", "la fortaleza" without naming it). "hookBannerText" is the on-screen title shown during the first 8 seconds (UPPERCASE, max 55 characters): it names the concrete place/era or protagonist AND the intrigue, e.g. "PARÍS, AÑO 1200: EL LUJO QUE ENVENENABA A LOS REYES". "title" is a clear headline for that clip (max 70 characters), also with place/era or protagonist, used only as the clip name and NEVER repeated inside the description. "socialCaption" is 2 or 3 short sentences in this order: (1) the context in one line (where, when, who, e.g. "En el París del año 1200, dentro de la fortaleza del Louvre…"), (2) the specific fact or revelation this clip shows, (3) an open question or curiosity gap about what the full documentary explains, so the viewer wants to watch it; it must not start with or contain the title, and it must NOT include links or invitations like "mira el video completo" or "enlace en la bio" (a fixed closing paragraph with that invitation is added automatically). "hashtags" holds EXACTLY 5 hashtags specific to that clip (no generic repeats across all clips, never more than 5, never fewer), and EVERY hashtag is made of EXACTLY TWO Spanish words joined in CamelCase with no spaces or accents (e.g. #HistoriaMedieval #EdadMedia #DatosCuriosos), never a single-word hashtag like #Historia or #Reels. "pinnedComment" is the comment the channel pins under that clip: 1 or 2 short sentences starting with one emoji, with a concrete, easy question about the clip's topic that makes people want to answer (an opinion, a choice, or "¿sabías que…?"), and nothing else: it must NOT mention YouTube, the channel, the full documentary or any link (the page adds that where it belongs); no hashtags, different for every clip. TIMESTAMPED TRANSCRIPT: ${formattedTranscript}`;
                   // A documentary's order goes to ITS Gemini chat (same conversation as its stages, so Gemini
                   // knows the documentary); other sources (MP4, YouTube link) use a new chat. The answer comes back
                   // to this screen (VIRAL_CLIPS_GEMINI_STAGE), never into a stage.
@@ -2449,9 +2489,31 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                 </label>
 
                 <div className="space-y-1">
+                  {/* Network being posted to: it decides where the text says the link is */}
+                  <div className="flex items-center justify-between gap-2 pb-1">
+                    <span className="text-[11px] font-bold text-slate-300">🔗 Red donde lo publicas:</span>
+                    <select
+                      value={linkPlace}
+                      onChange={(e) => setLinkPlace(e.target.value === 'comments' ? 'comments' : 'bio')}
+                      className="bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-[11px] font-semibold text-amber-100"
+                      title="Cambia el texto final de la descripción y lo que se copia como comentario"
+                    >
+                      <option value="bio">TikTok / Instagram (enlace en la biografía)</option>
+                      <option value="comments">Facebook (enlace en los comentarios)</option>
+                    </select>
+                  </div>
+                  {linkPlace === 'comments' && (
+                    <input
+                      type="url"
+                      value={docYoutubeUrl}
+                      onChange={(e) => setDocYoutubeUrl(e.target.value)}
+                      placeholder="Enlace del documental en YouTube (va en el comentario)"
+                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-sky-300"
+                    />
+                  )}
                   <div className="flex items-center justify-between">
                     <span className="text-[11px] font-bold text-slate-300">
-                      Descripción para Reels / Shorts / TikTok:
+                      Descripción para Reels / Shorts / TikTok / Facebook:
                     </span>
                     <button
                       type="button"
@@ -2459,7 +2521,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                         copyText(
                           'caption',
                           // The title is not part of the description: only the description and its 5 hashtags
-                          [String(selectedClip.socialCaption || '').trim(), VIRAL_DESCRIPTION_CTA, limitToFiveHashtags(selectedClip.hashtags)]
+                          [String(selectedClip.socialCaption || '').trim(), VIRAL_DESCRIPTION_CTA[linkPlace], limitToFiveHashtags(selectedClip.hashtags)]
                             .filter(Boolean)
                             .join('\n\n')
                         )
@@ -2481,7 +2543,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-200 outline-none"
                   />
                   <p className="text-[11px] text-slate-400 italic px-1">
-                    + párrafo final fijo: {VIRAL_DESCRIPTION_CTA}
+                    + párrafo final fijo: {VIRAL_DESCRIPTION_CTA[linkPlace]}
                   </p>
                 </div>
 
@@ -2504,7 +2566,12 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                     <span className="text-[11px] font-bold text-slate-300">📌 Comentario fijado:</span>
                     <button
                       type="button"
-                      onClick={() => copyText('pinned', String(selectedClip.pinnedComment || ''))}
+                      onClick={() =>
+                        copyText(
+                          'pinned',
+                          buildViralPinnedComment(String(selectedClip.pinnedComment || ''), linkPlace, docYoutubeUrl)
+                        )
+                      }
                       disabled={!selectedClip.pinnedComment}
                       className="text-[11px] text-amber-300 hover:text-amber-200 flex items-center gap-1 cursor-pointer disabled:opacity-40"
                     >
@@ -2519,6 +2586,11 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                     placeholder="Pregunta para fijar como primer comentario"
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-200 outline-none"
                   />
+                  <p className="text-[11px] text-slate-400 italic px-1">
+                    {linkPlace === 'comments'
+                      ? 'Al copiar: solo la pregunta + el enlace del documental en YouTube.'
+                      : 'Al copiar: solo la pregunta, sin mencionar YouTube (ya va en el video y en la descripción).'}
+                  </p>
                 </div>
 
                 {/* Posted or not: marked by hand after publishing the clip */}
