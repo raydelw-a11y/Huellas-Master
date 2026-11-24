@@ -2553,9 +2553,11 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
             </div>
 
             {/* RIGHT 5 COLS: Virality Score Breakdown + Social Copy + Render & Publish to Instagram (Reel) */}
-            <div className="lg:col-span-5 space-y-3.5">
+            {/* On a phone this column dissolves into the page's single column, so its first panel can go
+                above everything (clip list and preview included) */}
+            <div className="contents lg:block lg:col-span-5 lg:space-y-3.5">
               {/* Description, comments and "published" mark: first, it is what gets copied when posting */}
-              <div className="bg-[#14110d] border border-amber-500/25 rounded-2xl p-4 space-y-3 text-xs">
+              <div className="order-first lg:order-none bg-[#14110d] border border-amber-500/25 rounded-2xl p-4 space-y-3 text-xs">
                 <div className="space-y-1">
                   {/* Network being posted to: it decides where the text says the link is */}
                   <div className="flex items-center justify-between gap-2 pb-1">
