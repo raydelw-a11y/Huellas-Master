@@ -154,7 +154,7 @@ const VIRAL_DESCRIPTION_CTA: Record<ViralLinkPlace, string> = {
 const VIRAL_CHANNEL_COMMENT: Record<ViralLinkPlace, string> = {
   bio: 'Para ver nuestros documentales en formato horizontal panorámico, estamos en YouTube, el enlace en la biografía. ¡Qué los disfrutes! 🙏',
   comments:
-    'Para ver nuestros documentales en formato horizontal panorámico, búscanos en YouTube como Huellas de la Humanidad. ¡Qué los disfrutes! 👉 https://youtube.com/@huellas_de_la_humanidad',
+    'Para ver nuestros documentales en formato horizontal panorámico, estamos en YouTube. ¡Qué los disfrutes! 👉 https://youtube.com/@huellas_de_la_humanidad',
 };
 
 // Third comment, for Facebook only (the only one of the three networks where a link in a comment works)
