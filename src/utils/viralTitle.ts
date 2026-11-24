@@ -190,3 +190,74 @@ export function computeViralBigTitleTopFrac(opts: {
   }
   return top;
 }
+
+// ---------------------------------------------------------------------------
+// Cover: the clip's very last frame is a still from the clip with the big title on it (no captions, no
+// notice), so it can be picked as the cover on any network. The page chooses the frame; it can be changed.
+// ---------------------------------------------------------------------------
+
+/** On the cover the title never reaches below the middle of the picture. */
+export const VIRAL_COVER_MAX_BOTTOM_FRAC = 0.5;
+
+/** Clip seconds offered as cover frames: twelve, spread over the clip (never its very first or last instant). */
+export function viralCoverCandidateTimes(totalDurSec: number): number[] {
+  const total = Math.max(0, Number(totalDurSec) || 0);
+  if (total < 1) return [];
+  const count = 12;
+  return Array.from({ length: count }, (_v, i) => Number((total * (0.04 + (0.92 * i) / (count - 1))).toFixed(2)));
+}
+
+/** Rough height of the big title (fraction of the frame height), from its lines alone. */
+export function estimateViralBigTitleHeightFrac(lines: string[]): number {
+  if (lines.length === 0) return 0;
+  const widest = Math.max(...lines.map((l) => l.replace('|', ' ').length));
+  // League Gothic capitals: about 0.31 font sizes wide each; the frame is 9:16
+  const fontFrac = Math.min(
+    VIRAL_TITLE_LOOK.bigFontHFrac,
+    (VIRAL_TITLE_LOOK.bigTextWFrac * 0.5625) / Math.max(1, widest * 0.31)
+  );
+  return ((lines.length - 1) * VIRAL_TITLE_LOOK.lineStep + 0.6) * fontFrac;
+}
+
+/** Top of the title on the cover: its usual place, or below a face — but always in the upper half. */
+export function computeViralCoverTitleTopFrac(opts: {
+  defaultTopFrac: number;
+  textHeightFrac: number;
+  faces: ViralFaceBox[];
+}): number {
+  return computeViralBigTitleTopFrac({ ...opts, maxBottomFrac: VIRAL_COVER_MAX_BOTTOM_FRAC });
+}
+
+/**
+ * How good a frame is as a cover: a big, centred face; a sharp picture (`sharpNorm` is its sharpness
+ * relative to the sharpest candidate, 0–1); neither too dark nor burnt; and room for the title in the upper
+ * half without it landing on a face.
+ */
+export function scoreViralCoverFrame(opts: {
+  faces: ViralFaceBox[];
+  sharpNorm: number;
+  luma: number;
+  defaultTopFrac: number;
+  textHeightFrac: number;
+}): number {
+  const faces = (opts.faces || []).filter((f) => f && f.h >= 0.05);
+  let score = 0.7 * Math.max(0, Math.min(1, opts.sharpNorm));
+  if (faces.length > 0) {
+    const main = faces.reduce((a, b) => (b.h > a.h ? b : a));
+    score += Math.min(1, main.h / 0.28);
+    score += 0.3 * Math.max(0, 1 - Math.abs(main.x + main.w / 2 - 0.5) * 2.4);
+  }
+  if (opts.luma < 0.16) score -= 0.6;
+  else if (opts.luma < 0.25) score -= 0.25;
+  else if (opts.luma > 0.88) score -= 0.3;
+  if (opts.textHeightFrac > 0) {
+    const top = computeViralCoverTitleTopFrac({
+      defaultTopFrac: opts.defaultTopFrac,
+      textHeightFrac: opts.textHeightFrac,
+      faces: opts.faces,
+    });
+    const covered = faces.some((f) => f.y < top + opts.textHeightFrac && f.y + f.h > top);
+    if (covered) score -= 1;
+  }
+  return Number(score.toFixed(3));
+}

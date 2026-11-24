@@ -1,7 +1,8 @@
-// Viral Clips — where the faces are in the opening seconds of a clip, so the big title can start below them.
+// Viral Clips — what is in a few frames of a clip: where the faces are (so the big title and the YouTube
+// notice can keep off them) and how sharp and bright each frame is (to pick the clip's cover frame).
 // Faces are found with the Mac's own detector (Vision framework) through a tiny Swift program that is
-// compiled once and kept next to the viral clips' data. If Swift or the detector is not available, no faces
-// are reported and the title simply stays where it always is.
+// compiled once and kept next to the viral clips' data. If Swift or the detector is not available, nothing is
+// reported and the title simply stays where it always is.
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
@@ -14,11 +15,37 @@ import Vision
 import ImageIO
 import CoreGraphics
 
-// Prints, for every image path given, the faces found in it: boxes as fractions of the image,
-// measured from the top-left corner.
+// Prints, for every image path given: the faces found in it (boxes as fractions of the image, measured
+// from the top-left corner), how sharp it is (variance of its edges) and how bright (0 black - 1 white).
+func sharpnessAndLuma(_ img: CGImage) -> (Double, Double) {
+  let w = 180, h = 320
+  var px = [UInt8](repeating: 0, count: w * h)
+  let ok = px.withUnsafeMutableBytes { buf -> Bool in
+    guard let ctx = CGContext(data: buf.baseAddress, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w,
+                              space: CGColorSpaceCreateDeviceGray(), bitmapInfo: CGImageAlphaInfo.none.rawValue) else { return false }
+    ctx.interpolationQuality = .medium
+    ctx.draw(img, in: CGRect(x: 0, y: 0, width: w, height: h))
+    return true
+  }
+  if !ok { return (0, 0) }
+  var lumaSum = 0.0
+  for v in px { lumaSum += Double(v) }
+  var sum = 0.0, sumSq = 0.0, n = 0.0
+  for y in 1..<(h - 1) {
+    for x in 1..<(w - 1) {
+      let i = y * w + x
+      let lap = 4.0 * Double(px[i]) - Double(px[i - 1]) - Double(px[i + 1]) - Double(px[i - w]) - Double(px[i + w])
+      sum += lap; sumSq += lap * lap; n += 1
+    }
+  }
+  let mean = sum / n
+  return (sumSq / n - mean * mean, lumaSum / Double(w * h) / 255.0)
+}
+
 var out: [[String: Any]] = []
 for path in CommandLine.arguments.dropFirst() {
   var faces: [[String: Double]] = []
+  var sharp = 0.0, luma = 0.0
   let url = URL(fileURLWithPath: path)
   if let src = CGImageSourceCreateWithURL(url as CFURL, nil),
      let img = CGImageSourceCreateImageAtIndex(src, 0, nil) {
@@ -33,8 +60,9 @@ for path in CommandLine.arguments.dropFirst() {
         "c": Double(f.confidence),
       ])
     }
+    (sharp, luma) = sharpnessAndLuma(img)
   }
-  out.append(["path": path, "faces": faces])
+  out.append(["path": path, "faces": faces, "sharp": sharp, "luma": luma])
 }
 if let data = try? JSONSerialization.data(withJSONObject: out),
    let text = String(data: data, encoding: .utf8) {
@@ -83,21 +111,34 @@ export function ensureViralFaceDetector(binDir: string): Promise<string | null> 
   return detectorPromise;
 }
 
+export interface ViralFrameInfo {
+  faces: ViralFaceBox[];
+  /** Edge variance of the frame: higher is sharper (only comparable between frames of the same clip) */
+  sharp: number;
+  /** Average brightness, 0 (black) to 1 (white) */
+  luma: number;
+  /** The frame itself as a small JPEG data URL (only when asked for) */
+  thumb?: string;
+}
+
 /**
- * Faces found in a few frames of the video. `samples` gives, for each frame, the second to read from the
- * source file and the filter that turns it into the clip's vertical picture (small, 360×640 is plenty).
- * Never throws: any failure means "no faces".
+ * Looks at a few frames of the video. `samples` gives, for each frame, the second to read from the source
+ * file and the filter that turns it into the clip's vertical picture (small, 360×640 is plenty).
+ * The result has one entry per sample, in order (null where the frame could not be read).
+ * Never throws: any failure means "nothing known".
  */
-export async function detectViralFaces(opts: {
+export async function analyzeViralFrames(opts: {
   ffmpegBin: string;
   binDir: string;
   sourceVideoPath: string;
   samples: Array<{ sourceSec: number; vf: string }>;
-}): Promise<ViralFaceBox[]> {
+  withThumbs?: boolean;
+}): Promise<Array<ViralFrameInfo | null>> {
   const frames: string[] = [];
+  const empty = opts.samples.map(() => null);
   try {
     const detector = await ensureViralFaceDetector(opts.binDir);
-    if (!detector || opts.samples.length === 0) return [];
+    if (!detector || opts.samples.length === 0) return empty;
     const stamp = `${Date.now()}_${Math.round(Math.random() * 1e6)}`;
     const results = await Promise.all(
       opts.samples.map(async (s, i) => {
@@ -112,13 +153,17 @@ export async function detectViralFaces(opts: {
       })
     );
     const ready = results.filter(Boolean);
-    if (ready.length === 0) return [];
+    if (ready.length === 0) return empty;
     const det = await run(detector, ready, 60000);
-    if (!det.ok) return [];
+    if (!det.ok) return empty;
     const parsed = JSON.parse(det.stdout.trim() || '[]');
-    const faces: ViralFaceBox[] = [];
-    for (const item of Array.isArray(parsed) ? parsed : []) {
-      for (const f of Array.isArray(item?.faces) ? item.faces : []) {
+    const byPath = new Map<string, any>();
+    for (const item of Array.isArray(parsed) ? parsed : []) byPath.set(String(item?.path || ''), item);
+    return results.map((framePath) => {
+      const item = framePath ? byPath.get(framePath) : null;
+      if (!item) return null;
+      const faces: ViralFaceBox[] = [];
+      for (const f of Array.isArray(item.faces) ? item.faces : []) {
         const box = { x: Number(f.x), y: Number(f.y), w: Number(f.w), h: Number(f.h) };
         if ([box.x, box.y, box.w, box.h].every((n) => Number.isFinite(n)) && Number(f.c) >= 0.5 && box.w > 0 && box.h > 0) {
           faces.push({
@@ -129,11 +174,21 @@ export async function detectViralFaces(opts: {
           });
         }
       }
-    }
-    return faces;
+      const info: ViralFrameInfo = {
+        faces,
+        sharp: Number(item.sharp) || 0,
+        luma: Number(item.luma) || 0,
+      };
+      if (opts.withThumbs) {
+        try {
+          info.thumb = `data:image/jpeg;base64,${fs.readFileSync(framePath).toString('base64')}`;
+        } catch {}
+      }
+      return info;
+    });
   } catch (e) {
-    console.warn('[ViralClips] Detección de caras no disponible:', e);
-    return [];
+    console.warn('[ViralClips] Análisis de fotogramas no disponible:', e);
+    return empty;
   } finally {
     for (const f of frames) {
       try {
@@ -141,4 +196,15 @@ export async function detectViralFaces(opts: {
       } catch {}
     }
   }
+}
+
+/** Every face found in the sampled frames, together. */
+export async function detectViralFaces(opts: {
+  ffmpegBin: string;
+  binDir: string;
+  sourceVideoPath: string;
+  samples: Array<{ sourceSec: number; vf: string }>;
+}): Promise<ViralFaceBox[]> {
+  const infos = await analyzeViralFrames(opts);
+  return infos.flatMap((i) => (i ? i.faces : []));
 }
