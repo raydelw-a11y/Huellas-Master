@@ -205,7 +205,7 @@ import { stampBrandMarksOnThumbnail, HD_BADGE_EMPTY_CORNER_CLAUSE, LOGO_EMPTY_CO
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '12:37 PM - 11/24/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '02:40 PM - 11/24/2026';
 
 // PRODUCTION LOCK: while promptConfig.PRODUCTION_LOCKED === 'YES' these fields never change (the server
 // enforces the same list in protectLockedDocs). Metadata, thumbnails, review marks and reframes stay editable.
@@ -1654,7 +1654,11 @@ function computeStage1RecommendedDuration(
     temaEHistoria: `Arco histórico sobre "${shortTopic}" (${
       yearSpan > 0 ? `${yearSpan} años de recorrido cronológico` : timeText || 'época histórica definida'
     }) en ${locText.split('(')[0]?.trim() || 'múltiples escenarios'}.`,
-    partesYActos: `Estructura dividida en Intro (8s) + Hook + ${detectedActsCount} bloques/actos narrativos + Outro (8s) (~${estimatedClipsCount} clips de ${standardClipSec}s).`,
+    // Opción B of the Intro: the video opens with the Hook and the 8s Intro plays after the opening Slogan
+    partesYActos:
+      doc.promptConfig?.UBICACION_INTRO_MARCA === 'INTRO_POST_SLOGAN'
+        ? `Estructura dividida en Hook (abre el video en 00:00) + Eslogan + Intro (8s, tras el eslogan) + ${detectedActsCount} bloques/actos narrativos + Outro (8s) (~${estimatedClipsCount} clips de ${standardClipSec}s).`
+        : `Estructura dividida en Intro (8s) + Hook + ${detectedActsCount} bloques/actos narrativos + Outro (8s) (~${estimatedClipsCount} clips de ${standardClipSec}s).`,
     tramaYGiros: hasMultipleTurningPoints
       ? `Trama de alta densidad con múltiples puntos de giro (caídas, rechazos y contraataque estratégico) que requiere respirar sin apresurar las transiciones.`
       : `Trama progresiva combinando ${selectedTypologiesCount} tipología(s) del protocolo con tensión documental sostenida.`,
