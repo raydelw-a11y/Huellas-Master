@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-11-23T02:44:27.074Z",
-    "updatedAt": "2026-11-25T18:11:02.467Z",
+    "updatedAt": "2026-11-25T18:12:58.119Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -4131,7 +4131,7 @@
       "¿CÓMO NO CAÍAN?"
     ],
     "thumbnailPrompt": "",
-    "thumbnailTextOverlay": "FUEGO SOBRE EL VACÍO",
+    "thumbnailTextOverlay": "EFUEGO SOBRE EL VACÍO",
     "thumbnailImageUrl": "",
     "thumbnailHorizontalImageUrl": "",
     "thumbnailVerticalImageUrl": "",
