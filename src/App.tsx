@@ -225,7 +225,7 @@ import { stampBrandMarksOnThumbnail, HD_BADGE_EMPTY_CORNER_CLAUSE, LOGO_EMPTY_CO
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '02:49 PM - 11/25/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '03:00 PM - 11/25/2026';
 
 // PRODUCTION LOCK: while promptConfig.PRODUCTION_LOCKED === 'YES' these fields never change (the server
 // enforces the same list in protectLockedDocs). Metadata, thumbnails, review marks and reframes stay editable.
@@ -15680,6 +15680,128 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
   };
 
   // Stage 5: Generate 3 Thumbnail Text Overlay Options strictly via logged-in Gemini Web (No API Calls)
+  // Etapa 3 — "Reaplicar logos" / "Cargar original": the ORIGINAL thumbnail (no logo, no badge) gets the official
+  // logo and the HD/8K badge stamped with the current size and replaces this orientation's thumbnail, exactly like
+  // a thumbnail captured from Gemini or Flow (app, 03_Miniaturas files and CTR audit).
+  const [restampingThumb, setRestampingThumb] = useState<'horizontal' | 'vertical' | null>(null);
+  const applyOriginalThumbnailWithLogos = async (
+    rawDataUrl: string,
+    orientation: 'horizontal' | 'vertical',
+    sourceLabel: string
+  ) => {
+    const curDoc = activeDocRef.current || activeDoc;
+    if (!curDoc || !rawDataUrl.startsWith('data:image/')) return;
+    const isVert = orientation === 'vertical';
+    const rawVariant = String(curDoc.thumbnailPsychVariant || 'A').toUpperCase();
+    const opt: 'A' | 'B' | 'C' = rawVariant === 'B' ? 'B' : rawVariant === 'C' ? 'C' : 'A';
+    const stamped = await stampBrandMarksOnThumbnail(rawDataUrl, orientation, officialLogoUrl);
+    if (!stamped || stamped === rawDataUrl) {
+      setBridgeStatusType('ERROR');
+      setBridgeStatusMsg('⚠️ No se pudieron estampar el logo y el sello en la imagen original.');
+      return;
+    }
+    setCapturedThumbnailsMap((prev) => ({ ...prev, [opt]: stamped }));
+    const syncSafePreview = await compressImageDataUrlForCloudSync(stamped, 42000);
+    let nextPreviewMap: Record<string, string> = {};
+    try {
+      const rawPrevMap = curDoc.promptConfig?.THUMBNAIL_PREVIEWS_MAP_JSON;
+      if (rawPrevMap) {
+        const parsed = JSON.parse(rawPrevMap);
+        if (parsed && typeof parsed === 'object') nextPreviewMap = { ...parsed };
+      }
+    } catch {}
+    if (syncSafePreview) nextPreviewMap[opt] = syncSafePreview;
+    updateActiveDoc({
+      ...(syncSafePreview
+        ? isVert
+          ? {
+              thumbnailVerticalImageUrl: syncSafePreview,
+              thumbnailImageUrl: curDoc.thumbnailHorizontalImageUrl || syncSafePreview,
+            }
+          : {
+              thumbnailHorizontalImageUrl: syncSafePreview,
+              thumbnailImageUrl: syncSafePreview,
+            }
+        : {}),
+      thumbnailPsychVariant: opt,
+      thumbnailReady: true,
+      promptConfig: {
+        ...(curDoc.promptConfig || {}),
+        THUMBNAIL_PREVIEWS_MAP_JSON: JSON.stringify(nextPreviewMap),
+      },
+    });
+    const thumbFileName = isVert ? `Miniatura_Opcion_${opt}_9x16.png` : `Miniatura_Opcion_${opt}.png`;
+    await handleSaveAnyFileToChosenFolder(thumbFileName, stamped, '03_Miniaturas');
+    await handleSaveAnyFileToChosenFolder(
+      isVert ? 'Miniatura_Vertical_9x16.png' : 'Miniatura_Horizontal_16x9.png',
+      stamped,
+      '03_Miniaturas'
+    );
+    if (!isVert) {
+      await handleSaveAnyFileToChosenFolder('Miniatura_Oficial.png', stamped, '03_Miniaturas');
+    }
+    setBridgeStatusType('SUCCESS');
+    setBridgeStatusMsg(
+      `🖼️ Logo y sello ${isVert ? 'HD' : '8K'} aplicados de nuevo sobre la original (${sourceLabel}). Miniatura ${
+        isVert ? 'vertical' : 'horizontal'
+      } actualizada y guardada en 03_Miniaturas.`
+    );
+    handleAuditThumbnailPsychology(opt, stamped);
+  };
+
+  const handleReapplyThumbnailLogos = async (orientation: 'horizontal' | 'vertical') => {
+    const curDoc = activeDocRef.current || activeDoc;
+    if (!curDoc || restampingThumb) return;
+    setRestampingThumb(orientation);
+    setBridgeStatusType('WORKING');
+    setBridgeStatusMsg('🔁 Buscando la imagen original (sin logos) en 03_Miniaturas...');
+    try {
+      let lastError = '';
+      for (const base of getMacMediaBridgeBases()) {
+        try {
+          const resp = await fetch(`${base}/api/thumbnail/find-original`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ docId: curDoc.id, orientation }),
+          });
+          const data = await resp.json().catch(() => null);
+          if (resp.ok && data?.ok && typeof data.dataUrl === 'string') {
+            await applyOriginalThumbnailWithLogos(data.dataUrl, orientation, String(data.fileName || 'original'));
+            return;
+          }
+          lastError = String(data?.error || `HTTP ${resp.status}`);
+          // The Mac answered: no other address would find a different file
+          if (resp.status === 404) break;
+        } catch (e: any) {
+          lastError = String(e?.message || e);
+        }
+      }
+      setBridgeStatusType('ERROR');
+      setBridgeStatusMsg(`⚠️ ${lastError || 'No se pudo contactar con tu Mac para buscar la imagen original.'}`);
+    } finally {
+      setRestampingThumb(null);
+    }
+  };
+
+  const handleLoadOriginalThumbnailFile = async (file: File | undefined, orientation: 'horizontal' | 'vertical') => {
+    if (!file || !file.type.startsWith('image/') || restampingThumb) return;
+    setRestampingThumb(orientation);
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ''));
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(file);
+      });
+      await applyOriginalThumbnailWithLogos(dataUrl, orientation, file.name);
+    } catch {
+      setBridgeStatusType('ERROR');
+      setBridgeStatusMsg('⚠️ No se pudo leer la imagen elegida.');
+    } finally {
+      setRestampingThumb(null);
+    }
+  };
+
   const handleGenerateThumbnailTextOptions = async () => {
     if (!activeDoc) return;
     setThumbOptionsGenerating(true);
@@ -22291,6 +22413,35 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                     <MaximizeIcon className="w-3.5 h-3.5" />
                                   </button>
                                 )}
+                                <button
+                                  type="button"
+                                  disabled={restampingThumb !== null}
+                                  onClick={() => handleReapplyThumbnailLogos('horizontal')}
+                                  className="px-1.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-amber-300 text-[10px] font-bold flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                                  title="Buscar la imagen original (sin logos) en 03_Miniaturas y volver a ponerle el logo y el sello con el tamaño actual"
+                                >
+                                  <RefreshCw className={`w-3 h-3 ${restampingThumb === 'horizontal' ? 'animate-spin' : ''}`} />
+                                  Reaplicar logos
+                                </button>
+                                <label
+                                  className={`px-1.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-amber-300 text-[10px] font-bold flex items-center gap-1 cursor-pointer ${
+                                    restampingThumb !== null ? 'opacity-50 pointer-events-none' : ''
+                                  }`}
+                                  title="Elegir la imagen original (sin logos) desde tus archivos: se le ponen el logo y el sello y reemplaza esta miniatura"
+                                >
+                                  <Upload className="w-3 h-3" />
+                                  Cargar original
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    className="hidden"
+                                    onChange={(e) => {
+                                      const f = e.target.files?.[0];
+                                      e.target.value = '';
+                                      void handleLoadOriginalThumbnailFile(f, 'horizontal');
+                                    }}
+                                  />
+                                </label>
                                 {effectiveHorizontalThumb && (
                                   <button
                                     type="button"
@@ -22428,6 +22579,35 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                     <MaximizeIcon className="w-3.5 h-3.5" />
                                   </button>
                                 )}
+                                <button
+                                  type="button"
+                                  disabled={restampingThumb !== null}
+                                  onClick={() => handleReapplyThumbnailLogos('vertical')}
+                                  className="px-1.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-amber-300 text-[10px] font-bold flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                                  title="Buscar la imagen original (sin logos) en 03_Miniaturas y volver a ponerle el logo y el sello con el tamaño actual"
+                                >
+                                  <RefreshCw className={`w-3 h-3 ${restampingThumb === 'vertical' ? 'animate-spin' : ''}`} />
+                                  Reaplicar logos
+                                </button>
+                                <label
+                                  className={`px-1.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-amber-300 text-[10px] font-bold flex items-center gap-1 cursor-pointer ${
+                                    restampingThumb !== null ? 'opacity-50 pointer-events-none' : ''
+                                  }`}
+                                  title="Elegir la imagen original (sin logos) desde tus archivos: se le ponen el logo y el sello y reemplaza esta miniatura"
+                                >
+                                  <Upload className="w-3 h-3" />
+                                  Cargar original
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    className="hidden"
+                                    onChange={(e) => {
+                                      const f = e.target.files?.[0];
+                                      e.target.value = '';
+                                      void handleLoadOriginalThumbnailFile(f, 'vertical');
+                                    }}
+                                  />
+                                </label>
                                 {effectiveVerticalThumb && (
                                   <button
                                     type="button"
