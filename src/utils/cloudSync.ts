@@ -3224,9 +3224,26 @@ function extractPhase1Conclusions(phase1Text: string, maxChars = 3500): string {
   const partMatches = [...text.matchAll(/(?:PARTE|PART|PROPUESTA)\s*\d+\s*[—:\-–]/gi)];
   const lastPartAt = partMatches.length > 0 ? partMatches[partMatches.length - 1].index || 0 : 0;
   const tail = text.slice(lastPartAt);
-  const sectionStart = tail.search(/\n\s*1\.\s+[A-ZÁÉÍÓÚ]/);
+  // Gemini often writes the report's sections without their number ("ANÁLISIS DE LOS VIDEOS MARCADOS:"
+  // instead of "1. ANÁLISIS…"): both forms count.
+  const named = tail.search(
+    /\n[ \t]*(?:[-*•#][ \t]*)*(?:\d+\.[ \t]*)?\**(?:AN[ÁA]LISIS DE LOS VIDEOS|RADIOGRAF[ÍI]A|POTENCIAL VIRAL|DURACI[ÓO]N TOTAL SUGERIDA)/i
+  );
+  const numbered = tail.search(/\n\s*1\.\s+[A-ZÁÉÍÓÚ]/);
+  const sectionStart = named >= 0 ? named : numbered;
   if (sectionStart < 0) return '';
   return tail.slice(sectionStart).trim().slice(0, maxChars);
+}
+
+/**
+ * The research dossier as the script needs it: without its last section, the catalogue of @Character and
+ * @Location references, which describes faces and clothes for the image prompts and adds nothing to the narration.
+ */
+function researchForVoiceoverScript(research: string): string {
+  const text = String(research || '');
+  const m = /\n[ \t]*(?:[-*•#][ \t]*)*\**4\.[ \t]*(?:Pre-?Detecci[oó]n|Early Pre-?Detection|Pre-?Detection)[^\n]*@/i.exec(text);
+  if (!m || m.index < text.length * 0.4) return text;
+  return text.slice(0, m.index).trimEnd();
 }
 
 /** For the script: only the doubtful claims and the gaps (sections 5 and 6) of each research video analysis. */
@@ -3743,10 +3760,10 @@ ${cleanedCurrent}
 Topic: ${doc.topic || doc.title} (${doc.historicalTime}, ${doc.historicalLocation})
 Typology: ${doc.typology || 'Historical Documentary'}${chosenPropositionBlock}
 Target Total Duration Selected in Stage 1: ${budget.totalMinutesLabel} MINUTES (${budget.totalDurationSec} seconds)
-Historical Definition & Calibration (Step 1):
-${doc.deepResearchPrompt || ''}
+Step 1 conclusions (analysis of the marked/reference videos and suggested duration — the proposals the producer did not pick are left out on purpose):
+${extractPhase1Conclusions(doc.deepResearchPrompt || '', 9000)}
 Deep Historical Research (Step 2 — Deep Research):
-${doc.deepResearchResult || (!doc.deepResearchPrompt ? doc.sectionsStructure || '' : '')}${
+${researchForVoiceoverScript(doc.deepResearchResult || (!doc.deepResearchPrompt ? doc.sectionsStructure || '' : ''))}${
         selectedVideoAnalysesRaw
           ? `\nNotes from the ${selectedVideoAnalysesCount || 'several'} marked YouTube videos — their doubtful claims and what they leave out (use only what concerns our subject and is verified; never copy their phrasing or structure):\n${compactVideoAnalysesForScript(selectedVideoAnalysesRaw)}\n`
           : ''

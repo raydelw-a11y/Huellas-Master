@@ -5413,6 +5413,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                       r.height > 4 &&
                       /^(deselect|deseleccionar|quitar|desactivar)\b/i.test(a) &&
                       !DR_RE.test(a) &&
+                      !(argVal === 'KEEP_IMAGES' && /\b(images?|im[aá]gen(?:es)?)\b/i.test(a)) &&
                       !b.closest('.cdk-overlay-container, .cdk-overlay-popover, bard-sidenav, side-navigation, model-response, user-query')
                     );
                   });
@@ -5809,6 +5810,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         if (thinkingOk && verifiedModelLabel) {
           verifiedExternalGeminiModels.set(geminiTabId, verifiedModelLabel);
         }
+
+        // Before every order: any tool left active in the composer that this order did not ask for ("Guided
+        // learning", "Canvas", "Create video"…) is taken off. Gemini keeps the last tool selected, even in a new
+        // chat, and a script or prompt order sent with it comes back as something else. Deep research and
+        // Create image keep their own on/off handling below.
+        try {
+          const strayTools = await runMainStep('DESELECT_OTHER_TOOLS_DOM', enableCreateImage ? 'KEEP_IMAGES' : '');
+          if (strayTools?.count) {
+            diag.push(`Herramientas ajenas quitadas: ${strayTools.names.join(', ')}`);
+            await sleep(450);
+          }
+        } catch {}
 
         // --- PART 2: DEEP RESEARCH (+ -> More tools -> Deep research) with verification ---
         let deepResearchOk = false;
