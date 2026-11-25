@@ -55,6 +55,12 @@ import {
   trimDuplicatedTakeInPcm,
 } from './geminiTtsAudioClean';
 import { HD_BADGE_EMPTY_CORNER_CLAUSE, LOGO_EMPTY_CORNER_CLAUSE } from './hdBadge';
+import {
+  STAGE1_PROTOCOL_TYPOLOGIES,
+  readStoredStage1Proposals,
+  resolveStage1Paso1Mode,
+  splitProposalTimeAndPlace,
+} from './stage1Proposals';
 
 export const GITHUB_OWNER = 'raydelw-a11y';
 export const GITHUB_REPO = 'Huellas-Master';
@@ -3215,7 +3221,7 @@ function extractPhase1Conclusions(phase1Text: string, maxChars = 3500): string {
   const text = String(phase1Text || '');
   if (!text.trim()) return '';
   // After the last part (Parte 6 now, Parte 7 in older answers)
-  const partMatches = [...text.matchAll(/(?:PARTE|PART)\s*\d+\s*[—:\-–]/gi)];
+  const partMatches = [...text.matchAll(/(?:PARTE|PART|PROPUESTA)\s*\d+\s*[—:\-–]/gi)];
   const lastPartAt = partMatches.length > 0 ? partMatches[partMatches.length - 1].index || 0 : 0;
   const tail = text.slice(lastPartAt);
   const sectionStart = tail.search(/\n\s*1\.\s+[A-ZÁÉÍÓÚ]/);
@@ -3348,8 +3354,13 @@ ${voiceLine}
   // "Chosen topic": the producer typed the subject. Then a structural reference video is only a mold and never
   // makes Gemini replace or avoid our subject. Without a topic and with marked videos, Paso 1 proposes one topic
   // per marked video.
-  const topicIsChosen = Boolean(String(doc.topic || '').trim());
   const hasMarkedVideos = Boolean(selectedVideoAnalysesRaw);
+  // Paso 1 asks for complete proposals; what it asks depends on whether the producer typed the subject, marked
+  // topics from the list of 10, or left everything open (see resolveStage1Paso1Mode). A Tema that only holds the
+  // topic of a proposal picked earlier does not count as typed there; for every other stage it is the subject.
+  const stage1Paso1 = resolveStage1Paso1Mode(doc, hasMarkedVideos);
+  const topicIsChosen =
+    stageNumber === 10 ? stage1Paso1.mode === 'ANGLES' : Boolean(String(doc.topic || '').trim());
   const structureSummaryIsReal =
     Boolean(selectedStructureSummary) && !isTemplateStructureSummary(selectedStructureSummary);
   const hasReferenceVideo = structureSummaryIsReal || Boolean(youtubeViralLink);
@@ -3404,10 +3415,21 @@ ${voiceLine}
 
   let stagePrompt = '';
   if (stageNumber === 10) {
-    const cleanTopic = (doc.topic || '').trim();
-    const cleanTypology = (doc.typology || '').trim();
-    const cleanTime = (doc.historicalTime || '').trim();
-    const cleanLoc = (doc.historicalLocation || '').trim();
+    const paso1Mode = stage1Paso1.mode;
+    const cleanTopic = stage1Paso1.subject;
+    // Typology, era and place that only repeat a proposal picked earlier are not a decision of the producer:
+    // sent as fixed values they would force every new proposal into the same mold.
+    const earlierProposals = readStoredStage1Proposals(doc.promptConfig).proposals;
+    const rawTypology = (doc.typology || '').trim();
+    const rawTime = (doc.historicalTime || '').trim();
+    const rawLoc = (doc.historicalLocation || '').trim();
+    const cleanTypology = earlierProposals.some((p) => p.typology === rawTypology) ? '' : rawTypology;
+    const timePlaceFromProposal = earlierProposals.some((p) => {
+      const tp = splitProposalTimeAndPlace(p.timeAndPlace);
+      return tp.time === rawTime && (!rawLoc || tp.place === rawLoc);
+    });
+    const cleanTime = timePlaceFromProposal ? '' : rawTime;
+    const cleanLoc = timePlaceFromProposal ? '' : rawLoc;
     const minutesLabel = (totalTargetSec / 60).toFixed(0);
     const typologyLine =
       cleanTypology ||
@@ -3415,12 +3437,14 @@ ${voiceLine}
         ? 'BLANK (Determine which of the 8 protocol typologies to use OR CREATE A NEW universal archetypal typology based on the VIRAL PATTERN of the analyzed video, WITHOUT copying the topic of the analyzed video)'
         : 'BLANK (Determine which of the 8 protocol typologies fit this story OR CREATE A NEW universal archetypal typology for it)');
     const topicLine = cleanTopic
-      ? `${cleanTopic} (CHOSEN BY THE PRODUCER — keep this exact subject; Parte 2 proposes angles for it, never a different subject)`
-      : hasMarkedVideos
-      ? 'BLANK (Propose 10 topics for our documentary that can be built from the analyses of the marked videos below: their subjects and the stories, characters, unanswered questions and gaps inside them. Rank them by viral potential on YouTube; each must be well supported by that material. The producer picks one)'
+      ? `${cleanTopic} (CHOSEN BY THE PRODUCER — keep this exact subject; every proposal is a different angle of it, never a different subject)`
+      : paso1Mode === 'DEVELOP'
+      ? 'BLANK (the producer marked the topics listed in the task below: build the proposals for exactly those topics)'
+      : paso1Mode === 'IDEAS'
+      ? 'BLANK (Propose 10 topics for our documentary that can be built from the analyses of the marked videos below: their subjects and the stories, characters, unanswered questions and gaps inside them. Rank them by viral potential on YouTube; each must be well supported by that material. The producer marks the ones to develop)'
       : hasReferenceVideo
-      ? 'BLANK (Propose 3+ 100% ORIGINAL, DIFFERENT, and UNPUBLISHED historical topics for "Huellas de la Humanidad" —STRICTLY FORBIDDEN to duplicate the topic of the analyzed video— applying the exact same viral patterns, contrasts, and structure)'
-      : 'BLANK (Propose 3+ strong, ORIGINAL historical topics for "Huellas de la Humanidad" with high viral potential on YouTube)';
+      ? 'BLANK (Each proposal brings its own 100% ORIGINAL, DIFFERENT, and UNPUBLISHED historical topic for "Huellas de la Humanidad" —STRICTLY FORBIDDEN to duplicate the topic of the analyzed video— applying the exact same viral patterns, contrasts, and structure)'
+      : 'BLANK (Each proposal brings its own strong, ORIGINAL historical topic for "Huellas de la Humanidad" with high viral potential on YouTube)';
     const originalityRules = topicIsChosen
       ? [
           '⚠️ ORIGINALITY RULES:',
@@ -3433,7 +3457,9 @@ ${voiceLine}
       : hasMarkedVideos
       ? [
           '⚠️ ORIGINALITY RULES:',
-          '- Our documentary will be about one of the 10 topics of Parte 2, all built from the marked videos\' material (the producer picks one). Our version must be original, more complete and better than those videos.',
+          paso1Mode === 'DEVELOP'
+            ? '- Our documentary will be about one of the topics marked by the producer (listed below), built from the marked videos\' material. Our version must be original, more complete and better than those videos.'
+            : '- Our documentary will be about one of the 10 topics you propose, all built from the marked videos\' material (the producer marks the ones to develop). Our version must be original, more complete and better than those videos.',
           '- Never copy their phrases, titles or order of scenes.',
         ]
       : hasReferenceVideo
@@ -3441,38 +3467,78 @@ ${voiceLine}
           '⚠️ CRITICAL ORIGINALITY RULE:',
           '- Do NOT duplicate the analyzed video or create a documentary about the same subject/brand/event.',
           '- Use the analyzed video EXCLUSIVELY as a structural guide to extract the PATTERNS and DETAILS that made it viral on YouTube and apply them to a 100% ORIGINAL documentary for "Huellas de la Humanidad".',
-          '- In PARTE 1 (Video Typology), NEVER write the name or specific topic of the analyzed video; define a reusable universal archetypal typology.',
+          '- In the "Tipología" line of each proposal, NEVER write the name or specific topic of the analyzed video; use a reusable universal archetypal typology.',
         ]
       : [
           '⚠️ ORIGINALITY RULE:',
           '- Every proposal must be original: never reuse titles, phrases or structures from other channels.',
         ];
-    const parte1Lines = hasReferenceVideo && !topicIsChosen && !hasMarkedVideos
-      ? [
-          '     • Resumen de esta parte: [Explain in Spanish which narrative/psychological patterns made the reference video go viral and which protocol/new archetypal typologies fit our original documentary]',
-          '     • Opción 1..N: [Multiple universal archetypal typologies in Spanish — NEVER mention the specific topic of the analyzed video]',
-        ]
-      : [
-          '     • Resumen de esta parte: [Explain in Spanish which protocol typologies (or new archetypal typologies) fit our documentary and why]',
-          '     • Opción 1..N: [Multiple typologies in Spanish]',
-        ];
-    const parte2Lines = !topicIsChosen && hasMarkedVideos
-      ? [
-          '     • Resumen de esta parte: [Explain in Spanish which material of the marked videos supports these topics and why they would work on YouTube]',
-          '     • Opción 1..10: [EXACTLY 10 topics in Spanish built from the marked videos\' material, ranked by viral potential (Opción 1 = the strongest); each one names what, where, when and who]',
-        ]
-      : topicIsChosen
-      ? [
-          '     • Resumen de esta parte: [Explain in Spanish the strongest angles for our chosen subject and why they would work on YouTube]',
-          '     • Opción 1..N: [Multiple ANGLES for OUR chosen subject in Spanish (same subject; a different central question, protagonist or thesis in each). Start every option with the subject itself; never propose a different subject]',
-        ]
-      : [
-          `     • Resumen de esta parte: [Explain in Spanish how ${hasReferenceVideo ? 'the viral formula maps' : 'each proposal maps'} to 100% ORIGINAL historical topics for "Huellas de la Humanidad"]`,
-          '     • Opción 1..N: [Multiple 100% ORIGINAL historical topics in Spanish using strong contrast, tension, and retention mechanics]',
-        ];
-    const concordanceHint = topicIsChosen
-      ? ''
-      : ' In Parte 3, Opción k must be the era and place of Opción k of Parte 2 (same order, same number of options).';
+    const pickedIdeas = stage1Paso1.pickedIdeas.slice(0, 5);
+    const proposalCount = paso1Mode === 'DEVELOP' && pickedIdeas.length >= 3 ? pickedIdeas.length : 4;
+    const proposalsScope =
+      paso1Mode === 'ANGLES'
+        ? `The ${proposalCount} proposals are ${proposalCount} DIFFERENT ANGLES of the subject chosen by the producer (the same subject; a different central question, protagonist or thesis in each). Start every "Tema" with the subject itself; never propose a different subject.`
+        : paso1Mode === 'DEVELOP'
+        ? `The producer marked ${pickedIdeas.length === 1 ? 'this topic' : 'these topics'} to develop:\n${pickedIdeas
+            .map((t, i) => `   ${i + 1}) ${t}`)
+            .join('\n')}\n   ${
+            pickedIdeas.length >= 3
+              ? `Write exactly ONE proposal per topic, in that order (Propuesta k = topic k).`
+              : pickedIdeas.length === 2
+              ? 'Write TWO proposals per topic (two different angles of each): Propuestas 1 and 2 for topic 1, Propuestas 3 and 4 for topic 2.'
+              : 'The 4 proposals are 4 DIFFERENT ANGLES of that topic (a different central question, protagonist or thesis in each).'
+          } Keep each topic as the producer marked it; never replace it with another one.`
+        : hasReferenceVideo
+        ? `Each of the ${proposalCount} proposals has its own 100% ORIGINAL historical topic (all different from each other and from the analyzed video), built on the viral patterns of the reference video.`
+        : `Each of the ${proposalCount} proposals has its own ORIGINAL historical topic with strong contrast, tension and viral potential (all different from each other).`;
+    const voiceEntryClock = fmtCalibClock((introIsPostSlogan ? 0 : fixedIntroSec) + clip1TimelineSec);
+    const clip1EndClock = fmtCalibClock((introIsPostSlogan ? 0 : fixedIntroSec) + clip1OnTimelineSec);
+    const proposalsSpec = `Deliver this structured report in Spanish, preserving the exact Spanish section headers and field labels below for parser compatibility.
+
+0. PROPUESTAS COMPLETAS PARA NUESTRO DOCUMENTAL:
+   Write EXACTLY ${proposalCount} COMPLETE PROPOSALS. Each proposal is ONE whole, coherent documentary: its topic, its era and place, its typology and its climax belong together, and it brings its own 3 hook variants and 2 outline variants. The producer picks ONE proposal and, inside it, one hook and one outline. Never write loose lists of options to be combined across proposals.
+   ${proposalsScope}
+
+   COHERENCE RULES (mandatory):
+   - The 3 hooks and the 2 outlines of a proposal are written ONLY for that proposal's topic, era, place and climax. ANY of its hooks must work with ANY of its outlines and lead to its climax: check the six combinations before writing them.
+   - The 3 hooks of a proposal differ in the opening image and first sentence (not in the subject). The 2 outlines differ in structure (for example chronological vs. starting in the middle of the action, or one axis vs. two), telling the same story towards the same climax.
+   - Never reuse the hook, outline or climax of another proposal.
+   - Typology: one or two of the 8 protocol typologies, written exactly as in this list and joined with " + " (${STAGE1_PROTOCOL_TYPOLOGIES.join(' | ')}); only if none fits, a new universal archetypal typology${
+     hasReferenceVideo && !topicIsChosen && !hasMarkedVideos ? ' (never the name or topic of the analyzed video)' : ''
+   }.
+
+   FORMAT (mandatory): write every proposal exactly with these lines, each field on its own line, as a single paragraph (no line breaks, tables or numbered sub-lists inside a field), with the label exactly as written and no other labels:
+   PROPUESTA 1 — [short title in Spanish, 3 to 7 words]
+   • Tipología: [typology]
+   • Tema: [the documentary's topic in Spanish: what, where, when, who, and the central question or thesis]
+   • Tiempo y lugar: [era | place — years in digits and centuries in Roman numerals, then City, Country; e.g., Año 1888 / Siglo XIX | Sevilla, España]
+   • Clímax y cierre: [historical climax, revelation and reflective ending leading into the 8s Outro]
+   • Por qué funciona: [one or two sentences: why this proposal would work on YouTube${
+     hasReferenceVideo ? ' and which pattern of the reference video it uses' : ''
+   }]
+   • Gancho 1: [opening hook and central paradox. Clip 1 runs ${hookStartClock}–${clip1EndClock} without voiceover and the voiceover enters at ${voiceEntryClock}: use exactly those times]
+   • Gancho 2: [another opening for the SAME proposal]
+   • Gancho 3: [another opening for the SAME proposal]
+   • Gancho recomendado: Gancho N — [one short sentence saying why]
+   • Escaleta 1: [act outline by percentage (%) and minutes for ~${minutesLabel} min, with the 8s Intro${
+     introIsPostSlogan ? ' placed right after the opening Slogan (NOT at 00:00)' : ' at 00:00'
+   } and the 8s Outro]
+   • Escaleta 2: [a different structure for the SAME story and climax]
+   • Escaleta recomendada: Escaleta N — [one short sentence saying why]
+   PROPUESTA 2 — [...]
+   (same lines for every proposal, up to PROPUESTA ${proposalCount})
+   After the last proposal, add ONE line: "• Propuesta recomendada: Propuesta N — [one short sentence in Spanish saying why you would choose it as the channel's director]".`;
+    const ideasSpec = `Deliver ONLY this short report in Spanish, preserving the exact Spanish headers and labels below for parser compatibility. Do NOT write hooks, outlines or climaxes yet: the producer will mark the topics to develop, and a second request will turn them into complete proposals.
+
+0. TEMAS PROPUESTOS PARA NUESTRO DOCUMENTAL:
+   EXACTLY 10 topics built from the marked videos' material, ranked by viral potential on YouTube (Tema 1 = the strongest), all different from each other. Each one on its own line, in a single sentence of at most 35 words that names what, where, when and who, written exactly as:
+   • Tema 1: [topic]
+   • Tema 2: [topic]
+   (…up to Tema 10)
+   Then ONE line: "• Temas recomendados: N, N, N — [one short sentence in Spanish saying why those three or four]".
+
+1. ANÁLISIS DE LOS VIDEOS MARCADOS:
+   - In Spanish, in at most 150 words: which material of the marked videos supports these topics and what none of them covers.`;
     const section1 = hasMarkedVideos
       ? `1. ANÁLISIS DE LOS VIDEOS MARCADOS:\n   - In Spanish: which marked videos are about our subject (or about each proposed topic) and what their facts agree on or contradict, the errors or exaggerations to avoid, what none of them covers, and which structure and hook ideas from any of them fit our ~${minutesLabel}-minute documentary.`
       : hasReferenceVideo
@@ -3514,41 +3580,19 @@ ${selectedAudienceQuestions ? `\n💬 SELECTED AUDIENCE COMMENTS & QUESTIONS:\n$
 ================================================================================
 ${originalityRules.filter(Boolean).join('\n')}
 
-Deliver this structured report in Spanish with MULTIPLE OPTIONS (3 to 6 per part${
-      !topicIsChosen && hasMarkedVideos ? '; exactly 10 in Partes 2 and 3' : ''
-    }), preserving the exact Spanish section headers below for parser compatibility. Write every option on its own line exactly as "Opción N: text", in a single paragraph (no line breaks or numbered sub-lists inside an option). In Parte 3 write each option as "era | place" separated by " | " (e.g., "Opción 1: Año 1888 / Siglo XIX | Sevilla, España"), with no label or parentheses before it.${concordanceHint}
-
-0. RESUMEN POR PARTES DE LA PROPOSICIÓN PARA NUESTRO DOCUMENTAL:
-   Deliver numbered options (Opción 1, Opción 2, Opción 3, Opción 4...) in Spanish for each of the 6 parts.
-   RECOMMENDED OPTION (mandatory in all 6 parts): right after each part's "Resumen de esta parte" line and BEFORE its options, add ONE line written exactly as "• Recomendada: Opción N — [one short sentence in Spanish saying why]", naming the single option of that part you would choose as the channel's director (in Parte 1, the typology that fits best). The recommended options must work together: Parte 3's must be the era and place of the topic recommended in Parte 2, and those of Partes 4, 5 and 6 must fit that same topic.
-   - PARTE 1 — TIPOLOGÍA DEL VIDEO:
-${parte1Lines.join('\n')}
-   - PARTE 2 — TEMA CENTRAL DEL DOCUMENTAL / EPISODIO:
-${parte2Lines.join('\n')}
-   - PARTE 3 — TIEMPO Y LUGAR HISTÓRICO:
-     • Resumen de esta parte: [Justification in Spanish of the era and place matching Parts 1 & 2]
-     • Opción 1..N: [era | place in Spanish: years in digits and Centuries in Roman numerals, then City, Country — e.g., Año 1888 / Siglo XIX | Sevilla, España]
-   - PARTE 4 — GANCHO INICIAL Y CONTRADICCIÓN / ÁNGULO CENTRAL (CLIP 1 + APERTURA):
-     • Resumen de esta parte: [${
-       hasReferenceVideo
-         ? "How we adapt the reference video's Hook patterns to our documentary"
-         : 'How we open our documentary with maximum curiosity in the first seconds'
-     }]
-     • Opción 1..N: [Visual/narrative Hook variants and central paradox in Spanish. Clip 1 runs ${hookStartClock}–${fmtCalibClock((introIsPostSlogan ? 0 : fixedIntroSec) + clip1OnTimelineSec)} without voiceover and the voiceover enters at ${fmtCalibClock((introIsPostSlogan ? 0 : fixedIntroSec) + clip1TimelineSec)}: use exactly those times]
-   - PARTE 5 — CALIBRACIÓN MATEMÁTICA Y ESCALETA POR ACTOS (~${minutesLabel} MIN):
-     • Resumen de esta parte: [How we map block percentages and pacing to ~${minutesLabel} min with the 8s Intro${introIsPostSlogan ? ' placed right after the opening Slogan (NOT at 00:00)' : ' at 00:00'} and the 8s Outro]
-     • Opción 1..N: [Mathematical act outlines by percentage (%) and minutes in Spanish]
-   - PARTE 6 — CLÍMAX HISTÓRICO, REVELACIÓN Y CIERRE REFLEXIVO:
-     • Resumen de esta parte: [Emotional and historical payoff strategy leading into the 8s Outro]
-     • Opción 1..N: [Historical climax and reflective ending options in Spanish]
+${
+      paso1Mode === 'IDEAS'
+        ? ideasSpec
+        : `${proposalsSpec}
 
 ${section1}
 
 2. DURACIÓN TOTAL SUGERIDA DEL DOCUMENTAL:
-   - Evaluate topic complexity, act density, plot twists, climax weight, and chronological span to recommend the optimal official studio duration (600s = 10 min, 900s = 15 min, 1200s = 20 min, 1800s = 30 min, 3600s = 1 hour, 7200s = 2 hours).
+   - For the proposal you recommend, evaluate topic complexity, act density, plot twists, climax weight, and chronological span to recommend the optimal official studio duration (600s = 10 min, 900s = 15 min, 1200s = 20 min, 1800s = 30 min, 3600s = 1 hour, 7200s = 2 hours).
    - RECOMENDACIÓN_DURACIÓN_TOTAL: [Write EXACTLY one of these values in seconds: 600 | 900 | 1200 | 1800 | 3600 | 7200]
    - DURACIÓN TOTAL SUGERIDA: [e.g., 15 minutos (900s) o 20 minutos (1200s)]
-   - JUSTIFICACIÓN DE DURACIÓN: [Explain in Spanish why that exact duration is ideal based on topic, acts, plot development, and climax].`;
+   - JUSTIFICACIÓN DE DURACIÓN: [Explain in Spanish why that exact duration is ideal based on topic, acts, plot development, and climax].`
+    }`;
   } else if (stageNumber === 1 || stageNumber === 2 || stageNumber === 3) {
     const cleanTopic = (doc.topic || '').trim();
     const cleanTypology = (doc.typology || '').trim();
