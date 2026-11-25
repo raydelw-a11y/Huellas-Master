@@ -1,4 +1,46 @@
 // ============================================================================
+// BLOQUEO TOTAL DE GOOGLE FLOW (v2.9.27): Flow detecta la automatización, así que
+// la extensión NO inyecta scripts ni adjunta chrome.debugger en páginas de Flow
+// (flow.google.com / labs.google). Los prompts se pegan a mano en Flow.
+// ============================================================================
+const HUELLAS_IS_FLOW_URL = (u) =>
+  /^https:\/\/(?:[a-z0-9-]+\.)?flow\.google\.com(?:\/|$)|^https:\/\/labs\.google(?:\/|$)/i.test(
+    String(u || '')
+  );
+async function huellasTabIsFlow(tabId) {
+  if (typeof tabId !== 'number') return false;
+  try {
+    const t = await chrome.tabs.get(tabId);
+    return HUELLAS_IS_FLOW_URL(t.url) || HUELLAS_IS_FLOW_URL(t.pendingUrl);
+  } catch {
+    return false;
+  }
+}
+(() => {
+  const origExec = chrome.scripting.executeScript.bind(chrome.scripting);
+  chrome.scripting.executeScript = async (injection, ...rest) => {
+    if (injection?.target && (await huellasTabIsFlow(injection.target.tabId))) {
+      console.warn('[Huellas] Bloqueado: la extensión no actúa en Google Flow.');
+      return [];
+    }
+    return origExec(injection, ...rest);
+  };
+  const origAttach = chrome.debugger.attach.bind(chrome.debugger);
+  chrome.debugger.attach = async (target, ...rest) => {
+    let blocked = await huellasTabIsFlow(target?.tabId);
+    if (!blocked && target?.targetId) {
+      try {
+        const all = await chrome.debugger.getTargets();
+        const info = (all || []).find((x) => x.id === target.targetId);
+        blocked = !!info && (HUELLAS_IS_FLOW_URL(info.url) || (await huellasTabIsFlow(info.tabId)));
+      } catch {}
+    }
+    if (blocked) throw new Error('[Huellas] Bloqueado: la extensión no actúa en Google Flow.');
+    return origAttach(target, ...rest);
+  };
+})();
+
+// ============================================================================
 // HUELLAS MASTER — BACKGROUND SERVICE WORKER (v2.5.4)
 // 1. Inyecta el prompt en el editor inferior de Google Flow ANTES de adjuntar debugger
 //    (usando el selector y ordenamiento exacto por bottom que sí pega el texto en pantalla).
