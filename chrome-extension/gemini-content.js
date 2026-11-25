@@ -4409,7 +4409,8 @@
         replacesDeletedChat,
       })
       .catch(() => {});
-    if (!title) return;
+    // linkOnly: the order's finish renames the chat once (after Gemini's own auto-title), so don't rename now too
+    if (!title || chatState.linkOnly) return;
     await sleep(chatState.isNewChat ? 5000 : 800);
     for (let attempt = 0; attempt < 3; attempt++) {
       const docTitle = (document.title || '').replace(/\s*-\s*Google Gemini\s*$/i, '').trim();
@@ -4895,9 +4896,11 @@
             originalOrder: payload,
           });
 
-          // Link the chat id once Gemini assigns /app/<chatId> inside the notebook, then rename ONLY that chat (once)
+          // Link the chat id once Gemini assigns /app/<chatId> inside the notebook. Text and Deep Research orders
+          // are renamed ONCE when they finish (Gemini replaces the title with its auto-title at that point, so an
+          // early rename here made every chat be renamed twice); image orders are not renamed at finish, so here.
           if (!isStandaloneNoNotebook && chatState && chatState.nbPath) {
-            linkAndRenameAfterSubmit(chatState, payload.docId || '').catch(() => {});
+            linkAndRenameAfterSubmit({ ...chatState, linkOnly: !wantCreateImage }, payload.docId || '').catch(() => {});
           }
         } else {
           isBusyWithOrder = false;
