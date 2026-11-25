@@ -38,6 +38,9 @@ export const BROLL_MOTION_ENGLISH_PHRASE: Record<BrollCameraMotion, string> = {
   tilt_down: 'smooth, continuous vertical rostrum camera tilt downward from top to bottom',
 };
 
+/** Image model every thumbnail is created with (user request 2026-11-25). */
+export const THUMBNAIL_IMAGE_MODEL_SENTENCE = 'Generate this image with the Nano Banana 2.1 image model.';
+
 /** Closing sentence of every thumbnail image prompt: a real documentary photograph, never a render. */
 export const THUMBNAIL_PHOTO_REALISM_CLOSING =
   'Shot as a real photograph, not a render: a genuine documentary film still captured on a full-frame cinema camera with a real 35mm lens, natural motivated light coming only from light sources inside the scene, real skin texture with pores and imperfections, real fabric weave, dust and weathered surfaces, subtle film grain, true-to-life muted colors, safe framing composition, 8k resolution, sharp focus, no modern objects. Strictly NOT a 3D render, NOT CGI, NOT a video game or Unreal Engine look, NOT digital painting or illustration, no plastic or waxy skin, no oversaturated colors, no HDR glow, no unintended floating text, no music.';
@@ -6724,12 +6727,14 @@ export function cleanAndNormalizeStage5ThumbnailPrompt(
   pr = pr.replace(/\bIn\s+the\s+top[- ]left\s+corner,\s*the\s*,\s*/gi, '');
 
   // 3. Remove ALL existing text-overlay / typography sentences/clauses (including natural phrasings like `saying "..."` or `typography: "..."`)
+  // The vertical (centered) sentence goes first and whole: the generic rule below would leave its "Centered and
+  // middle-justified ..." opening behind, and it piled up every time the prompt was normalized again
   pr = pr.replace(
-    /(?:(?:Near|In|At)\s+the\s+(?:bottom[- ]left|lower[- ]left|middle|center|top[- ]left|bottom)(?:\s+(?:area|part|corner))?(?:\s+of\s+the\s+(?:image|frame))?\s*,\s*)?(?:a\s+)?(?:bold\s*,?\s*|large\s*,?\s*|massive\s*,?\s*|high[- ]contrast\s*,?\s*|cinematic\s*,?\s*|documentary\s*,?\s*|dramatic\s*,?\s*)*(?:typography\s+|text\s+overlay|title\s+text|lettering|words?\s+on\s+screen)\b[^.]*?(?:\(\s*Line\s*1\s*:[\s\S]*?\)|(?:read(?:s|ing)|say(?:s|ing)|display(?:s|ing)|:)\s*["“”'][^"“”']*["“”'])\s*[.,]?/gi,
+    /Centered\s+and\s+middle[- ]justified\s+right\s+in\s+the\s+middle\s+center\s+of\s+the\s+image\s*,\s*(?:a\s+)?bold[\s\S]*?(?:\(\s*Line\s*1\s*:[\s\S]*?\)|read(?:s|ing)\s*["“”'][^"“”']*["“”'])\s*[.,]?/gi,
     ' '
   );
   pr = pr.replace(
-    /Centered\s+and\s+middle[- ]justified\s+right\s+in\s+the\s+middle\s+center\s+of\s+the\s+image\s*,\s*(?:a\s+)?bold[\s\S]*?(?:\(\s*Line\s*1\s*:[\s\S]*?\)|read(?:s|ing)\s*["“”'][^"“”']*["“”'])\s*[.,]?/gi,
+    /(?:(?:Near|In|At)\s+the\s+(?:bottom[- ]left|lower[- ]left|middle|center|top[- ]left|bottom)(?:\s+(?:area|part|corner))?(?:\s+of\s+the\s+(?:image|frame))?\s*,\s*)?(?:a\s+)?(?:bold\s*,?\s*|large\s*,?\s*|massive\s*,?\s*|high[- ]contrast\s*,?\s*|cinematic\s*,?\s*|documentary\s*,?\s*|dramatic\s*,?\s*)*(?:typography\s+|text\s+overlay|title\s+text|lettering|words?\s+on\s+screen)\b[^.]*?(?:\(\s*Line\s*1\s*:[\s\S]*?\)|(?:read(?:s|ing)|say(?:s|ing)|display(?:s|ing)|:)\s*["“”'][^"“”']*["“”'])\s*[.,]?/gi,
     ' '
   );
   pr = pr.replace(
@@ -6755,6 +6760,14 @@ export function cleanAndNormalizeStage5ThumbnailPrompt(
     ''
   );
   pr = pr.replace(/(?:[.,]\s*)?Shot\s+as\s+a\s+real\s+photograph,\s+not\s+a\s+render[\s\S]*?no\s+music\.?\s*$/i, '');
+  // The empty-corner sentences are added again below exactly once (a prompt is normalized again every time it is
+  // used, and they used to pile up)
+  pr = pr.replace(
+    /\s*The\s+top[- ](?:right|left)\s+corner\s+is\s+left\s+completely\s+clean\s+and\s+empty[^.]*\.?/gi,
+    ' '
+  );
+  // The model sentence is added again below exactly once
+  pr = pr.replace(/\s*(?:Generate|Create|Use)\s+(?:this\s+image\s+)?(?:with\s+)?(?:the\s+)?Nano\s+Banana\s+[\d.]+(?:\s+image\s+model)?\s*\.?/gi, ' ');
 
   // Clean orphaned connectors or double punctuation left after stripping
   pr = pr
@@ -6815,7 +6828,7 @@ export function cleanAndNormalizeStage5ThumbnailPrompt(
   const closingSentence =
     THUMBNAIL_PHOTO_REALISM_CLOSING;
 
-  return [pr, overlaySentence, rightLogoSentence, leftLogoSentence, closingSentence]
+  return [pr, THUMBNAIL_IMAGE_MODEL_SENTENCE, overlaySentence, rightLogoSentence, leftLogoSentence, closingSentence]
     .filter(Boolean)
     .join(' ')
     .replace(/\s+/g, ' ')
