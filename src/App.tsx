@@ -205,7 +205,7 @@ import { stampBrandMarksOnThumbnail, HD_BADGE_EMPTY_CORNER_CLAUSE, LOGO_EMPTY_CO
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '08:41 PM - 11/24/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '08:52 PM - 11/24/2026';
 
 // PRODUCTION LOCK: while promptConfig.PRODUCTION_LOCKED === 'YES' these fields never change (the server
 // enforces the same list in protectLockedDocs). Metadata, thumbnails, review marks and reframes stay editable.
@@ -1215,7 +1215,10 @@ function parsePropositionSectionOptions(
 ): { summary: string; options: string[]; recommended?: string; recommendedReason?: string } {
   if (!rawResearch || !rawResearch.trim()) return { summary: '', options: [] };
   const partRegex = new RegExp(
-    `(?:PARTE|PART)\\s*${partNum}\\s*[—:\\-–][\\s\\S]*?(?=(?:PARTE|PART)\\s*\\d+\\s*[—:\\-–]|={5,}|\\n\\s*1\\.\\s+[A-ZÁÉÍÓÚ]|$)`,
+    // A part also ends at the report's next section, which Gemini sometimes writes without its number
+    // ("ANÁLISIS DE LOS VIDEOS MARCADOS:" instead of "1. ANÁLISIS…"): otherwise the last option of Parte 6
+    // swallows the whole rest of the answer.
+    `(?:PARTE|PART)\\s*${partNum}\\s*[—:\\-–][\\s\\S]*?(?=(?:PARTE|PART)\\s*\\d+\\s*[—:\\-–]|={5,}|\\n\\s*1\\.\\s+[A-ZÁÉÍÓÚ]|\\n\\s*(?:\\d+\\.\\s*)?\\**(?:AN[ÁA]LISIS DE LOS VIDEOS|RADIOGRAF[ÍI]A|POTENCIAL VIRAL|DURACI[ÓO]N TOTAL SUGERIDA|RECOMENDACI[ÓO]N_DURACI)|$)`,
     'i'
   );
   const match = rawResearch.match(partRegex);
