@@ -11374,8 +11374,8 @@ const THUMB_BADGE_FILES = {
   horizontal: path.join(process.cwd(), 'src', 'assets', 'brand', 'k8_badge_16x9.png'),
 };
 const THUMB_BRAND_GEOMETRY = {
-  vertical: { refW: 3072, refH: 5504, logo: { x: 100, y: 110, w: 515 }, badge: { x: 2550, y: 165, w: 430 } },
-  horizontal: { refW: 5504, refH: 3072, logo: { x: 205, y: 112, w: 660 }, badge: { x: 5065, y: 80, w: 370 } },
+  vertical: { refW: 3072, refH: 5504, logo: { x: 100, y: 110, w: 415 }, badge: { x: 2550, y: 165, w: 430 } },
+  horizontal: { refW: 5504, refH: 3072, logo: { x: 205, y: 112, w: 530 }, badge: { x: 5065, y: 80, w: 370 } },
 };
 function stampBrandMarksOnThumbnailServer(img: Buffer, orientation: 'vertical' | 'horizontal'): Buffer {
   const g = THUMB_BRAND_GEOMETRY[orientation];
