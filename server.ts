@@ -13302,7 +13302,7 @@ app.post('/api/flow/sync-reference-downloads', async (req, res) => {
       fs.copyFileSync(srcFullPath, destFullPath);
       if (fs.existsSync(destFullPath) && fs.statSync(destFullPath).size > 0) {
         try {
-          execSync(`chflags nohidden "${destFullPath.replace(/"/g, '\\"')}"`, { stdio: 'ignore' });
+          execFileSync('chflags', ['nohidden', destFullPath], { stdio: 'ignore' });
         } catch {}
         try {
           fs.unlinkSync(srcFullPath);
