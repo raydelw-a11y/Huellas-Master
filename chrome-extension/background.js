@@ -4053,6 +4053,28 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return false;
   }
 
+  // Deep Research plan recovery: reload the SAME Gemini chat tab (no order is resumed or resent; the content
+  // script re-attaches its watcher from huellasActiveDeepResearch). Only for /app/<chatId> pages, never Flow.
+  if (message.type === 'GEMINI_RELOAD_TAB_KEEP_ORDER' && sender?.tab?.id) {
+    const reloadTabId = sender.tab.id;
+    const reloadUrl = String(sender.tab.url || sender.url || '');
+    (async () => {
+      try {
+        if (!/^https:\/\/gemini\.google\.com\/(?:u\/\d+\/)?app\/[a-zA-Z0-9_-]{6,}/.test(reloadUrl)) {
+          sendResponse({ ok: false, error: 'no es un chat de Gemini' });
+          return;
+        }
+        // A pending resume would resend an order after the load: drop it so nothing is sent again
+        await chrome.storage.session.remove(huellasGeminiResumeKey(reloadTabId)).catch(() => {});
+        sendResponse({ ok: true });
+        await chrome.tabs.reload(reloadTabId);
+      } catch (err) {
+        sendResponse({ ok: false, error: String(err?.message || err) });
+      }
+    })();
+    return true;
+  }
+
   if (message.type === 'GEMINI_NAVIGATE_AND_RESUME' && sender?.tab?.id) {
     const navTabId = sender.tab.id;
     const navUrl = String(message.url || '');

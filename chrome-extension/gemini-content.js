@@ -3677,6 +3677,12 @@
     let responseSeenAt = 0;
     let lastStatusAt = 0;
     let busyStep = false;
+    // Plan recovery (verified 11/25/2026, Video 32): a Gemini tab in the background can stay on "Generating
+    // research plan" after the plan is ready; only a reload shows "Start research". Reload THIS tab (same chat
+    // URL): the prompt is never resent and no chat is created; the resume code at load re-attaches here.
+    let planReloads = Number(meta && meta.planReloads) || 0;
+    const waitPlanSince = meta && meta.resumeWaitPlan ? Date.now() : startedAt;
+    const MAX_PLAN_RELOADS = 3;
 
     const finish = (ok, text, images, message) => {
       clearInterval(activeWatchTimer);
@@ -3726,13 +3732,14 @@
       const chatPath = /^\/(?:u\/\d+\/)?app\/[a-zA-Z0-9_-]{6,}/.test(window.location.pathname)
         ? window.location.pathname
         : '';
-      chrome.storage.local
+      return chrome.storage.local
         .set({
           huellasDeepResearchActiveUntil: startedAt + MAX_TOTAL_MS + 5 * 60 * 1000,
           huellasActiveDeepResearch: {
             startedAt,
             chatPath,
             phase,
+            planReloads,
             meta: {
               stageNumber: meta && meta.stageNumber,
               taskType: meta && meta.taskType,
@@ -3780,7 +3787,45 @@
           planClickedAt = Date.now();
           lastText = '';
           lastChangeAt = Date.now();
+          persistActiveOrder(); // a later reload must resume in RESEARCHING, never wait for the plan again
           reportStatus('GENERATING', '🚀 "Start research" pulsado. Gemini Deep Research está investigando (puede tardar varios minutos)...', meta);
+          return;
+        }
+        // Research already browsing sources (started by hand or before a reload): no plan to wait for
+        if (submitted && isDeepResearchActivelyBrowsing()) {
+          phase = 'RESEARCHING';
+          planClickedAt = now;
+          lastText = '';
+          lastChangeAt = now;
+          persistActiveOrder();
+          return;
+        }
+        const onChatUrl = /^\/(?:u\/\d+\/)?app\/[a-zA-Z0-9_-]{6,}/.test(window.location.pathname);
+        if (
+          submitted &&
+          onChatUrl &&
+          planReloads < MAX_PLAN_RELOADS &&
+          now - waitPlanSince >= (planReloads ? 180000 : 150000) &&
+          now - startedAt < MAX_PLAN_WAIT_MS - 30000
+        ) {
+          busyStep = true;
+          planReloads += 1;
+          try {
+            chrome.runtime
+              .sendMessage({ type: 'HUELLAS_DEBUG_LOG', event: 'gemini:deep-research-plan-reload', data: { stage: meta && meta.stageNumber, reload: planReloads, hidden: document.hidden } })
+              .catch(() => {});
+          } catch {}
+          reportStatus(
+            'GENERATING',
+            `🔄 El plan de investigación no aparece en la pestaña; recargándola para ver "Start research" (intento ${planReloads}/${MAX_PLAN_RELOADS}, sin reenviar la orden)...`,
+            meta
+          );
+          try {
+            await persistActiveOrder();
+            const res = await chrome.runtime.sendMessage({ type: 'GEMINI_RELOAD_TAB_KEEP_ORDER' });
+            if (res && res.ok) return; // the page goes away; the watcher resumes after the load
+          } catch {}
+          busyStep = false; // reload refused: keep waiting here
           return;
         }
         const latest = extractLatestGeminiResponse();
@@ -5699,10 +5744,20 @@
       if (!rec || !(Number(st.huellasDeepResearchActiveUntil) > Date.now())) return;
       if (!rec.chatPath || rec.chatPath !== window.location.pathname) return;
       isBusyWithOrder = true;
-      reportStatus('GENERATING', '🔄 Reanudando la espera del informe de Deep Research tras recargar la pestaña...', rec.meta || {});
+      const resumeWaitPlan = rec.phase === 'WAIT_PLAN';
+      reportStatus(
+        'GENERATING',
+        resumeWaitPlan
+          ? '🔄 Pestaña recargada; buscando el botón "Start research" del plan de investigación...'
+          : '🔄 Reanudando la espera del informe de Deep Research tras recargar la pestaña...',
+        rec.meta || {}
+      );
       watchDeepResearchOrder(getModelResponseElements().length, extractLatestGeminiResponse().text, {
         ...(rec.meta || {}),
-        resumeResearching: true,
+        resumeResearching: !resumeWaitPlan,
+        resumeWaitPlan,
+        initialUserQueries: 0,
+        planReloads: Number(rec.planReloads) || 0,
         resumeStartedAt: Number(rec.startedAt) || Date.now(),
       });
     } catch {}
