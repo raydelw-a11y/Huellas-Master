@@ -6038,7 +6038,7 @@ export function reformatSrtText(
 }
 
 // ============================================================================
-// 5. DETECTOR INTELIGENTE DE PERSONAS POR CLIP (MODO HÍBRIDO OMNI 1.1 FLASH vs LOWER PRIORITY)
+// 5. DETECTOR INTELIGENTE DE PERSONAS POR CLIP (MODO HÍBRIDO OMNI 1.2 FLASH vs LOWER PRIORITY)
 // ============================================================================
 export type FlowClipEngineType = 'OMNI_1_1_FLASH' | 'VEO_3_1_LITE_LOWER_PRIORITY';
 export type FlowProjectEngineMode =
@@ -6185,7 +6185,7 @@ export function detectClipHasHumanSubjects(
  * Resolves which Google Flow video engine a clip should use, taking into account:
  * 1) If project mode is forced to all-Lower-Priority or all-Omni-Flash
  * 2) If the user manually toggled `clip.flowClipEngine` on that specific clip
- * 3) Otherwise, automatic human detection (`Omni 1.1 Flash` for people, `Veo 3.1 - Lite [Lower Priority]` for rest)
+ * 3) Otherwise, automatic human detection (`Omni 1.2 Flash` for people, `Veo 3.1 - Lite [Lower Priority]` for rest)
  */
 export function resolveClipFlowVideoEngine(
   clip: {

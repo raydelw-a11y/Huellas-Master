@@ -1251,18 +1251,18 @@ Línea 2: DE HUIR DE LA GUERRA EN ESPAÑA A LEVANTAR UN IMPERIO EN AMÉRICA`;
     if (typeof text !== 'string' || !text) return text || '';
     if (nextFlowVideoEngine === 'HYBRID_PEOPLE_OMNI_REST_LOWER') {
       return text.replace(
-        /Usa\s+(?:omni\s*(?:1\.1\s*)?flash(?:\s+únicamente\s+para\s+los\s+clips\s+de\s+video\s+donde\s+haya\s+personas\s+y\s+usa\s+veo\s*3\.1\s*-\s*lite\s*\[lower\s*priority\]\s+para\s+el\s+resto\s+de\s+los\s+clips\s+de\s+video\s+sin\s+personas)?|veo\s*3\.1(?:\s*-\s*lite\s*\[lower\s*priority\])?|lower\s*priority)\s+para\s+videos/gi,
-        'Usa Omni 1.1 Flash únicamente para los clips de video donde haya personas y usa Veo 3.1 - Lite [Lower Priority] para el resto de los clips de video sin personas'
+        /Usa\s+(?:omni\s*(?:1\.[12]\s*)?flash(?:\s+únicamente\s+para\s+los\s+clips\s+de\s+video\s+donde\s+haya\s+personas\s+y\s+usa\s+veo\s*3\.1\s*-\s*lite\s*\[lower\s*priority\]\s+para\s+el\s+resto\s+de\s+los\s+clips\s+de\s+video\s+sin\s+personas)?|veo\s*3\.1(?:\s*-\s*lite\s*\[lower\s*priority\])?|lower\s*priority)\s+para\s+videos/gi,
+        'Usa Omni 1.2 Flash únicamente para los clips de video donde haya personas y usa Veo 3.1 - Lite [Lower Priority] para el resto de los clips de video sin personas'
       );
     }
     if (nextFlowVideoEngine === 'OMNI_1_1_FLASH') {
       return text.replace(
-        /Usa\s+(?:omni\s*(?:1\.1\s*)?flash(?:\s+únicamente\s+para\s+los\s+clips\s+de\s+video\s+donde\s+haya\s+personas\s+y\s+usa\s+veo\s*3\.1\s*-\s*lite\s*\[lower\s*priority\]\s+para\s+el\s+resto\s+de\s+los\s+clips\s+de\s+video\s+sin\s+personas)?|(?:veo\s*3\.1(?:\s*-\s*lite\s*\[lower\s*priority\])?|lower\s*priority)\s+para\s+videos)/gi,
-        'Usa Omni 1.1 Flash para videos'
+        /Usa\s+(?:omni\s*(?:1\.[12]\s*)?flash(?:\s+únicamente\s+para\s+los\s+clips\s+de\s+video\s+donde\s+haya\s+personas\s+y\s+usa\s+veo\s*3\.1\s*-\s*lite\s*\[lower\s*priority\]\s+para\s+el\s+resto\s+de\s+los\s+clips\s+de\s+video\s+sin\s+personas)?|(?:veo\s*3\.1(?:\s*-\s*lite\s*\[lower\s*priority\])?|lower\s*priority)\s+para\s+videos)/gi,
+        'Usa Omni 1.2 Flash para videos'
       );
     }
     return text.replace(
-      /Usa\s+(?:omni\s*(?:1\.1\s*)?flash(?:\s+únicamente\s+para\s+los\s+clips\s+de\s+video\s+donde\s+haya\s+personas\s+y\s+usa\s+veo\s*3\.1\s*-\s*lite\s*\[lower\s*priority\]\s+para\s+el\s+resto\s+de\s+los\s+clips\s+de\s+video\s+sin\s+personas)?|(?:omni\s*(?:1\.1\s*)?flash|veo\s*3\.1(?:\s*-\s*lite\s*\[lower\s*priority\])?|lower\s*priority)\s+para\s+videos)/gi,
+      /Usa\s+(?:omni\s*(?:1\.[12]\s*)?flash(?:\s+únicamente\s+para\s+los\s+clips\s+de\s+video\s+donde\s+haya\s+personas\s+y\s+usa\s+veo\s*3\.1\s*-\s*lite\s*\[lower\s*priority\]\s+para\s+el\s+resto\s+de\s+los\s+clips\s+de\s+video\s+sin\s+personas)?|(?:omni\s*(?:1\.[12]\s*)?flash|veo\s*3\.1(?:\s*-\s*lite\s*\[lower\s*priority\])?|lower\s*priority)\s+para\s+videos)/gi,
       'Usa Veo 3.1 - Lite [Lower Priority] para videos'
     );
   };
@@ -3919,7 +3919,7 @@ ${doc.voiceoverScript || doc.deepResearchResult || doc.deepResearchPrompt || doc
 Generate STAGE 6: REFERENCE MODEL IMAGE PROMPTS 100% IN ENGLISH for Nano Banana 2.1 in Google Flow (**6 views in each single image** and specifying the **exact ASCII @Tag_With_Underscores** without spaces or accents):
 - Prepend at the very top this exact English operational directive for Google Flow:
   Use Nano Banana 2.1. Generate each image as a single 6-view reference sheet (6 views in a 3x2 grid) and mandatorily rename every generated image to the exact @Tag_With_Underscores identifier specified in each prompt.
-- UNBREAKABLE ZERO PERSON PROPER NAMES RULE IN @TAGS & PROMPTS (CRITICAL FOR OMNI 1.1 FLASH COMPATIBILITY):
+- UNBREAKABLE ZERO PERSON PROPER NAMES RULE IN @TAGS & PROMPTS (CRITICAL FOR OMNI 1.2 FLASH COMPATIBILITY):
   • NEVER use any real or fictional person's first name, surname, full name, or nickname in ANY @Tag, [Image Name: ...], "fix the name to @...", or anywhere inside the English prompt (STRICTLY FORBIDDEN: @Alexander_Fleming, @Howard_Florey, @Thomas_Edison, @Napoleon_Bonaparte, @Pedro_Garfias).
   • Every character @Tag MUST be a pure anonymous descriptive role/profession + origin/era handle in English or Spanish ASCII with underscores (e.g., @Scottish_Bacteriologist_1928, @Young_Clinical_Physician, @Senior_Oxford_Professor, @Exiled_Spanish_Poet, @Asturian_Peasant_Emigrant).
 - For each primary CHARACTER (anonymous @Role_Handle), write a single-line prompt 100% in English with this exact format (no accents, no spaces, and ZERO person proper names in @Anonymous_Role_Tag):
@@ -4091,15 +4091,15 @@ UNBREAKABLE STAGE 7 RULES:
             .map((r) => {
               if (r.category === 'persona') {
                 return isAnonymousRoleReferenceTag(r.tag || '', r)
-                  ? `${r.tag} (Anonymous Role Sheet — use ONLY in Image NN, NEVER in Clip NN; triggers Omni 1.1 Flash)`
-                  : `Anonymous period role descriptor from reference (DO NOT output ${r.tag} or any real person name; describe by adult age, physical traits, role, and period attire — triggers Omni 1.1 Flash)`;
+                  ? `${r.tag} (Anonymous Role Sheet — use ONLY in Image NN, NEVER in Clip NN; triggers Omni 1.2 Flash)`
+                  : `Anonymous period role descriptor from reference (DO NOT output ${r.tag} or any real person name; describe by adult age, physical traits, role, and period attire — triggers Omni 1.2 Flash)`;
               }
               return `${r.tag} (Location — use ONLY in Image NN, NEVER in Clip NN; use Veo 3.1 - Lite [Lower Priority] if zero humans appear)`;
             })
             .join(', ')
         : 'Use anonymous period character role descriptions (ZERO proper person names) and locations from the script';
     stagePrompt = `Act as a historian, film director, and professional journalist.
-Generate STAGE 8: INITIAL IMAGE PROMPTS (Nano Banana 2.1) AND VIDEO CLIP PROMPTS (Hybrid Mode: Omni 1.1 Flash when people appear / Veo 3.1 - Lite [Lower Priority] for scenes without people) 100% IN PURE ENGLISH for the documentary "${cleanStage8Topic}" (${cleanStage8Time}, ${cleanStage8Loc}).
+Generate STAGE 8: INITIAL IMAGE PROMPTS (Nano Banana 2.1) AND VIDEO CLIP PROMPTS (Hybrid Mode: Omni 1.2 Flash when people appear / Veo 3.1 - Lite [Lower Priority] for scenes without people) 100% IN PURE ENGLISH for the documentary "${cleanStage8Topic}" (${cleanStage8Time}, ${cleanStage8Loc}).
 Mandatory visual references (Locations & Anonymous Role Sheets from Stage 4): ${refsListText}.
 Stage 1 Selected Clip Durations (MANDATORY inside EVERY video prompt):
 - Clip 01 (${c1RangeLabel}): ${c1Dur} seconds in Google Flow -> write "Create a cinematic ${c1Dur}-second video showing ..." AND place "[Duration: ${c1Dur}s]" right before "[Model: ...] fix the name".
@@ -4111,16 +4111,16 @@ ${preNumberedTimelineRows}
 Your output MUST BEGIN MANDATORILY AND VERBATIM with this exact 9-line English operational header:
 ${opHeader}
 
-CRITICAL LANGUAGE, DURATION, OMNI 1.1 FLASH ZERO-PERSON-NAMES & SAFETY LAWS FOR GOOGLE FLOW:
+CRITICAL LANGUAGE, DURATION, OMNI 1.2 FLASH ZERO-PERSON-NAMES & SAFETY LAWS FOR GOOGLE FLOW:
 - Write EVERY Image N and EVERY Clip N on its own separate line (zero-padded 01..09 for 1..9, NO ** bold markdown, NO bullets) 100% IN PURE ENGLISH from Clip 01 through Clip ${expectedTotalClips || 'N'}, where each Image N + Clip N visually depicts the exact historical moment, action, place, or object described in that numbered row's narration.
-- STRICTLY ZERO PERSON PROPER NAMES, SURNAMES, ALIASES, OR PERSON POSSESSIVES IN BOTH Image N AND Clip N (UNBREAKABLE OMNI 1.1 FLASH RULE): Omni 1.1 Flash strictly blocks any prompt or batch containing real or fictional person names. NEVER write first names, surnames, full names, royal/political/medical titles + names (e.g., forbidden: "Alexander Fleming", "Florey", "Dr. Menocal", "Thomas Edison", "@Alexander_Fleming"), or person possessives (write "the scientist's laboratory" or "the inventor's workbench", NEVER "Fleming's" or "Edison's") anywhere in Image N or Clip N.
+- STRICTLY ZERO PERSON PROPER NAMES, SURNAMES, ALIASES, OR PERSON POSSESSIVES IN BOTH Image N AND Clip N (UNBREAKABLE OMNI 1.2 FLASH RULE): Omni 1.2 Flash strictly blocks any prompt or batch containing real or fictional person names. NEVER write first names, surnames, full names, royal/political/medical titles + names (e.g., forbidden: "Alexander Fleming", "Florey", "Dr. Menocal", "Thomas Edison", "@Alexander_Fleming"), or person possessives (write "the scientist's laboratory" or "the inventor's workbench", NEVER "Fleming's" or "Edison's") anywhere in Image N or Clip N.
 - @REFERENCE HANDLE RULES: In Image N, use @Location_Name tags and ONLY anonymous role @Tags that contain ZERO proper person names (e.g., @Scottish_Bacteriologist_1928, @Young_Clinical_Physician); if a character has no anonymous @Role_Tag, describe them solely by adult age, physical features, historical profession, and period attire without '@'. In Clip N (video prompts), STRICTLY NEVER include ANY @Reference tags (zero @Person and zero @Location tags) — describe people solely by their anonymous role and attire from Image N (e.g., "the 47-year-old silver-haired Scottish bacteriologist in the white lab coat").
 - STRICTLY ZERO SPANISH INSIDE PROMPTS: Never embed, quote, or append the Spanish voiceover sentence or Spanish UI labels inside Image N or Clip N.
-- PRESERVE LITERAL FIRST 6 WORDS OF EVERY CLIP PROMPT: Every video prompt MUST start with "Clip NN (MM:SS - MM:SS): Create a cinematic {D}-second video showing ..." (words 1..6 = Clip NN (MM:SS - MM:SS): Create) and end with "[Duration: {D}s] [Model: Omni 1.1 Flash] fix the name" (when any person/hands/crowd/human role appear) or "[Duration: {D}s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name" (when zero people appear, even if a @Location tag was used in Image NN; explicitly write "with no people present" on empty scenes).${periodicBrollClause}${shotDirectionClause}
+- PRESERVE LITERAL FIRST 6 WORDS OF EVERY CLIP PROMPT: Every video prompt MUST start with "Clip NN (MM:SS - MM:SS): Create a cinematic {D}-second video showing ..." (words 1..6 = Clip NN (MM:SS - MM:SS): Create) and end with "[Duration: {D}s] [Model: Omni 1.2 Flash] fix the name" (when any person/hands/crowd/human role appear) or "[Duration: {D}s] [Model: Veo 3.1 - Lite [Lower Priority]] fix the name" (when zero people appear, even if a @Location tag was used in Image NN; explicitly write "with no people present" on empty scenes).${periodicBrollClause}${shotDirectionClause}
 - Apply Anti-"Prominent People" Filter Shield (describe historical characters solely by adult physical traits, role, and period attire as anonymous historical reenactment actors, zero proper names) + Anti-Mutation Physics + UNBREAKABLE NON-DUPLICATION RULE ACROSS CONSECUTIVE CLIPS (never repeat the same room, desk, or camera framing back-to-back; alternate angles, focal lengths, and interior/exterior spaces):
 Image 01: Create an image of [clear ~25-40 word English visual scene matching Clip 01's visual Hook in ${cleanStage8Loc}, ${cleanStage8Time}, invoking matching @Location / anonymous @Role tags with ZERO person proper names], clean uncluttered composition with rigid architectural perspective, stationary period props, clear anatomical separation between subjects, portrayed by anonymous historical reenactment actors in authentic period costume (no real public figures or prominent people), cinematic lighting, historical accuracy, no text.
 
-Clip 01 (${c1RangeLabel}): Create a cinematic ${c1Dur}-second video showing [smooth controlled Steadicam/fluid-head camera movement + 1 continuous measured physical action matching Clip 01's visual Hook sustained smoothly across the full ${c1Dur} seconds (from 0s to ${c1Dur}s), with ZERO person proper names and ZERO @Tags]. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the ${c1Dur}-second shot. Sustained, unhurried continuous action across the full ${c1Dur} seconds, holding a natural composed posture through the final frame. Fixed subject count from 0s to ${c1Dur}s (no new people appearing out of nowhere, vanishing, or morphing; background figures stationary in soft f/1.8 bokeh). Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects. Cinematic historical drama reenactment featuring anonymous fictionalized theatre actors in period costume (no real public figures or prominent people, steady continuous lighting with zero sudden flashes). Ambient Foley: [specific English Foley sounds], single continuous shot, strictly no shot changes, no music, no speech, no text. [Duration: ${c1Dur}s] [Model: Omni 1.1 Flash or Veo 3.1 - Lite [Lower Priority]] fix the name`;
+Clip 01 (${c1RangeLabel}): Create a cinematic ${c1Dur}-second video showing [smooth controlled Steadicam/fluid-head camera movement + 1 continuous measured physical action matching Clip 01's visual Hook sustained smoothly across the full ${c1Dur} seconds (from 0s to ${c1Dur}s), with ZERO person proper names and ZERO @Tags]. Smooth, controlled fluid-head camera motion maintaining rigid 3D spatial perspective throughout the ${c1Dur}-second shot. Sustained, unhurried continuous action across the full ${c1Dur} seconds, holding a natural composed posture through the final frame. Fixed subject count from 0s to ${c1Dur}s (no new people appearing out of nowhere, vanishing, or morphing; background figures stationary in soft f/1.8 bokeh). Solid, non-deforming walls and rigid 3D architectural geometry. All tables, documents, furniture, and props remain 100% gravity-locked and stationary with zero self-moving objects. Cinematic historical drama reenactment featuring anonymous fictionalized theatre actors in period costume (no real public figures or prominent people, steady continuous lighting with zero sudden flashes). Ambient Foley: [specific English Foley sounds], single continuous shot, strictly no shot changes, no music, no speech, no text. [Duration: ${c1Dur}s] [Model: Omni 1.2 Flash or Veo 3.1 - Lite [Lower Priority]] fix the name`;
   } else if (stageNumber === 80) {
     // Compute exact documentary duration from last clip, voiceover audio, or confirmed duration
     const parseMmSsToSec = (str?: string): number => {
@@ -4515,7 +4515,7 @@ ${JSON.stringify(
   2
 )}
 UNBREAKABLE NON-DUPLICATION RULE ACROSS CONSECUTIVE CLIPS (Clip N vs Clip N-1): If narration stays on the same topic across consecutive clips, Clip [N] MUST NOT visually duplicate the staging, room, desk, or framing of Clip [N-1]. If Clip [N] repeats a similar setting or framing, mark "auditStatus" as "warning" or "mismatch" and write in "suggestedImagePrompt" (~20-35 words, 100% in English starting with "Image [N]: Create an image of ...") and "suggestedVideoPrompt" (100% in English starting with "Clip [N] ([MM:SS - MM:SS]): Create a video showing ..." and ending with "fix the name", ZERO Spanish words inside prompts) a visually distinct scene matching the narration.
-STRICT OMNI 1.1 FLASH ZERO PERSON PROPER NAMES LAW: NEVER write any real or fictional person's first name, surname, full name, title + name, possessive (e.g. write "the scientist's", NEVER "Fleming's"), or @Person tag inside "suggestedImagePrompt" or "suggestedVideoPrompt" (and ZERO @Tags of any kind inside "suggestedVideoPrompt"); describe human subjects exclusively by adult age, physical traits, anonymous historical role, and period attire.
+STRICT OMNI 1.2 FLASH ZERO PERSON PROPER NAMES LAW: NEVER write any real or fictional person's first name, surname, full name, title + name, possessive (e.g. write "the scientist's", NEVER "Fleming's"), or @Person tag inside "suggestedImagePrompt" or "suggestedVideoPrompt" (and ZERO @Tags of any kind inside "suggestedVideoPrompt"); describe human subjects exclusively by adult age, physical traits, anonymous historical role, and period attire.
 Write "summary" and "auditReason" in Spanish for the producer UI.
 Return EXCLUSIVELY valid JSON: {"summary": "...", "audits": [{"clipNumber": 1, "auditStatus": "ok"|"warning"|"mismatch", "auditReason": "...", "suggestedImagePrompt": "", "suggestedVideoPrompt": ""}]}`;
 
@@ -4573,7 +4573,7 @@ Inspect the attached frames and evaluate:
 VERDICT CRITERIA:
 - "approved": Strong visual quality matching narration and prompt (score >= 75).
 - "warning": Usable clip with minor imperfections (score 60-74).
-- "rejected": Fails narration coherence, ignores prompt, or shows severe AI artifacts/anachronisms (score < 60). If "rejected", write in "fixedVideoPrompt" a clean, corrected 100% English Google Flow prompt starting with "Clip ${clip.clipNumber} (${clip.timeRange || '00:00 - 00:10'}): Create a video showing ..." and ending with "fix the name" (strictly ZERO Spanish words, ZERO @Tags, and ZERO real or fictional person proper names, surnames, or person possessives inside fixedVideoPrompt — describe people solely by anonymous period role, adult age, and attire for Omni 1.1 Flash compatibility).
+- "rejected": Fails narration coherence, ignores prompt, or shows severe AI artifacts/anachronisms (score < 60). If "rejected", write in "fixedVideoPrompt" a clean, corrected 100% English Google Flow prompt starting with "Clip ${clip.clipNumber} (${clip.timeRange || '00:00 - 00:10'}): Create a video showing ..." and ending with "fix the name" (strictly ZERO Spanish words, ZERO @Tags, and ZERO real or fictional person proper names, surnames, or person possessives inside fixedVideoPrompt — describe people solely by anonymous period role, adult age, and attire for Omni 1.2 Flash compatibility).
 
 Write "auditReason" and "issues" in Spanish for the producer UI.
 Return EXCLUSIVELY valid JSON:

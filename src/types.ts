@@ -231,7 +231,7 @@ export interface DocumentaryClip {
   frameKeys9x16?: Array<{ t: number; z: number; x: number; y: number; f?: number }>; // framing points (9:16); f = horizontal focus 0..100
   reframeConfidence?: number;
   reframeReason?: string;
-  // Motor de video específico de este clip (Omni 1.1 Flash si hay personas, Veo 3.1 - Lite [Lower Priority] para el resto)
+  // Motor de video específico de este clip (Omni 1.2 Flash si hay personas, Veo 3.1 - Lite [Lower Priority] para el resto)
   flowClipEngine?: 'OMNI_1_1_FLASH' | 'VEO_3_1_LITE_LOWER_PRIORITY';
   // Clip B-Roll de Imagen Estática (~cada 2 min) con movimiento óptico puro de cámara local en 4K 60fps
   isStaticBroll?: boolean;
@@ -447,11 +447,11 @@ export interface ThumbnailPsychTriggerOption {
   suggestedOverlay?: string;
 }
 
-export const DEFAULT_OPERATIONAL_HEADER = `Act as a professional historian, film director, and journalist. Before starting the generation of any images or video clips, first analyze all provided prompts, check scene by scene whether people/human subjects are present or whether the scene is tagged [IMAGE ONLY — DO NOT GENERATE VIDEO CLIP], and give me a clear pre-generation report stating: (1) exact total number of initial images (Nano Banana 2.1), (2) how many video clips will be made with Omni (Omni 1.1 Flash), (3) how many video clips will be made with Lower Priority (Veo 3.1 - Lite [Lower Priority]), and (4) how many scenes are Image-Only Static B-Roll plates ([IMAGE ONLY — DO NOT GENERATE VIDEO CLIP] [B-Roll: STATIC_...]) that require ONLY the Nano Banana 2.1 still image and ZERO video clip generation, and only after delivering that report proceed with generation.
+export const DEFAULT_OPERATIONAL_HEADER = `Act as a professional historian, film director, and journalist. Before starting the generation of any images or video clips, first analyze all provided prompts, check scene by scene whether people/human subjects are present or whether the scene is tagged [IMAGE ONLY — DO NOT GENERATE VIDEO CLIP], and give me a clear pre-generation report stating: (1) exact total number of initial images (Nano Banana 2.1), (2) how many video clips will be made with Omni (Omni 1.2 Flash), (3) how many video clips will be made with Lower Priority (Veo 3.1 - Lite [Lower Priority]), and (4) how many scenes are Image-Only Static B-Roll plates ([IMAGE ONLY — DO NOT GENERATE VIDEO CLIP] [B-Roll: STATIC_...]) that require ONLY the Nano Banana 2.1 still image and ZERO video clip generation, and only after delivering that report proceed with generation.
 Rename every generated image and video clip using these exact prefixes followed by the 2-digit scene number (01 to 09 for 1 to 9) and the first 6 words of the prompt: start initial clip images with "Inicial_##_" (e.g., Inicial_01_create_an_image_in_16_9), start [IMAGE ONLY — DO NOT GENERATE VIDEO CLIP] Static B-Roll plates with "Broll_##_" (e.g., Broll_18_create_an_image_in_16_9), and start video clips with "Clip_##_" (e.g., Clip_01_generate_a_video_in_16_9).
-Use Omni 1.1 Flash exclusively for video clips featuring people and use Veo 3.1 - Lite [Lower Priority] for all remaining video clips without people; use Nano Banana 2.1 for the initial images of each clip and for all [IMAGE ONLY — DO NOT GENERATE VIDEO CLIP] Static B-Roll plates.
+Use Omni 1.2 Flash exclusively for video clips featuring people and use Veo 3.1 - Lite [Lower Priority] for all remaining video clips without people; use Nano Banana 2.1 for the initial images of each clip and for all [IMAGE ONLY — DO NOT GENERATE VIDEO CLIP] Static B-Roll plates.
 Create the images first and then create video clips ONLY for scenes that include a "Clip XX:" prompt (using each corresponding image as the starting frame). STRICT RULE FOR STATIC B-ROLL PLATES: Whenever an "Image XX:" prompt is tagged [IMAGE ONLY — DO NOT GENERATE VIDEO CLIP] (with no "Clip XX:" prompt), generate ONLY the still image with Nano Banana 2.1 and DO NOT generate any video clip for that scene number (4K 60fps camera motion is applied locally in our video editor).
-Use the reference images of locations and anonymous role sheets ONLY when generating the initial images ("Inicial_##") with Nano Banana 2.1 to maintain visual fidelity; when generating each video clip ("Clip_##")—especially with Omni 1.1 Flash—use ONLY its corresponding generated initial image ("Inicial_##") as the starting frame and STRICTLY NEVER include any real or fictional person proper names, surnames, or @Reference tags in any image or video prompt (describe people and locations solely by anonymous period role, adult age, attire, and architectural setting).
+Use the reference images of locations and anonymous role sheets ONLY when generating the initial images ("Inicial_##") with Nano Banana 2.1 to maintain visual fidelity; when generating each video clip ("Clip_##")—especially with Omni 1.2 Flash—use ONLY its corresponding generated initial image ("Inicial_##") as the starting frame and STRICTLY NEVER include any real or fictional person proper names, surnames, or @Reference tags in any image or video prompt (describe people and locations solely by anonymous period role, adult age, attire, and architectural setting).
 Never make shot changes in any clip (except in that specific clip where the prompt explicitly instructs making two 5-second shots each because the narration voice changed scenes) and ensure video clips have no disappearances or transformations; the created initial image will be used as the start of each video clip.
 Divide creation into batches of 10. Pause 20 seconds between batches.
 rename everything adding _ as the blank spaces between words and replacing any colons (:) or hyphens with _ (never use : in filenames)
@@ -475,14 +475,14 @@ export function sanitizeOperationalHeader(
       return 'VEO_3_1_LITE_LOWER_PRIORITY';
     }
     if (
-      /^(?:Usa|Use)\s+Omni\s*(?:1\.1\s*)?Flash\s+(?:exclusively\s+)?for\s+(?:100%\s+of\s+(?:all\s+)?video\s+clips|all\s+video\s+clips|videos)\b/im.test(
+      /^(?:Usa|Use)\s+Omni\s*(?:1\.[12]\s*)?Flash\s+(?:exclusively\s+)?for\s+(?:100%\s+of\s+(?:all\s+)?video\s+clips|all\s+video\s+clips|videos)\b/im.test(
         text
       ) &&
       !/featuring\s+people/i.test(text)
     ) {
       return 'OMNI_1_1_FLASH';
     }
-    const hasOmni = /\bOmni\s*(?:1\.1\s*)?Flash\b/i.test(text);
+    const hasOmni = /\bOmni\s*(?:1\.[12]\s*)?Flash\b/i.test(text);
     const hasLower = /\b(?:Veo\s*3\.1|Lower\s+Priority)\b/i.test(text);
     if (hasLower && !hasOmni) return 'VEO_3_1_LITE_LOWER_PRIORITY';
     if (hasOmni && !hasLower) return 'OMNI_1_1_FLASH';
@@ -496,23 +496,23 @@ export function sanitizeOperationalHeader(
 
   const reportLine =
     resolvedEngine === 'HYBRID_PEOPLE_OMNI_REST_LOWER'
-      ? 'Act as a professional historian, film director, and journalist. Before starting the generation of any images or video clips, first analyze all provided prompts, check scene by scene whether people/human subjects are present or whether the scene is tagged [IMAGE ONLY — DO NOT GENERATE VIDEO CLIP], and give me a clear pre-generation report stating: (1) exact total number of initial images (Nano Banana 2.1), (2) how many video clips will be made with Omni (Omni 1.1 Flash), (3) how many video clips will be made with Lower Priority (Veo 3.1 - Lite [Lower Priority]), and (4) how many scenes are Image-Only Static B-Roll plates ([IMAGE ONLY — DO NOT GENERATE VIDEO CLIP] [B-Roll: STATIC_...]) that require ONLY the Nano Banana 2.1 still image and ZERO video clip generation, and only after delivering that report proceed with generation.'
+      ? 'Act as a professional historian, film director, and journalist. Before starting the generation of any images or video clips, first analyze all provided prompts, check scene by scene whether people/human subjects are present or whether the scene is tagged [IMAGE ONLY — DO NOT GENERATE VIDEO CLIP], and give me a clear pre-generation report stating: (1) exact total number of initial images (Nano Banana 2.1), (2) how many video clips will be made with Omni (Omni 1.2 Flash), (3) how many video clips will be made with Lower Priority (Veo 3.1 - Lite [Lower Priority]), and (4) how many scenes are Image-Only Static B-Roll plates ([IMAGE ONLY — DO NOT GENERATE VIDEO CLIP] [B-Roll: STATIC_...]) that require ONLY the Nano Banana 2.1 still image and ZERO video clip generation, and only after delivering that report proceed with generation.'
       : resolvedEngine === 'OMNI_1_1_FLASH'
-      ? 'Act as a professional historian, film director, and journalist. Before starting the generation of any images or video clips, first analyze all provided prompts, check scene by scene whether the scene is a standard video clip or tagged [IMAGE ONLY — DO NOT GENERATE VIDEO CLIP], and give me a clear pre-generation report stating: (1) exact total number of initial images (Nano Banana 2.1), (2) exact total number of video clips to be made with Omni (Omni 1.1 Flash) — 100% of all video clips, and (3) how many scenes are Image-Only Static B-Roll plates ([IMAGE ONLY — DO NOT GENERATE VIDEO CLIP] [B-Roll: STATIC_...]) that require ONLY the Nano Banana 2.1 still image and ZERO video clip generation, and only after delivering that report proceed with generation.'
+      ? 'Act as a professional historian, film director, and journalist. Before starting the generation of any images or video clips, first analyze all provided prompts, check scene by scene whether the scene is a standard video clip or tagged [IMAGE ONLY — DO NOT GENERATE VIDEO CLIP], and give me a clear pre-generation report stating: (1) exact total number of initial images (Nano Banana 2.1), (2) exact total number of video clips to be made with Omni (Omni 1.2 Flash) — 100% of all video clips, and (3) how many scenes are Image-Only Static B-Roll plates ([IMAGE ONLY — DO NOT GENERATE VIDEO CLIP] [B-Roll: STATIC_...]) that require ONLY the Nano Banana 2.1 still image and ZERO video clip generation, and only after delivering that report proceed with generation.'
       : 'Act as a professional historian, film director, and journalist. Before starting the generation of any images or video clips, first analyze all provided prompts, check scene by scene whether the scene is a standard video clip or tagged [IMAGE ONLY — DO NOT GENERATE VIDEO CLIP], and give me a clear pre-generation report stating: (1) exact total number of initial images (Nano Banana 2.1), (2) exact total number of video clips to be made with Lower Priority (Veo 3.1 - Lite [Lower Priority]) — 100% of all video clips regardless of whether people are present, and (3) how many scenes are Image-Only Static B-Roll plates ([IMAGE ONLY — DO NOT GENERATE VIDEO CLIP] [B-Roll: STATIC_...]) that require ONLY the Nano Banana 2.1 still image and ZERO video clip generation, and only after delivering that report proceed with generation.';
 
   const engineLine =
     resolvedEngine === 'HYBRID_PEOPLE_OMNI_REST_LOWER'
-      ? 'Use Omni 1.1 Flash exclusively for video clips featuring people and use Veo 3.1 - Lite [Lower Priority] for all remaining video clips without people; use Nano Banana 2.1 for the initial images of each clip and for all [IMAGE ONLY — DO NOT GENERATE VIDEO CLIP] Static B-Roll plates.'
+      ? 'Use Omni 1.2 Flash exclusively for video clips featuring people and use Veo 3.1 - Lite [Lower Priority] for all remaining video clips without people; use Nano Banana 2.1 for the initial images of each clip and for all [IMAGE ONLY — DO NOT GENERATE VIDEO CLIP] Static B-Roll plates.'
       : resolvedEngine === 'OMNI_1_1_FLASH'
-      ? 'Use Omni 1.1 Flash exclusively for 100% of all video clips; use Nano Banana 2.1 for the initial images of each clip and for all [IMAGE ONLY — DO NOT GENERATE VIDEO CLIP] Static B-Roll plates.'
+      ? 'Use Omni 1.2 Flash exclusively for 100% of all video clips; use Nano Banana 2.1 for the initial images of each clip and for all [IMAGE ONLY — DO NOT GENERATE VIDEO CLIP] Static B-Roll plates.'
       : 'Use Veo 3.1 - Lite [Lower Priority] exclusively for 100% of all video clips (both with and without people); use Nano Banana 2.1 for the initial images of each clip and for all [IMAGE ONLY — DO NOT GENERATE VIDEO CLIP] Static B-Roll plates.';
 
   const startingFrameClause =
     resolvedEngine === 'HYBRID_PEOPLE_OMNI_REST_LOWER'
-      ? 'when generating each video clip ("Clip_##")—especially with Omni 1.1 Flash—use ONLY its corresponding generated initial image ("Inicial_##") as the starting frame'
+      ? 'when generating each video clip ("Clip_##")—especially with Omni 1.2 Flash—use ONLY its corresponding generated initial image ("Inicial_##") as the starting frame'
       : resolvedEngine === 'OMNI_1_1_FLASH'
-      ? 'when generating each video clip ("Clip_##") with Omni 1.1 Flash, use ONLY its corresponding generated initial image ("Inicial_##") as the starting frame'
+      ? 'when generating each video clip ("Clip_##") with Omni 1.2 Flash, use ONLY its corresponding generated initial image ("Inicial_##") as the starting frame'
       : 'when generating each video clip ("Clip_##") with Veo 3.1 - Lite [Lower Priority], use ONLY its corresponding generated initial image ("Inicial_##") as the starting frame';
 
   const isLegacySpanishOrIncomplete =
@@ -538,9 +538,9 @@ export function sanitizeOperationalHeader(
   const reportLineRegex =
     /^Act\s+as\s+a\s+(?:(?:professional|master)\s+)?historian[^\n]*only\s+after\s+delivering\s+that\s+report\s+proceed\s+with\s+generation\.?/im;
   const engineLineRegex =
-    /^(?:Usa|Use)\s+(?:Omni\s*1\.1\s*Flash|Veo\s*3\.1\s*(?:-\s*Lite\s*\[Lower\s*Priority\])?|Lower\s*Priority)[^\n]*$/im;
+    /^(?:Usa|Use)\s+(?:Omni\s*1\.[12]\s*Flash|Veo\s*3\.1\s*(?:-\s*Lite\s*\[Lower\s*Priority\])?|Lower\s*Priority)[^\n]*$/im;
   const refClauseRegex =
-    /when\s+generating\s+each\s+video\s+clip\s*\("Clip_##"\)(?:\s*(?:[—–-]\s*especially\s+with\s+Omni\s+1\.1\s+Flash\s*[—–-]|with\s+(?:Veo\s+3\.1\s*-\s*Lite\s*\[Lower\s+Priority\]|Omni\s+1\.1\s+Flash),?))?\s*use\s+ONLY\s+its\s+corresponding\s+generated\s+initial\s+image\s*\("Inicial_##"\)\s+as\s+the\s+starting\s+frame/gi;
+    /when\s+generating\s+each\s+video\s+clip\s*\("Clip_##"\)(?:\s*(?:[—–-]\s*especially\s+with\s+Omni\s+1\.[12]\s+Flash\s*[—–-]|with\s+(?:Veo\s+3\.1\s*-\s*Lite\s*\[Lower\s+Priority\]|Omni\s+1\.[12]\s+Flash),?))?\s*use\s+ONLY\s+its\s+corresponding\s+generated\s+initial\s+image\s*\("Inicial_##"\)\s+as\s+the\s+starting\s+frame/gi;
 
   const sourceForTransform = engineLineRegex.test(base) ? base : DEFAULT_OPERATIONAL_HEADER;
   const outHeader = sourceForTransform
