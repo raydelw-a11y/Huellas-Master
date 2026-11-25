@@ -1414,8 +1414,43 @@
         } catch {}
       }
 
-      // Fallbacks ONLY when the hardware step could not complete (model first, then tool)
+      // Model: every order runs on "Auto" (user decision 2026-11-25). If the background step could not leave it
+      // selected, it is chosen here by clicking its row; the old fallback that put 4 Carbon back is not used.
       if (!result.thinkingOk) {
+        try {
+          const isAutoLabel = () => {
+            const b = Array.from(document.querySelectorAll('button')).find(
+              (el) => el.offsetParent !== null && /mode picker|selector de modo|currently |actualmente /i.test(el.getAttribute('aria-label') || '')
+            );
+            const lbl = b ? `${b.getAttribute('aria-label') || ''} ${b.innerText || ''}` : '';
+            return { btn: b, ok: /\bauto(?:m[aá]tico)?\b/i.test(lbl) && !/\b(carbon|neon|hydrogen|argon)\b/i.test(lbl) };
+          };
+          let st = isAutoLabel();
+          for (let attempt = 0; attempt < 2 && !st.ok && st.btn; attempt++) {
+            await closeAnyOpenOverlayMenus();
+            if (st.btn.getAttribute('aria-expanded') !== 'true') st.btn.click();
+            await sleep(450);
+            const row = Array.from(
+              document.querySelectorAll('.cdk-overlay-popover gem-menu-item, .cdk-overlay-container gem-menu-item')
+            ).find(
+              (el) =>
+                el.offsetParent !== null &&
+                /^(?:[✓✔]\s*)?auto(?:m[aá]tico)?\b/i.test((el.innerText || '').replace(/\s+/g, ' ').trim())
+            );
+            if (row && row.getAttribute('aria-checked') !== 'true') row.click();
+            await sleep(450);
+            await closeAnyOpenOverlayMenus();
+            st = isAutoLabel();
+          }
+          if (st.ok) {
+            result.thinkingOk = true;
+            result.thinkingVerified = true;
+            result.verifiedModel = 'Auto';
+            result.diag.push('Modelo Auto: aplicado desde la página');
+          }
+        } catch {}
+      }
+      if (false && !result.thinkingOk) {
         try {
           const fallbackModelOk = await ensureArgon4AndThinkingLevel();
           if (fallbackModelOk || !wantQuickAnswers) {
@@ -1505,14 +1540,12 @@
     reportStatus(
       'GENERATING',
       isDeepResearch
-        ? `🔬 Gemini Web (4 Carbon · Thinking: ${
-            String((meta && meta.thinkingLevel) || '').toUpperCase() === 'HIGH' ? 'High' : 'Low'
-          } + Deep Research) preparando el Plan de Investigación...`
+        ? '🔬 Gemini Web (modelo Auto + Deep Research) preparando el Plan de Investigación...'
         : isImageOrder
         ? `🖼️ Gemini Web (Create image + Logo Oficial) está creando la Miniatura Opción ${
             (meta && meta.optionLabel) || 'A'
           }...`
-        : 'Gemini Web (4 Carbon · Low) está redactando la respuesta...',
+        : 'Gemini Web (modelo Auto) está redactando la respuesta...',
       meta
     );
 
@@ -1621,6 +1654,9 @@
         !isDeepResearch &&
         !isImageOrder &&
         elapsedMs >= 90000 &&
+        // Never while Gemini is still working on the order (its Stop button is showing): reloading the chat
+        // there cancels a generation that was only slow to start, and the order went out three times.
+        !stillStreamingRaw &&
         currentCount <= initialCount &&
         !(latest.text && latest.text !== initialLastText) &&
         meta &&
@@ -2173,6 +2209,13 @@
               ...(stage11Bundle ? { stage11Bundle } : {}),
             })
             .catch(() => {});
+        } else {
+          // Time ran out and Gemini never wrote anything: say so, instead of ending in silence
+          reportStatus(
+            'ERROR',
+            '⚠️ Gemini no llegó a responder a esta orden. No se guardó nada; vuelve a enviarla.',
+            meta
+          );
         }
         processNextQueuedPrompt();
       }
@@ -4389,7 +4432,7 @@
         if (!payload.skipModelSwitch) {
           reportStatus(
             'WORKING',
-            `⚡ Configurando Gemini Web en 4 Carbon (Thinking: ${wantHighThinking ? 'High' : 'Low'})${
+            `⚡ Configurando Gemini Web en el modelo Auto${
               payload.enableDeepResearch
                 ? ' + Deep Research activo'
                 : wantCreateImage
@@ -4452,8 +4495,8 @@
           if (cfgResult) {
             reportStatus(
               'WORKING',
-              `✅ Gemini configurado: 4 Carbon · Thinking level: ${levelLabel}${
-                cfgResult.thinkingOk ? ' ✓' : ' (sin confirmar)'
+              `✅ Gemini configurado: modelo Auto${
+                cfgResult.thinkingOk ? ' ✓' : ' (sin confirmar: se envía con el modelo que estaba puesto)'
               }${payload.enableDeepResearch ? ` · Deep research ${cfgResult.deepResearchOk ? '✓' : '✗'}` : ''}${
                 wantCreateImage ? ` · Create image ${cfgResult.createImageOk ? '✓' : '✗'}` : ''
               }${diagText}`,
@@ -5284,11 +5327,8 @@
           msg.action === 'ASK_EXTERNAL_CARBON_HIGH' ||
           msg.action === 'ASK_EXTERNAL_ARGON_HIGH' ||
           String(msg.thinkingLevel || '').toUpperCase() === 'HIGH');
-      const expectedCanonicalLabel = wantQuickAnswers
-        ? 'Quick answers'
-        : wantHigh
-          ? '4 Carbon · High'
-          : '4 Carbon · Low';
+      // Every Gemini order runs on the "Auto" model (user decision 2026-11-25)
+      const expectedCanonicalLabel = 'Auto';
       sendResponse({ handled: true, requestId });
       (async () => {
         try {
@@ -5380,16 +5420,8 @@
             return [aria, inner].filter(Boolean).join(' · ');
           };
           const isVerifiedTargetModelLabel = (lbl) =>
-            wantQuickAnswers
-              ? /\b(quick\s*answers?|respuestas?\s*r[aá]pidas?|fast|r[aá]pido|flash)\b/i.test(lbl) &&
-                !/\b(carbon|argon|pro|high|alto|medium|medio|low|bajo)\b/i.test(lbl)
-              : wantHigh
-                ? /\b(carbon|argon)\b/i.test(lbl) &&
-                  /\b(high|alto)\b/i.test(lbl) &&
-                  !/\b(low|bajo|flash|quick\s*answers?)\b/i.test(lbl)
-                : /\b(carbon|argon)\b/i.test(lbl) &&
-                  /\b(low|bajo)\b/i.test(lbl) &&
-                  !/\b(high|alto|medium|medio|flash|quick\s*answers?)\b/i.test(lbl);
+            /\bauto(?:m[aá]tico)?\b/i.test(String(lbl || '')) &&
+            !/\b(carbon|neon|hydrogen|argon)\b/i.test(String(lbl || ''));
 
           let cfgRes = await Promise.race([
             configureGeminiModelAndDeepResearch(
@@ -5434,11 +5466,7 @@
           await sleep(350);
 
           const liveDomLabel = readCurrentGeminiModeLabel();
-          const hasExplicitWrongModelInPill = wantQuickAnswers
-            ? /\b(carbon|argon|pro|high|alto|medium|medio|low|bajo)\b/i.test(liveDomLabel)
-            : wantHigh
-              ? /\b(low|bajo|flash|quick\s*answers?|respuestas?\s*r[aá]pidas?)\b/i.test(liveDomLabel)
-              : /\b(high|alto|medium|medio|flash|quick\s*answers?|respuestas?\s*r[aá]pidas?)\b/i.test(liveDomLabel);
+          const hasExplicitWrongModelInPill = /\b(carbon|neon|hydrogen|argon)\b/i.test(liveDomLabel);
           verifiedModeBeforeSend =
             (isVerifiedTargetModelLabel(liveDomLabel) ? liveDomLabel : '') ||
             (cfgRes && cfgRes.verifiedModel) ||

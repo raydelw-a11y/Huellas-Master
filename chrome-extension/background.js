@@ -4413,6 +4413,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     const enableCreateImage = Boolean(message.enableCreateImage);
     const aspectRatio = String(message.aspectRatio || '').trim();
     const targetLevel = wantQuickAnswers ? 'QUICK_ANSWERS' : wantHigh ? 'HIGH' : 'LOW';
+    // Every order runs on Gemini's "Auto" model (user decision 2026-11-25): with 4 Carbon + Thinking level Low a
+    // long order sat for minutes without an answer, and Auto answered the same order in under a minute.
+    // Whatever model an order still asks for (older page, external asks), Auto is what gets selected.
+    const wantAuto = true;
 
     (async () => {
       const target = { tabId: geminiTabId };
@@ -5075,6 +5079,29 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                   };
                 }
 
+                if (op === 'SELECT_AUTO_MODEL_DOM') {
+                  // The model picker's first entry, "Auto — Adapts to your needs": the row itself is clicked (no
+                  // coordinates), and never when it is already the chosen one.
+                  const rows = Array.from(
+                    document.querySelectorAll(
+                      '.cdk-overlay-popover gem-menu-item, .cdk-overlay-container gem-menu-item, .cdk-overlay-popover [role="menuitemradio"], .cdk-overlay-container [role="menuitemradio"]'
+                    )
+                  ).filter((el) => {
+                    const r = el.getBoundingClientRect();
+                    return r.width > 10 && r.height > 10;
+                  });
+                  const txt = (el) => (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+                  const autoRow = rows.find((el) => /^(?:[✓✔]\s*)?auto(?:m[aá]tico)?\b/i.test(txt(el)));
+                  if (!autoRow) return { found: false, items: rows.map((el) => txt(el).slice(0, 40)) };
+                  if (isItemChecked(autoRow)) return { found: true, alreadyChecked: true };
+                  try {
+                    autoRow.click();
+                  } catch {
+                    return { found: false, items: ['clic falló'] };
+                  }
+                  return { found: true, clicked: true };
+                }
+
                 if (op === 'ENSURE_MODEL_MENU_EXPANDED_DOM') {
                   const sw = findComposerModePickerButton();
                   if (!sw) return { expanded: false };
@@ -5671,7 +5698,39 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           thinkingOk = true;
           thinkingVerified = true;
         }
-        for (let attempt = 1; attempt <= 3 && !thinkingOk; attempt++) {
+        if (wantAuto) {
+          const isAutoModeLabel = (lbl) =>
+            /\bauto(?:m[aá]tico)?\b/i.test(lbl) && !/\b(carbon|neon|hydrogen|argon)\b/i.test(lbl);
+          const autoIsSelected = async () => {
+            const ml = await runMainStep('READ_MODE_LABEL');
+            return isAutoModeLabel(String((ml && ml.label) || ''));
+          };
+          let autoOk = await autoIsSelected();
+          for (let attempt = 1; attempt <= 3 && !autoOk; attempt++) {
+            await closeMenus();
+            const opened = await runMainStep('ENSURE_MODEL_MENU_EXPANDED_DOM');
+            if (!opened) {
+              diag.push(`A${attempt}: selector de modelo no encontrado`);
+              await sleep(350);
+              continue;
+            }
+            await sleep(380);
+            let sel = await runMainStep('SELECT_AUTO_MODEL_DOM');
+            if (!sel?.found) {
+              await sleep(350);
+              sel = await runMainStep('SELECT_AUTO_MODEL_DOM');
+            }
+            if (!sel?.found) diag.push(`A${attempt}: "Auto" no apareció en el menú [${(sel?.items || []).join(' | ')}]`);
+            await sleep(420);
+            await closeMenus();
+            autoOk = await autoIsSelected();
+            if (!autoOk && sel?.found) diag.push(`A${attempt}: se pulsó "Auto" pero el selector no lo muestra`);
+          }
+          thinkingOk = autoOk;
+          thinkingVerified = autoOk;
+          verifiedModelLabel = autoOk ? 'Auto' : '';
+        }
+        for (let attempt = 1; attempt <= 3 && !thinkingOk && !wantAuto; attempt++) {
           await closeMenus();
           let menu = await openModelMenu();
           if (!menu) {
@@ -7553,13 +7612,13 @@ async function runExternalGeminiAskOrder(task) {
     const resolvedTargetModel = String(task.targetModel || 'QUICK_ANSWERS').trim().toUpperCase();
     const isQuickTarget = resolvedTargetModel === 'QUICK_ANSWERS';
     const isHighTarget = resolvedTargetModel === 'CARBON_HIGH';
-    const expectedCanonicalModel = isQuickTarget
-      ? 'Quick answers'
-      : isHighTarget
-        ? '4 Carbon · High'
-        : '4 Carbon · Low';
+    // Every Gemini order runs on the "Auto" model (user decision 2026-11-25)
+    const expectedCanonicalModel = 'Auto';
     const isExpectedModeLabel = (rawLbl) => {
       const lbl = String(rawLbl || '');
+      if (lbl !== undefined) {
+        return /\bauto(?:m[aá]tico)?\b/i.test(lbl) && !/\b(carbon|neon|hydrogen|argon)\b/i.test(lbl);
+      }
       if (isQuickTarget) {
         return (
           /\b(quick\s*answers?|respuestas?\s*r[aá]pidas?|fast|r[aá]pido|flash)\b/i.test(lbl) &&
