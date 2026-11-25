@@ -223,7 +223,7 @@ import { stampBrandMarksOnThumbnail, HD_BADGE_EMPTY_CORNER_CLAUSE, LOGO_EMPTY_CO
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '01:07 PM - 11/25/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '02:14 PM - 11/25/2026';
 
 // PRODUCTION LOCK: while promptConfig.PRODUCTION_LOCKED === 'YES' these fields never change (the server
 // enforces the same list in protectLockedDocs). Metadata, thumbnails, review marks and reframes stay editable.
@@ -940,7 +940,7 @@ function buildOrUpdateThumbnailPrompt(
   const rawTrimmed = isCorruptedThumbnailPrompt(currentPrompt) ? '' : String(currentPrompt || '').trim();
   if (!rawTrimmed) {
     const sceneContext = extractCleanEnglishThumbnailSceneFromDoc(doc);
-    const seedPrompt = `Thumbnail: Create an image in ${aspectPhrase} with an ultra-clean 3-element composition readable in 13 milliseconds on mobile set inside ${sceneContext}, featuring a dominant historical protagonist face in medium close-up (60% of frame) making direct piercing eye contact into the camera lens, wide-open eyes showing visible white sclera, intense visceral emotion of shock and discovery, real skin pores and sweat, dramatic high-impact chiaroscuro contrast with warm golden-amber rim lighting against a deep cold midnight-cyan background, ${
+    const seedPrompt = `Thumbnail: Create an image in ${aspectPhrase} with an ultra-clean 3-element composition readable in 13 milliseconds on mobile set inside ${sceneContext}, featuring the decisive moment of the story frozen in tension, a historical character in the midground reacting with stunned realization to something just off-frame (their gaze directed at the story element, never at the camera) beside the key period object of the story, dramatic high-impact chiaroscuro contrast with warm golden-amber rim lighting against a deep cold midnight-cyan background, ${
       textPositionClause ? `${textPositionClause}, ` : ''
     }${rightLogoClause}, ${leftLogoClause}, ${closingClause}`;
     return cleanAndNormalizeStage5ThumbnailPrompt(seedPrompt, orientation, overlayText);
@@ -1069,12 +1069,12 @@ function buildPsychologicalThumbnailVariantPrompt(
   const sceneContext = extractCleanEnglishThumbnailSceneFromDoc(doc);
 
   if (variant === 'A') {
-    return `Thumbnail: Create an image in ${aspectPhrase} with an ultra-clean 3-element composition readable in 13 milliseconds on mobile set inside ${sceneContext}, featuring an extreme close-up of the historical protagonist's face occupying 60% of the frame, making direct piercing eye contact into the camera lens, wide-open eyes with visible white sclera, intense visceral emotion of shock and stunned realization, hyper-realistic skin pores and authentic period attire, illuminated by blazing warm golden-amber rim light against a deep cold midnight-cyan background, ${textPart}${rightLogoClause}, ${leftLogoClause}, ${closingClause}`;
+    return `Thumbnail: Create an image in ${aspectPhrase} with an ultra-clean 3-element composition readable in 13 milliseconds on mobile set inside ${sceneContext}, featuring a dramatic macro close-up of the decisive period-accurate object of the story occupying 60% of the frame, worn and scarred with a hint of something wrong or unexplained about it, a weathered hand entering the frame toward it, illuminated by blazing warm golden-amber rim light against a deep cold midnight-cyan background, ${textPart}${rightLogoClause}, ${leftLogoClause}, ${closingClause}`;
   }
   if (variant === 'B') {
-    return `Thumbnail: Create an image in ${aspectPhrase} with an ultra-clean 3-element composition readable in 13 milliseconds on mobile set inside ${sceneContext}, showing the historical protagonist in sharp foreground medium close-up (60% of frame) looking directly into the camera lens in tense disbelief while holding a decisive period-accurate historical object illuminated by warm amber light against cold abyssal blue shadows, ${textPart}${rightLogoClause}, ${leftLogoClause}, ${closingClause}`;
+    return `Thumbnail: Create an image in ${aspectPhrase} with an ultra-clean 3-element composition readable in 13 milliseconds on mobile set inside ${sceneContext}, seen from a vertiginous low angle, a tiny historical figure dwarfed by something enormous and dangerous from the story looming over them, conveying overwhelming scale and imminent danger, the figure lit by warm amber light against cold abyssal blue shadows, ${textPart}${rightLogoClause}, ${leftLogoClause}, ${closingClause}`;
   }
-  return `Thumbnail: Create an image in ${aspectPhrase} with an ultra-clean 3-element composition readable in 13 milliseconds on mobile set inside ${sceneContext}, contrasting an expressive historical protagonist face in the foreground making urgent eye contact with the lens against the dramatic period setting looming in the background under blazing amber firelight and deep midnight-blue shadows, ${textPart}${rightLogoClause}, ${leftLogoClause}, ${closingClause}`;
+  return `Thumbnail: Create an image in ${aspectPhrase} with an ultra-clean 3-element composition readable in 13 milliseconds on mobile set inside ${sceneContext}, showing a historical character in three-quarter profile reacting with fear and disbelief to something half-hidden in the shadows of the dramatic period setting, their gaze fixed on it and never on the camera, the hidden thing barely revealed by a sliver of blazing amber firelight against deep midnight-blue shadows, ${textPart}${rightLogoClause}, ${leftLogoClause}, ${closingClause}`;
 }
 
 const STAGES_LIST = [
@@ -13101,12 +13101,17 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       const overlayWords = overlayRaw ? overlayRaw.split(/\s+/).filter(Boolean).length : 0;
 
       const r1 =
-        /13\s*milliseconds|3-element|ultra-clean|medium close-up/i.test(pText) && overlayWords <= 4
+        /13\s*milliseconds|3-element|ultra-clean|close-up|low angle/i.test(pText) && overlayWords <= 4
           ? 20
           : overlayWords <= 6
           ? 18
           : 15;
-      const r2 = /eye contact|sclera|close-up|face|expression|shock|visceral/i.test(pText) ? 20 : 17;
+      // A story-driven focal point scores; a person staring into the camera (the old repetitive look) does not
+      const r2 = /eye contact|into the camera|camera lens|at the viewer/i.test(pText)
+        ? 15
+        : /off-frame|object|macro|scale|danger|moment|reacting|shadows|hidden|contrast/i.test(pText)
+        ? 20
+        : 17;
       const r3 =
         overlayWords >= 1 && overlayWords <= 4
           ? 20

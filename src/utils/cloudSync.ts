@@ -3860,11 +3860,22 @@ ${overlayInstructionBlock}
 
 MANDATORY TASK — 3 DYNAMIC NEUROPSYCHOLOGICAL CLICK TRIGGERS TAILORED TO THIS VIDEO + THEIR 3 PROMPTS 100% IN ENGLISH:
 Design 3 distinct Neuropsychological Click Trigger options ([DISPARADOR_A], [DISPARADOR_B], [DISPARADOR_C]) crafted 100% custom for the real story of THIS documentary.
-Strictly FORBIDDEN to use generic fixed labels like "Face + Shock (13ms)", "Curiosity Gap", or "Scale + Danger". Each TITULO and DESCRIPCION (in Spanish for our producer UI) must name the concrete historical moment, physical trigger object, real setting, or exact twist of THIS specific video, applying the 5 CTR neuropsychology laws:
-1. 13-MILLISECOND VISUAL PROCESSING (ZERO VISUAL CLUTTER): Ultra-clean composition of maximum 3 visual elements (1 dominant foreground face + 1 real physical story prop/element + hook overlay text), instantly readable on mobile.
-2. HUMAN FACE + EXTREME EMOTION + DIRECT EYE CONTACT: Story protagonist occupying 60% of the frame in Medium Close-Up or Extreme Close-Up, staring straight into the lens ("direct piercing eye contact into the camera lens"), wide eyes showing white sclera, authentic visceral emotion, skin pores, and sweat.
-3. CURIOSITY GAP: Each of the 3 options must depict a distinct concrete physical scene, period prop, and historical setting from THIS documentary (FORBIDDEN to write vague phrases like "shadowy betrayal" or "enigmatic forbidden historical detail").
-4. COLOR PSYCHOLOGY & HIGH CONTRAST: Dramatic chiaroscuro with warm key light (burning amber, gold, or crimson firelight) on the face and rim light separating the subject from a cold dark background (nocturnal cyan-blue or deep shadows).
+Strictly FORBIDDEN to use generic fixed labels like "Face + Shock (13ms)", "Curiosity Gap", or "Scale + Danger". Each TITULO and DESCRIPCION (in Spanish for our producer UI) must name the concrete historical moment, physical trigger object, real setting, or exact twist of THIS specific video.
+
+FIRST, read the real script above and find the 3 strongest UNANSWERED QUESTIONS of THIS story (a mystery, a contradiction, a danger, a decision, a hidden detail, a "how was this even possible?"). Each thumbnail must make the viewer ask one of those questions WITHOUT giving the answer: the image shows the question, the video answers it.
+
+Then apply the 5 CTR neuropsychology laws:
+1. 13-MILLISECOND VISUAL PROCESSING (ZERO VISUAL CLUTTER): Ultra-clean composition of maximum 3 visual elements (1 dominant focal subject taken from the story + at most 1 supporting element + the hook overlay text), instantly readable on mobile.
+2. A DIFFERENT VISUAL APPROACH FOR EACH OPTION, CHOSEN FROM THE STORY (NOT A FIXED FORMULA): A, B, and C must each use a DIFFERENT approach from this list, picking the ones that best fit THIS documentary:
+   • THE KEY OBJECT / EVIDENCE: the story's decisive physical object (a document, tool, wound, map, relic, machine part) in dramatic macro close-up, with a hint of something wrong or unexplained about it.
+   • SCALE & DANGER: a person tiny against something enormous or deadly from the story (height, fire, sea, crowd, machine, collapse), seen from a vertiginous or low angle.
+   • THE MOMENT BEFORE: the instant just before the decisive event of the story, frozen in tension, so the viewer needs to know what happens next.
+   • REACTION TO THE UNSEEN: a character reacting with real emotion to something just OFF-FRAME or half-hidden in the shadows (their gaze goes to the story element, NEVER to the camera).
+   • CONTRAST / CONTRADICTION: two things from the story that should not coexist (luxury and misery, before and after, the hero and the victim) split across the frame.
+   • THE HIDDEN DETAIL: a wide real setting from the story where one small revealing detail (a figure, a mark, a light, an open door) is placed where the eye lands first.
+   UNBREAKABLE: no person may look into the camera lens (FORBIDDEN: "eye contact", "looking at the camera", "staring into the lens", "facing the viewer"); at most ONE of the 3 options may use a human face as the dominant element, and if it does, the face must react to the story element inside the scene. The 3 options must look clearly different from each other at first glance (different subject, framing, and setting).
+3. CURIOSITY GAP: Each of the 3 options must depict a distinct concrete physical scene, period prop, and historical setting from THIS documentary (FORBIDDEN to write vague phrases like "shadowy betrayal" or "enigmatic forbidden historical detail"). The image raises the question; the on-screen hook sharpens it; neither reveals the answer.
+4. COLOR PSYCHOLOGY & HIGH CONTRAST: Dramatic chiaroscuro with warm key light (burning amber, gold, or crimson firelight) on the focal subject and rim light separating it from a cold dark background (nocturnal cyan-blue or deep shadows), adapted to the real light of the story's setting.
 5. UNBREAKABLE TECHNICAL RULES INSIDE EVERY "PROMPT:" (SINGLE LINE, 100% PURE ENGLISH — ZERO SPANISH PROSE):
    - 100% ENGLISH LANGUAGE: Inside "PROMPT:" it is STRICTLY FORBIDDEN to write Spanish prose or copy Spanish topic labels; the ONLY Spanish words allowed inside "PROMPT:" are the quoted on-screen text overlay and the brand logo sub-text "Huellas de la Humanidad".
    - Start literally with: "Thumbnail: Create an image in ${aspectPhrase} "
@@ -3881,19 +3892,19 @@ Strictly FORBIDDEN to use generic fixed labels like "Face + Shock (13ms)", "Curi
 STRICT DELIVERY FORMAT (output ONLY these 3 exact plain-text blocks WITHOUT ** asterisks around field labels and without greetings or closing remarks):
 [DISPARADOR_A]
 TITULO: Opción A: <Specific 3-to-7 word Spanish title based on a key moment/object of THIS documentary>
-DESCRIPCION: <1 to 2 Spanish sentences explaining the specific scene, 13ms facial expression, and why it opens an irresistible curiosity gap>
+DESCRIPCION: <1 to 2 Spanish sentences naming the visual approach used, the specific scene of THIS story, and the unanswered question it makes the viewer ask>
 TEXTO_PANTALLA: ${hasUserOverlay ? overlayLines.join(' / ') : '<2 TO 4 WORD UPPERCASE SPANISH HOOK (use " / " if 2 lines)>'}
 PROMPT: Thumbnail: Create an image in ${aspectPhrase} ...
 
 [DISPARADOR_B]
 TITULO: Opción B: <Second specific 3-to-7 word Spanish angle based on another real twist/scene of THIS documentary>
-DESCRIPCION: <1 to 2 Spanish sentences explaining this second unique visual trigger>
+DESCRIPCION: <1 to 2 Spanish sentences explaining this second visual approach (different from A) and the question it raises>
 TEXTO_PANTALLA: ${hasUserOverlay ? overlayLines.join(' / ') : '<SECOND 2 TO 4 WORD UPPERCASE SPANISH HOOK>'}
 PROMPT: Thumbnail: Create an image in ${aspectPhrase} ...
 
 [DISPARADOR_C]
 TITULO: Opción C: <Third specific 3-to-7 word Spanish angle based on another real revelation/scene of THIS documentary>
-DESCRIPCION: <1 to 2 Spanish sentences explaining this third unique visual trigger>
+DESCRIPCION: <1 to 2 Spanish sentences explaining this third visual approach (different from A and B) and the question it raises>
 TEXTO_PANTALLA: ${hasUserOverlay ? overlayLines.join(' / ') : '<THIRD 2 TO 4 WORD UPPERCASE SPANISH HOOK>'}
 PROMPT: Thumbnail: Create an image in ${aspectPhrase} ...`;
   } else if (stageNumber === 6) {
@@ -4626,7 +4637,7 @@ Expected Spanish on-screen text: "${overlayText}"
 
 Score from 0 to 20 each of the 5 Psychological Click Laws (Total 0 to 100):
 1. rule1_13msClarity (0-20): Ultra-fast 13-millisecond visual readability (max 3 elements, zero visual clutter, mobile-legible).
-2. rule2_faceEmotionEyeContact (0-20): Expressive human face, intense visceral emotion, and direct eye contact with the viewer.
+2. rule2_faceEmotionEyeContact (0-20): Story-specific focal point with real emotional pull (the key object, a scale/danger, the moment before, or a character reacting to something in the scene). Nobody should look into the camera: a person staring at the viewer scores LOWER, not higher.
 3. rule3_curiosityGap (0-20): Irresistible visual Curiosity Gap without spoiling the entire answer.
 4. rule4_colorContrast (0-20): High-contrast warm key light against dark cool background + crisp text legibility.
 5. rule5_titleBrandSynergy (0-20): Synergy with video title, accurate Spanish overlay "${overlayText}", "Huellas de la Humanidad" logo top-left, and "8K"/"HD" badge top-right.
