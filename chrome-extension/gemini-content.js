@@ -1354,7 +1354,8 @@
               return /\b(deep\s*research|investigaci[oó]n\s+profunda)\b/i.test(txt);
             });
 
-            if (!deepResearchItem) {
+            // A click on an open "More tools" closes it again: click only while it reports itself collapsed
+            if (!deepResearchItem && moreToolsItem.getAttribute('aria-expanded') !== 'true') {
               triggerHoverAndClick(moreToolsItem, true);
               await sleep(320);
               menuItems = getVisibleMenuItems();
