@@ -38,6 +38,10 @@ export const BROLL_MOTION_ENGLISH_PHRASE: Record<BrollCameraMotion, string> = {
   tilt_down: 'smooth, continuous vertical rostrum camera tilt downward from top to bottom',
 };
 
+/** Closing sentence of every thumbnail image prompt: a real documentary photograph, never a render. */
+export const THUMBNAIL_PHOTO_REALISM_CLOSING =
+  'Shot as a real photograph, not a render: a genuine documentary film still captured on a full-frame cinema camera with a real 35mm lens, natural motivated light coming only from light sources inside the scene, real skin texture with pores and imperfections, real fabric weave, dust and weathered surfaces, subtle film grain, true-to-life muted colors, safe framing composition, 8k resolution, sharp focus, no modern objects. Strictly NOT a 3D render, NOT CGI, NOT a video game or Unreal Engine look, NOT digital painting or illustration, no plastic or waxy skin, no oversaturated colors, no HDR glow, no unintended floating text, no music.';
+
 export const IMAGE_ONLY_BROLL_DIRECTIVE_TAG = '[IMAGE ONLY — DO NOT GENERATE VIDEO CLIP]';
 
 export const FROZEN_FLOW_CLOSING_CLAUSE =
@@ -6750,6 +6754,7 @@ export function cleanAndNormalizeStage5ThumbnailPrompt(
     /(?:The\s+scene\s+has\s+|,\s*)?cinematic\s+documentary\s+realism\s*,\s*8k\s+resolution[\s\S]*?no\s+music\.?\s*$/i,
     ''
   );
+  pr = pr.replace(/(?:[.,]\s*)?Shot\s+as\s+a\s+real\s+photograph,\s+not\s+a\s+render[\s\S]*?no\s+music\.?\s*$/i, '');
 
   // Clean orphaned connectors or double punctuation left after stripping
   pr = pr
@@ -6804,8 +6809,11 @@ export function cleanAndNormalizeStage5ThumbnailPrompt(
   const leftLogoSentence =
     'The top-left corner is left completely clean and empty, with no text, no emblem and no logo in that corner.';
 
+  // Photographic language (user request 2026-11-25: images looked like CGI / a video game). "Cinematic" and "8k"
+  // alone pull image models toward a polished render; a real camera, natural light and an explicit list of what it
+  // must NOT look like keep it a documentary photograph.
   const closingSentence =
-    'The scene has cinematic documentary realism, 8k resolution, sharp focus, safe framing composition, no modern objects, no CGI look, no unintended floating text, no music.';
+    THUMBNAIL_PHOTO_REALISM_CLOSING;
 
   return [pr, overlaySentence, rightLogoSentence, leftLogoSentence, closingSentence]
     .filter(Boolean)

@@ -12473,6 +12473,60 @@ async function registerStandaloneImageWindowId(winId) {
   } catch {}
 }
 
+// Image-generation Gemini tabs are tracked by TAB id: since 2026-11-25 they open inside the user's Huellas Master
+// window (user request), so marking the whole window would hide the documentary's own Gemini tabs there.
+const standaloneImageTabIdsMem = new Set();
+
+async function getStandaloneImageTabIds() {
+  const out = new Set(standaloneImageTabIdsMem);
+  try {
+    const st = await chrome.storage.session.get('huellasStandaloneImgTabIds');
+    const arr = Array.isArray(st && st.huellasStandaloneImgTabIds) ? st.huellasStandaloneImgTabIds : [];
+    for (const id of arr) {
+      if (typeof id === 'number') out.add(id);
+    }
+  } catch {}
+  return out;
+}
+
+async function registerStandaloneImageTabId(tabId) {
+  if (typeof tabId !== 'number') return;
+  standaloneImageTabIdsMem.add(tabId);
+  try {
+    const cur = await getStandaloneImageTabIds();
+    cur.add(tabId);
+    await chrome.storage.session.set({
+      huellasStandaloneImgTabIds: Array.from(cur).slice(-30),
+    });
+  } catch {}
+}
+
+/**
+ * Window where the Huellas Master page is open: Gemini tabs the app needs are opened there (user request
+ * 2026-11-25) instead of in a new Chrome window. The window that sent the order wins; orders from the phone
+ * (no sender window) use the window holding a Huellas Master tab, the focused one first. null = none open.
+ */
+async function findHuellasHostWindowId(senderWindowId = null) {
+  try {
+    const allTabs = await chrome.tabs.query({});
+    const huellasTabs = allTabs.filter(
+      (t) => t && typeof t.windowId === 'number' && isHuellasUrl(t.url, t.title)
+    );
+    if (typeof senderWindowId === 'number') {
+      if (huellasTabs.some((t) => t.windowId === senderWindowId)) return senderWindowId;
+      const senderWin = await chrome.windows.get(senderWindowId).catch(() => null);
+      if (senderWin && senderWin.type === 'normal') return senderWindowId;
+    }
+    if (huellasTabs.length === 0) return null;
+    const focusedWin = await chrome.windows.getLastFocused().catch(() => null);
+    const inFocused =
+      focusedWin && huellasTabs.find((t) => t.windowId === focusedWin.id);
+    return (inFocused || huellasTabs.find((t) => t.active) || huellasTabs[0]).windowId;
+  } catch {
+    return null;
+  }
+}
+
 function isStandaloneCreateImageOrder(payload) {
   if (!payload) return false;
   return Boolean(
@@ -12546,6 +12600,10 @@ async function acquireGeminiTargetTabWithWindowPolicy(payload, senderWindowId = 
   const rawGeminiTabs = await chrome.tabs.query({ url: 'https://gemini.google.com/*' }).catch(() => []);
   const geminiTabs = await filterOutExternalAskTabs(rawGeminiTabs);
   const standaloneImgWinIds = await getStandaloneImageWindowIds();
+  const standaloneImgTabIds = await getStandaloneImageTabIds();
+  const isStandaloneImageTab = (t) =>
+    Boolean(t && ((t.id && standaloneImgTabIds.has(t.id)) || standaloneImgWinIds.has(t.windowId)));
+  const huellasHostWindowId = await findHuellasHostWindowId(senderWindowId);
 
   // Preserve user's active Google account slot (/u/<N>) if present on any open Gemini tab
   let acctPrefix = '';
@@ -12602,16 +12660,21 @@ async function acquireGeminiTargetTabWithWindowPolicy(payload, senderWindowId = 
     };
   }
 
-  // CASE A: Create Image call -> NEW window (if no idle standalone image window exists) in a NEW clean chat WITHOUT Notebook linkage
+  // CASE A: Create Image call -> a NEW clean chat WITHOUT Notebook linkage, in a Gemini tab opened inside the Huellas
+  // Master window (user request 2026-11-25); an idle image tab is reused, the one in that window first. A new
+  // Chrome window is only opened when no Huellas Master window is open.
   if (isStandaloneCreateImageOrder(payload)) {
     const freshUnlinkedUrl = `https://gemini.google.com${acctPrefix}/app`;
     let reusableStandaloneTab = null;
 
-    for (const t of geminiTabs) {
-      if (!t || !t.id || typeof t.windowId !== 'number') continue;
-      if (!standaloneImgWinIds.has(t.windowId)) continue;
-      if (senderWindowId && t.windowId === senderWindowId) continue;
-      if (/\/notebook\//i.test(String(t.url || ''))) continue;
+    const imageTabCandidates = geminiTabs
+      .filter((t) => t && t.id && typeof t.windowId === 'number' && isStandaloneImageTab(t))
+      .filter((t) => !/\/notebook\//i.test(String(t.url || '')))
+      .sort(
+        (a, b) =>
+          Number(b.windowId === huellasHostWindowId) - Number(a.windowId === huellasHostWindowId)
+      );
+    for (const t of imageTabCandidates) {
       const busy = await isGeminiTabCurrentlyBusy(t);
       if (!busy) {
         reusableStandaloneTab = t;
@@ -12642,6 +12705,25 @@ async function acquireGeminiTargetTabWithWindowPolicy(payload, senderWindowId = 
         openedNewWindow: false,
         skipPrePosition: true,
       };
+    }
+
+    if (huellasHostWindowId != null) {
+      let hostTab = await chrome.tabs
+        .create({ windowId: huellasHostWindowId, url: freshUnlinkedUrl, active: false })
+        .catch(() => null);
+      if (hostTab && hostTab.id) {
+        await registerStandaloneImageTabId(hostTab.id);
+        await chrome.tabs.update(hostTab.id, { autoDiscardable: false }).catch(() => {});
+        await waitForGeminiTabLoadComplete(hostTab.id, 16000);
+        await sleep(2200);
+        hostTab = (await chrome.tabs.get(hostTab.id).catch(() => null)) || hostTab;
+        return {
+          targetTab: hostTab,
+          finalPayload: cleanPayload,
+          openedNewWindow: false,
+          skipPrePosition: true,
+        };
+      }
     }
 
     const createdWin = await chrome.windows.create({
@@ -12682,9 +12764,7 @@ async function acquireGeminiTargetTabWithWindowPolicy(payload, senderWindowId = 
   const cleanNbPath = nbPath.replace(/^\/u\/\d+(?=\/)/, '');
   const { isDeepResearch, targetChatId } = await resolveDesiredGeminiChatTarget(payload);
 
-  const candidateDocTabs = geminiTabs.filter(
-    (t) => t && t.id && !standaloneImgWinIds.has(t.windowId)
-  );
+  const candidateDocTabs = geminiTabs.filter((t) => t && t.id && !isStandaloneImageTab(t));
 
   const idleDocTabs = [];
   for (const t of candidateDocTabs) {
@@ -12747,13 +12827,25 @@ async function acquireGeminiTargetTabWithWindowPolicy(payload, senderWindowId = 
     ? `https://gemini.google.com${acctPrefix}/app/${targetChatId}`
     : `https://gemini.google.com${acctPrefix}${cleanNbPath}`;
 
-  const createdDocWin = await chrome.windows.create({
-    url: initialDocUrl,
-    focused: false,
-    type: 'normal',
-  });
+  // A new Gemini tab for the documentary's chat opens inside the Huellas Master window (user request 2026-11-25);
+  // a new Chrome window only when no Huellas Master window is open
+  const createdHostDocTab =
+    huellasHostWindowId != null
+      ? await chrome.tabs
+          .create({ windowId: huellasHostWindowId, url: initialDocUrl, active: false })
+          .catch(() => null)
+      : null;
+  const createdDocWin = createdHostDocTab
+    ? null
+    : await chrome.windows.create({
+        url: initialDocUrl,
+        focused: false,
+        type: 'normal',
+      });
   let createdDocTab =
-    (createdDocWin && Array.isArray(createdDocWin.tabs) && createdDocWin.tabs[0]) || null;
+    createdHostDocTab ||
+    (createdDocWin && Array.isArray(createdDocWin.tabs) && createdDocWin.tabs[0]) ||
+    null;
   if (!createdDocTab && createdDocWin && typeof createdDocWin.id === 'number') {
     const winTabs = await chrome.tabs.query({ windowId: createdDocWin.id }).catch(() => []);
     createdDocTab = winTabs[0] || null;
@@ -12772,7 +12864,7 @@ async function acquireGeminiTargetTabWithWindowPolicy(payload, senderWindowId = 
   return {
     targetTab: createdDocTab,
     finalPayload,
-    openedNewWindow: true,
+    openedNewWindow: !createdHostDocTab,
     skipPrePosition: true,
   };
 }
