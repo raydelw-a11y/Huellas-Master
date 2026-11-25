@@ -13186,31 +13186,54 @@ app.post('/api/flow/sync-reference-downloads', async (req, res) => {
       return { isExcluded, ext: ext.toLowerCase(), asciiSlug, rawAsciiSlug, tokens };
     };
 
-    const matchFileToRef = (fileName: string): RefMatcher | null => {
+    // allowTokenMatch=false limits matching to the reference's own name (pass 1). Used for loose files in
+    // ~/Downloads that carry no "@" and when deciding which old files of a reference may be deleted.
+    const matchFileToRef = (
+      fileName: string,
+      opts: { allowTokenMatch?: boolean; allowAffixMatch?: boolean } = {}
+    ): RefMatcher | null => {
+      const allowTokenMatch = opts.allowTokenMatch !== false;
+      const allowAffixMatch = opts.allowAffixMatch !== false;
       const cand = normalizeCandidateFile(fileName);
       if (cand.isExcluded || !cand.asciiSlug) return null;
 
-      // Pass 1: Exact or clean prefix/suffix slug match (including legacyTags)
+      // Pass 1: exact or clean prefix/suffix slug match (including legacyTags). The best match wins, not the
+      // first one: an exact name beats a prefix, and a longer prefix beats a shorter one, so with
+      // @Puerto_Habana and @Puerto_Habana_1898 the file "@Puerto_Habana_1898.png" goes to the second.
+      const scoreSlug = (candSlug: string, slug: string): number => {
+        if (!slug || !candSlug) return 0;
+        if (candSlug === slug) return 100000 + slug.length;
+        if (
+          allowAffixMatch &&
+          slug.length >= 6 &&
+          (candSlug.startsWith(`${slug}_`) || candSlug.endsWith(`_${slug}`))
+        ) {
+          return slug.length;
+        }
+        return 0;
+      };
+      let pass1Best: RefMatcher | null = null;
+      let pass1Score = 0;
+      let pass1Tied = false;
       for (const rm of refMatchers) {
         const allAsciiSlugs = [rm.asciiSlug, ...(rm.legacyAsciiSlugs || [])].filter(Boolean);
         const allMangledSlugs = [rm.mangledSlug, ...(rm.legacyMangledSlugs || [])].filter(Boolean);
-        const matchedAscii = allAsciiSlugs.some(
-          (slug) =>
-            cand.asciiSlug === slug ||
-            (slug.length >= 6 &&
-              (cand.asciiSlug.startsWith(`${slug}_`) || cand.asciiSlug.endsWith(`_${slug}`)))
+        const score = Math.max(
+          0,
+          ...allAsciiSlugs.map((slug) => scoreSlug(cand.asciiSlug, slug)),
+          ...allMangledSlugs.map((slug) => scoreSlug(cand.rawAsciiSlug, slug))
         );
-        const matchedMangled = allMangledSlugs.some(
-          (slug) =>
-            cand.rawAsciiSlug === slug ||
-            (slug.length >= 6 &&
-              (cand.rawAsciiSlug.startsWith(`${slug}_`) ||
-                cand.rawAsciiSlug.endsWith(`_${slug}`)))
-        );
-        if (matchedAscii || matchedMangled) {
-          return rm;
+        if (score === 0) continue;
+        if (score > pass1Score) {
+          pass1Best = rm;
+          pass1Score = score;
+          pass1Tied = false;
+        } else if (score === pass1Score && pass1Best && pass1Best.id !== rm.id) {
+          pass1Tied = true;
         }
       }
+      if (pass1Best) return pass1Tied ? null : pass1Best;
+      if (!allowTokenMatch) return null;
 
       // Pass 2: Meaningful token subset match (handles Flow shortened or prompt-extended names without false positives)
       if (cand.tokens.length === 0) return null;
@@ -13245,8 +13268,15 @@ app.post('/api/flow/sync-reference-downloads', async (req, res) => {
       return !tied && bestRef ? bestRef : null;
     };
 
+    // ~/Downloads holds files from every project: a file there whose name has no "@" (Flow's reference
+    // downloads always have one) is only taken when its name is exactly the reference's name.
+    const downloadsMatchOpts = (fileName: string, isDownloads: boolean) => {
+      const loose = !isDownloads || fileName.includes('@');
+      return { allowTokenMatch: loose, allowAffixMatch: loose };
+    };
+
     const movedFiles: string[] = [];
-    const moveMatchedImageIntoRefsDir = (srcFullPath: string, matchedRef: RefMatcher): string => {
+    const moveMatchedImageIntoRefsDir =(srcFullPath: string, matchedRef: RefMatcher): string => {
       const ext = (path.extname(srcFullPath) || '.png').toLowerCase();
       const destFileName = `@${matchedRef.cleanBase}${ext}`;
       const destFullPath = path.join(refsDir, destFileName);
@@ -13260,7 +13290,8 @@ app.post('/api/flow/sync-reference-downloads', async (req, res) => {
         if (existing.startsWith('.') || !/\.(png|jpg|jpeg|webp)$/i.test(existing)) continue;
         const existingPath = path.join(refsDir, existing);
         if (path.resolve(existingPath) === path.resolve(destFullPath)) continue;
-        const prevMatch = matchFileToRef(existing);
+        // Only by name: a loose word match must never delete another reference's image
+        const prevMatch = matchFileToRef(existing, { allowTokenMatch: false });
         if (prevMatch && prevMatch.id === matchedRef.id) {
           try {
             fs.unlinkSync(existingPath);
@@ -13324,7 +13355,9 @@ app.post('/api/flow/sync-reference-downloads', async (req, res) => {
 
         if (zipEntries.length === 0) continue;
         const matchedZipEntries = zipEntries.filter(
-          (ze) => /\.(png|jpg|jpeg|webp)$/i.test(ze) && Boolean(matchFileToRef(path.basename(ze)))
+          (ze) =>
+            /\.(png|jpg|jpeg|webp)$/i.test(ze) &&
+            Boolean(matchFileToRef(path.basename(ze), downloadsMatchOpts(path.basename(ze), isDownloads)))
         );
         if (matchedZipEntries.length === 0) continue;
 
@@ -13343,7 +13376,7 @@ app.post('/api/flow/sync-reference-downloads', async (req, res) => {
               if (itemStat.isDirectory()) {
                 walkAndMove(fullItem);
               } else if (/\.(png|jpg|jpeg|webp)$/i.test(item)) {
-                const mr = matchFileToRef(item);
+                const mr = matchFileToRef(item, downloadsMatchOpts(item, isDownloads));
                 if (mr) {
                   moveMatchedImageIntoRefsDir(fullItem, mr);
                 }
@@ -13398,7 +13431,7 @@ app.post('/api/flow/sync-reference-downloads', async (req, res) => {
           continue;
         }
 
-        const matchedRef = matchFileToRef(entry);
+        const matchedRef = matchFileToRef(entry, downloadsMatchOpts(entry, isDownloads));
         if (matchedRef) {
           moveMatchedImageIntoRefsDir(fullEntry, matchedRef);
         }
