@@ -5381,6 +5381,41 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                       };
                 }
 
+                if (op === 'EXPAND_MORE_TOOLS_DOM') {
+                  // Gemini (Nov 2026) opens the "More tools" submenu as soon as the pointer enters the row, and a
+                  // click on the row while it is open CLOSES it again. So the submenu is opened by its own state:
+                  // pointer-enter first; a click only when it still reports itself collapsed.
+                  const row = findOverlayItemByText(/\b(more\s+tools|m[aá]s\s+herramientas)\b/i);
+                  if (!row) return { found: false };
+                  const expanded = row.getAttribute('aria-expanded') === 'true';
+                  if (expanded) return { found: true, expanded: true, did: 'none' };
+                  try {
+                    if (argVal === 'CLICK') {
+                      row.click();
+                      return { found: true, expanded: false, did: 'click' };
+                    }
+                    // mouseenter does not bubble: it has to be dispatched on the row itself
+                    row.dispatchEvent(new PointerEvent('pointerenter', { bubbles: false }));
+                    row.dispatchEvent(new MouseEvent('mouseenter', { bubbles: false }));
+                    row.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+                  } catch {}
+                  return { found: true, expanded: false, did: 'enter' };
+                }
+
+                if (op === 'ACTIVATE_DEEP_RESEARCH_DOM') {
+                  // Last step of the route that needs no mouse coordinates: click the "Deep research" row itself
+                  // (never when it is already checked: that would turn it off).
+                  const row = findOverlayItemByText(DR_RE);
+                  if (!row) return { found: false };
+                  if (isItemChecked(row)) return { found: true, alreadyChecked: true };
+                  try {
+                    row.click();
+                  } catch {
+                    return { found: false };
+                  }
+                  return { found: true, clicked: true };
+                }
+
                 if (op === 'FIND_DEEP_RESEARCH_IN_OVERLAY') {
                   const deepItem = findOverlayItemByText(DR_RE);
                   return deepItem
@@ -5789,8 +5824,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
               } else {
                 await hardwareHoverOnly(moreTools.x, moreTools.y);
                 deepInfo = await waitFound('FIND_DEEP_RESEARCH_IN_OVERLAY', '', 6, 140);
-                if (!deepInfo.found) {
-                  await hardwareHoverAndClick(moreTools.x, moreTools.y);
+                // The submenu opens on pointer-enter and a click on an open "More tools" closes it, so it is
+                // never clicked blindly: it is opened by its own state (enter first, click only if collapsed).
+                for (const how of ['ENTER', 'CLICK']) {
+                  if (deepInfo.found) break;
+                  const exp = await runMainStep('EXPAND_MORE_TOOLS_DOM', how);
+                  if (!exp?.found) break;
                   deepInfo = await waitFound('FIND_DEEP_RESEARCH_IN_OVERLAY', '', 6, 150);
                 }
                 if (!deepInfo.found) {
@@ -5814,6 +5853,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
               clickedOnce = true;
               if (await waitChipActive(10)) {
                 deepResearchOk = true;
+                break;
+              }
+              // The click by coordinates may have landed elsewhere (the menu moves while it opens): if the
+              // submenu is still open with "Deep research" unchecked, click that row itself.
+              const domAct = await runMainStep('ACTIVATE_DEEP_RESEARCH_DOM');
+              if (domAct?.found && (domAct.alreadyChecked || (await waitChipActive(10)))) {
+                deepResearchOk = true;
+                diag.push(`D${attempt}: activado pulsando la fila "Deep research" directamente`);
                 break;
               }
               diag.push(`D${attempt}: clic en menú hecho pero Deep Research no quedó activo`);
