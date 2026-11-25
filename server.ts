@@ -26500,7 +26500,7 @@ function enqueueRemoteGeminiStageFromDoc(doc: any): boolean {
         enableHighModel: false,
         enableArgonLow: true,
         enableCarbonLow: true,
-        preferredModel: 'CARBON_4_LOW',
+        preferredModel: 'NEON', // thumbnail images are created on Gemini's Neon model (user decision 2026-11-25)
         thinkingLevel: 'LOW',
         enableDeepResearch: false,
         enableCreateImage: true,

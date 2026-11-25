@@ -223,7 +223,7 @@ import { stampBrandMarksOnThumbnail, HD_BADGE_EMPTY_CORNER_CLAUSE, LOGO_EMPTY_CO
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '02:14 PM - 11/25/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '02:23 PM - 11/25/2026';
 
 // PRODUCTION LOCK: while promptConfig.PRODUCTION_LOCKED === 'YES' these fields never change (the server
 // enforces the same list in protectLockedDocs). Metadata, thumbnails, review marks and reframes stay editable.
@@ -13388,7 +13388,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         enableHighModel: false,
         enableArgonLow: true,
         enableCarbonLow: true,
-        preferredModel: 'CARBON_4_LOW',
+        preferredModel: 'NEON', // thumbnail images are created on Gemini's Neon model (user decision 2026-11-25)
         thinkingLevel: 'LOW' as const,
         enableDeepResearch: false,
         videoName: '',
@@ -13568,7 +13568,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       enableHighModel: false,
       enableArgonLow: true,
       enableCarbonLow: true,
-      preferredModel: 'CARBON_4_LOW',
+      preferredModel: 'NEON', // thumbnail images are created on Gemini's Neon model (user decision 2026-11-25)
       thinkingLevel: 'LOW',
       enableDeepResearch: false,
       enableCreateImage: true,
@@ -14513,7 +14513,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                 enableHighModel: false,
                 enableArgonLow: true,
                 enableCarbonLow: true,
-                preferredModel: 'CARBON_4_LOW',
+                preferredModel: 'NEON', // thumbnail images are created on Gemini's Neon model (user decision 2026-11-25)
                 thinkingLevel: 'LOW',
                 enableDeepResearch: false,
                 enableCreateImage: true,
