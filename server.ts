@@ -2224,13 +2224,15 @@ async function fetchRemoteDocsBlobFromTree(
   baseTreeSha: string | null;
   remoteList: any[] | null;
   remoteRawText: string | null;
+  /** Files GitHub already has under docs/tts-files/ (null when the listing came back incomplete). */
+  remoteTtsFiles: Set<string> | null;
 }> {
   const refRes = await fetch(
     `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/ref/heads/${GITHUB_BRANCH}?t=${Date.now()}`,
     { headers }
   );
   if (refRes.status === 404) {
-    return { latestCommitSha: null, baseTreeSha: null, remoteList: [], remoteRawText: null };
+    return { latestCommitSha: null, baseTreeSha: null, remoteList: [], remoteRawText: null, remoteTtsFiles: null };
   }
   if (!refRes.ok) {
     throw new Error(`Git ref fetch failed (${refRes.status})`);
@@ -2263,8 +2265,18 @@ async function fetchRemoteDocsBlobFromTree(
   const entry = Array.isArray(treeData?.tree)
     ? treeData.tree.find((t: any) => t?.path === 'data/documentaries.json' && t?.sha)
     : null;
+  let remoteTtsFiles: Set<string> | null = null;
+  if (Array.isArray(treeData?.tree) && !treeData?.truncated) {
+    remoteTtsFiles = new Set<string>();
+    for (const t of treeData.tree) {
+      const tPath = String(t?.path || '');
+      if (t?.type === 'blob' && tPath.startsWith('docs/tts-files/')) {
+        remoteTtsFiles.add(tPath.slice('docs/tts-files/'.length));
+      }
+    }
+  }
   if (!entry) {
-    return { latestCommitSha, baseTreeSha, remoteList: [], remoteRawText: null };
+    return { latestCommitSha, baseTreeSha, remoteList: [], remoteRawText: null, remoteTtsFiles };
   }
   const blobRes = await fetch(
     `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/blobs/${entry.sha}?t=${Date.now()}`,
@@ -2284,7 +2296,80 @@ async function fetchRemoteDocsBlobFromTree(
   if (!Array.isArray(parsed)) {
     throw new Error('Remote documentaries blob is not an array');
   }
-  return { latestCommitSha, baseTreeSha, remoteList: parsed, remoteRawText };
+  return { latestCommitSha, baseTreeSha, remoteList: parsed, remoteRawText, remoteTtsFiles };
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Voice audio travels with the documentaries. The page on GitHub Pages (and the iPhone) loads a documentary's
+// voice from docs/tts-files/, so a documentary pointing at a voice file GitHub does not have plays nothing there.
+// Every push therefore also uploads the voice files (.mp3 plus their .align.json / .srt sidecars) the
+// documentaries point to and GitHub is still missing.
+// ---------------------------------------------------------------------------------------------------------------
+const VOICE_SYNC_MAX_FILE_BYTES = 60 * 1024 * 1024;
+const VOICE_SYNC_MAX_BATCH_BYTES = 90 * 1024 * 1024;
+/** Blobs already uploaded in this run (by file, size and date), so a retried push does not upload them again. */
+const voiceSyncBlobShaCache = new Map<string, string>();
+
+function collectVoiceFilesMissingOnGitHub(
+  docs: any[],
+  remoteTtsFiles: Set<string> | null
+): Array<{ name: string; localPath: string; size: number; cacheKey: string }> {
+  if (!remoteTtsFiles) return [];
+  const wanted = new Set<string>();
+  const addFromUrl = (raw: unknown) => {
+    if (typeof raw !== 'string' || !raw) return;
+    const m = raw.split(/[?#]/)[0].match(/(?:^|\/)tts-files\/([^/\\]+)\.(?:mp3|wav)$/i);
+    if (!m || m[1].startsWith('.')) return;
+    // The app always plays the portable .mp3 of a voice, even when the track was registered as .wav
+    wanted.add(`${m[1]}.mp3`);
+    wanted.add(`${m[1]}.align.json`);
+    wanted.add(`${m[1]}.srt`);
+  };
+  for (const doc of Array.isArray(docs) ? docs : []) {
+    addFromUrl(doc?.masterAudioUrl);
+    for (const track of Array.isArray(doc?.audioTracks) ? doc.audioTracks : []) addFromUrl(track?.audioUrl);
+  }
+  const out: Array<{ name: string; localPath: string; size: number; cacheKey: string }> = [];
+  let batchBytes = 0;
+  for (const name of wanted) {
+    if (remoteTtsFiles.has(name)) continue;
+    for (const dir of [DOCS_TTS_DIR, TTS_DIR]) {
+      const localPath = path.join(dir, name);
+      let st: fs.Stats | null = null;
+      try {
+        st = fs.statSync(localPath);
+      } catch {}
+      if (!st || !st.isFile() || st.size <= 0) continue;
+      if (st.size > VOICE_SYNC_MAX_FILE_BYTES || batchBytes + st.size > VOICE_SYNC_MAX_BATCH_BYTES) break;
+      batchBytes += st.size;
+      out.push({ name, localPath, size: st.size, cacheKey: `${name}|${st.size}|${Math.floor(st.mtimeMs)}` });
+      break;
+    }
+  }
+  return out;
+}
+
+async function uploadVoiceFileBlobToGitHub(
+  file: { name: string; localPath: string; cacheKey: string },
+  headers: Record<string, string>
+): Promise<string | null> {
+  const cached = voiceSyncBlobShaCache.get(file.cacheKey);
+  if (cached) return cached;
+  const bytes = await fsp.readFile(file.localPath);
+  const res = await fetch(`https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/blobs`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ content: bytes.toString('base64'), encoding: 'base64' }),
+  });
+  if (!res.ok) {
+    console.warn(`[CloudSync] No se pudo subir ${file.name} a GitHub (${res.status}).`);
+    return null;
+  }
+  const data: any = await res.json();
+  const sha = String(data?.sha || '').trim();
+  if (!sha) return null;
+  voiceSyncBlobShaCache.set(file.cacheKey, sha);
+  return sha;
 }
 
 let githubSyncMutexPromise: Promise<any> | null = null;
@@ -2342,7 +2427,7 @@ async function syncDocumentariesWithGitHubServer(pullFirst = true): Promise<{
     // PULL-MERGE-PUSH CAS LOOP (max 3 attempts; fail-closed if remote cannot be read)
     for (let attempt = 1; attempt <= 3; attempt++) {
       try {
-        const { latestCommitSha, baseTreeSha, remoteList, remoteRawText } =
+        const { latestCommitSha, baseTreeSha, remoteList, remoteRawText, remoteTtsFiles } =
           await fetchRemoteDocsBlobFromTree(token, headers);
         const latestLocalList = readDocumentaries();
         const mergedList =
@@ -2359,10 +2444,24 @@ async function syncDocumentariesWithGitHubServer(pullFirst = true): Promise<{
           jsonStr = JSON.stringify(stripHeavyMediaForGitHubServer(mergedList, true), null, 2);
         }
 
-        if (
-          (remoteRawText && remoteRawText.trim() === jsonStr.trim()) ||
-          (jsonStr === lastPushedGitHubJson && attempt === 1 && !remoteList?.length)
-        ) {
+        // Voice files the documentaries point to that GitHub does not have yet (see above). A failed audio
+        // upload never holds back the documentaries: it is tried again on the next push.
+        const voiceTreeEntries: Array<{ path: string; mode: string; type: string; sha: string }> = [];
+        try {
+          for (const file of collectVoiceFilesMissingOnGitHub(mergedList, remoteTtsFiles)) {
+            const sha = await uploadVoiceFileBlobToGitHub(file, headers);
+            if (sha) {
+              voiceTreeEntries.push({ path: `docs/tts-files/${file.name}`, mode: '100644', type: 'blob', sha });
+            }
+          }
+        } catch (voiceErr: any) {
+          console.warn('[CloudSync] Voice audio upload warning:', voiceErr?.message || voiceErr);
+        }
+
+        const docsJsonUnchanged =
+          Boolean(remoteRawText && remoteRawText.trim() === jsonStr.trim()) ||
+          (jsonStr === lastPushedGitHubJson && attempt === 1 && !remoteList?.length);
+        if (docsJsonUnchanged && voiceTreeEntries.length === 0) {
           lastPushedGitHubJson = jsonStr;
           return { synced: true, total: mergedList.length };
         }
@@ -2371,21 +2470,28 @@ async function syncDocumentariesWithGitHubServer(pullFirst = true): Promise<{
           return { synced: false, total: mergedList.length, error: 'Missing base commit on remote branch' };
         }
 
-        const blobRes = await fetch(
-          `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/blobs`,
-          {
-            method: 'POST',
-            headers,
-            body: JSON.stringify({ content: jsonStr, encoding: 'utf-8' }),
+        const treeEntries: Array<{ path: string; mode: string; type: string; sha: string }> = [...voiceTreeEntries];
+        if (!docsJsonUnchanged) {
+          const blobRes = await fetch(
+            `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/blobs`,
+            {
+              method: 'POST',
+              headers,
+              body: JSON.stringify({ content: jsonStr, encoding: 'utf-8' }),
+            }
+          );
+          if (!blobRes.ok) {
+            return { synced: false, total: mergedList.length, error: `Blob create failed (${blobRes.status})` };
           }
-        );
-        if (!blobRes.ok) {
-          return { synced: false, total: mergedList.length, error: `Blob create failed (${blobRes.status})` };
-        }
-        const blobData: any = await blobRes.json();
-        const newBlobSha = blobData?.sha;
-        if (!newBlobSha) {
-          return { synced: false, total: mergedList.length, error: 'Blob create missing SHA' };
+          const blobData: any = await blobRes.json();
+          const newBlobSha = blobData?.sha;
+          if (!newBlobSha) {
+            return { synced: false, total: mergedList.length, error: 'Blob create missing SHA' };
+          }
+          treeEntries.push(
+            { path: 'data/documentaries.json', mode: '100644', type: 'blob', sha: newBlobSha },
+            { path: 'docs/data/documentaries.json', mode: '100644', type: 'blob', sha: newBlobSha }
+          );
         }
 
         const treeRes = await fetch(
@@ -2395,10 +2501,7 @@ async function syncDocumentariesWithGitHubServer(pullFirst = true): Promise<{
             headers,
             body: JSON.stringify({
               base_tree: baseTreeSha,
-              tree: [
-                { path: 'data/documentaries.json', mode: '100644', type: 'blob', sha: newBlobSha },
-                { path: 'docs/data/documentaries.json', mode: '100644', type: 'blob', sha: newBlobSha },
-              ],
+              tree: treeEntries,
             }),
           }
         );
@@ -2416,7 +2519,11 @@ async function syncDocumentariesWithGitHubServer(pullFirst = true): Promise<{
             method: 'POST',
             headers,
             body: JSON.stringify({
-              message: `Sync documentaries.json (${mergedList.length} documentales)`,
+              message: docsJsonUnchanged
+                ? `Sync audio de voz (${voiceTreeEntries.length} archivo(s))`
+                : `Sync documentaries.json (${mergedList.length} documentales)${
+                    voiceTreeEntries.length > 0 ? ` + audio de voz (${voiceTreeEntries.length})` : ''
+                  }`,
               tree: treeData.sha,
               parents: [latestCommitSha],
             }),
@@ -2440,6 +2547,11 @@ async function syncDocumentariesWithGitHubServer(pullFirst = true): Promise<{
         );
         if (patchRes.ok) {
           lastPushedGitHubJson = jsonStr;
+          if (voiceTreeEntries.length > 0) {
+            console.log(
+              `[CloudSync] Audio de voz subido a GitHub: ${voiceTreeEntries.map((e) => path.basename(e.path)).join(', ')}`
+            );
+          }
           return { synced: true, total: mergedList.length };
         }
         if ((patchRes.status === 422 || patchRes.status === 409) && attempt < 3) {
@@ -4518,9 +4630,14 @@ function triggerBackgroundVoskAlignment(opts: {
         mp3Path: finalMp3Path,
         voiceoverScript: finalScript,
         force: false,
-      }).catch((err) => {
-        console.warn(`[VoskAligner] Background alignment skipped for ${finalStem}:`, err?.message || err);
-      });
+      })
+        .then(() => {
+          // The sidecar exists now: let the next push carry it to GitHub with the voice
+          scheduleGitHubPush();
+        })
+        .catch((err) => {
+          console.warn(`[VoskAligner] Background alignment skipped for ${finalStem}:`, err?.message || err);
+        });
     } catch {}
   });
 }
