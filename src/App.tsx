@@ -4832,7 +4832,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           enableHighModel: false,
           enableArgonLow: true,
           enableCarbonLow: true,
-          preferredModel: 'CARBON_4_LOW',
+          preferredModel: 'NEON', // every Gemini order runs on Neon (user decision 2026-11-25)
           thinkingLevel: 'LOW',
           enableDeepResearch: false,
           enableCreateImage: false,
@@ -14610,9 +14610,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
   ) => {
     const baseDoc = activeDocRef.current || activeDoc;
     if (!baseDoc) return;
-    // "Generar Prompt con Gemini" (5) and "3 Opciones de Texto en Pantalla" (101) run on Gemini's Neon model
-    const isNeonModelStage = stageNum === 5 || stageNum === 101;
-    const geminiModelName = isNeonModelStage ? 'Neon' : 'Auto';
+    // Every stage and every Gemini Web order runs on Gemini's Neon model (user decision 2026-11-25)
+    const geminiModelName = 'Neon';
     const currentDoc = options?.overridePromptConfig
       ? {
           ...baseDoc,
@@ -14859,9 +14858,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           enableHighModel: false,
           enableArgonLow: true,
           enableCarbonLow: true,
-          // The Stage 3 buttons (triggers + thumbnail prompt = 5, 3 on-screen text options = 101) run on Gemini's
-          // Neon model (user decision 2026-11-25); everything else runs on Auto
-          preferredModel: isNeonModelStage ? 'NEON' : 'CARBON_4_LOW',
+          // Every stage runs on Gemini's Neon model (user decision 2026-11-25)
+          preferredModel: 'NEON',
           thinkingLevel: 'LOW' as 'HIGH' | 'LOW',
           enableDeepResearch: remoteDeep,
           videoName: currentDoc.title || '',
@@ -14888,16 +14886,16 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         setBridgeStatusType('WORKING');
         setBridgeStatusMsg(
           isPart1Remote
-            ? '📡 Enviando Paso 1 desde tu móvil a tu Mac (Gemini, modelo Auto)...'
+            ? '📡 Enviando Paso 1 desde tu móvil a tu Mac (Gemini, modelo Neon)...'
             : isDeepResearchRemote
-            ? '📡 Enviando Paso 2 desde tu móvil a tu Mac: Gemini en modelo Auto + Deep Research. El informe aparecerá aquí al terminar (10–20 min).'
+            ? '📡 Enviando Paso 2 desde tu móvil a tu Mac: Gemini en modelo Neon + Deep Research. El informe aparecerá aquí al terminar (10–20 min).'
             : stageNum === 5
             ? '📡 Enviando orden desde tu móvil a tu Mac: generando 3 disparadores neuropsicológicos y prompt de miniatura dentro del chat del documental...'
             : stageNum === 6
             ? '📡 Enviando orden desde tu móvil a tu Mac: generando prompts de @Referencias (@Personas y @Lugares — 6 Views) en Gemini Web...'
             : stageNum === 101
             ? '📡 Enviando orden desde tu móvil a tu Mac: generando 3 opciones cortas de texto en pantalla dentro del chat del documental...'
-            : '📡 Enviando orden de la etapa a tu Mac (Gemini, modelo Auto)...'
+            : '📡 Enviando orden de la etapa a tu Mac (Gemini, modelo Neon)...'
         );
         const nextDocsForRemote = documentaries.map((d) =>
           d.id === currentDoc.id ? { ...d, ...remotePatch } : d
@@ -14920,7 +14918,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                 : stageNum === 5
                 ? `⏳ Tu Mac está redactando los 3 disparadores y el prompt en Gemini Web (modelo ${geminiModelName}). Se actualizará aquí automáticamente...`
                 : stageNum === 6
-                ? '⏳ Tu Mac está redactando los prompts de @Referencias (@Personas y @Lugares — 6 Views) en Gemini Web (modelo Auto). Aparecerán en esta caja automáticamente...'
+                ? '⏳ Tu Mac está redactando los prompts de @Referencias (@Personas y @Lugares — 6 Views) en Gemini Web (modelo Neon). Aparecerán en esta caja automáticamente...'
                 : stageNum === 101
                 ? `⏳ Tu Mac está generando las 3 opciones de texto en pantalla en Gemini Web (modelo ${geminiModelName})...`
                 : '⏳ Orden enviada a tu Mac. Ejecutando en Gemini Web y sincronizando resultado automáticamente...'
@@ -15045,11 +15043,11 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     setBridgeStatusType('WORKING');
     setBridgeStatusMsg(
       isStage1Part1Low
-        ? `⚡ Etapa 1 (Parte 1): Enviando a Gemini Web en modelo Auto (SIN Deep Research) para investigar video y determinar Definición Histórica y Calibración...`
+        ? `⚡ Etapa 1 (Parte 1): Enviando a Gemini Web en modelo Neon (SIN Deep Research) para investigar video y determinar Definición Histórica y Calibración...`
         : isResearchStage
-        ? `🔬 Etapa 1 (Parte 2): Enviando a Gemini Web en modelo Auto + Deep Research activo (con Auto-Iniciar Plan)...`
+        ? `🔬 Etapa 1 (Parte 2): Enviando a Gemini Web en modelo Neon + Deep Research activo (con Auto-Iniciar Plan)...`
         : stageNum === 8 && stage8ExpectedClipCount > 0
-        ? `⚡ Enviando Etapa 6 (${stage8ExpectedClipCount} clips posibles) a Gemini Web en modelo Auto (ventana extendida hasta 20 min con auto-continuación sin reinicios)...`
+        ? `⚡ Enviando Etapa 6 (${stage8ExpectedClipCount} clips posibles) a Gemini Web en modelo Neon (ventana extendida hasta 20 min con auto-continuación sin reinicios)...`
         : `⚡ Enviando prompt a Gemini Web en el modelo ${geminiModelName}...`
     );
     const targetVideoBaseName = String(currentCanonicalVideoName || currentDoc.title || '')
@@ -15072,7 +15070,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       enableHighModel: useHighModel,
       enableArgonLow: useArgonLow,
       enableCarbonLow: true,
-      preferredModel: isNeonModelStage ? 'NEON' : 'CARBON_4_LOW',
+      preferredModel: 'NEON',
       thinkingLevel: 'LOW',
       enableDeepResearch: useDeepResearch,
       skipModelSwitch: Boolean(options?.skipModelSwitch),
@@ -20019,7 +20017,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                         Etapa 1 Dividida en 2 Fases
                       </span>
                       <h3 className="font-black text-amber-300 text-sm sm:text-lg break-words">
-                        🔬 Flujo en 2 Pasos: 1º Definición y Calibración (modelo Auto) → 2º Investigación Profunda (Deep Research + modelo Auto)
+                        🔬 Flujo en 2 Pasos: 1º Definición y Calibración (modelo Neon) → 2º Investigación Profunda (Deep Research + modelo Neon)
                       </h3>
                     </div>
                   </div>
@@ -20035,7 +20033,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             PASO 1 DE ETAPA 1
                           </span>
                           <span className="px-2.5 py-0.5 rounded-md bg-slate-900 border border-slate-700 text-emerald-300 text-[11px] font-bold">
-                            ⚡ modelo Auto · SIN Deep Research
+                            ⚡ modelo Neon · SIN Deep Research
                           </span>
                           {(activeDoc.deepResearchPrompt || '').trim() && (
                             <span className="px-2.5 py-0.5 rounded-md bg-emerald-500/20 border border-emerald-500/50 text-emerald-300 text-[11px] font-black">
@@ -20047,7 +20045,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                           1º Investigación del Otro Video + Determinación de 🏛️ Definición Histórica y Continuidad y ⏱️ Calibración Matemática
                         </h4>
                         <p className="text-xs text-slate-300 leading-relaxed break-words">
-                          Usa los videos marcados (Videos Analizados) y los comentarios <code className="text-amber-300">×N</code> seleccionados en <strong>el modelo Auto (sin activar Deep Research)</strong>, te entrega <strong>4 propuestas completas</strong> (cada una con su tema, tiempo y lugar, tipología, clímax, 3 ganchos y 2 escaletas) y llena la <strong>Tipología</strong>, el <strong>Tema Central</strong>, el <strong>Tiempo / Época</strong> y el <strong>Lugar Histórico</strong> con la propuesta que elijas.
+                          Usa los videos marcados (Videos Analizados) y los comentarios <code className="text-amber-300">×N</code> seleccionados en <strong>el modelo Neon (sin activar Deep Research)</strong>, te entrega <strong>4 propuestas completas</strong> (cada una con su tema, tiempo y lugar, tipología, clímax, 3 ganchos y 2 escaletas) y llena la <strong>Tipología</strong>, el <strong>Tema Central</strong>, el <strong>Tiempo / Época</strong> y el <strong>Lugar Histórico</strong> con la propuesta que elijas.
                         </p>
                       </div>
 
@@ -20066,7 +20064,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             title={
                               duplicateBlockForStart
                                 ? `Bloqueado: el link pegado ya fue investigado ("${duplicateBlockForStart.title}"). Deja la caja de link en blanco o pega un link no investigado.`
-                                : 'Ejecutar Paso 1 con el modelo Auto (sin Deep Research)'
+                                : 'Ejecutar Paso 1 con el modelo Neon (sin Deep Research)'
                             }
                             className={`w-full sm:w-auto max-w-full px-3.5 sm:px-5 py-2.5 sm:py-3 rounded-xl font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg transition whitespace-normal text-left sm:text-center ${
                               duplicateBlockForStart
@@ -20080,7 +20078,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                 ? 'Procesando en Gemini...'
                                 : duplicateBlockForStart
                                 ? '🔒 Link Ya Investigado (Limpia la Caja)'
-                                : '⚡ Paso 1: Determinar Definición + Calibración (Auto)'}
+                                : '⚡ Paso 1: Determinar Definición + Calibración (Neon)'}
                             </span>
                           </button>
                         );
@@ -20379,7 +20377,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                       if (!isPart1OrPart2Done) {
                         return (
                           <div className="bg-slate-900/70 border border-slate-800 rounded-xl p-3.5 text-xs text-slate-400">
-                            💡 Al pulsar <strong>&quot;⚡ Paso 1: Determinar Definición + Calibración (Auto)&quot;</strong>, Gemini (sin Deep Research, con <strong>modelo Auto</strong>) usará los videos marcados y entregará <strong>4 propuestas completas</strong> (tema, tiempo y lugar, tipología y clímax, con sus ganchos y escaletas); aquí eliges una antes de pasar al Paso 2. Si no escribiste el Tema y hay videos marcados, primero propondrá <strong>10 temas</strong> para que marques los que quieres desarrollar.
+                            💡 Al pulsar <strong>&quot;⚡ Paso 1: Determinar Definición + Calibración (Neon)&quot;</strong>, Gemini (sin Deep Research, con <strong>modelo Neon</strong>) usará los videos marcados y entregará <strong>4 propuestas completas</strong> (tema, tiempo y lugar, tipología y clímax, con sus ganchos y escaletas); aquí eliges una antes de pasar al Paso 2. Si no escribiste el Tema y hay videos marcados, primero propondrá <strong>10 temas</strong> para que marques los que quieres desarrollar.
                           </div>
                         );
                       }
@@ -20524,7 +20522,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             PASO 2 DE ETAPA 1
                           </span>
                           <span className="px-2.5 py-0.5 rounded-md bg-emerald-950/80 border border-emerald-500/50 text-emerald-300 text-[11px] font-bold">
-                            ⚡ modelo Auto + 🔬 Feature Deep Research Activo
+                            ⚡ modelo Neon + 🔬 Feature Deep Research Activo
                           </span>
                           {(() => {
                             const refVidStep2 = resolveSelectedLibraryVideoForDoc(
@@ -20541,7 +20539,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                           })()}
                         </div>
                         <h4 className="font-extrabold text-slate-100 text-sm sm:text-base break-words">
-                          2º Investigación Profunda con el Feature de Gemini Deep Research y el modelo Auto
+                          2º Investigación Profunda con el Feature de Gemini Deep Research y el modelo Neon
                         </h4>
                         <p className="text-xs text-slate-300 leading-relaxed break-words">
                           Una vez determinados <strong>🏛️ Definición Histórica y Continuidad</strong>, el <strong>📚 Video Analizado de la Biblioteca</strong> y <strong>⏱️ Calibración Matemática</strong> en el Paso 1, este botón abre en Gemini el menú <strong>&quot;+&quot; → &quot;More tools&quot; → &quot;Deep research&quot;</strong>, deja el modelo en <strong>&quot;Auto&quot;</strong> y ejecuta la Investigación Profunda completa con auto-clic en <em>&quot;Iniciar investigación&quot;</em>.
@@ -20560,7 +20558,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                               enableDeepResearch: true,
                             });
                           }}
-                          title="Activa Deep Research (+ -> More tools -> Deep research) y el modelo Auto"
+                          title="Activa Deep Research (+ -> More tools -> Deep research) y el modelo Neon"
                           className="w-full sm:w-auto max-w-full px-3.5 sm:px-5 py-2.5 sm:py-3 rounded-xl font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg transition whitespace-normal text-left sm:text-center bg-gradient-to-r from-purple-500 via-indigo-500 to-amber-400 hover:from-purple-400 hover:via-indigo-400 hover:to-amber-300 disabled:opacity-50 text-slate-950 cursor-pointer shadow-purple-500/25"
                         >
                           <Wand2 className="w-4 h-4 shrink-0" />
@@ -28166,9 +28164,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                     <div className="flex items-center gap-2 flex-wrap">
                       <span
                         className="px-3 py-2 rounded-xl bg-emerald-950/70 border border-emerald-500/40 text-emerald-300 font-bold text-xs flex items-center gap-1.5"
-                        title="La Etapa 9 selecciona automáticamente el modelo Auto de Gemini (sin Deep Research) para generar las 4 secciones de forma rápida y directa"
+                        title="La Etapa 9 selecciona automáticamente el modelo Neon de Gemini (sin Deep Research) para generar las 4 secciones de forma rápida y directa"
                       >
-                        ⚡ Modelo: Gemini Auto ✓
+                        ⚡ Modelo: Gemini Neon ✓
                       </span>
                       <button
                         type="button"
@@ -28190,7 +28188,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                           });
                         }}
                         className="px-3.5 py-2 rounded-xl bg-violet-500/20 hover:bg-violet-500/30 text-violet-200 border border-violet-500/40 font-bold text-xs flex items-center gap-1.5 cursor-pointer"
-                        title="Pide a Gemini (modelo Auto) 5 opciones de títulos ultra-específicos y seguidamente genera las 4 secciones (YouTube, Facebook, Comentario Fijado y Tags)"
+                        title="Pide a Gemini (modelo Neon) 5 opciones de títulos ultra-específicos y seguidamente genera las 4 secciones (YouTube, Facebook, Comentario Fijado y Tags)"
                       >
                         🎯 Generar 5 Títulos Específicos (Gemini)
                       </button>
@@ -28209,7 +28207,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                       >
                         <Wand2 className="w-3.5 h-3.5" />
                         {aiGenerating
-                          ? 'Generando Títulos + 4 Secciones (Auto)...'
+                          ? 'Generando Títulos + 4 Secciones (Neon)...'
                           : '✨ Generar Todo (YouTube + Facebook + Comentario + Tags)'}
                       </button>
                     </div>

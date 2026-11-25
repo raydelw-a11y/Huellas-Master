@@ -912,8 +912,8 @@
     targetModelName = ''
   ) {
     const wantQuickAnswers = Boolean(enableQuickAnswers);
-    // Only the Stage 3 buttons ask for a model by name ('NEON'); every other order runs on Auto
-    const wantNeonModel = !wantQuickAnswers && String(targetModelName || '').toUpperCase() === 'NEON';
+    // Every order runs on the Neon model (user decision 2026-11-25), whatever model it asks for
+    const wantNeonModel = true;
     const wantHigh = !wantQuickAnswers && Boolean(enableHighModel) && !Boolean(enableArgonLow);
     const targetLevel = wantQuickAnswers ? 'QUICK_ANSWERS' : wantHigh ? 'HIGH' : 'LOW';
 
@@ -1417,7 +1417,7 @@
         } catch {}
       }
 
-      // Model: every order runs on "Auto" (user decision 2026-11-25). If the background step could not leave it
+      // Model: every order runs on Neon (user decision 2026-11-25). If the background step could not leave it
       // selected, it is chosen here by clicking its row; the old fallback that put 4 Carbon back is not used.
       if (!result.thinkingOk) {
         try {
@@ -1550,12 +1550,12 @@
     reportStatus(
       'GENERATING',
       isDeepResearch
-        ? '🔬 Gemini Web (modelo Auto + Deep Research) preparando el Plan de Investigación...'
+        ? '🔬 Gemini Web (modelo Neon + Deep Research) preparando el Plan de Investigación...'
         : isImageOrder
         ? `🖼️ Gemini Web (Create image + Logo Oficial) está creando la Miniatura Opción ${
             (meta && meta.optionLabel) || 'A'
           }...`
-        : 'Gemini Web (modelo Auto) está redactando la respuesta...',
+        : 'Gemini Web (modelo Neon) está redactando la respuesta...',
       meta
     );
 
@@ -2018,7 +2018,7 @@
                   enableHighModel: false,
                   enableArgonLow: true,
                   enableCarbonLow: true,
-                  preferredModel: 'CARBON_4_LOW',
+                  preferredModel: 'NEON',
                   thinkingLevel: 'LOW',
                   enableDeepResearch: false,
                   skipModelSwitch: true,
@@ -4428,11 +4428,9 @@
         // Thinking level High is not used anywhere (user decision 2026-11-24): an order that still asks for it
         // (a page that was not reloaded) runs on Low.
         const wantHighThinking = false;
-        // The Stage 3 buttons (3 on-screen text options = 101, triggers + thumbnail prompt = 5) and the thumbnail
-        // images (505, with the Create image tool) run on Neon
-        const wantNeonModel =
-          String(payload.preferredModel || '').toUpperCase() === 'NEON' && !payload.enableDeepResearch;
-        const orderModelName = wantNeonModel ? 'Neon' : 'Auto';
+        // Every order (Deep Research and Create image included) runs on Neon (user decision 2026-11-25)
+        const wantNeonModel = true;
+        const orderModelName = 'Neon';
         const desiredModeKey = payload.enableDeepResearch
           ? wantHighThinking
             ? 'CARBON4_HIGH_DEEP_RESEARCH'
@@ -5344,8 +5342,8 @@
           msg.action === 'ASK_EXTERNAL_CARBON_HIGH' ||
           msg.action === 'ASK_EXTERNAL_ARGON_HIGH' ||
           String(msg.thinkingLevel || '').toUpperCase() === 'HIGH');
-      // Every Gemini order runs on the "Auto" model (user decision 2026-11-25)
-      const expectedCanonicalLabel = 'Auto';
+      // Every Gemini order runs on the Neon model (user decision 2026-11-25)
+      const expectedCanonicalLabel = 'Neon';
       sendResponse({ handled: true, requestId });
       (async () => {
         try {
@@ -5437,8 +5435,8 @@
             return [aria, inner].filter(Boolean).join(' · ');
           };
           const isVerifiedTargetModelLabel = (lbl) =>
-            /\bauto(?:m[aá]tico)?\b/i.test(String(lbl || '')) &&
-            !/\b(carbon|neon|hydrogen|argon)\b/i.test(String(lbl || ''));
+            /\bneon\b/i.test(String(lbl || '')) &&
+            !/\b(carbon|hydrogen|argon)\b/i.test(String(lbl || ''));
 
           let cfgRes = await Promise.race([
             configureGeminiModelAndDeepResearch(
@@ -5447,7 +5445,8 @@
               !wantQuickAnswers && !wantHigh,
               false,
               '',
-              wantQuickAnswers
+              wantQuickAnswers,
+              'NEON'
             ),
             sleep(25000),
           ]);
@@ -5462,7 +5461,8 @@
                 !wantQuickAnswers && !wantHigh,
                 false,
                 '',
-                wantQuickAnswers
+                wantQuickAnswers,
+                'NEON'
               ),
               sleep(20000),
             ]);
@@ -5483,7 +5483,7 @@
           await sleep(350);
 
           const liveDomLabel = readCurrentGeminiModeLabel();
-          const hasExplicitWrongModelInPill = /\b(carbon|neon|hydrogen|argon)\b/i.test(liveDomLabel);
+          const hasExplicitWrongModelInPill = /\b(carbon|hydrogen|argon)\b/i.test(liveDomLabel);
           verifiedModeBeforeSend =
             (isVerifiedTargetModelLabel(liveDomLabel) ? liveDomLabel : '') ||
             (cfgRes && cfgRes.verifiedModel) ||

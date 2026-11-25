@@ -4418,7 +4418,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     // Whatever model an order still asks for (older page, external asks), Auto is what gets selected.
     // Exception (user decision 2026-11-25): the Stage 3 buttons "3 Opciones de Texto en Pantalla" and
     // "Generar Prompt con Gemini" ask for the Neon model by name (targetModel 'NEON').
-    const wantNeon = rawTargetModel === 'NEON';
+    // Update (user decision 2026-11-25, later): EVERY order now runs on the Neon model, whatever it asks for
+    // (older pages, external asks, Deep Research, Create image).
+    const wantNeon = true;
     const wantAuto = true;
 
     (async () => {
@@ -7623,12 +7625,12 @@ async function runExternalGeminiAskOrder(task) {
     const resolvedTargetModel = String(task.targetModel || 'QUICK_ANSWERS').trim().toUpperCase();
     const isQuickTarget = resolvedTargetModel === 'QUICK_ANSWERS';
     const isHighTarget = resolvedTargetModel === 'CARBON_HIGH';
-    // Every Gemini order runs on the "Auto" model (user decision 2026-11-25)
-    const expectedCanonicalModel = 'Auto';
+    // Every Gemini order runs on the Neon model (user decision 2026-11-25)
+    const expectedCanonicalModel = 'Neon';
     const isExpectedModeLabel = (rawLbl) => {
       const lbl = String(rawLbl || '');
       if (lbl !== undefined) {
-        return /\bauto(?:m[aá]tico)?\b/i.test(lbl) && !/\b(carbon|neon|hydrogen|argon)\b/i.test(lbl);
+        return /\bneon\b/i.test(lbl) && !/\b(carbon|hydrogen|argon)\b/i.test(lbl);
       }
       if (isQuickTarget) {
         return (
