@@ -4416,6 +4416,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     // Every order runs on Gemini's "Auto" model (user decision 2026-11-25): with 4 Carbon + Thinking level Low a
     // long order sat for minutes without an answer, and Auto answered the same order in under a minute.
     // Whatever model an order still asks for (older page, external asks), Auto is what gets selected.
+    // Exception (user decision 2026-11-25): the Stage 3 buttons "3 Opciones de Texto en Pantalla" and
+    // "Generar Prompt con Gemini" ask for the Neon model by name (targetModel 'NEON').
+    const wantNeon = rawTargetModel === 'NEON';
     const wantAuto = true;
 
     (async () => {
@@ -5080,8 +5083,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 }
 
                 if (op === 'SELECT_AUTO_MODEL_DOM') {
-                  // The model picker's first entry, "Auto — Adapts to your needs": the row itself is clicked (no
-                  // coordinates), and never when it is already the chosen one.
+                  // The model picker's first entry, "Auto — Adapts to your needs" (or, with argVal 'NEON', the
+                  // Neon model row): the row itself is clicked (no coordinates), and never when it is already the
+                  // chosen one.
                   const rows = Array.from(
                     document.querySelectorAll(
                       '.cdk-overlay-popover gem-menu-item, .cdk-overlay-container gem-menu-item, .cdk-overlay-popover [role="menuitemradio"], .cdk-overlay-container [role="menuitemradio"]'
@@ -5091,7 +5095,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     return r.width > 10 && r.height > 10;
                   });
                   const txt = (el) => (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
-                  const autoRow = rows.find((el) => /^(?:[✓✔]\s*)?auto(?:m[aá]tico)?\b/i.test(txt(el)));
+                  const autoRow =
+                    String(argVal || '').toUpperCase() === 'NEON'
+                      ? rows.find((el) => /^(?:[✓✔]\s*)?(?:\d+(?:\.\d+)?\s*)?neon\b/i.test(txt(el))) ||
+                        rows.find((el) => /\bneon\b/i.test(txt(el)))
+                      : rows.find((el) => /^(?:[✓✔]\s*)?auto(?:m[aá]tico)?\b/i.test(txt(el)));
                   if (!autoRow) return { found: false, items: rows.map((el) => txt(el).slice(0, 40)) };
                   if (isItemChecked(autoRow)) return { found: true, alreadyChecked: true };
                   try {
@@ -5699,8 +5707,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           thinkingVerified = true;
         }
         if (wantAuto) {
+          const modelName = wantNeon ? 'Neon' : 'Auto';
           const isAutoModeLabel = (lbl) =>
-            /\bauto(?:m[aá]tico)?\b/i.test(lbl) && !/\b(carbon|neon|hydrogen|argon)\b/i.test(lbl);
+            wantNeon
+              ? /\bneon\b/i.test(lbl) && !/\b(carbon|hydrogen|argon)\b/i.test(lbl)
+              : /\bauto(?:m[aá]tico)?\b/i.test(lbl) && !/\b(carbon|neon|hydrogen|argon)\b/i.test(lbl);
           const autoIsSelected = async () => {
             const ml = await runMainStep('READ_MODE_LABEL');
             return isAutoModeLabel(String((ml && ml.label) || ''));
@@ -5715,20 +5726,20 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
               continue;
             }
             await sleep(380);
-            let sel = await runMainStep('SELECT_AUTO_MODEL_DOM');
+            let sel = await runMainStep('SELECT_AUTO_MODEL_DOM', wantNeon ? 'NEON' : '');
             if (!sel?.found) {
               await sleep(350);
-              sel = await runMainStep('SELECT_AUTO_MODEL_DOM');
+              sel = await runMainStep('SELECT_AUTO_MODEL_DOM', wantNeon ? 'NEON' : '');
             }
-            if (!sel?.found) diag.push(`A${attempt}: "Auto" no apareció en el menú [${(sel?.items || []).join(' | ')}]`);
+            if (!sel?.found) diag.push(`A${attempt}: "${modelName}" no apareció en el menú [${(sel?.items || []).join(' | ')}]`);
             await sleep(420);
             await closeMenus();
             autoOk = await autoIsSelected();
-            if (!autoOk && sel?.found) diag.push(`A${attempt}: se pulsó "Auto" pero el selector no lo muestra`);
+            if (!autoOk && sel?.found) diag.push(`A${attempt}: se pulsó "${modelName}" pero el selector no lo muestra`);
           }
           thinkingOk = autoOk;
           thinkingVerified = autoOk;
-          verifiedModelLabel = autoOk ? 'Auto' : '';
+          verifiedModelLabel = autoOk ? modelName : '';
         }
         for (let attempt = 1; attempt <= 3 && !thinkingOk && !wantAuto; attempt++) {
           await closeMenus();
