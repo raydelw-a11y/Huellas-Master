@@ -225,7 +225,7 @@ import { stampBrandMarksOnThumbnail, HD_BADGE_EMPTY_CORNER_CLAUSE, LOGO_EMPTY_CO
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '03:00 PM - 11/25/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '03:06 PM - 11/25/2026';
 
 // PRODUCTION LOCK: while promptConfig.PRODUCTION_LOCKED === 'YES' these fields never change (the server
 // enforces the same list in protectLockedDocs). Metadata, thumbnails, review marks and reframes stay editable.
@@ -13862,13 +13862,6 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           '03_Miniaturas'
         );
       }
-      if (doc.thumbnailImageUrl) {
-        await handleSaveAnyFileToChosenFolder(
-          'Miniatura_Oficial.png',
-          doc.thumbnailImageUrl,
-          '03_Miniaturas'
-        );
-      }
       for (const [num, dataUrl] of Object.entries(capturedSunoAudioMap)) {
         if (typeof dataUrl === 'string' && dataUrl.startsWith('data:audio')) {
           const tIdx = Math.max(0, Number(num) - 1);
@@ -14702,18 +14695,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
               REMOTE_GEMINI_STAGE_ERROR: '',
             },
           });
-          const thumbFileName = isVertOrientation
-            ? `Miniatura_Opcion_${opt}_9x16.png`
-            : `Miniatura_Opcion_${opt}.png`;
+          // One file per orientation (the same image used to be written 3 times with different names)
+          const thumbFileName = isVertOrientation ? 'Miniatura_Vertical_9x16.png' : 'Miniatura_Horizontal_16x9.png';
           await handleSaveAnyFileToChosenFolder(thumbFileName, dataUrl, '03_Miniaturas');
-          await handleSaveAnyFileToChosenFolder(
-            isVertOrientation ? 'Miniatura_Vertical_9x16.png' : 'Miniatura_Horizontal_16x9.png',
-            dataUrl,
-            '03_Miniaturas'
-          );
-          if (!isVertOrientation) {
-            await handleSaveAnyFileToChosenFolder('Miniatura_Oficial.png', dataUrl, '03_Miniaturas');
-          }
           const folderLabel =
             effectiveDocFolderName ||
             getCanonicalFolderNameForDoc(curViewingDoc) ||
@@ -15730,16 +15714,12 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         THUMBNAIL_PREVIEWS_MAP_JSON: JSON.stringify(nextPreviewMap),
       },
     });
-    const thumbFileName = isVert ? `Miniatura_Opcion_${opt}_9x16.png` : `Miniatura_Opcion_${opt}.png`;
-    await handleSaveAnyFileToChosenFolder(thumbFileName, stamped, '03_Miniaturas');
+    // One file per orientation
     await handleSaveAnyFileToChosenFolder(
       isVert ? 'Miniatura_Vertical_9x16.png' : 'Miniatura_Horizontal_16x9.png',
       stamped,
       '03_Miniaturas'
     );
-    if (!isVert) {
-      await handleSaveAnyFileToChosenFolder('Miniatura_Oficial.png', stamped, '03_Miniaturas');
-    }
     setBridgeStatusType('SUCCESS');
     setBridgeStatusMsg(
       `🖼️ Logo y sello ${isVert ? 'HD' : '8K'} aplicados de nuevo sobre la original (${sourceLabel}). Miniatura ${
@@ -22260,11 +22240,6 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                           file,
                           '03_Miniaturas'
                         );
-                        await handleSaveAnyFileToChosenFolder(
-                          'Miniatura_Oficial.png',
-                          file,
-                          '03_Miniaturas'
-                        );
                         handleAuditThumbnailPsychology('HORIZONTAL', url);
                       } else {
                         updateActiveDoc({
@@ -22306,11 +22281,6 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                   if (effectiveHorizontalThumb) {
                                     const okH = await handleSaveAnyFileToChosenFolder(
                                       'Miniatura_Horizontal_16x9.png',
-                                      effectiveHorizontalThumb,
-                                      '03_Miniaturas'
-                                    );
-                                    await handleSaveAnyFileToChosenFolder(
-                                      'Miniatura_Oficial.png',
                                       effectiveHorizontalThumb,
                                       '03_Miniaturas'
                                     );
@@ -22747,11 +22717,6 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                         });
                                         await handleSaveAnyFileToChosenFolder(
                                           'Miniatura_Horizontal_16x9.png',
-                                          url,
-                                          '03_Miniaturas'
-                                        );
-                                        await handleSaveAnyFileToChosenFolder(
-                                          'Miniatura_Oficial.png',
                                           url,
                                           '03_Miniaturas'
                                         );

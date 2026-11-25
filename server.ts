@@ -11476,8 +11476,8 @@ app.post('/api/gemini-web/save-captured-thumbnail', async (req, res) => {
         fs.mkdirSync(thumbsDir, { recursive: true });
       }
       const targetNames = isVerticalCapture
-        ? [`Miniatura_Vertical_9x16.png`, `Miniatura_Opcion_${opt}_9x16.png`]
-        : [`Miniatura_Horizontal_16x9.png`, `Miniatura_Opcion_${opt}.png`, 'Miniatura_Oficial.png'];
+        ? ['Miniatura_Vertical_9x16.png']
+        : ['Miniatura_Horizontal_16x9.png']; // one file per orientation (it used to be written 3 times)
       for (const name of targetNames) {
         const targetFile = path.join(thumbsDir, name);
         fs.writeFileSync(targetFile, imgBuffer);
