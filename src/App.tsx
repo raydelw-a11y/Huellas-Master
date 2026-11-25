@@ -205,7 +205,7 @@ import { stampBrandMarksOnThumbnail, HD_BADGE_EMPTY_CORNER_CLAUSE, LOGO_EMPTY_CO
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '08:52 PM - 11/24/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '09:13 PM - 11/24/2026';
 
 // PRODUCTION LOCK: while promptConfig.PRODUCTION_LOCKED === 'YES' these fields never change (the server
 // enforces the same list in protectLockedDocs). Metadata, thumbnails, review marks and reframes stay editable.
@@ -16088,6 +16088,14 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     }
 
     // 1. Prepend Non-Voiceover Lead-In Intervals (Intro Oficial + Clip 1 Hook sin voz)
+    // The silent opening is Clip 1 plus, when the voice starts inside Clip 2, the first seconds of Clip 2:
+    // the row says both, so nobody reads it as "Clip 1 of 8 seconds"
+    const leadInClip1Sec =
+      doc.clip1SyncMode === 'RALENTIZAR_CAPCUT' ? voiceEntrySec : Math.min(voiceEntrySec, getStage1ClipDurations(doc).clip1Sec);
+    const clip1LeadInLabel =
+      voiceEntrySec > leadInClip1Sec
+        ? `[SIN VOZ NARRATIVA — Clip 1: Hook Visual Inicial y Texto en Pantalla (${leadInClip1Sec}s) + ${voiceEntrySec - leadInClip1Sec}s iniciales del Clip 2 sin voz]`
+        : `[SIN VOZ NARRATIVA — Clip 1: Hook Visual Inicial y Texto en Pantalla (${voiceEntrySec}s)]`;
     const introPlacement = doc.promptConfig?.UBICACION_INTRO_MARCA || 'INTRO_INICIO_00';
     const leadInSentences: Sentence[] = [];
     let voiceStartSec = 0;
@@ -16099,14 +16107,14 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         end: 8,
       });
       leadInSentences.push({
-        text: `[SIN VOZ NARRATIVA — Clip 1: Hook Visual Inicial y Texto en Pantalla (${voiceEntrySec}s)]`,
+        text: clip1LeadInLabel,
         start: 8,
         end: 8 + voiceEntrySec,
       });
       voiceStartSec = 8 + voiceEntrySec;
     } else {
       leadInSentences.push({
-        text: `[SIN VOZ NARRATIVA — Clip 1: Hook Visual Inicial y Texto en Pantalla (${voiceEntrySec}s)]`,
+        text: clip1LeadInLabel,
         start: 0,
         end: voiceEntrySec,
       });

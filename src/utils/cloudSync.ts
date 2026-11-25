@@ -3304,16 +3304,32 @@ export function buildStagePromptText(
   const fmtCalibClock = (sec: number) =>
     `${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(Math.round(sec % 60)).padStart(2, '0')}`;
   const hookStartClock = introIsPostSlogan ? '00:00' : fmtCalibClock(fixedIntroSec);
-  const voiceEntryCalibSec = introIsPostSlogan ? clip1TimelineSec : fullEntrySec;
-  const buildIntroCalibrationLines = (clip1Label: string, introNote: string) =>
-    introIsPostSlogan
-      ? `  • Clip 1 (${clip1Label}): 00:00 - ${fmtCalibClock(clip1TimelineSec)} (${clip1TimelineSec}s) — THE VIDEO OPENS DIRECTLY WITH THE HOOK, there is NO Intro at 00:00
-  • Narrative Voiceover Entry: Second ${voiceEntryCalibSec} (${fmtCalibClock(voiceEntryCalibSec)}), opening paragraph + Slogan Completo ("...Aquí seguimos sus rastros.")
+    // The opening without narration is not the same as Clip 1: with "voice starts 2s into Clip 2", Clip 1 lasts
+  // its own seconds (e.g. 6) and the first seconds of Clip 2 also run silent, so the voice enters later (e.g. at
+  // 00:08). The order must say both, or Gemini writes "Clip 1 of 8 seconds".
+  const clip1OnTimelineSec = clip2StartSec;
+  const silentClip2Sec = Math.max(0, clip1TimelineSec - clip1OnTimelineSec);
+  const buildIntroCalibrationLines = (clip1Label: string, introNote: string) => {
+    const hookStartSec = introIsPostSlogan ? 0 : fixedIntroSec;
+    const clip1EndSec = hookStartSec + clip1OnTimelineSec;
+    const voiceAtSec = hookStartSec + clip1TimelineSec;
+    const clip1Line = `  • Clip 1 (${clip1Label}): ${fmtCalibClock(hookStartSec)} - ${fmtCalibClock(clip1EndSec)} (${clip1OnTimelineSec}s${
+      doc.clip1SyncMode === 'RALENTIZAR_CAPCUT' ? `, generated at ${c1Dur}s and slowed down in editing` : ''
+    })${introIsPostSlogan ? ' — THE VIDEO OPENS DIRECTLY WITH THE HOOK, there is NO Intro at 00:00' : ''}`;
+    const voiceLine =
+      silentClip2Sec > 0
+        ? `  • Clip 2 starts at ${fmtCalibClock(clip1EndSec)} and its first ${silentClip2Sec}s also run WITHOUT voiceover: the Narrative Voiceover enters at second ${voiceAtSec} (${fmtCalibClock(voiceAtSec)}), so the opening without narration lasts ${clip1TimelineSec}s in total (Clip 1 of ${clip1OnTimelineSec}s + ${silentClip2Sec}s of Clip 2). Never call Clip 1 a ${clip1TimelineSec}-second clip`
+        : `  • Narrative Voiceover Entry: Second ${voiceAtSec} (${fmtCalibClock(voiceAtSec)}), right after Clip 1`;
+    return introIsPostSlogan
+      ? `${clip1Line}
+${voiceLine}; it opens with the first paragraph + Slogan Completo ("...Aquí seguimos sus rastros.")
   • Official Brand Intro: ${fixedIntroSec}s fixed${introNote}, placed IMMEDIATELY AFTER the opening Slogan Completo (the narration pauses exactly ${fixedIntroSec}s there, no clip is cut)
   • Body Clips (${clipDurationLabel} each) resume right after that Intro, for ~${effectiveNarratedSec}s of effective narration in total`
       : `  • Official Brand Intro: 00:00 - 00:08 (${fixedIntroSec}s fixed${introNote})
-  • Clip 1 (${clip1Label}): 00:08 - ${fmtCalibClock(fullEntrySec)} (${clip1TimelineSec}s)
-  • Narrative Voiceover Entry & Body Clips (${clipDurationLabel} each): Second ${fullEntrySec} (${fmtCalibClock(fullEntrySec)}) for ~${effectiveNarratedSec}s of effective narration`;
+${clip1Line}
+${voiceLine}
+  • Body Clips (${clipDurationLabel} each) carry ~${effectiveNarratedSec}s of effective narration`;
+  };
 
   const hasExplicitMetadataFields = Boolean(
     youtubeVideoTitle || youtubeVideoDescription || youtubeVideoTags
@@ -3518,7 +3534,7 @@ ${parte2Lines.join('\n')}
          ? "How we adapt the reference video's Hook patterns to our documentary"
          : 'How we open our documentary with maximum curiosity in the first seconds'
      }]
-     • Opción 1..N: [Visual/narrative Hook variants (${hookStartClock}) and central paradox in Spanish]
+     • Opción 1..N: [Visual/narrative Hook variants and central paradox in Spanish. Clip 1 runs ${hookStartClock}–${fmtCalibClock((introIsPostSlogan ? 0 : fixedIntroSec) + clip1OnTimelineSec)} without voiceover and the voiceover enters at ${fmtCalibClock((introIsPostSlogan ? 0 : fixedIntroSec) + clip1TimelineSec)}: use exactly those times]
    - PARTE 5 — CALIBRACIÓN MATEMÁTICA Y ESCALETA POR ACTOS (~${minutesLabel} MIN):
      • Resumen de esta parte: [How we map block percentages and pacing to ~${minutesLabel} min with the 8s Intro${introIsPostSlogan ? ' placed right after the opening Slogan (NOT at 00:00)' : ' at 00:00'} and the 8s Outro]
      • Opción 1..N: [Mathematical act outlines by percentage (%) and minutes in Spanish]
@@ -3618,7 +3634,7 @@ Execute an exhaustive Deep Research investigation on the topic, era, location, a
     const effectiveVoiceEntrySec = voiceEntrySec + FIXED_INTRO_SEC;
     const nonSpokenOpeningLabel =
       introPlacement === 'INTRO_POST_SLOGAN'
-        ? `${effectiveVoiceEntrySec}s without narration (the ${voiceEntrySec}s opening Hook plus the ${FIXED_INTRO_SEC}s Official Brand Intro that the editor inserts right after the opening Slogan)`
+        ? `${effectiveVoiceEntrySec}s without narration (the ${voiceEntrySec}s silent opening — Clip 1 and, when the voice starts inside Clip 2, its first seconds — plus the ${FIXED_INTRO_SEC}s Official Brand Intro that the editor inserts right after the opening Slogan)`
         : `${effectiveVoiceEntrySec}s of initial non-spoken intro`;
     const budget = computeCalibratedVoiceoverBudget(
       doc.targetDurationSeconds || 900,
@@ -3860,7 +3876,7 @@ ${clip1VisualContext ? `Clip 1 Visual Scene: ${clip1VisualContext}\n` : ''}Refer
 CRITICAL OUTPUT LANGUAGE REQUIREMENT:
 Write all 3 on-screen text options in SPANISH (since Spanish viewers read this opening title card on screen) using the exact Option/Line markers below:
 
-Propose EXACTLY 3 magnetic options for the CLIP 1 ON-SCREEN TEXT (First ${voiceEntrySec}s of the video, no voiceover):
+Propose EXACTLY 3 magnetic options for the CLIP 1 ON-SCREEN TEXT (shown during Clip 1, which lasts ${clip2StartSec}s on screen with no voiceover; the voiceover enters at second ${voiceEntrySec}):
 Opción 1:
 Línea 1: [City, Country, Año XXXX (ALWAYS prefixing the capitalized Spanish word "Año" before the 4-digit year, e.g., "Santander, España, Año 1885") OR Siglo XX (ALWAYS writing "Siglo" with capital S + Roman numeral, e.g., "París, Francia, Siglo XIII")]
 Línea 2: [INTRIGUING YET TOPIC-REVEALING SPANISH HOOK TITLE IN UPPERCASE, ZERO EXCLAMATION MARKS]
@@ -4124,7 +4140,7 @@ Generate **STAGE 8: SOUNDTRACK MUSIC (FLOWMUSIC — flowmusic.app)** strictly ob
   } else if (stageNumber === 101) {
     stagePrompt = `Act as a YouTube CTR Neuropsychology Expert and Creative Thumbnail Director for the Spanish-language documentary channel "Huellas de la Humanidad".
 Video Title: ${doc.title || ''}
-Clip 1 Opening On-Screen Text (first ${voiceEntrySec}s): ${doc.clip1Line2Hook || ''}
+Clip 1 Opening On-Screen Text (Clip 1 lasts ${clip2StartSec}s; voiceover enters at second ${voiceEntrySec}): ${doc.clip1Line2Hook || ''}
 Historical Topic: ${doc.topic || doc.title || ''} (${doc.historicalTime || doc.clip1Line1LocationTime || ''}, ${doc.historicalLocation || ''})
 REAL Documentary Script (ABSOLUTE PRIORITY over any provisional title):
 """
@@ -4221,7 +4237,7 @@ Act as Chief Publishing & YouTube SEO Strategist for the Spanish-language docume
 Documentary Topic: ${doc.topic || doc.title} (${doc.historicalTime || ''}, ${doc.historicalLocation || ''})
 Confirmed Final Duration: ${resolvedFinalDuration11}
 Thumbnail On-Screen Text: "${doc.thumbnailTextOverlay || ''}"
-Clip 1 Opening Hook (${voiceEntrySec}s): "${doc.clip1Line2Hook || ''}"
+Clip 1 Opening Hook (Clip 1 lasts ${clip2StartSec}s; voiceover enters at second ${voiceEntrySec}): "${doc.clip1Line2Hook || ''}"
 REAL Documentary Script (ABSOLUTE PRIORITY):
 """
 ${(doc.voiceoverScript || doc.sectionsStructure || '').slice(0, 2200)}
@@ -4259,7 +4275,7 @@ Topic: ${doc.topic || doc.title} (${doc.historicalTime || ''}, ${doc.historicalL
 Confirmed Final Duration: ${resolvedFinalDuration11}
 Platform: YOUTUBE
 Thumbnail Overlay Text: ${doc.thumbnailTextOverlay || ''}
-Clip 1 Opening Hook (${voiceEntrySec}s): ${doc.clip1Line2Hook || ''}
+Clip 1 Opening Hook (Clip 1 lasts ${clip2StartSec}s; voiceover enters at second ${voiceEntrySec}): ${doc.clip1Line2Hook || ''}
 REAL Reference Script: ${(doc.voiceoverScript || doc.sectionsStructure || '').slice(0, 1800)}
 ${chaptersTimelineGuide ? `\nReal Documentary Timestamp Guide:\n${chaptersTimelineGuide}\n` : ''}
 CRITICAL OUTPUT LANGUAGE REQUIREMENT: Write the entire deliverable 100% in SPANISH.
@@ -4280,7 +4296,7 @@ Topic: ${doc.topic || doc.title} (${doc.historicalTime || ''}, ${doc.historicalL
 Confirmed Final Duration: ${resolvedFinalDuration11}
 Platform: FACEBOOK
 ${selectedPublishTitle ? `Official Selected Spanish Title for Line 1 (use verbatim on line 1 without "| Documental Completo"): ${selectedPublishTitle.replace(/\s*\|\s*Documental\s+Completo\s*$/i, '')}\n` : ''}Thumbnail Overlay Text: ${doc.thumbnailTextOverlay || ''}
-Clip 1 Opening Hook (${voiceEntrySec}s): ${doc.clip1Line2Hook || ''}
+Clip 1 Opening Hook (Clip 1 lasts ${clip2StartSec}s; voiceover enters at second ${voiceEntrySec}): ${doc.clip1Line2Hook || ''}
 REAL Reference Script: ${(doc.voiceoverScript || doc.sectionsStructure || '').slice(0, 1800)}
 
 CRITICAL OUTPUT LANGUAGE REQUIREMENT: Write the entire deliverable 100% in SPANISH.
@@ -4325,7 +4341,7 @@ Act as Editorial Director and High-CTR YouTube/Facebook Strategist for the Spani
 Documentary Topic: ${doc.topic || doc.title} (${doc.historicalTime || ''}, ${doc.historicalLocation || ''})
 Confirmed Final Duration: ${resolvedFinalDuration11}
 Thumbnail Overlay Text: "${doc.thumbnailTextOverlay || ''}"
-Clip 1 Opening Hook (${voiceEntrySec}s): "${doc.clip1Line2Hook || ''}"
+Clip 1 Opening Hook (Clip 1 lasts ${clip2StartSec}s; voiceover enters at second ${voiceEntrySec}): "${doc.clip1Line2Hook || ''}"
 REAL Documentary Script (ABSOLUTE PRIORITY — base all 5 titles 100% on the real story narrated here):
 """
 ${(doc.voiceoverScript || doc.sectionsStructure || '').slice(0, 2400)}
