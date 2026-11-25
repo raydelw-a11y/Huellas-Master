@@ -226,7 +226,7 @@ import { stampBrandMarksOnThumbnail, HD_BADGE_EMPTY_CORNER_CLAUSE, LOGO_EMPTY_CO
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '04:10 PM - 11/25/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '04:18 PM - 11/25/2026';
 
 // PRODUCTION LOCK: while promptConfig.PRODUCTION_LOCKED === 'YES' these fields never change (the server
 // enforces the same list in protectLockedDocs). Metadata, thumbnails, review marks and reframes stay editable.
@@ -265,7 +265,6 @@ const CLOUD_ROOT_CATEGORY = '(raíz)';
 const CLOUD_CATEGORIES_BY_STAGE: Record<number, string[]> = {
   4: ['02_Audio'],
   5: ['03_Miniaturas'],
-  6: ['04_Referencias'],
   8: ['05_Clips_Video', '02_Audio'],
   9: ['03_Subtitulos_SRT', CLOUD_ROOT_CATEGORY],
 };
@@ -12558,158 +12557,10 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     };
   };
 
-  // Automatically locate downloaded reference images in ~/Downloads (loose images or .zip) and move them to <DocFolder>/04_Referencias
-  const syncRefsInFlightRef = useRef(false);
+  // Etapa 4: the reference images live only inside Google Flow (the clips call them by @tag), so the app no
+  // longer looks for them in ~/Downloads nor keeps a copy in 04_Referencias.
   // docId → reference text the user had when deleting the last card (so the cards are not rebuilt from it)
   const refsClearedByUserRawRef = useRef<Record<string, string>>({});
-  const syncDownloadedReferenceImages = async (promptsTxtContent?: string) => {
-    const currentDoc = activeDocRef.current || activeDoc;
-    if (!currentDoc || syncRefsInFlightRef.current) return;
-
-    const currentRefs =
-      currentDoc.references && currentDoc.references.length > 0
-        ? currentDoc.references
-        : parseReferencesFromRawText(currentDoc.rawReferencePrompts || '');
-    if (currentRefs.length === 0 && !promptsTxtContent) return;
-
-    const rawFolderPath = (
-      flowServerFolderPath ||
-      currentDoc.downloadFolderPath ||
-      localStorage.getItem(SINGLE_DOWNLOAD_FOLDER_PATH_KEY) ||
-      ''
-    ).trim();
-    const folderPath = doesFolderMatchDoc(rawFolderPath, currentDoc) ? rawFolderPath : '';
-    const folderName = (
-      (doesFolderMatchDoc(flowDownloadFolderName, currentDoc) ? flowDownloadFolderName : '') ||
-      (doesFolderMatchDoc(currentDoc.downloadFolderName, currentDoc)
-        ? currentDoc.downloadFolderName || ''
-        : '') ||
-      getCanonicalFolderNameForDoc(currentDoc)
-    ).trim();
-    const docTitle = `${currentDoc.title || ''} ${currentDoc.topic || ''}`.trim();
-
-    const apiBases = getMacMediaBridgeBases();
-
-    syncRefsInFlightRef.current = true;
-    try {
-      for (const baseOrigin of apiBases) {
-        try {
-          const res = await fetch(`${baseOrigin}/api/flow/sync-reference-downloads`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              folderPath,
-              folderName,
-              docTitle,
-              references: currentRefs.map((r) => ({
-                id: r.id,
-                tag: r.tag,
-                description: r.description,
-                category: r.category,
-              })),
-              promptsTxtContent: promptsTxtContent || '',
-            }),
-          });
-          if (!res.ok) continue;
-          const data = await res.json();
-          if (!data?.ok) continue;
-
-          const prefixUrl = (u: string) =>
-            u && u.startsWith('/') && baseOrigin ? `${baseOrigin}${u}` : u;
-
-          const matchedMap = new Map<string, { url: string; canonicalTag: string; fileName: string }>();
-          for (const item of data.matchedReferences || []) {
-            if (item?.id && item?.url) {
-              matchedMap.set(String(item.id), {
-                url: prefixUrl(String(item.url)),
-                canonicalTag: String(item.canonicalTag || item.tag || ''),
-                fileName: String(item.fileName || ''),
-              });
-            }
-          }
-
-          if (matchedMap.size > 0) {
-            const latestDoc = activeDocRef.current || currentDoc;
-            if (latestDoc.id === currentDoc.id) {
-              const baseList =
-                latestDoc.references && latestDoc.references.length > 0
-                  ? latestDoc.references
-                  : currentRefs;
-              let changed = false;
-              const nextRefs = baseList.map((r) => {
-                const hit = matchedMap.get(r.id);
-                if (!hit) return r;
-                if (r.imageUrl !== hit.url || !r.isCreated) {
-                  changed = true;
-                  return {
-                    ...r,
-                    imageUrl: hit.url,
-                    isCreated: true,
-                  };
-                }
-                return r;
-              });
-              if (changed) {
-                updateActiveDoc({ references: nextRefs });
-              }
-            }
-          }
-
-          if (Number(data.movedCount || 0) > 0) {
-            const namesStr = Array.isArray(data.movedFiles) ? data.movedFiles.join(', ') : '';
-            setFlowStatusLog(
-              `✅ ${data.movedCount} imagen(es) de referencia localizada(s) en Descargas y movida(s) automáticamente a 04_Referencias${
-                namesStr ? ` (${namesStr})` : ''
-              }.`
-            );
-          }
-          break;
-        } catch {}
-      }
-    } finally {
-      syncRefsInFlightRef.current = false;
-    }
-  };
-
-  useEffect(() => {
-    if (!activeDoc) return;
-    const hasAnyRefs =
-      (activeDoc.references?.length || 0) > 0 || Boolean((activeDoc.rawReferencePrompts || '').trim());
-    if (!hasAnyRefs) return;
-
-    // Only on Etapa 4 (internal 6): each pass reads ~/Downloads, iCloud and every recent .zip, so it
-    // must not run every 3.5 s on the other stages. Once every card has its image, one pass is enough.
-    if (activeStage !== 6) return;
-
-    syncDownloadedReferenceImages();
-    const hasMissingImages = (activeDoc.references || []).some((r) => !r.isCreated || !r.imageUrl);
-    if (!hasMissingImages && (activeDoc.references?.length || 0) > 0) return;
-    const timer = window.setInterval(() => {
-      syncDownloadedReferenceImages();
-    }, 3500);
-
-    const onFocusOrVisible = () => {
-      if (document.visibilityState === 'visible') {
-        syncDownloadedReferenceImages();
-      }
-    };
-    window.addEventListener('focus', onFocusOrVisible);
-    document.addEventListener('visibilitychange', onFocusOrVisible);
-
-    return () => {
-      window.clearInterval(timer);
-      window.removeEventListener('focus', onFocusOrVisible);
-      document.removeEventListener('visibilitychange', onFocusOrVisible);
-    };
-  }, [
-    activeDoc?.id,
-    activeDoc?.title,
-    activeDoc?.rawReferencePrompts,
-    activeDoc?.references?.length,
-    activeStage,
-    flowServerFolderPath,
-    flowDownloadFolderName,
-  ]);
 
   const compressImageDataUrlForCloudSync = useCallback(
     async (dataUrl: string, maxChars = 42000): Promise<string> => {
@@ -14422,26 +14273,20 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
               targetIndex = refIdx;
             }
             if (targetIndex === -1) {
-              targetIndex = currentRefs.findIndex((r) => !r.imageUrl);
+              targetIndex = currentRefs.findIndex((r) => !r.isCreated);
             }
             if (targetIndex >= 0 && targetIndex < currentRefs.length) {
               matchedTag = currentRefs[targetIndex].tag || matchedTag || `Ref_${targetIndex + 1}`;
+              // The image stays inside Google Flow (clips call it by @tag): only mark the card, never keep
+              // a base64 copy in the documentary or a file in 04_Referencias.
               currentRefs[targetIndex] = {
                 ...currentRefs[targetIndex],
-                imageUrl: dataUrl,
                 isCreated: true,
               };
               updateActiveDoc({ references: currentRefs });
             }
           }
-          const safeTagName = (matchedTag || `Referencia_${refIdx >= 0 ? refIdx + 1 : Date.now()}`)
-            .replace(/^@+/, '')
-            .replace(/[^a-zA-Z0-9_-]/g, '_');
-          const refFileName = `Ref_${safeTagName}.png`;
-          await handleSaveAnyFileToChosenFolder(refFileName, dataUrl, '04_Referencias');
-          const folderLabel =
-            flowDownloadDirHandleRef.current?.name || effectiveDocFolderName || 'tu carpeta raíz';
-          const logText = `🖼️ ¡Imagen de referencia ${matchedTag || refFileName} generada en Google Flow, importada a la tarjeta y guardada en "${folderLabel}/04_Referencias/${refFileName}"!`;
+          const logText = `🖼️ Imagen de referencia ${matchedTag || 'nueva'} generada en Google Flow (se queda allí; no hace falta descargarla).`;
           setFlowStatusLog(logText);
           setBridgeStatusType('SUCCESS');
           setBridgeStatusMsg(logText);
@@ -22556,8 +22401,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                         Genera automáticamente en <strong className="text-amber-300">Gemini</strong> los prompts de{' '}
                         <strong className="text-amber-300">@Personas y @Lugares (6 Views)</strong> para que aparezcan en
                         la caja inferior, luego cópialos en un solo texto a{' '}
-                        <strong className="text-amber-300">Google Flow (Nano Banana 2.1)</strong>: al descargar las
-                        imágenes la app las llevará sola a <code className="text-emerald-300">04_Referencias/</code>.
+                        <strong className="text-amber-300">Google Flow (Nano Banana 2.1)</strong>. Las imágenes se quedan
+                        dentro de Flow con su nombre <code className="text-emerald-300">@Etiqueta</code>: no hace falta
+                        descargarlas.
                       </p>
                     </div>
                     <div className="flex items-center flex-wrap gap-2 w-full sm:w-auto">
@@ -22590,7 +22436,6 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             return;
                           }
                           copyText(effectiveCopyText, 'copy-all-refs');
-                          syncDownloadedReferenceImages(effectiveCopyText);
                         }}
                         className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-amber-500/40 text-amber-300 font-bold text-xs flex items-center justify-center gap-2 cursor-pointer flex-1 sm:flex-initial"
                       >
@@ -22602,19 +22447,6 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                         </span>
                       </button>
                     </div>
-                  </div>
-
-                  <div className="bg-slate-950/80 border border-emerald-500/25 rounded-xl px-3.5 py-2.5 flex items-center justify-between flex-wrap gap-2 text-xs">
-                    <span className="text-slate-300">
-                      📂 <strong className="text-emerald-300">Auto-localizador activo:</strong> al descargar tus
-                      imágenes de 6 vistas desde Google Flow (sueltas o en <code className="text-amber-300">.zip</code>),
-                      se mueven automáticamente a <code className="text-emerald-300">04_Referencias/</code> con su
-                      nombre exacto.
-                    </span>
-                    <span className="text-[11px] font-semibold text-emerald-300 shrink-0">
-                      {(activeDoc.references || []).filter((r) => r.isCreated).length} /{' '}
-                      {(activeDoc.references || []).length} listas
-                    </span>
                   </div>
 
                   {(aiGenerating || activeDoc.promptConfig?.REMOTE_GEMINI_STAGE_STATUS === 'running') && (
@@ -22695,9 +22527,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                   {(activeDoc.references || []).map((ref, idx) => (
                     <div
                       key={ref.id}
-                      className={`bg-[#14120f] border rounded-2xl p-4 flex flex-col justify-between gap-3 ${
-                        ref.isCreated ? 'border-emerald-500/50' : 'border-slate-800'
-                      }`}
+                      className="bg-[#14120f] border border-slate-800 rounded-2xl p-4 flex flex-col justify-between gap-3"
                     >
                       <div className="space-y-2.5">
                         <div className="flex items-center justify-between gap-2">
@@ -22733,70 +22563,6 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                           </select>
                         </div>
 
-                        {/* Image Preview or Upload */}
-                        {(() => {
-                          const resolvedRefUrl = resolveRemoteFolderMediaUrl(ref.imageUrl);
-                          return (
-                            <div className="h-36 bg-slate-950 border border-dashed border-slate-800 rounded-xl overflow-hidden flex items-center justify-center relative">
-                              {resolvedRefUrl ? (
-                                <img
-                                  src={resolvedRefUrl}
-                                  alt={ref.tag}
-                                  className="w-full h-full object-cover"
-                                />
-                              ) : (
-                                <span className="text-[11px] text-slate-500 text-center px-3">
-                                  Esperando descarga de <strong className="text-slate-400">{ref.tag}</strong> (6 views) desde Google Flow
-                                </span>
-                              )}
-                          <label className="absolute bottom-2 right-2 px-2.5 py-1 rounded-lg bg-black/80 hover:bg-black text-amber-300 text-[11px] font-semibold border border-amber-500/30 cursor-pointer flex items-center gap-1">
-                            <Upload className="w-3 h-3" /> Subir Imagen
-                            <input
-                              type="file"
-                              accept="image/*"
-                              className="hidden"
-                              onChange={async (e) => {
-                                const input = e.currentTarget;
-                                const file = input.files?.[0];
-                                if (!file) return;
-                                const docIdAtStart = activeDoc.id;
-                                const canonical = normalizeReferenceTagSlug(ref.tag, idx + 1);
-                                const extMatch = file.name.match(/\.(png|jpg|jpeg|webp)$/i);
-                                const ext = extMatch ? extMatch[0].toLowerCase() : '.png';
-                                const savedToFolder = await handleSaveAnyFileToChosenFolder(
-                                  `${canonical}${ext}`,
-                                  file,
-                                  '04_Referencias',
-                                  !isCloudMode
-                                );
-                                const uploadedUrl = await uploadAssetFile(file);
-                                // On the iPhone the upload is only a data: URL, which bloats the documentary and
-                                // is dropped by the cloud sync. When the file reached 04_Referencias on the Mac,
-                                // the auto-locator gives the card its served URL instead.
-                                const url =
-                                  uploadedUrl && !(uploadedUrl.startsWith('data:') && savedToFolder)
-                                    ? uploadedUrl
-                                    : '';
-                                input.value = '';
-                                // Read the list again after the awaits: the auto-locator may have changed it meanwhile
-                                const latestDoc = activeDocRef.current || activeDoc;
-                                if (latestDoc.id === docIdAtStart && (url || savedToFolder)) {
-                                  updateActiveDoc({
-                                    references: (latestDoc.references || []).map((r) =>
-                                      r.id === ref.id
-                                        ? { ...r, tag: canonical, ...(url ? { imageUrl: url } : {}), isCreated: true }
-                                        : r
-                                    ),
-                                  });
-                                }
-                                syncDownloadedReferenceImages();
-                              }}
-                            />
-                          </label>
-                            </div>
-                          );
-                        })()}
-
                         <textarea
                           rows={4}
                           value={ref.prompt}
@@ -22809,20 +22575,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                         />
                       </div>
 
-                      <div className="flex items-center justify-between pt-2 border-t border-slate-800/80">
-                        <label className="flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={ref.isCreated}
-                            onChange={(e) => {
-                              const next = [...activeDoc.references];
-                              next[idx] = { ...ref, isCreated: e.target.checked };
-                              updateActiveDoc({ references: next });
-                            }}
-                            className="accent-emerald-500"
-                          />
-                          Imagen Lista
-                        </label>
+                      <div className="flex items-center justify-end pt-2 border-t border-slate-800/80">
                         <div className="flex items-center gap-1.5">
                           <button
                             onClick={() => {
@@ -22847,7 +22600,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             onClick={() => {
                               if (
                                 !window.confirm(
-                                  `¿Borrar la tarjeta ${ref.tag}? La imagen que ya esté en 04_Referencias no se borra.`
+                                  `¿Borrar la tarjeta ${ref.tag}? Las imágenes que ya estén en Google Flow no se tocan.`
                                 )
                               ) {
                                 return;
