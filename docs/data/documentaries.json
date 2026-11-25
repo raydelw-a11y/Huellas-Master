@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-11-23T02:44:27.074Z",
-    "updatedAt": "2026-11-25T18:10:36.951Z",
+    "updatedAt": "2026-11-25T18:11:02.467Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -268,7 +268,8 @@
       "RECALIBRATE_SCRIPT_TO_DURATION": "NO",
       "FIELD_CLEARED_AT_voiceoverScript": "0",
       "FIELD_CLEARED_AT_correctedSrt": "0",
-      "FIELD_CLEARED_AT_thumbnailTextOverlay": "0"
+      "FIELD_CLEARED_AT_thumbnailTextOverlay": "0",
+      "THUMBNAIL_OVERLAY_USER_LOCKED": "SI"
     },
     "compiledMasterPrompt": "",
     "topic": "La rutina extrema de los 3,400 obreros y los hermanos Starrett al levantar sin arneses el Empire State en Nueva York entre 1930 y 1931 durante la Gran Depresión, reconstruida como una jornada sensorial completa de diez horas desde el asfalto hasta los 381 metros para responder cómo el cuerpo humano lograba comer, coordinarse y ensamblar acero incandescente sobre las nubes sin caer al abismo.",
@@ -4130,7 +4131,7 @@
       "¿CÓMO NO CAÍAN?"
     ],
     "thumbnailPrompt": "",
-    "thumbnailTextOverlay": "SIN RED NI ARNÉS",
+    "thumbnailTextOverlay": "FUEGO SOBRE EL VACÍO",
     "thumbnailImageUrl": "",
     "thumbnailHorizontalImageUrl": "",
     "thumbnailVerticalImageUrl": "",
