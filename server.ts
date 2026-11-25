@@ -11592,6 +11592,84 @@ app.post('/api/gemini-web/save-captured-thumbnail', async (req, res) => {
 });
 
 // Report failed Gemini Web thumbnail generation so mobile & Mac UI never stay stuck in "running"
+// "Reaplicar logos" (Etapa 3): the ORIGINAL thumbnail (without logo or badge) the documentary keeps in
+// 03_Miniaturas, e.g. the 4K image downloaded from Flow ("Worker_guiding_steel_beam_12c6ef90_4K.jpg"). The app's
+// own stamped copies (Miniatura_*), the logo file and references are never taken. The newest image with the
+// requested shape (16:9 wide or 9:16 tall) wins; it is returned as a data URL so the page stamps it again.
+app.post('/api/thumbnail/find-original', async (req, res) => {
+  try {
+    const docId = String(req.body?.docId || '').trim();
+    const wantVertical = String(req.body?.orientation || '').toLowerCase() === 'vertical';
+    const list = readDocumentaries();
+    const doc = docId ? list.find((d: any) => d && d.id === docId) : null;
+    if (!doc) {
+      res.status(404).json({ ok: false, error: 'No se encontró el documental.' });
+      return;
+    }
+    const root = resolveLocalDocumentaryFolder(
+      doc.downloadFolderPath || '',
+      doc.downloadFolderName || '',
+      `${doc.title || ''} ${doc.topic || ''}`.trim()
+    );
+    const thumbsDir = root ? path.join(root, '03_Miniaturas') : '';
+    if (!thumbsDir || !fs.existsSync(thumbsDir)) {
+      res.status(404).json({ ok: false, error: 'No se encontró la carpeta 03_Miniaturas del documental en este Mac.' });
+      return;
+    }
+    const readSize = (filePath: string): { w: number; h: number } | null => {
+      try {
+        const out = execFileSync('/usr/bin/sips', ['-g', 'pixelWidth', '-g', 'pixelHeight', filePath], {
+          encoding: 'utf8',
+          timeout: 20000,
+        });
+        const w = Number((out.match(/pixelWidth:\s*(\d+)/) || [])[1]);
+        const h = Number((out.match(/pixelHeight:\s*(\d+)/) || [])[1]);
+        return w > 0 && h > 0 ? { w, h } : null;
+      } catch {
+        return null;
+      }
+    };
+    const candidates = fs
+      .readdirSync(thumbsDir)
+      .filter(
+        (name) =>
+          /\.(jpe?g|png|webp)$/i.test(name) &&
+          !name.startsWith('.') &&
+          !/^(Miniatura_|Logo_|Ref_|__incoming_)/i.test(name)
+      )
+      .map((name) => {
+        const filePath = path.join(thumbsDir, name);
+        let mtimeMs = 0;
+        try {
+          mtimeMs = fs.statSync(filePath).mtimeMs;
+        } catch {}
+        return { name, filePath, mtimeMs };
+      })
+      .sort((a, b) => b.mtimeMs - a.mtimeMs);
+    for (const cand of candidates) {
+      const size = readSize(cand.filePath);
+      if (!size || Math.min(size.w, size.h) < 600) continue;
+      if (wantVertical ? size.h <= size.w : size.w <= size.h) continue;
+      const bytes = fs.readFileSync(cand.filePath);
+      const mime = /\.png$/i.test(cand.name) ? 'image/png' : /\.webp$/i.test(cand.name) ? 'image/webp' : 'image/jpeg';
+      res.json({
+        ok: true,
+        fileName: cand.name,
+        width: size.w,
+        height: size.h,
+        dataUrl: `data:${mime};base64,${bytes.toString('base64')}`,
+      });
+      return;
+    }
+    res.status(404).json({
+      ok: false,
+      error: `No hay ninguna imagen original ${wantVertical ? 'vertical (9:16)' : 'horizontal (16:9)'} en 03_Miniaturas. Usa "Cargar original" para elegirla tú.`,
+    });
+  } catch (err: any) {
+    res.status(500).json({ ok: false, error: err?.message || 'No se pudo buscar la imagen original.' });
+  }
+});
+
 app.post('/api/gemini-web/fail-captured-thumbnail', async (req, res) => {
   try {
     const docId = String(req.body?.docId || '').trim();
