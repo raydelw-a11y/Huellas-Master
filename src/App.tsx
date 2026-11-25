@@ -97,6 +97,7 @@ import {
   parseClipsFromRawText,
   buildClipsSkeletonFromTimeline,
   parseReferencesFromRawText,
+  mergeParsedReferencesWithExisting,
   normalizeReferenceTagSlug,
   parseSunoTracksFromRawText,
   computeDocumentaryContentDuration,
@@ -225,7 +226,7 @@ import { stampBrandMarksOnThumbnail, HD_BADGE_EMPTY_CORNER_CLAUSE, LOGO_EMPTY_CO
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '04:07 PM - 11/25/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '04:10 PM - 11/25/2026';
 
 // PRODUCTION LOCK: while promptConfig.PRODUCTION_LOCKED === 'YES' these fields never change (the server
 // enforces the same list in protectLockedDocs). Metadata, thumbnails, review marks and reframes stay editable.
@@ -6054,23 +6055,22 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     } else if (stageNum === 6) {
       const curDoc = activeDocRef.current || activeDoc;
       const parsedRefs = parseReferencesFromRawText(text);
+      // Gemini answered without any reference prompt (an error, a refusal or an empty reply): keep the
+      // documentary's box and cards as they are and say so, instead of replacing them with that text.
+      if (parsedRefs.length === 0 && ((curDoc.references || []).length > 0 || (curDoc.rawReferencePrompts || '').trim())) {
+        setBridgeStatusType('ERROR');
+        setBridgeStatusMsg(
+          '⛔ Gemini no devolvió ningún prompt de @Referencias en la Etapa 4. La caja y las tarjetas se quedan como estaban; vuelve a pulsar Generar Prompts en Gemini.'
+        );
+        return;
+      }
       let nextRefs = curDoc.references || [];
       if (parsedRefs.length > 0) {
-        const existingBySlug = new Map<string, ReferenceAsset>();
-        for (const oldRef of curDoc.references || []) {
-          existingBySlug.set(normalizeReferenceTagSlug(oldRef.tag || ''), oldRef);
-        }
-        nextRefs = parsedRefs.map((p, idx) => {
-          const slug = normalizeReferenceTagSlug(p.tag || '', idx + 1);
-          const prev = existingBySlug.get(slug);
-          return {
-            ...p,
-            id: prev?.id || p.id,
-            tag: slug,
-            imageUrl: prev?.imageUrl || p.imageUrl,
-            isCreated: Boolean(prev?.isCreated || prev?.imageUrl),
-          };
-        });
+        nextRefs = mergeParsedReferencesWithExisting(
+          parsedRefs,
+          curDoc.references || [],
+          curDoc.rawReferencePrompts || ''
+        );
       }
       updateActiveDoc({
         rawReferencePrompts: text,
@@ -12560,6 +12560,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
 
   // Automatically locate downloaded reference images in ~/Downloads (loose images or .zip) and move them to <DocFolder>/04_Referencias
   const syncRefsInFlightRef = useRef(false);
+  // docId → reference text the user had when deleting the last card (so the cards are not rebuilt from it)
+  const refsClearedByUserRawRef = useRef<Record<string, string>>({});
   const syncDownloadedReferenceImages = async (promptsTxtContent?: string) => {
     const currentDoc = activeDocRef.current || activeDoc;
     if (!currentDoc || syncRefsInFlightRef.current) return;
@@ -12708,328 +12710,6 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     flowServerFolderPath,
     flowDownloadFolderName,
   ]);
-
-  // Build Official Google Flow Story Studio Project JSON (v1.2)
-  const buildStoryStudioProjectJson = (
-    doc: DocumentaryProject,
-    includeScriptAndFrames: boolean = true
-  ): string => {
-    const refsList = doc.references || [];
-    const eraContext = [doc.historicalTime, doc.historicalLocation]
-      .map((s) => (s || '').trim())
-      .filter(Boolean)
-      .join(', ');
-
-    const assets = refsList.map((ref, idx) => {
-      const cleanTag = (ref.tag || `Referencia_${idx + 1}`).trim();
-      const isPerson = ref.category === 'persona' || cleanTag.startsWith('@');
-      const cleanName = cleanTag.replace(/^@+/, '').replace(/_/g, ' ').trim();
-      const cleanDesc = (ref.prompt || '')
-        .replace(/^@[A-Za-z0-9_ÁÉÍÓÚáéíóúÑñ]+\s*:\s*/i, '')
-        .replace(/^Create an image[^,.:]*[,.:]?\s*/i, '')
-        .trim();
-
-      const rawBase64 =
-        ref.imageUrl && ref.imageUrl.startsWith('data:image/')
-          ? ref.imageUrl.split(',')[1]
-          : undefined;
-
-      if (isPerson) {
-        return {
-          id: ref.id || `char-${idx + 1}`,
-          type: 'character',
-          name: cleanName,
-          description: cleanDesc,
-          physicalCharacteristics: `${cleanDesc}${eraContext ? ` (${eraContext})` : ''}`,
-          clothingAccessories: `Period-accurate historical clothing and accessories from ${eraContext || 'the era'}. ${cleanDesc}`,
-          backstory: `Main historical figure in "${doc.title || doc.topic}".`,
-          base64: rawBase64,
-          supportingImages: rawBase64
-            ? [{ id: `img-${ref.id}`, base64: rawBase64 }]
-            : [],
-          referenceImageId: rawBase64 ? `img-${ref.id}` : undefined,
-          includeInspirationInImageGen: true,
-        };
-      }
-
-      return {
-        id: ref.id || `loc-${idx + 1}`,
-        type: 'location',
-        name: cleanName,
-        description: cleanDesc,
-        physicalCharacteristics: `${cleanDesc}${eraContext ? ` (${eraContext})` : ''}`,
-        timeOfDay: doc.historicalTime || 'Dramatic historical documentary atmosphere',
-        base64: rawBase64,
-        supportingImages: rawBase64
-          ? [{ id: `img-${ref.id}`, base64: rawBase64 }]
-          : [],
-        referenceImageId: rawBase64 ? `img-${ref.id}` : undefined,
-        includeInspirationInImageGen: true,
-      };
-    });
-
-    if (assets.length === 0) {
-      assets.push({
-        id: 'loc-default-1',
-        type: 'location',
-        name: doc.historicalLocation || doc.title || 'Historical Setting',
-        description: eraContext || 'Historical documentary setting',
-        physicalCharacteristics: eraContext || 'Historical documentary setting',
-        timeOfDay: doc.historicalTime || 'Dramatic historical documentary atmosphere',
-        base64: undefined,
-        supportingImages: [],
-        referenceImageId: undefined,
-        includeInspirationInImageGen: true,
-      });
-    }
-
-    const clips = doc.clips || [];
-    const { clip1Sec, standardClipSec } = getStage1ClipDurations(doc);
-    const parseClipRange = (clip: DocumentaryClip, clipDurSec: number) => {
-      const rawRange = String(clip.timeRange || '').trim();
-      const rangeParts = rawRange.match(
-        /^\s*(\d{1,2}:\d{2}(?::\d{2})?(?:\.\d+)?)\s*[-–—]\s*(\d{1,2}:\d{2}(?::\d{2})?(?:\.\d+)?)\s*$/
-      );
-      const startStr = rangeParts?.[1] || '00:00';
-      const endStr = rangeParts?.[2] || `00:${String(clipDurSec).padStart(2, '0')}`;
-      return {
-        startStr,
-        endStr,
-        rangeText: rawRange || `${startStr} - ${endStr}`,
-      };
-    };
-    const frames = includeScriptAndFrames
-      ? clips.map((clip) => {
-          const numStr = String(clip.clipNumber).padStart(2, '0');
-          const clipDurSec = clip.clipNumber === 1 ? clip1Sec : standardClipSec;
-          const { rangeText } = parseClipRange(clip, clipDurSec);
-          const narrationText = clip.narrationSegment || '';
-          const combinedText = `${clip.imagePrompt || ''} ${clip.videoPrompt || ''} ${narrationText}`.toLowerCase();
-          const linkedAssetIds = assets
-            .filter((a) => {
-              const nameLower = a.name.toLowerCase();
-              const slugLower = a.name.replace(/\s+/g, '_').toLowerCase();
-              return (
-                combinedText.includes(nameLower) ||
-                combinedText.includes(`@${slugLower}`) ||
-                combinedText.includes(slugLower)
-              );
-            })
-            .map((a) => a.id);
-
-          return {
-            id: clip.id || `frame-${numStr}`,
-            sceneId: `scene-${numStr}`,
-            sceneNumber: numStr,
-            sceneTitle: `Scene ${numStr} (${rangeText})`,
-            shotNumber: '01',
-            title: `Clip ${numStr}`,
-            durationSeconds: clipDurSec,
-            visualDescription: clip.imagePrompt || '',
-            motionDescription: clip.videoPrompt || '',
-            audioDescription: narrationText,
-            linkedAssetIds,
-            imageHistory: [],
-          };
-        })
-      : [];
-
-    const fullMarkdown = includeScriptAndFrames
-      ? [
-          `# ${doc.title || doc.topic || 'Huellas de la Humanidad'}`,
-          '',
-          ...(clips.length > 0
-            ? clips.flatMap((clip) => {
-                const numStr = String(clip.clipNumber).padStart(2, '0');
-                const clipDurSec = clip.clipNumber === 1 ? clip1Sec : standardClipSec;
-                const { startStr, endStr } = parseClipRange(clip, clipDurSec);
-                return [
-                  `<!-- scene-id: scene-${numStr} -->`,
-                  `### Scene ${numStr} (${startStr} - ${endStr})`,
-                  clip.narrationSegment || clip.imagePrompt || '',
-                  '',
-                ];
-              })
-            : [doc.voiceoverScript || doc.sectionsStructure || '']),
-        ].join('\n')
-      : '';
-
-    const projectData = {
-      version: '1.2',
-      projectTitle: doc.title || doc.topic || 'Huellas de la Humanidad',
-      fullMarkdown,
-      globalStyle: 'Realistic',
-      customStyleLibrary: {},
-      assets,
-      frames,
-    };
-
-    return JSON.stringify(projectData, null, 2);
-  };
-
-  // Upgrade all Stage 6 reference cards to Google Flow's official Character Sheet / 4-View Location Sheet format
-  const handleUpgradeReferencesToOfficialFlowFormat = () => {
-    if (!activeDoc) return;
-    let refsList = activeDoc.references || [];
-    const rawRefs = (activeDoc.rawReferencePrompts || '').trim();
-    if (refsList.length === 0 && rawRefs) {
-      refsList = parseReferencesFromRawText(rawRefs);
-    }
-    if (refsList.length === 0) {
-      alert('Primero genera o pega las @Referencias en la Etapa 6.');
-      return;
-    }
-    const upgraded = refsList.map((r) => ({
-      ...r,
-      prompt: formatReferencePromptForFlow(r, activeDoc),
-    }));
-    const header =
-      'Use Nano Banana 2.1 to generate these reference model images (6-view reference sheet in a single 16:9 image). Rename each generated image with @ followed by the exact character or location name.';
-    const updatedRaw = `${header}\n\n${upgraded
-      .map((r) => `${r.tag}: ${r.prompt.replace(/\n+/g, ' ')}`)
-      .join('\n\n')}`;
-    updateActiveDoc({
-      references: upgraded,
-      rawReferencePrompts: updatedRaw,
-    });
-    setFlowStatusLog(
-      `✨ ${upgraded.length} tarjetas actualizadas al Formato Oficial de Google Flow (Character Sheet para @Personas y 4-View Sheet para Lugares, < 3,950 chars).`
-    );
-  };
-
-  // Export & Download Story Studio JSON (.json) for Google Flow's "Open Story"
-  const handleExportStoryStudioJson = async () => {
-    if (!activeDoc) return;
-    await ensureSingleDownloadFolderReadyOnGesture();
-    const jsonStr = buildStoryStudioProjectJson(activeDoc, true);
-    const blob = new Blob([jsonStr], { type: 'application/json' });
-    const safeTitle = (activeDoc.title || activeDoc.topic || 'Huellas_Documental')
-      .replace(/[^a-zA-Z0-9_-]/g, '_')
-      .slice(0, 45);
-    const fileName = `Story_Studio_${safeTitle}.json`;
-    await handleSaveAnyFileToChosenFolder(fileName, blob, '04_Referencias');
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = fileName;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1500);
-    setFlowStatusLog(
-      `📦 Proyecto Story Studio exportado (${fileName}). Puedes abrirlo en Google Flow → Story Studio → menú ⋮ → "Open Story".`
-    );
-  };
-
-  // Send Stage 6 @References to Google Flow (Auto-detects Story Studio flow-sdk OR runs Sequential 1-by-1 Queue on Main Bar)
-  const handleSendReferencesBlockToFlow = async () => {
-    if (!activeDoc) return;
-    let refsList = activeDoc.references || [];
-    const rawRefs = (activeDoc.rawReferencePrompts || '').trim();
-    if (refsList.length === 0 && rawRefs) {
-      const autoParsed = parseReferencesFromRawText(rawRefs);
-      if (autoParsed.length > 0) {
-        refsList = autoParsed;
-        updateActiveDoc({ references: autoParsed });
-      }
-    }
-    if (refsList.length === 0 && !rawRefs) {
-      alert('Primero genera o escribe las @Referencias en la Etapa 6.');
-      return;
-    }
-    await ensureSingleDownloadFolderReadyOnGesture();
-
-    const referenceItems = refsList.map((r) => {
-      const cleanTag = (r.tag || '').trim();
-      const isPerson = r.category === 'persona' || cleanTag.startsWith('@');
-      const normalizedTag = isPerson
-        ? cleanTag.startsWith('@')
-          ? cleanTag
-          : `@${cleanTag}`
-        : cleanTag.replace(/^@+/, '');
-      const formatted = formatReferencePromptForFlow(r, activeDoc);
-      return {
-        id: r.id,
-        tag: normalizedTag,
-        name: cleanTag.replace(/^@+/, '').replace(/_/g, ' ').trim(),
-        category: (isPerson ? 'persona' : 'lugar') as 'persona' | 'lugar',
-        prompt: r.prompt,
-        formattedPrompt: `${normalizedTag}: ${formatted}`.slice(0, 3950),
-      };
-    });
-
-    const header =
-      'Use Nano Banana 2.1 to generate these reference model images (6-view reference sheet in a single 16:9 image). Rename each generated image with @ followed by the exact character or location name.';
-    const builtFromList = referenceItems
-      .map((item) => item.formattedPrompt)
-      .join('\n\n');
-    const cleanedRawRefs = rawRefs
-      .split(/\r?\n/)
-      .filter(
-        (line) =>
-          !/^\s*(?:Act[uú]a\s+como\s+un\s+historiador|Usa\s+Nano\s+Banana|Cada\s+imagen\s+DEBE\s+contener|Cambia(?:\s+obligatoriamente)?\s+(?:los\s+nombres|el\s+nombre))/i.test(
-            line
-          )
-      )
-      .join('\n')
-      .trim();
-    const body = builtFromList || cleanedRawRefs;
-    const fullText = /Rename each generated image with @|Mandatory:\s*rename every generated image/i.test(
-      body
-    )
-      ? body
-      : `${header}\n\n${body}`;
-
-    await handleSaveAnyFileToChosenFolder(
-      'Prompts_Referencias.txt',
-      new Blob([fullText], { type: 'text/plain' }),
-      '04_Referencias'
-    );
-
-    const storyStudioJson = buildStoryStudioProjectJson(
-      { ...activeDoc, references: refsList },
-      false
-    );
-    await handleSaveAnyFileToChosenFolder(
-      'Story_Studio_Referencias.json',
-      new Blob([storyStudioJson], { type: 'application/json' }),
-      '04_Referencias'
-    );
-
-    navigator.clipboard.writeText(fullText).catch(() => {});
-    const statusText = `🎬 Enviando ${
-      referenceItems.length > 0 ? `${referenceItems.length} @Referencias` : '@Referencias'
-    } a Google Flow (Modo Nativo Story Studio flow-sdk + Cola Secuencial < 3,950 chars con Character Sheet y 4-View Sheet)...`;
-    setFlowStatusLog(statusText);
-    setBridgeStatusType('WORKING');
-    setBridgeStatusMsg(statusText);
-    sendCommandToWebBridge('FLOW', {
-      action: 'SEND_PROMPT',
-      prompt: referenceItems[0]?.formattedPrompt || fullText.slice(0, 3950),
-      mediaType: 'REFERENCES',
-      referenceTags: referenceItems.map((r) => r.tag),
-      referenceItems,
-      storyStudioTargetTab: 'assets',
-      autoCreateImages: true,
-      expectedCount: Math.max(1, referenceItems.length),
-      autoSubmit: true,
-      focusTab: false,
-      tabId: selectedFlowTabId,
-    });
-  };
-
-  const handleScanFlowReferencesInTab = async () => {
-    if (!activeDoc) return;
-    await ensureSingleDownloadFolderReadyOnGesture();
-    const refsList = activeDoc.references || [];
-    setBridgeStatusType('WORKING');
-    setBridgeStatusMsg('🔍 Escaneando imágenes de @Referencias generadas en Google Flow...');
-    sendCommandToWebBridge('FLOW', {
-      action: 'SCAN_FLOW_REFERENCES',
-      referenceTags: refsList.map((r) => r.tag),
-      tabId: selectedFlowTabId,
-    });
-  };
 
   const compressImageDataUrlForCloudSync = useCallback(
     async (dataUrl: string, maxChars = 42000): Promise<string> => {
@@ -15502,14 +15182,12 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     if (!activeDoc) return;
     const raw = String(activeDoc.rawReferencePrompts || '').trim();
     if (!raw) return;
-    if ((activeDoc.references || []).length === 0) {
+    // Skipped when the user deleted every card by hand from this same text (see the card's trash button)
+    if ((activeDoc.references || []).length === 0 && refsClearedByUserRawRef.current[activeDoc.id] !== raw) {
       const parsed = parseReferencesFromRawText(raw);
       if (parsed.length > 0) {
         updateActiveDoc({
-          references: parsed.map((p, idx) => ({
-            ...p,
-            tag: normalizeReferenceTagSlug(p.tag || '', idx + 1),
-          })),
+          references: mergeParsedReferencesWithExisting(parsed, [], ''),
         });
       }
     }
@@ -22990,21 +22668,11 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                         const nextRaw = e.target.value;
                         const parsed = parseReferencesFromRawText(nextRaw);
                         if (parsed.length > 0) {
-                          const existingBySlug = new Map<string, ReferenceAsset>();
-                          for (const oldRef of activeDoc.references || []) {
-                            existingBySlug.set(normalizeReferenceTagSlug(oldRef.tag || ''), oldRef);
-                          }
-                          const merged = parsed.map((p, idx) => {
-                            const slug = normalizeReferenceTagSlug(p.tag || '', idx + 1);
-                            const prev = existingBySlug.get(slug);
-                            return {
-                              ...p,
-                              id: prev?.id || p.id,
-                              tag: slug,
-                              imageUrl: prev?.imageUrl || p.imageUrl,
-                              isCreated: prev?.isCreated || Boolean(prev?.imageUrl) || false,
-                            };
-                          });
+                          const merged = mergeParsedReferencesWithExisting(
+                            parsed,
+                            activeDoc.references || [],
+                            activeDoc.rawReferencePrompts || ''
+                          );
                           updateActiveDoc(
                             { rawReferencePrompts: nextRaw, references: merged },
                             { allowClearFields: ['rawReferencePrompts'], source: 'user-textarea' }
@@ -23088,17 +22756,38 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                               accept="image/*"
                               className="hidden"
                               onChange={async (e) => {
-                                const file = e.target.files?.[0];
+                                const input = e.currentTarget;
+                                const file = input.files?.[0];
                                 if (!file) return;
+                                const docIdAtStart = activeDoc.id;
                                 const canonical = normalizeReferenceTagSlug(ref.tag, idx + 1);
                                 const extMatch = file.name.match(/\.(png|jpg|jpeg|webp)$/i);
                                 const ext = extMatch ? extMatch[0].toLowerCase() : '.png';
-                                const url = await uploadAssetFile(file);
-                                await handleSaveAnyFileToChosenFolder(`${canonical}${ext}`, file);
-                                if (url) {
-                                  const next = [...activeDoc.references];
-                                  next[idx] = { ...ref, tag: canonical, imageUrl: url, isCreated: true };
-                                  updateActiveDoc({ references: next });
+                                const savedToFolder = await handleSaveAnyFileToChosenFolder(
+                                  `${canonical}${ext}`,
+                                  file,
+                                  '04_Referencias',
+                                  !isCloudMode
+                                );
+                                const uploadedUrl = await uploadAssetFile(file);
+                                // On the iPhone the upload is only a data: URL, which bloats the documentary and
+                                // is dropped by the cloud sync. When the file reached 04_Referencias on the Mac,
+                                // the auto-locator gives the card its served URL instead.
+                                const url =
+                                  uploadedUrl && !(uploadedUrl.startsWith('data:') && savedToFolder)
+                                    ? uploadedUrl
+                                    : '';
+                                input.value = '';
+                                // Read the list again after the awaits: the auto-locator may have changed it meanwhile
+                                const latestDoc = activeDocRef.current || activeDoc;
+                                if (latestDoc.id === docIdAtStart && (url || savedToFolder)) {
+                                  updateActiveDoc({
+                                    references: (latestDoc.references || []).map((r) =>
+                                      r.id === ref.id
+                                        ? { ...r, tag: canonical, ...(url ? { imageUrl: url } : {}), isCreated: true }
+                                        : r
+                                    ),
+                                  });
                                 }
                                 syncDownloadedReferenceImages();
                               }}
@@ -23153,11 +22842,24 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             {copiedId === `ref-${ref.id}` ? '✓ Copiado' : 'Copiar Prompt'}
                           </button>
                           <button
-                            onClick={() =>
-                              updateActiveDoc({
-                                references: activeDoc.references.filter((r) => r.id !== ref.id),
-                              })
-                            }
+                            type="button"
+                            title="Borrar tarjeta"
+                            onClick={() => {
+                              if (
+                                !window.confirm(
+                                  `¿Borrar la tarjeta ${ref.tag}? La imagen que ya esté en 04_Referencias no se borra.`
+                                )
+                              ) {
+                                return;
+                              }
+                              const remaining = (activeDoc.references || []).filter((r) => r.id !== ref.id);
+                              if (remaining.length === 0) {
+                                refsClearedByUserRawRef.current[activeDoc.id] = String(
+                                  activeDoc.rawReferencePrompts || ''
+                                ).trim();
+                              }
+                              updateActiveDoc({ references: remaining });
+                            }}
                             className="p-1 text-slate-500 hover:text-rose-400 cursor-pointer"
                           >
                             <Trash2 className="w-3.5 h-3.5" />

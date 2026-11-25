@@ -4253,6 +4253,73 @@ export function parseReferencesFromRawText(rawText: string): ReferenceAsset[] {
   return results;
 }
 
+// Canonical, unique @tags for a parsed list: a repeated name becomes @Name_2, @Name_3… so that two cards
+// never share a tag (the file name in 04_Referencias) or an id.
+function withUniqueReferenceSlugs(list: ReferenceAsset[]): { ref: ReferenceAsset; slug: string }[] {
+  const used = new Set<string>();
+  return list.map((ref, idx) => {
+    const base = normalizeReferenceTagSlug(ref.tag || '', idx + 1);
+    let slug = base;
+    for (let n = 2; used.has(slug.toLowerCase()); n++) slug = `${base}_${n}`;
+    used.add(slug.toLowerCase());
+    return { ref, slug };
+  });
+}
+
+/**
+ * Rebuild the Etapa 4 cards from freshly parsed text without losing the user's work:
+ * - a card keeps its id, image and "lista" state (matched by @tag);
+ * - when the text block of a card did not change since `previousRawText`, the prompt, category and
+ *   description edited on the card itself are kept (typing elsewhere in the box no longer resets them);
+ * - cards added by hand (not coming from the previous text) are kept at the end.
+ */
+export function mergeParsedReferencesWithExisting(
+  parsed: ReferenceAsset[],
+  existing: ReferenceAsset[] = [],
+  previousRawText = ''
+): ReferenceAsset[] {
+  const previousParsed = new Map<string, ReferenceAsset>();
+  for (const { ref, slug } of withUniqueReferenceSlugs(parseReferencesFromRawText(previousRawText))) {
+    previousParsed.set(slug.toLowerCase(), ref);
+  }
+  const existingBySlug = new Map<string, ReferenceAsset>();
+  for (const old of existing) {
+    const key = normalizeReferenceTagSlug(old.tag || '').toLowerCase();
+    if (!existingBySlug.has(key)) existingBySlug.set(key, old);
+  }
+
+  const usedSlugs = new Set<string>();
+  const usedIds = new Set<string>();
+  const merged: ReferenceAsset[] = withUniqueReferenceSlugs(parsed).map(({ ref: p, slug }) => {
+    const key = slug.toLowerCase();
+    usedSlugs.add(key);
+    const prev = existingBySlug.get(key);
+    const prevParsed = previousParsed.get(key);
+    const blockUnchanged = Boolean(prev && prevParsed && prevParsed.prompt === p.prompt);
+    const id = prev?.id && !usedIds.has(prev.id) ? prev.id : p.id;
+    usedIds.add(id);
+    return {
+      ...p,
+      ...(blockUnchanged && prev
+        ? { prompt: prev.prompt, category: prev.category, description: prev.description }
+        : {}),
+      id,
+      tag: slug,
+      imageUrl: prev?.imageUrl || p.imageUrl,
+      isCreated: Boolean(prev?.isCreated || prev?.imageUrl),
+    };
+  });
+
+  for (const old of existing) {
+    const key = normalizeReferenceTagSlug(old.tag || '').toLowerCase();
+    if (usedSlugs.has(key) || previousParsed.has(key) || usedIds.has(old.id)) continue;
+    usedSlugs.add(key);
+    usedIds.add(old.id);
+    merged.push(old);
+  }
+  return merged;
+}
+
 // ============================================================================
 // 3. AUTO-DETECTOR DE PISTAS DE MÚSICA (FLOWMUSIC — ETAPA 8)
 // ============================================================================
