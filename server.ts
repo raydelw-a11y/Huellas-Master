@@ -20202,7 +20202,7 @@ function enqueueVideoAnalysisGeminiOrder(v: {
     enableHighModel: high,
     enableArgonLow: !high,
     enableCarbonLow: !high,
-    preferredModel: high ? 'CARBON_HIGH' : 'CARBON_4_LOW',
+    preferredModel: 'NEON', // every Gemini order runs on Neon (user decision 2026-11-25)
     thinkingLevel: high ? 'HIGH' : 'LOW',
     enableDeepResearch: false,
     enableCreateImage: false,
@@ -26668,19 +26668,15 @@ function enqueueRemoteGeminiStageFromDoc(doc: any): boolean {
             enableHighModel: false,
             enableArgonLow: true,
             enableCarbonLow: true,
-            preferredModel: 'CARBON_4_LOW',
+            preferredModel: 'NEON', // every Gemini order runs on Neon (user decision 2026-11-25)
             thinkingLevel: 'LOW',
           }
         : {
             enableHighModel: false,
             enableArgonLow: true,
             enableCarbonLow: true,
-            // The Stage 3 buttons (5 and 101) ask for Gemini's Neon model; everything else runs on Auto
-            preferredModel:
-              (resolvedStageNum === 5 || resolvedStageNum === 101) &&
-              String(cmd.preferredModel || '').toUpperCase() === 'NEON'
-                ? 'NEON'
-                : 'CARBON_4_LOW',
+            // Every stage runs on Gemini's Neon model (user decision 2026-11-25)
+            preferredModel: 'NEON',
             thinkingLevel: 'LOW',
           }),
       enableDeepResearch: Boolean(cmd.enableDeepResearch),
