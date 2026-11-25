@@ -12,13 +12,13 @@ export const THUMBNAIL_BRAND_GEOMETRY = {
   vertical: {
     refW: 3072,
     refH: 5504,
-    logo: { x: 100, y: 110, w: 515 },
+    logo: { x: 100, y: 110, w: 415 }, // 20% smaller than the Video 30 logo (user request 2026-11-25)
     badge: { x: 2550, y: 165, w: 430 },
   },
   horizontal: {
     refW: 5504,
     refH: 3072,
-    logo: { x: 205, y: 112, w: 660 },
+    logo: { x: 205, y: 112, w: 530 }, // 20% smaller than the Video 30 logo (user request 2026-11-25)
     badge: { x: 5065, y: 80, w: 370 },
   },
 } as const;

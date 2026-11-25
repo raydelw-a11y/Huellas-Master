@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { flushSync } from 'react-dom';
+import { flushSync, createPortal } from 'react-dom';
 import {
   Film,
   Plus,
@@ -33,6 +33,8 @@ import {
   Lock,
   Play,
   AlertTriangle,
+  Maximize2 as MaximizeIcon,
+  X as CloseIcon,
 } from 'lucide-react';
 import PromptGenerator from './components/PromptGenerator';
 import { auditShotPlan } from './utils/shotCatalogue';
@@ -223,7 +225,7 @@ import { stampBrandMarksOnThumbnail, HD_BADGE_EMPTY_CORNER_CLAUSE, LOGO_EMPTY_CO
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '02:37 PM - 11/25/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '02:49 PM - 11/25/2026';
 
 // PRODUCTION LOCK: while promptConfig.PRODUCTION_LOCKED === 'YES' these fields never change (the server
 // enforces the same list in protectLockedDocs). Metadata, thumbnails, review marks and reframes stay editable.
@@ -2049,6 +2051,16 @@ export default function App() {
   // Which stage Gemini is busy with, so each button only says "its" work is running when it really is.
   const [aiGeneratingStage, setAiGeneratingStage] = useState<number | null>(null);
   const [thumbOptionsGenerating, setThumbOptionsGenerating] = useState(false);
+  // Etapa 3: thumbnail shown full screen (click, Escape or ✕ closes it)
+  const [fullscreenThumb, setFullscreenThumb] = useState<{ url: string; label: string } | null>(null);
+  useEffect(() => {
+    if (!fullscreenThumb) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setFullscreenThumb(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [fullscreenThumb]);
   const [aiCustomInstruction, setAiCustomInstruction] = useState('');
   const [ttsGenerating, setTtsGenerating] = useState(false);
   const [ttsProgressMsg, setTtsProgressMsg] = useState('');
@@ -13545,7 +13557,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     setThumbnailGeneratingOption(effectiveOptionLabel);
     setBridgeStatusType('WORKING');
     setBridgeStatusMsg(
-      `🖼️ Enviando Prompt + Logo Oficial a Gemini Web (ventana nueva en un chat limpio sin vinculación de Notebook) y esperando para importar automáticamente Miniatura_Opcion_${effectiveOptionLabel}.png a nuestro sitio y a "${folderLabel}/03_Miniaturas"...`
+      `🖼️ Enviando Prompt + Logo Oficial a Gemini Web (pestaña en esta misma ventana, en un chat limpio sin vinculación de Notebook) y esperando para importar automáticamente Miniatura_Opcion_${effectiveOptionLabel}.png a nuestro sitio y a "${folderLabel}/03_Miniaturas"...`
     );
 
     // Send Prompt + Official Logo DataURL to a standalone new Gemini Web window/chat WITHOUT Notebook linkage
@@ -21716,6 +21728,38 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                       </div>
                     </div>
 
+                    {fullscreenThumb &&
+                      typeof document !== 'undefined' &&
+                      createPortal(
+                        <div
+                          className="fixed inset-0 z-[10000] bg-black/95 flex items-center justify-center p-3 sm:p-6 cursor-zoom-out"
+                          onClick={() => setFullscreenThumb(null)}
+                          role="dialog"
+                          aria-label={`${fullscreenThumb.label} en pantalla completa`}
+                        >
+                          <img
+                            src={fullscreenThumb.url}
+                            alt={fullscreenThumb.label}
+                            className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+                          />
+                          <div className="absolute top-3 left-3 px-3 py-1 rounded-full bg-black/70 text-amber-300 text-xs font-bold">
+                            {fullscreenThumb.label}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setFullscreenThumb(null);
+                            }}
+                            className="absolute top-3 right-3 p-2 rounded-full bg-black/70 hover:bg-black text-white hover:text-amber-300 cursor-pointer"
+                            title="Cerrar (Esc)"
+                          >
+                            <CloseIcon className="w-5 h-5" />
+                          </button>
+                        </div>,
+                        document.body
+                      )}
+
                     {/* PASO OBLIGATORIO GLOBAL: LOGO OFICIAL "HUELLAS DE LA HUMANIDAD" (EL MISMO PARA TODOS LOS DOCUMENTALES) */}
                     <div
                       className={`p-4 rounded-xl border transition-all flex items-center justify-between flex-wrap gap-3 ${
@@ -22240,6 +22284,16 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                 {effectiveHorizontalThumb && (
                                   <button
                                     type="button"
+                                    onClick={() => setFullscreenThumb({ url: effectiveHorizontalThumb, label: 'Miniatura Horizontal 16:9' })}
+                                    className="p-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-amber-300 cursor-pointer"
+                                    title="Ver en pantalla completa"
+                                  >
+                                    <MaximizeIcon className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                                {effectiveHorizontalThumb && (
+                                  <button
+                                    type="button"
                                     onClick={() => {
                                       updateActiveDoc({
                                         thumbnailHorizontalImageUrl: '',
@@ -22364,6 +22418,16 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                 >
                                   {effectiveVerticalThumb ? '✓ Lista (9:16)' : 'Sin subir'}
                                 </span>
+                                {effectiveVerticalThumb && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setFullscreenThumb({ url: effectiveVerticalThumb, label: 'Miniatura Vertical 9:16' })}
+                                    className="p-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-amber-300 cursor-pointer"
+                                    title="Ver en pantalla completa"
+                                  >
+                                    <MaximizeIcon className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
                                 {effectiveVerticalThumb && (
                                   <button
                                     type="button"
@@ -22514,7 +22578,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                       }
                                       handleAuditThumbnailPsychology(opt, url);
                                     }}
-                                    className={`rounded-lg overflow-hidden border p-1.5 cursor-pointer transition ${
+                                    className={`relative rounded-lg overflow-hidden border p-1.5 cursor-pointer transition ${
                                       isCurrent
                                         ? 'border-emerald-400 bg-emerald-500/10'
                                         : 'border-slate-800 bg-slate-900/60 hover:border-slate-700'
@@ -22525,6 +22589,18 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                       alt={`Opción ${opt}`}
                                       className="w-full h-16 object-cover rounded"
                                     />
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        // Only opens the viewer: the card's own click (choose this option) is not run
+                                        e.stopPropagation();
+                                        setFullscreenThumb({ url, label: `Opción ${opt}` });
+                                      }}
+                                      className="absolute top-2.5 right-2.5 p-1 rounded-md bg-black/70 hover:bg-black text-white/90 hover:text-amber-300 cursor-pointer"
+                                      title="Ver en pantalla completa"
+                                    >
+                                      <MaximizeIcon className="w-3 h-3" />
+                                    </button>
                                     <div className="flex items-center justify-between mt-1 text-[10px]">
                                       <span className="font-bold text-amber-300">Opción {opt}</span>
                                       {audit && (
