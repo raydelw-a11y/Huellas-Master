@@ -2862,60 +2862,78 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                   </div>
                 )}
 
-                {/* Posted or not: marked by hand after publishing the clip */}
-                <div className="flex items-center justify-between gap-2 pt-1">
-                  <span className="text-[11px] font-bold text-slate-300">📣 Estado de este clip:</span>
-                  <div className="flex items-center gap-2">
-                    {selectedClip.published && selectedClip.publishedAt && (
-                      <span className="text-[10px] text-emerald-400 font-mono">
-                        {new Date(selectedClip.publishedAt).toLocaleDateString('es', {
-                          day: '2-digit',
-                          month: '2-digit',
-                          year: 'numeric',
-                        })}
-                      </span>
-                    )}
-                    <select
-                      value={selectedClip.published ? 'published' : 'pending'}
-                      onChange={(e) => {
-                        const isPublished = e.target.value === 'published';
-                        const publishedAt = isPublished ? selectedClip.publishedAt || new Date().toISOString() : undefined;
-                        const at = Date.now();
-                        updateSelectedClip({ published: isPublished, publishedAt, publishedChangedAt: at });
-                        // Mac off: the mark goes to GitHub (every device sees it and the Mac picks it up when it
-                        // is back). It also waits on this device until GitHub has it.
-                        if (viralOffline && selectedDocId) {
-                          const docId = selectedDocId;
-                          const clipId = selectedClip.id;
-                          const mark: ViralPublishedMark = { published: isPublished, publishedAt, at };
-                          const q = readViralPublishedQueue();
-                          q[docId] = { ...(q[docId] || {}), [clipId]: mark };
-                          writeViralPublishedQueue(q);
-                          void pushViralPublishedMarksToGitHub(docId, q[docId]).then((ok) => {
-                            if (!ok) return;
-                            const q2 = readViralPublishedQueue();
-                            const waiting = q2[docId] || {};
-                            for (const id of Object.keys(waiting)) {
-                              if ((Number(waiting[id].at) || 0) <= at) delete waiting[id];
-                            }
-                            if (Object.keys(waiting).length === 0) delete q2[docId];
-                            else q2[docId] = waiting;
-                            writeViralPublishedQueue(q2);
-                          });
+                {/* Posted or not: marked by hand after publishing the clip; the date can be corrected */}
+                {(() => {
+                  const setPublished = (isPublished: boolean, publishedAt: string | undefined) => {
+                    const at = Date.now();
+                    updateSelectedClip({ published: isPublished, publishedAt, publishedChangedAt: at });
+                    // Mac off: the mark goes to GitHub (every device sees it and the Mac picks it up when it
+                    // is back). It also waits on this device until GitHub has it.
+                    if (viralOffline && selectedDocId) {
+                      const docId = selectedDocId;
+                      const clipId = selectedClip.id;
+                      const mark: ViralPublishedMark = { published: isPublished, publishedAt, at };
+                      const q = readViralPublishedQueue();
+                      q[docId] = { ...(q[docId] || {}), [clipId]: mark };
+                      writeViralPublishedQueue(q);
+                      void pushViralPublishedMarksToGitHub(docId, q[docId]).then((ok) => {
+                        if (!ok) return;
+                        const q2 = readViralPublishedQueue();
+                        const waiting = q2[docId] || {};
+                        for (const id of Object.keys(waiting)) {
+                          if ((Number(waiting[id].at) || 0) <= at) delete waiting[id];
                         }
-                      }}
-                      className={`rounded-lg px-2 py-1 text-[11px] font-bold border outline-none ${
-                        selectedClip.published
-                          ? 'bg-emerald-500/15 border-emerald-500/60 text-emerald-300'
-                          : 'bg-slate-950 border-slate-700 text-slate-200'
-                      }`}
-                      title="Marca este clip como publicado"
-                    >
-                      <option value="pending">Sin publicar</option>
-                      <option value="published">✓ Publicado</option>
-                    </select>
-                  </div>
-                </div>
+                        if (Object.keys(waiting).length === 0) delete q2[docId];
+                        else q2[docId] = waiting;
+                        writeViralPublishedQueue(q2);
+                      });
+                    }
+                  };
+                  // The date field works in the device's own day (YYYY-MM-DD)
+                  const dayValue = (() => {
+                    const d = selectedClip.publishedAt ? new Date(selectedClip.publishedAt) : null;
+                    if (!d || Number.isNaN(d.getTime())) return '';
+                    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                  })();
+                  return (
+                    <div className="flex items-center justify-between gap-2 pt-1 flex-wrap">
+                      <span className="text-[11px] font-bold text-slate-300">📣 Estado de este clip:</span>
+                      <div className="flex items-center gap-2">
+                        {selectedClip.published && (
+                          <input
+                            type="date"
+                            value={dayValue}
+                            onChange={(e) => {
+                              const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(e.target.value);
+                              if (!m) return;
+                              // Midday of that day here, so the day never slips with the time zone
+                              const picked = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12, 0, 0);
+                              setPublished(true, picked.toISOString());
+                            }}
+                            className="bg-slate-950 border border-emerald-500/50 rounded-lg px-1.5 py-1 text-[11px] text-emerald-300 font-mono"
+                            title="Fecha de publicación (se puede corregir)"
+                          />
+                        )}
+                        <select
+                          value={selectedClip.published ? 'published' : 'pending'}
+                          onChange={(e) => {
+                            const isPublished = e.target.value === 'published';
+                            setPublished(isPublished, isPublished ? selectedClip.publishedAt || new Date().toISOString() : undefined);
+                          }}
+                          className={`rounded-lg px-2 py-1 text-[11px] font-bold border outline-none ${
+                            selectedClip.published
+                              ? 'bg-emerald-500/15 border-emerald-500/60 text-emerald-300'
+                              : 'bg-slate-950 border-slate-700 text-slate-200'
+                          }`}
+                          title="Marca este clip como publicado"
+                        >
+                          <option value="pending">Sin publicar</option>
+                          <option value="published">✓ Publicado</option>
+                        </select>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Virality Score Card */}
