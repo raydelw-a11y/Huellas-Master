@@ -205,7 +205,7 @@ import { stampBrandMarksOnThumbnail, HD_BADGE_EMPTY_CORNER_CLAUSE, LOGO_EMPTY_CO
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '08:26 PM - 11/24/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '08:41 PM - 11/24/2026';
 
 // PRODUCTION LOCK: while promptConfig.PRODUCTION_LOCKED === 'YES' these fields never change (the server
 // enforces the same list in protectLockedDocs). Metadata, thumbnails, review marks and reframes stay editable.
@@ -1175,6 +1175,9 @@ interface Stage1PropositionPart {
   summary: string;
   currentValue: string;
   options: string[];
+  /** The option Gemini would choose, and why (absent in answers made before it was asked for) */
+  recommended?: string;
+  recommendedReason?: string;
 }
 
 function parseSelectedTypologies(raw?: string): string[] {
@@ -1209,7 +1212,7 @@ function toggleTypologySelection(currentRaw: string | undefined, optionText: str
 function parsePropositionSectionOptions(
   rawResearch: string,
   partNum: number
-): { summary: string; options: string[] } {
+): { summary: string; options: string[]; recommended?: string; recommendedReason?: string } {
   if (!rawResearch || !rawResearch.trim()) return { summary: '', options: [] };
   const partRegex = new RegExp(
     `(?:PARTE|PART)\\s*${partNum}\\s*[—:\\-–][\\s\\S]*?(?=(?:PARTE|PART)\\s*\\d+\\s*[—:\\-–]|={5,}|\\n\\s*1\\.\\s+[A-ZÁÉÍÓÚ]|$)`,
@@ -1217,7 +1220,15 @@ function parsePropositionSectionOptions(
   );
   const match = rawResearch.match(partRegex);
   if (!match) return { summary: '', options: [] };
-  const block = match[0];
+  // "Recomendada: Opción N — motivo": the option Gemini would choose. The line is taken out of the block so
+  // it is never read as an option (or as the tail of one).
+  const recLine = match[0].match(
+    /^[ \t]*(?:[-*•]\s*)?\**\s*Recomendad[ao]\**\s*:\s*\**\s*(?:Opci[oó]n|Option)\s*(\d+)\**\s*[—–:\-]*\s*([^\n]*)$/im
+  );
+  const block = recLine ? match[0].replace(recLine[0], '') : match[0];
+  const recommendedNumber = recLine ? parseInt(recLine[1], 10) : 0;
+  const recommendedReason = recLine ? recLine[2].replace(/^\*+|\*+$/g, '').replace(/^\[|\]$/g, '').trim() : '';
+  let recommended = '';
 
   let summary = '';
   const summaryMatch = block.match(/(?:Resumen(?:\s+de\s+esta\s+parte)?|Summary(?:\s+of\s+this\s+part)?)\s*:\s*([^\n]+)/i);
@@ -1245,9 +1256,14 @@ function parsePropositionSectionOptions(
       if (cleaned && cleaned.length > 3 && !extracted.includes(cleaned)) {
         extracted.push(cleaned);
       }
+      if (cleaned && i === recommendedNumber) recommended = cleaned;
     }
   }
-  return { summary, options: extracted };
+  return {
+    summary,
+    options: extracted,
+    ...(recommended ? { recommended, recommendedReason } : {}),
+  };
 }
 
 /**
@@ -1410,7 +1426,7 @@ function buildStage1PropositionParts(
     cleanPropositionOptionValue(String(doc.historicalLocation || ''))
   );
 
-  return [
+  const partsList: Stage1PropositionPart[] = [
     {
       partNumber: 1,
       id: 'typology',
@@ -1481,6 +1497,21 @@ function buildStage1PropositionParts(
       options: climaxOptions,
     },
   ];
+  // Gemini's recommended option of each part: read from its answer, or as saved when the answer was applied
+  return partsList.map((part) => {
+    const fromAnswer = parsed[part.partNumber - 1];
+    const recRaw = fromAnswer?.recommended || String(doc.promptConfig?.[`PROP_P${part.partNumber}_RECOMMENDED`] || '');
+    const rec = cleanPropositionOptionValue(recRaw);
+    if (!rec || !part.options.includes(rec)) return part;
+    return {
+      ...part,
+      recommended: rec,
+      recommendedReason:
+        fromAnswer?.recommended
+          ? fromAnswer.recommendedReason || ''
+          : String(doc.promptConfig?.[`PROP_P${part.partNumber}_RECOMMENDED_REASON`] || ''),
+    };
+  });
 }
 
 interface Stage1DurationSuggestion {
@@ -3414,7 +3445,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     const pHook = parts[3];
     const pEscaleta = parts[4];
     const pClimax = parts[5];
-    const firstTimePlace = splitTimeAndPlace(pTimePlace.options[0] || '');
+    const firstTimePlace = splitTimeAndPlace(pTimePlace.recommended || pTimePlace.options[0] || '');
 
     // What the producer typed or picked is never overwritten: Gemini's answer only fills empty fields
     // (preferExtractedValues is kept for callers but no longer replaces existing values).
@@ -3424,7 +3455,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         ? `${p1.options[0]} + ${p1.options.find((o, i) => i > 0 && /^[1-8]\./.test(o)) || p1.options[1]}`
         : p1.options[0] || '';
     const nextTypology = docToInspect.typology?.trim() ? docToInspect.typology : defaultCombinedTypology;
-    const nextTopic = docToInspect.topic?.trim() ? docToInspect.topic : p2.options[0] || '';
+    // Empty fields take Gemini's recommended option of each part (the first one when it gave none)
+    const nextTopic = docToInspect.topic?.trim() ? docToInspect.topic : p2.recommended || p2.options[0] || '';
     const nextHistoricalTime = docToInspect.historicalTime?.trim()
       ? docToInspect.historicalTime
       : firstTimePlace.time;
@@ -3432,12 +3464,12 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       ? docToInspect.historicalLocation
       : firstTimePlace.place;
     // Hook, outline and climax only exist as Paso 1 options: keep the chosen one while it is still an option
-    const pickPartValue = (current: string | undefined, opts: string[]) => {
+    const pickPartValue = (current: string | undefined, part: Stage1PropositionPart) => {
       const cur = cleanPropositionOptionValue(String(current || ''));
-      if (opts.length === 0) return String(current || '');
-      return cur && opts.includes(cur) ? cur : opts[0];
+      if (part.options.length === 0) return String(current || '');
+      return cur && part.options.includes(cur) ? cur : part.recommended || part.options[0];
     };
-    const nextHook = pickPartValue(docToInspect.promptConfig?.PROPOSICION_GANCHO, pHook.options);
+    const nextHook = pickPartValue(docToInspect.promptConfig?.PROPOSICION_GANCHO, pHook);
 
     const dynamicPropConfig: Record<string, string> = {};
     // Slots of the old 7th part (before "Tiempo y Lugar" was one part) are emptied
@@ -3446,6 +3478,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     parts.forEach((partObj, idx) => {
       const pNum = idx + 1;
       dynamicPropConfig[`PROP_P${pNum}_OPTIONS_JSON`] = JSON.stringify(partObj.options);
+      dynamicPropConfig[`PROP_P${pNum}_RECOMMENDED`] = partObj.recommended || '';
+      dynamicPropConfig[`PROP_P${pNum}_RECOMMENDED_REASON`] = partObj.recommendedReason || '';
       // Clear the slots of an earlier, longer list so old options never come back
       for (let optIdx = 0; optIdx < 25; optIdx++) {
         dynamicPropConfig[`PROP_P${pNum}_OPT${optIdx + 1}`] = partObj.options[optIdx] || '';
@@ -3515,8 +3549,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         LUGAR_HISTORICO: nextHistoricalLocation,
         PROPOSICION_GANCHO: nextHook,
         ANGULO_CENTRAL: nextHook,
-        PROPOSICION_ESCALETA: pickPartValue(docToInspect.promptConfig?.PROPOSICION_ESCALETA, pEscaleta.options),
-        PROPOSICION_CLIMAX: pickPartValue(docToInspect.promptConfig?.PROPOSICION_CLIMAX, pClimax.options),
+        PROPOSICION_ESCALETA: pickPartValue(docToInspect.promptConfig?.PROPOSICION_ESCALETA, pEscaleta),
+        PROPOSICION_CLIMAX: pickPartValue(docToInspect.promptConfig?.PROPOSICION_CLIMAX, pClimax),
         ...dynamicPropConfig,
       },
     };
@@ -20107,7 +20141,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             promptConfig: { TIPOLOGIA_VIDEO: nextCombinedTypology },
                           });
                         } else if (partId === 'topic') {
-                          // Cascade historical concordance automatically to Partes 3, 4, 5, 6 y 7 when changing Tema Central (Parte 2)
+                          // Changing the topic (Parte 2) brings its own era and place (Parte 3); the choices
+                          // made in Partes 4–6 stay
                           const nextParts = buildStage1PropositionParts(
                             { ...activeDoc, topic: optionValue },
                             selectedVideoObj,
@@ -20116,18 +20151,16 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                           const concordantTimePlace = splitTimeAndPlace(nextParts[2]?.options[0] || '');
                           const concordantTime = concordantTimePlace.time || activeDoc.historicalTime || '';
                           const concordantLoc = concordantTimePlace.place || activeDoc.historicalLocation || '';
-                          const concordantHook =
-                            nextParts[3]?.options[0] ||
-                            activeDoc.promptConfig?.PROPOSICION_GANCHO ||
-                            '';
-                          const concordantEscaleta =
-                            nextParts[4]?.options[0] ||
-                            activeDoc.promptConfig?.PROPOSICION_ESCALETA ||
-                            '';
-                          const concordantClimax =
-                            nextParts[5]?.options[0] ||
-                            activeDoc.promptConfig?.PROPOSICION_CLIMAX ||
-                            '';
+                          // Hook, outline and climax already chosen are kept while they are still among the
+                          // options; only an empty or vanished choice takes the recommended (or first) one
+                          const keepOrPick = (current: string | undefined, part?: Stage1PropositionPart) => {
+                            const cur = cleanPropositionOptionValue(String(current || ''));
+                            if (!part || part.options.length === 0) return String(current || '');
+                            return cur && part.options.includes(cur) ? cur : part.recommended || part.options[0];
+                          };
+                          const concordantHook = keepOrPick(activeDoc.promptConfig?.PROPOSICION_GANCHO, nextParts[3]);
+                          const concordantEscaleta = keepOrPick(activeDoc.promptConfig?.PROPOSICION_ESCALETA, nextParts[4]);
+                          const concordantClimax = keepOrPick(activeDoc.promptConfig?.PROPOSICION_CLIMAX, nextParts[5]);
                           const cascadedConfig: Record<string, string> = {
                             ...(activeDoc.promptConfig || {}),
                             TEMA_VIDEO: optionValue,
@@ -20206,7 +20239,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                 </h4>
                               </div>
                               <p className="text-xs text-slate-300 break-words">
-                                En la <strong>Parte 1 (Tipología del Video)</strong> puedes <strong>seleccionar varias opciones a la vez</strong>. La <strong>Parte 3 (Tiempo y Lugar)</strong> muestra primero la época y el lugar del tema elegido en la Parte 2; las Partes 4–6 son la apertura, la escaleta y el clímax:
+                                Gemini deja marcada con ⭐ su opción recomendada en cada parte; revisa sobre todo la <strong>Parte 2 (Tema)</strong> y la <strong>Parte 4 (Gancho)</strong>. En la <strong>Parte 1 (Tipología del Video)</strong> puedes <strong>seleccionar varias opciones a la vez</strong>. La <strong>Parte 3 (Tiempo y Lugar)</strong> muestra primero la época y el lugar del tema elegido en la Parte 2; las Partes 4–6 son la apertura, la escaleta y el clímax:
                               </p>
                             </div>
                             <button
@@ -20304,6 +20337,12 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                 <div className="bg-slate-950/70 border border-slate-800/80 rounded-lg px-3 py-2 text-xs text-slate-300 leading-relaxed break-words">
                                   <strong className="text-emerald-300">Resumen de esta parte:</strong>{' '}
                                   {part.summary}
+                                  {part.recommended && part.recommendedReason && (
+                                    <span className="block mt-1 text-amber-200">
+                                      <strong className="text-amber-300">⭐ Recomendada por Gemini:</strong>{' '}
+                                      {part.recommendedReason}
+                                    </span>
+                                  )}
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5 min-w-0 max-w-full">
@@ -20335,6 +20374,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                             >
                                               Opción {idx + 1}
                                             </span>
+                                            {part.recommended === String(optText || '').trim() && (
+                                              <span className="text-[10px] font-bold text-amber-300">⭐ Recomendada</span>
+                                            )}
                                             {isSelected && (
                                               <span className="text-[10px] font-bold text-emerald-300">
                                                 {part.id === 'typology'
