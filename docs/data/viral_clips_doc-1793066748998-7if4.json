@@ -1,6 +1,6 @@
 {
   "docId": "doc-1793066748998-7if4",
-  "savedAt": 1795557793061,
+  "savedAt": 1795567731376,
   "youtubeUrl": "https://youtu.be/ZJVaGxrCmlU",
   "clips": [
     {
@@ -89,7 +89,10 @@
       "focusX": 50,
       "captionStyle": "yellow_white",
       "origin": "gemini",
-      "pinnedComment": "⏳ ¿Sabías que en el París de 1200 una muralla podía duplicar tu esperanza de vida? Cuéntanos qué te sorprendió más."
+      "pinnedComment": "⏳ ¿Sabías que en el París de 1200 una muralla podía duplicar tu esperanza de vida? Cuéntanos qué te sorprendió más.",
+      "published": true,
+      "publishedAt": "2026-11-25T00:23:23.862Z",
+      "publishedChangedAt": 1795566203862
     },
     {
       "id": "vc-1795362366209-3",
