@@ -4428,11 +4428,10 @@
         // Thinking level High is not used anywhere (user decision 2026-11-24): an order that still asks for it
         // (a page that was not reloaded) runs on Low.
         const wantHighThinking = false;
-        // The Stage 3 buttons (3 on-screen text options = 101, triggers + thumbnail prompt = 5) run on Neon
+        // The Stage 3 buttons (3 on-screen text options = 101, triggers + thumbnail prompt = 5) and the thumbnail
+        // images (505, with the Create image tool) run on Neon
         const wantNeonModel =
-          String(payload.preferredModel || '').toUpperCase() === 'NEON' &&
-          !payload.enableDeepResearch &&
-          !wantCreateImage;
+          String(payload.preferredModel || '').toUpperCase() === 'NEON' && !payload.enableDeepResearch;
         const orderModelName = wantNeonModel ? 'Neon' : 'Auto';
         const desiredModeKey = payload.enableDeepResearch
           ? wantHighThinking
