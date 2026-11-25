@@ -129,10 +129,10 @@
         await sleepMs(140);
       }
 
-      // 4. Buscar directamente 'Veo 3.1 - Lite [Lower Priority]' (sin incluir 'Omni 1.1 Flash' para no confundir el botón cerrado del dropdown)
+      // 4. Buscar directamente 'Veo 3.1 - Lite [Lower Priority]' (sin incluir 'Omni 1.2 Flash' para no confundir el botón cerrado del dropdown)
       let targetOpt = findVisibleOption(targetPatterns);
       if (!targetOpt) {
-        // El sub-dropdown de Modelo dentro del popover está cerrado (mostrando p.ej. 'Omni 1.1 Flash' o 'Veo 3.1 - Fast'): abrirlo primero
+        // El sub-dropdown de Modelo dentro del popover está cerrado (mostrando p.ej. 'Omni 1.2 Flash' o 'Veo 3.1 - Fast'): abrirlo primero
         const innerModelDropdown = Array.from(
           document.querySelectorAll(
             '.cdk-overlay-container button, .cdk-overlay-container [role="combobox"], .cdk-overlay-container mat-select, [data-radix-popper-content-wrapper] button, [data-radix-popper-content-wrapper] [role="combobox"], [role="dialog"] button, [role="dialog"] [role="combobox"]'

@@ -226,7 +226,7 @@ import { stampBrandMarksOnThumbnail, HD_BADGE_EMPTY_CORNER_CLAUSE, LOGO_EMPTY_CO
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '04:18 PM - 11/25/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '04:28 PM - 11/25/2026';
 
 // PRODUCTION LOCK: while promptConfig.PRODUCTION_LOCKED === 'YES' these fields never change (the server
 // enforces the same list in protectLockedDocs). Metadata, thumbnails, review marks and reframes stay editable.
@@ -11618,7 +11618,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       ) ||
       (Boolean(activeDoc.rawClipsText) &&
         ((activeEngine === 'VEO_3_1_LITE_LOWER_PRIORITY' &&
-          /\bOmni\s*1\.1\s*Flash\b/i.test((activeDoc.rawClipsText || '').slice(0, 2500))) ||
+          /\bOmni\s*1\.[12]\s*Flash\b/i.test((activeDoc.rawClipsText || '').slice(0, 2500))) ||
           (activeEngine === 'OMNI_1_1_FLASH' &&
             /\bVeo\s*3\.1\b/i.test((activeDoc.rawClipsText || '').slice(0, 2500)))));
 
@@ -12026,7 +12026,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       rawClipsText: nextRawClipsText,
     });
 
-    const msg = `🛡️ ¡${nextClips.length} Clips limpiados para Omni 1.1 Flash! Se quitaron todos los nombres propios de personas y @Nombres_Personas reemplazándolos por descripciones anónimas de rol y época.`;
+    const msg = `🛡️ ¡${nextClips.length} Clips limpiados para Omni 1.2 Flash! Se quitaron todos los nombres propios de personas y @Nombres_Personas reemplazándolos por descripciones anónimas de rol y época.`;
     setFlowStatusLog(msg);
     setBridgeStatusType('SUCCESS');
     setBridgeStatusMsg(msg);
@@ -22868,7 +22868,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                         </button>
                       </div>
 
-                      {/* Motor de Video para Google Flow Agent (Modo Híbrido: Omni 1.1 Flash con Personas / Lower Priority sin Personas) */}
+                      {/* Motor de Video para Google Flow Agent (Modo Híbrido: Omni 1.2 Flash con Personas / Lower Priority sin Personas) */}
                       <div className="bg-slate-950/90 border border-purple-500/30 rounded-xl p-2 space-y-1.5">
                         <div className="flex items-center justify-between gap-2 flex-wrap">
                           <span className="text-[11px] font-bold text-slate-300">
@@ -22895,7 +22895,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             [
                               {
                                 id: 'HYBRID_PEOPLE_OMNI_REST_LOWER' as const,
-                                label: '🔀 Híbrido: Omni 1.1 Flash (Personas) + Lower Priority (Resto Gratis)',
+                                label: '🔀 Híbrido: Omni 1.2 Flash (Personas) + Lower Priority (Resto Gratis)',
                               },
                               {
                                 id: 'VEO_3_1_LITE_LOWER_PRIORITY' as const,
@@ -22903,7 +22903,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                               },
                               {
                                 id: 'OMNI_1_1_FLASH' as const,
-                                label: '⚡ Solo Omni 1.1 Flash',
+                                label: '⚡ Solo Omni 1.2 Flash',
                               },
                             ] as const
                           ).map((eng) => {
@@ -23203,7 +23203,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                           }
                         }}
                         placeholder={
-                          'Act as a professional historian, film director, and investigative journalist.\nUse Omni 1.1 Flash strictly for video clips containing people, and use Veo 3.1 - Lite [Lower Priority] for all remaining video clips without people; use Nano Banana 2.1 for all initial clip images.\n\nImage 1: Create an image...\nClip 1 (00:00 - 00:06): Create a video... [Model: Omni 1.1 Flash] fix the name'
+                          'Act as a professional historian, film director, and investigative journalist.\nUse Omni 1.2 Flash strictly for video clips containing people, and use Veo 3.1 - Lite [Lower Priority] for all remaining video clips without people; use Nano Banana 2.1 for all initial clip images.\n\nImage 1: Create an image...\nClip 1 (00:00 - 00:06): Create a video... [Model: Omni 1.2 Flash] fix the name'
                         }
                         className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs font-mono text-slate-200 leading-relaxed"
                       />
@@ -24319,7 +24319,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                               type="button"
                               onClick={handleEvadeFilterAllClips}
                               className="px-3.5 py-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 border border-rose-400/50 text-rose-200 text-xs font-black cursor-pointer transition"
-                              title="Elimina todos los nombres propios de personas, apellidos y @Nombres_Personas en los prompts de Imagen y Video para evitar rechazos en Omni 1.1 Flash"
+                              title="Elimina todos los nombres propios de personas, apellidos y @Nombres_Personas en los prompts de Imagen y Video para evitar rechazos en Omni 1.2 Flash"
                             >
                               🛡️ Quitar Nombres de Personas (Omni Flash)
                             </button>
@@ -24735,7 +24735,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                     </span>
                                   )}
 
-                                    {/* 1-Click Per-Clip Video Engine Toggle (Omni 1.1 Flash vs Lower Priority Gratis) */}
+                                    {/* 1-Click Per-Clip Video Engine Toggle (Omni 1.2 Flash vs Lower Priority Gratis) */}
                                   <button
                                     type="button"
                                     disabled={activeEngineMode !== 'HYBRID_PEOPLE_OMNI_REST_LOWER'}
@@ -24793,7 +24793,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                       activeEngineMode !== 'HYBRID_PEOPLE_OMNI_REST_LOWER'
                                         ? "Modo de proyecto activo — selecciona '🔀 Híbrido' arriba para alternar clips individuales"
                                         : clipResolvedEngine === 'OMNI_1_1_FLASH'
-                                        ? `Este clip usa Omni 1.1 Flash (${
+                                        ? `Este clip usa Omni 1.2 Flash (${
                                             clipAutoHasPeople
                                               ? 'personas detectadas automáticamente'
                                               : 'asignado manualmente'
@@ -24802,11 +24802,11 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                             !clipAutoHasPeople
                                               ? 'sin personas detectadas'
                                               : 'asignado manualmente'
-                                          }). Haz clic para cambiarlo a Omni 1.1 Flash.`
+                                          }). Haz clic para cambiarlo a Omni 1.2 Flash.`
                                     }
                                   >
                                     {clipResolvedEngine === 'OMNI_1_1_FLASH'
-                                      ? '⚡ Omni 1.1 Flash (Personas)'
+                                      ? '⚡ Omni 1.2 Flash (Personas)'
                                       : '🟢 Lower Priority (Gratis)'}
                                   </button>
 
@@ -25803,7 +25803,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                     <span className="text-xs font-semibold text-emerald-300">
                                       🎬 Prompt de Video (
                                       {clipResolvedEngine === 'OMNI_1_1_FLASH'
-                                        ? '⚡ Omni 1.1 Flash • Con Personas'
+                                        ? '⚡ Omni 1.2 Flash • Con Personas'
                                         : '🟢 Veo 3.1 - Lite [Lower Priority] • Sin Personas'}{' '}
                                       + Foley)
                                     </span>
