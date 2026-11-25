@@ -223,7 +223,7 @@ import { stampBrandMarksOnThumbnail, HD_BADGE_EMPTY_CORNER_CLAUSE, LOGO_EMPTY_CO
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '09:20 AM - 11/25/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '09:44 AM - 11/25/2026';
 
 // PRODUCTION LOCK: while promptConfig.PRODUCTION_LOCKED === 'YES' these fields never change (the server
 // enforces the same list in protectLockedDocs). Metadata, thumbnails, review marks and reframes stay editable.
@@ -15199,16 +15199,16 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         setBridgeStatusType('WORKING');
         setBridgeStatusMsg(
           isPart1Remote
-            ? '📡 Enviando Paso 1 desde tu móvil a tu Mac (Gemini 4 Carbon Low)...'
+            ? '📡 Enviando Paso 1 desde tu móvil a tu Mac (Gemini, modelo Auto)...'
             : isDeepResearchRemote
-            ? '📡 Enviando Paso 2 desde tu móvil a tu Mac: Gemini 4 Carbon Low + Deep Research. El informe aparecerá aquí al terminar (10–20 min).'
+            ? '📡 Enviando Paso 2 desde tu móvil a tu Mac: Gemini en modelo Auto + Deep Research. El informe aparecerá aquí al terminar (10–20 min).'
             : stageNum === 5
             ? '📡 Enviando orden desde tu móvil a tu Mac: generando 3 disparadores neuropsicológicos y prompt de miniatura dentro del chat del documental...'
             : stageNum === 6
             ? '📡 Enviando orden desde tu móvil a tu Mac: generando prompts de @Referencias (@Personas y @Lugares — 6 Views) en Gemini Web...'
             : stageNum === 101
             ? '📡 Enviando orden desde tu móvil a tu Mac: generando 3 opciones cortas de texto en pantalla dentro del chat del documental...'
-            : '📡 Enviando orden de la etapa a tu Mac (Gemini 4 Carbon Low)...'
+            : '📡 Enviando orden de la etapa a tu Mac (Gemini, modelo Auto)...'
         );
         const nextDocsForRemote = documentaries.map((d) =>
           d.id === currentDoc.id ? { ...d, ...remotePatch } : d
@@ -15229,11 +15229,11 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                 : isDeepResearchRemote
                 ? '⏳ Orden enviada a tu Mac. Gemini Deep Research en curso; el resultado se sincronizará automáticamente en esta caja.'
                 : stageNum === 5
-                ? '⏳ Tu Mac está redactando los 3 disparadores y el prompt en Gemini Web (4 Carbon · Low). Se actualizará aquí automáticamente...'
+                ? '⏳ Tu Mac está redactando los 3 disparadores y el prompt en Gemini Web (modelo Auto). Se actualizará aquí automáticamente...'
                 : stageNum === 6
-                ? '⏳ Tu Mac está redactando los prompts de @Referencias (@Personas y @Lugares — 6 Views) en Gemini Web (4 Carbon · Low). Aparecerán en esta caja automáticamente...'
+                ? '⏳ Tu Mac está redactando los prompts de @Referencias (@Personas y @Lugares — 6 Views) en Gemini Web (modelo Auto). Aparecerán en esta caja automáticamente...'
                 : stageNum === 101
-                ? '⏳ Tu Mac está generando las 3 opciones de texto en pantalla en Gemini Web (4 Carbon · Low)...'
+                ? '⏳ Tu Mac está generando las 3 opciones de texto en pantalla en Gemini Web (modelo Auto)...'
                 : '⏳ Orden enviada a tu Mac. Ejecutando en Gemini Web y sincronizando resultado automáticamente...'
             );
             if (!isDeepResearchRemote) {
@@ -15356,12 +15356,12 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     setBridgeStatusType('WORKING');
     setBridgeStatusMsg(
       isStage1Part1Low
-        ? `⚡ Etapa 1 (Parte 1): Enviando a Gemini Web en 4 Carbon · Thinking level: Low (SIN Deep Research) para investigar video y determinar Definición Histórica y Calibración...`
+        ? `⚡ Etapa 1 (Parte 1): Enviando a Gemini Web en modelo Auto (SIN Deep Research) para investigar video y determinar Definición Histórica y Calibración...`
         : isResearchStage
-        ? `🔬 Etapa 1 (Parte 2): Enviando a Gemini Web en 4 Carbon · Thinking level: Low + Deep Research activo (con Auto-Iniciar Plan)...`
+        ? `🔬 Etapa 1 (Parte 2): Enviando a Gemini Web en modelo Auto + Deep Research activo (con Auto-Iniciar Plan)...`
         : stageNum === 8 && stage8ExpectedClipCount > 0
-        ? `⚡ Enviando Etapa 6 (${stage8ExpectedClipCount} clips posibles) a Gemini Web en 4 Carbon · Thinking level: Low (ventana extendida hasta 20 min con auto-continuación sin reinicios)...`
-        : `⚡ Enviando prompt a Gemini Web en modo 4 Carbon (Thinking level: Low)...`
+        ? `⚡ Enviando Etapa 6 (${stage8ExpectedClipCount} clips posibles) a Gemini Web en modelo Auto (ventana extendida hasta 20 min con auto-continuación sin reinicios)...`
+        : `⚡ Enviando prompt a Gemini Web en el modelo Auto...`
     );
     const targetVideoBaseName = String(currentCanonicalVideoName || currentDoc.title || '')
       .replace(/_\s*Deep\s*Research$/i, '')
@@ -20214,7 +20214,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                         Etapa 1 Dividida en 2 Fases
                       </span>
                       <h3 className="font-black text-amber-300 text-sm sm:text-lg break-words">
-                        🔬 Flujo en 2 Pasos: 1º Definición y Calibración (4 Carbon Low) → 2º Investigación Profunda (Deep Research + 4 Carbon Low)
+                        🔬 Flujo en 2 Pasos: 1º Definición y Calibración (modelo Auto) → 2º Investigación Profunda (Deep Research + modelo Auto)
                       </h3>
                     </div>
                   </div>
@@ -20230,7 +20230,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             PASO 1 DE ETAPA 1
                           </span>
                           <span className="px-2.5 py-0.5 rounded-md bg-slate-900 border border-slate-700 text-emerald-300 text-[11px] font-bold">
-                            ⚡ 4 Carbon · Thinking level: Low · SIN Deep Research
+                            ⚡ modelo Auto · SIN Deep Research
                           </span>
                           {(activeDoc.deepResearchPrompt || '').trim() && (
                             <span className="px-2.5 py-0.5 rounded-md bg-emerald-500/20 border border-emerald-500/50 text-emerald-300 text-[11px] font-black">
@@ -20242,7 +20242,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                           1º Investigación del Otro Video + Determinación de 🏛️ Definición Histórica y Continuidad y ⏱️ Calibración Matemática
                         </h4>
                         <p className="text-xs text-slate-300 leading-relaxed break-words">
-                          Usa los videos marcados (Videos Analizados) y los comentarios <code className="text-amber-300">×N</code> seleccionados en <strong>4 Carbon con Thinking level en Low (sin activar Deep Research)</strong>, te entrega <strong>4 propuestas completas</strong> (cada una con su tema, tiempo y lugar, tipología, clímax, 3 ganchos y 2 escaletas) y llena la <strong>Tipología</strong>, el <strong>Tema Central</strong>, el <strong>Tiempo / Época</strong> y el <strong>Lugar Histórico</strong> con la propuesta que elijas.
+                          Usa los videos marcados (Videos Analizados) y los comentarios <code className="text-amber-300">×N</code> seleccionados en <strong>el modelo Auto (sin activar Deep Research)</strong>, te entrega <strong>4 propuestas completas</strong> (cada una con su tema, tiempo y lugar, tipología, clímax, 3 ganchos y 2 escaletas) y llena la <strong>Tipología</strong>, el <strong>Tema Central</strong>, el <strong>Tiempo / Época</strong> y el <strong>Lugar Histórico</strong> con la propuesta que elijas.
                         </p>
                       </div>
 
@@ -20261,7 +20261,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             title={
                               duplicateBlockForStart
                                 ? `Bloqueado: el link pegado ya fue investigado ("${duplicateBlockForStart.title}"). Deja la caja de link en blanco o pega un link no investigado.`
-                                : 'Ejecutar Paso 1 con 4 Carbon en Thinking level: Low (sin Deep Research)'
+                                : 'Ejecutar Paso 1 con el modelo Auto (sin Deep Research)'
                             }
                             className={`w-full sm:w-auto max-w-full px-3.5 sm:px-5 py-2.5 sm:py-3 rounded-xl font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg transition whitespace-normal text-left sm:text-center ${
                               duplicateBlockForStart
@@ -20275,7 +20275,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                 ? 'Procesando en Gemini...'
                                 : duplicateBlockForStart
                                 ? '🔒 Link Ya Investigado (Limpia la Caja)'
-                                : '⚡ Paso 1: Determinar Definición + Calibración (Low)'}
+                                : '⚡ Paso 1: Determinar Definición + Calibración (Auto)'}
                             </span>
                           </button>
                         );
@@ -20574,7 +20574,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                       if (!isPart1OrPart2Done) {
                         return (
                           <div className="bg-slate-900/70 border border-slate-800 rounded-xl p-3.5 text-xs text-slate-400">
-                            💡 Al pulsar <strong>&quot;⚡ Paso 1: Determinar Definición + Calibración (Low)&quot;</strong>, Gemini (sin Deep Research, con <strong>4 Carbon · Thinking level: Low</strong>) usará los videos marcados y entregará <strong>4 propuestas completas</strong> (tema, tiempo y lugar, tipología y clímax, con sus ganchos y escaletas); aquí eliges una antes de pasar al Paso 2. Si no escribiste el Tema y hay videos marcados, primero propondrá <strong>10 temas</strong> para que marques los que quieres desarrollar.
+                            💡 Al pulsar <strong>&quot;⚡ Paso 1: Determinar Definición + Calibración (Auto)&quot;</strong>, Gemini (sin Deep Research, con <strong>modelo Auto</strong>) usará los videos marcados y entregará <strong>4 propuestas completas</strong> (tema, tiempo y lugar, tipología y clímax, con sus ganchos y escaletas); aquí eliges una antes de pasar al Paso 2. Si no escribiste el Tema y hay videos marcados, primero propondrá <strong>10 temas</strong> para que marques los que quieres desarrollar.
                           </div>
                         );
                       }
@@ -20719,7 +20719,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             PASO 2 DE ETAPA 1
                           </span>
                           <span className="px-2.5 py-0.5 rounded-md bg-emerald-950/80 border border-emerald-500/50 text-emerald-300 text-[11px] font-bold">
-                            ⚡ 4 Carbon · Thinking level: Low + 🔬 Feature Deep Research Activo
+                            ⚡ modelo Auto + 🔬 Feature Deep Research Activo
                           </span>
                           {(() => {
                             const refVidStep2 = resolveSelectedLibraryVideoForDoc(
@@ -20736,10 +20736,10 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                           })()}
                         </div>
                         <h4 className="font-extrabold text-slate-100 text-sm sm:text-base break-words">
-                          2º Investigación Profunda con el Feature de Gemini Deep Research y 4 Carbon (Thinking Level: Low)
+                          2º Investigación Profunda con el Feature de Gemini Deep Research y el modelo Auto
                         </h4>
                         <p className="text-xs text-slate-300 leading-relaxed break-words">
-                          Una vez determinados <strong>🏛️ Definición Histórica y Continuidad</strong>, el <strong>📚 Video Analizado de la Biblioteca</strong> y <strong>⏱️ Calibración Matemática</strong> en el Paso 1, este botón abre en Gemini el menú <strong>&quot;+&quot; → &quot;More tools&quot; → &quot;Deep research&quot;</strong>, selecciona en el menú <strong>&quot;4 Carbon&quot; → &quot;Thinking level&quot; → &quot;Low&quot;</strong> y ejecuta la Investigación Profunda completa con auto-clic en <em>&quot;Iniciar investigación&quot;</em>.
+                          Una vez determinados <strong>🏛️ Definición Histórica y Continuidad</strong>, el <strong>📚 Video Analizado de la Biblioteca</strong> y <strong>⏱️ Calibración Matemática</strong> en el Paso 1, este botón abre en Gemini el menú <strong>&quot;+&quot; → &quot;More tools&quot; → &quot;Deep research&quot;</strong>, deja el modelo en <strong>&quot;Auto&quot;</strong> y ejecuta la Investigación Profunda completa con auto-clic en <em>&quot;Iniciar investigación&quot;</em>.
                         </p>
                       </div>
 
@@ -20755,14 +20755,14 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                               enableDeepResearch: true,
                             });
                           }}
-                          title="Activa Deep Research (+ -> More tools -> Deep research) y 4 Carbon con Thinking level en Low"
+                          title="Activa Deep Research (+ -> More tools -> Deep research) y el modelo Auto"
                           className="w-full sm:w-auto max-w-full px-3.5 sm:px-5 py-2.5 sm:py-3 rounded-xl font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg transition whitespace-normal text-left sm:text-center bg-gradient-to-r from-purple-500 via-indigo-500 to-amber-400 hover:from-purple-400 hover:via-indigo-400 hover:to-amber-300 disabled:opacity-50 text-slate-950 cursor-pointer shadow-purple-500/25"
                         >
                           <Wand2 className="w-4 h-4 shrink-0" />
                           <span>
                             {aiGenerating
                               ? 'Investigando en Gemini Deep Research...'
-                              : '🔬 Paso 2: Comenzar Investigación Profunda (Deep Research + Carbon Low)'}
+                              : '🔬 Paso 2: Comenzar Investigación Profunda (Deep Research + Auto)'}
                           </span>
                         </button>
                       </div>
@@ -28230,9 +28230,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                     <div className="flex items-center gap-2 flex-wrap">
                       <span
                         className="px-3 py-2 rounded-xl bg-emerald-950/70 border border-emerald-500/40 text-emerald-300 font-bold text-xs flex items-center gap-1.5"
-                        title="La Etapa 9 selecciona automáticamente Gemini 4 Carbon en modo Low (sin Deep Research) para generar las 4 secciones de forma rápida y directa"
+                        title="La Etapa 9 selecciona automáticamente el modelo Auto de Gemini (sin Deep Research) para generar las 4 secciones de forma rápida y directa"
                       >
-                        ⚡ Modelo: Gemini 4 Carbon (Low) ✓
+                        ⚡ Modelo: Gemini Auto ✓
                       </span>
                       <button
                         type="button"
@@ -28254,7 +28254,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                           });
                         }}
                         className="px-3.5 py-2 rounded-xl bg-violet-500/20 hover:bg-violet-500/30 text-violet-200 border border-violet-500/40 font-bold text-xs flex items-center gap-1.5 cursor-pointer"
-                        title="Pide a Gemini 4 Carbon (Low) 5 opciones de títulos ultra-específicos y seguidamente genera las 4 secciones (YouTube, Facebook, Comentario Fijado y Tags)"
+                        title="Pide a Gemini (modelo Auto) 5 opciones de títulos ultra-específicos y seguidamente genera las 4 secciones (YouTube, Facebook, Comentario Fijado y Tags)"
                       >
                         🎯 Generar 5 Títulos Específicos (Gemini)
                       </button>
@@ -28273,7 +28273,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                       >
                         <Wand2 className="w-3.5 h-3.5" />
                         {aiGenerating
-                          ? 'Generando Títulos + 4 Secciones (Carbon Low)...'
+                          ? 'Generando Títulos + 4 Secciones (Auto)...'
                           : '✨ Generar Todo (YouTube + Facebook + Comentario + Tags)'}
                       </button>
                     </div>
