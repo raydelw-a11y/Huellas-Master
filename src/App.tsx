@@ -205,7 +205,7 @@ import { stampBrandMarksOnThumbnail, HD_BADGE_EMPTY_CORNER_CLAUSE, LOGO_EMPTY_CO
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '07:51 PM - 11/24/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '08:26 PM - 11/24/2026';
 
 // PRODUCTION LOCK: while promptConfig.PRODUCTION_LOCKED === 'YES' these fields never change (the server
 // enforces the same list in protectLockedDocs). Metadata, thumbnails, review marks and reframes stay editable.
@@ -1349,12 +1349,27 @@ function buildStage1PropositionParts(
   // Topic picked in Parte 2 (or typed by the producer, which is kept even if it is not one of the options)
   const currentTopicStr = String(doc.topic || '').trim();
   const currentTopicKey = cleanPropositionOptionValue(currentTopicStr).toLowerCase();
-  const matchedTopicIdx = currentTopicKey
-    ? p2Options.findIndex((opt) => {
-        const o = opt.toLowerCase();
-        return o === currentTopicKey || (currentTopicKey.length >= 20 && o.slice(0, 32) === currentTopicKey.slice(0, 32));
-      })
-    : -1;
+  // The chosen option is the one that reads exactly like the topic. Only when none does (the topic was
+  // edited a little) is the closest start accepted — and then the option that shares the LONGEST start, not
+  // the first one: Gemini's options for one subject often begin with the very same sentence, and matching on
+  // the first 32 characters marked Opción 1 as chosen whatever the producer picked.
+  const matchedTopicIdx = (() => {
+    if (!currentTopicKey) return -1;
+    const keys = p2Options.map((opt) => cleanPropositionOptionValue(opt).toLowerCase());
+    const exact = keys.findIndex((o) => o === currentTopicKey || o === currentTopicStr.toLowerCase());
+    if (exact >= 0 || currentTopicKey.length < 20) return exact;
+    let best = -1;
+    let bestLen = 31;
+    keys.forEach((o, i) => {
+      let n = 0;
+      while (n < o.length && n < currentTopicKey.length && o[n] === currentTopicKey[n]) n++;
+      if (n > bestLen) {
+        bestLen = n;
+        best = i;
+      }
+    });
+    return best;
+  })();
   const concordanceIdx = matchedTopicIdx >= 0 ? matchedTopicIdx : 0;
   const activeTopicText = matchedTopicIdx >= 0 ? p2Options[matchedTopicIdx] : currentTopicStr || p2Options[0] || '';
   const activeTopicShortLabel = (activeTopicText.split(':')[0] || '').trim().slice(0, 90) || 'el tema elegido';
