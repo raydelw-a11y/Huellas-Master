@@ -68,6 +68,32 @@ import {
   toCanonicalMediaBridgePath,
 } from '../utils/mediaBridge';
 import { useNoticeStack } from '../utils/noticeStack';
+import {
+  VOLUME_DB_FLOOR,
+  VOLUME_DB_CEIL,
+  VOLUME_DB_STEP,
+  DEFAULT_MUSIC_VOLUME_PCT,
+  LEGACY_MUSIC_DEFAULT_PCTS,
+  DEFAULT_FOLEY_DUCKED_PCT,
+  DEFAULT_FOLEY_HIGH_PCT,
+  FOLEY_PREVIEW_LIMITER,
+  FOLEY_PREVIEW_MAKEUP_DB,
+  VOICE_PREVIEW_LIMITER,
+  dbToLinear,
+  volumePctToDb,
+  volumeDbToPct,
+  volumePctToSliderDb,
+  formatVolumeDb,
+  formatGainDb,
+  defaultClipFoleyPct,
+  computeFoleyNormGainDb,
+  isBrandClip,
+  isClipFoleyVolumeExplicit,
+  resolveClipFoleyLevelPct,
+  buildClipFoleyLevelSegments,
+  type ClipLoudness,
+  type FoleyLevelSettings,
+} from '../utils/audioMix';
 
 export type ExportResolutionPreset = 'HD_1080P' | '2K_1440P' | '4K_2160P' | '8K_4320P';
 export type EditorAspectRatio = '16:9' | '9:16';
@@ -141,6 +167,188 @@ const IS_APPLE_TOUCH_DEVICE: boolean = (() => {
     return false;
   }
 })();
+
+// ---------------------------------------------------------------------------------------------------------------
+// Preview clip audio (foley): <video> -> clip levelling gain -> limiter -> track level -> speakers.
+// A media element alone can only attenuate, and most generated clips need to be RAISED to the common foley
+// loudness, so on desktop each preview deck goes through Web Audio (same chain as the export). iPhone / iPad keep
+// the plain element: there an element routed through Web Audio goes silent whenever the AudioContext is not
+// running, and iOS ignores element volume anyway.
+// ---------------------------------------------------------------------------------------------------------------
+interface DeckAudioChain {
+  ctx: AudioContext;
+  normGain: GainNode;
+  levelGain: GainNode;
+  lastNorm: number;
+  lastLevel: number;
+}
+const deckAudioChains = new WeakMap<HTMLMediaElement, DeckAudioChain>();
+let deckAudioContext: AudioContext | null = null;
+// The limiter node adds its own make-up gain; the level stage takes it back out
+const FOLEY_PREVIEW_MAKEUP_COMPENSATION = dbToLinear(-FOLEY_PREVIEW_MAKEUP_DB);
+
+/** Absolute path of the folder file a media URL serves (empty for anything else: Intro/Outro streams, blobs...). */
+function extractServedFolderFilePath(urlRaw?: string | null): string {
+  const url = String(urlRaw || '');
+  if (!url.includes('/api/flow/serve-folder-file')) return '';
+  try {
+    return new URL(url, 'http://localhost').searchParams.get('filePath') || '';
+  } catch {
+    const m = url.match(/[?&]filePath=([^&#]+)/);
+    try {
+      return m ? decodeURIComponent(m[1]) : '';
+    } catch {
+      return '';
+    }
+  }
+}
+
+/** A cross-origin element loaded without CORS access would play pure silence through Web Audio. */
+function canRouteElementThroughWebAudio(el: HTMLMediaElement): boolean {
+  if (IS_APPLE_TOUCH_DEVICE || typeof window === 'undefined') return false;
+  if (!(window.AudioContext || (window as any).webkitAudioContext)) return false;
+  const src = el.currentSrc || el.src || '';
+  if (!src) return false;
+  if (src.startsWith('blob:') || src.startsWith('data:')) return true;
+  try {
+    if (new URL(src, window.location.href).origin === window.location.origin) return true;
+  } catch {
+    return false;
+  }
+  return el.crossOrigin === 'anonymous' || el.crossOrigin === 'use-credentials';
+}
+
+/** Creates / resumes the shared clip-audio AudioContext. Call it from a user gesture (the Play click). */
+function primeDeckAudioContext(): void {
+  if (IS_APPLE_TOUCH_DEVICE || typeof window === 'undefined') return;
+  try {
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioCtx) return;
+    if (!deckAudioContext) deckAudioContext = new AudioCtx();
+    const ctx = deckAudioContext as AudioContext;
+    if (ctx.state !== 'running') ctx.resume().catch(() => {});
+  } catch {}
+}
+
+function ensureDeckAudioChain(el: HTMLMediaElement): DeckAudioChain | null {
+  const existing = deckAudioChains.get(el);
+  if (existing) return existing;
+  if (!canRouteElementThroughWebAudio(el)) return null;
+  try {
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    if (!deckAudioContext) deckAudioContext = new AudioCtx();
+    const ctx = deckAudioContext as AudioContext;
+    const source = ctx.createMediaElementSource(el);
+    const normGain = ctx.createGain();
+    const limiter = ctx.createDynamicsCompressor();
+    limiter.threshold.value = FOLEY_PREVIEW_LIMITER.thresholdDb;
+    limiter.knee.value = FOLEY_PREVIEW_LIMITER.kneeDb;
+    limiter.ratio.value = FOLEY_PREVIEW_LIMITER.ratio;
+    limiter.attack.value = FOLEY_PREVIEW_LIMITER.attackSec;
+    limiter.release.value = FOLEY_PREVIEW_LIMITER.releaseSec;
+    const levelGain = ctx.createGain();
+    normGain.gain.value = 1;
+    levelGain.gain.value = 0;
+    source.connect(normGain);
+    normGain.connect(limiter);
+    limiter.connect(levelGain);
+    levelGain.connect(ctx.destination);
+    const chain: DeckAudioChain = { ctx, normGain, levelGain, lastNorm: 1, lastLevel: 0 };
+    deckAudioChains.set(el, chain);
+    return chain;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Sets what a preview deck sounds like: `normGainDb` levels the clip, `levelLinear` (0-1) is its track / clip
+ * level. `allowCreate` builds the Web Audio chain if the deck has none yet (only while playing or on the Play
+ * click, so the AudioContext is born with a user gesture behind it).
+ */
+function applyDeckClipAudio(
+  el: HTMLMediaElement,
+  levelLinear: number,
+  normGainDb: number,
+  muted: boolean,
+  allowCreate: boolean
+): void {
+  const level = muted ? 0 : Math.max(0, Math.min(1, levelLinear));
+  const chain = allowCreate && !muted ? ensureDeckAudioChain(el) : deckAudioChains.get(el) || null;
+  if (chain) {
+    if (chain.ctx.state !== 'running' && !muted) {
+      chain.ctx.resume().catch(() => {});
+    }
+    const now = chain.ctx.currentTime;
+    const norm = dbToLinear(normGainDb);
+    if (Math.abs(chain.lastNorm - norm) > 0.0005) {
+      chain.lastNorm = norm;
+      chain.normGain.gain.cancelScheduledValues(now);
+      chain.normGain.gain.setValueAtTime(norm, now);
+    }
+    const out = level * FOLEY_PREVIEW_MAKEUP_COMPENSATION;
+    if (Math.abs(chain.lastLevel - out) > 0.0005) {
+      chain.lastLevel = out;
+      chain.levelGain.gain.cancelScheduledValues(now);
+      chain.levelGain.gain.setTargetAtTime(out, now, 0.02);
+    }
+    const elementVol = muted ? 0 : 1;
+    if (Math.abs(el.volume - elementVol) > 0.005) el.volume = elementVol;
+  } else {
+    // Plain element: it cannot go above the clip's original level
+    const elementVol = muted ? 0 : Math.max(0, Math.min(1, level * dbToLinear(normGainDb)));
+    if (Math.abs(el.volume - elementVol) > 0.005) el.volume = elementVol;
+  }
+  if (el.muted !== muted) el.muted = muted;
+}
+
+/** Volume slider in dB over a stored linear percentage (0-100). The far left is silence. */
+function VolumeDbSlider(props: {
+  pct: number;
+  onChangePct: (pct: number) => void;
+  className?: string;
+  title?: string;
+}) {
+  return (
+    <input
+      type="range"
+      min={VOLUME_DB_FLOOR}
+      max={VOLUME_DB_CEIL}
+      step={VOLUME_DB_STEP}
+      value={volumePctToSliderDb(props.pct)}
+      onChange={(e) => props.onChangePct(volumeDbToPct(Number(e.target.value)))}
+      className={props.className}
+      title={props.title || 'Volumen en dB (0 dB = nivel completo; todo a la izquierda = silencio)'}
+    />
+  );
+}
+
+/** Numeric dB field over a stored linear percentage. A number typed without sign is taken as negative. */
+function VolumeDbInput(props: { pct: number; onChangePct: (pct: number) => void; className?: string }) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const shown = draft ?? (props.pct > 0 ? volumePctToDb(props.pct).toFixed(1) : String(VOLUME_DB_FLOOR));
+  return (
+    <input
+      type="number"
+      min={VOLUME_DB_FLOOR}
+      max={VOLUME_DB_CEIL}
+      step={VOLUME_DB_STEP}
+      value={shown}
+      onChange={(e) => {
+        const raw = e.target.value;
+        setDraft(raw);
+        if (raw.trim() === '') return;
+        const n = Number(raw);
+        if (!Number.isFinite(n)) return;
+        props.onChangePct(volumeDbToPct(n > 0 ? -n : n));
+      }}
+      onBlur={() => setDraft(null)}
+      onKeyDown={(e) => e.stopPropagation()}
+      className={props.className}
+      title="Volumen en dB (de -40 a 0; -40 o menos = silencio)"
+    />
+  );
+}
 
 function extractEditorMediaUrlMeta(urlRaw?: string): { fileName: string; mtimeMs: number } {
   const url = String(urlRaw || '').trim();
@@ -477,8 +685,9 @@ export interface TimelineCaptionItem {
   alignSource?: 'vosk-v2' | 'webaudio-v2' | 'video76-srt' | 'manual';
 }
 
-// Volumen por defecto de cada canción (%). Un volumen que el usuario fijó a mano se respeta siempre.
-const DEFAULT_MUSIC_TRACK_VOLUME_PCT = 20;
+// Volumen por defecto de cada canción (porcentaje lineal guardado; -10 dB). Un volumen que el usuario fijó a mano
+// se respeta siempre.
+const DEFAULT_MUSIC_TRACK_VOLUME_PCT = DEFAULT_MUSIC_VOLUME_PCT;
 
 // Canción 1 a 50% durante el Clip 1, con rampa suave hacia su volumen normal
 export const CLIP1_SONG_BOOST_PCT = 50;
@@ -2453,13 +2662,13 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     const v = Number(
       initialDocStateForInit?.foleyHighVolume ?? initialSessionState?.foleyHighVolume
     );
-    return Number.isFinite(v) && v >= 0 && v <= 100 ? v : 80;
+    return Number.isFinite(v) && v >= 0 && v <= 100 ? v : DEFAULT_FOLEY_HIGH_PCT;
   }); // When narrator is silent
   const [foleyDuckedVolume, setFoleyDuckedVolume] = useState<number>(() => {
     const v = Number(
       initialDocStateForInit?.foleyDuckedVolume ?? initialSessionState?.foleyDuckedVolume
     );
-    return Number.isFinite(v) && v >= 0 && v <= 100 ? v : 20;
+    return Number.isFinite(v) && v >= 0 && v <= 100 ? v : DEFAULT_FOLEY_DUCKED_PCT;
   }); // When narrator speaks
 
   // Captions Track (Track 2) + Typography, Size, Shadow, Background & Position
@@ -4596,7 +4805,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     const v = Number(
       initialDocStateForInit?.masterMusicVolume ?? initialSessionState?.masterMusicVolume
     );
-    return Number.isFinite(v) && v >= 0 && v <= 100 ? v : 20;
+    return Number.isFinite(v) && v >= 0 && v <= 100 && !LEGACY_MUSIC_DEFAULT_PCTS.includes(v)
+      ? v
+      : DEFAULT_MUSIC_TRACK_VOLUME_PCT;
   });
   const [selectedMusicTrackId, setSelectedMusicTrackId] = useState<string | null>(
     () =>
@@ -5030,13 +5241,18 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             : true
         );
         setFoleyHighVolume(
-          typeof savedDoc?.foleyHighVolume === 'number' ? savedDoc.foleyHighVolume : 80
+          typeof savedDoc?.foleyHighVolume === 'number' ? savedDoc.foleyHighVolume : DEFAULT_FOLEY_HIGH_PCT
         );
         setFoleyDuckedVolume(
-          typeof savedDoc?.foleyDuckedVolume === 'number' ? savedDoc.foleyDuckedVolume : 20
+          typeof savedDoc?.foleyDuckedVolume === 'number'
+            ? savedDoc.foleyDuckedVolume
+            : DEFAULT_FOLEY_DUCKED_PCT
         );
         setMasterMusicVolume(
-          typeof savedDoc?.masterMusicVolume === 'number' ? savedDoc.masterMusicVolume : 20
+          typeof savedDoc?.masterMusicVolume === 'number' &&
+            !LEGACY_MUSIC_DEFAULT_PCTS.includes(savedDoc.masterMusicVolume)
+            ? savedDoc.masterMusicVolume
+            : DEFAULT_MUSIC_TRACK_VOLUME_PCT
         );
         setShowOnlyReviewedClips(true);
         setReframeSummary9x16(
@@ -8206,8 +8422,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 ? savedEdit.volume
                 : prevMatch &&
                   typeof prevMatch.volume === 'number' &&
-                  prevMatch.volume !== 24 &&
-                  prevMatch.volume !== 10
+                  !LEGACY_MUSIC_DEFAULT_PCTS.includes(prevMatch.volume)
                 ? prevMatch.volume
                 : DEFAULT_MUSIC_TRACK_VOLUME_PCT,
             fadeInSec:
@@ -10136,6 +10351,104 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     return decoratePlaybackPreviewUrl(rewriteMediaBridgeUrl(clip.videoUrl), previewQuality);
   };
 
+  // Loudness of each clip's own audio, measured once by the Mac and remembered there. The preview levels every
+  // clip to the common foley loudness with it, exactly as the export does (see utils/audioMix).
+  const [clipLoudnessByFile, setClipLoudnessByFile] = useState<Record<string, ClipLoudness>>({});
+  const clipLoudnessFilesSignature = useMemo(() => {
+    const files = new Set<string>();
+    for (const c of timelineClips) {
+      if (isBrandClip(c)) continue;
+      const ownFile = extractServedFolderFilePath(c.videoUrl);
+      if (ownFile) files.add(ownFile);
+      const slowMoFile = extractServedFolderFilePath(c.opticalFlowUrl);
+      if (slowMoFile) files.add(slowMoFile);
+    }
+    return Array.from(files).sort().join('\n');
+  }, [timelineClips]);
+
+  useEffect(() => {
+    if (!isEditorActive || !clipLoudnessFilesSignature) return;
+    const files = clipLoudnessFilesSignature.split('\n');
+    let cancelled = false;
+    let timer: number | null = null;
+    let rounds = 0;
+    let failures = 0;
+    const poll = async () => {
+      timer = null;
+      if (cancelled) return;
+      // Never while playing: every answer repaints the editor
+      if (isPlayingRef.current) {
+        timer = window.setTimeout(poll, 4000);
+        return;
+      }
+      let retryMs = 0;
+      try {
+        const res = await fetch(`${getEditorPrimaryServerOrigin()}/api/flow/clip-loudness`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ files }),
+        });
+        const data = res.ok ? await res.json() : null;
+        if (cancelled) return;
+        if (data?.ok && data.items && typeof data.items === 'object') {
+          const items = data.items as Record<string, { status?: string; lufs?: number; peakDb?: number }>;
+          setClipLoudnessByFile((prev) => {
+            let next = prev;
+            for (const [file, item] of Object.entries(items)) {
+              if (item?.status !== 'ready' || typeof item.lufs !== 'number') continue;
+              const peakDb = Number(item.peakDb);
+              const cur = prev[file];
+              if (cur && cur.lufs === item.lufs && cur.peakDb === peakDb) continue;
+              if (next === prev) next = { ...prev };
+              next[file] = { lufs: item.lufs, peakDb };
+            }
+            return next;
+          });
+          if (Number(data.pending) > 0) {
+            // Still being measured on the Mac
+            retryMs = 2500;
+          } else if (Object.values(items).some((item) => item?.status === 'dataless')) {
+            // Clips iCloud has not downloaded yet are measured once they are on the disk
+            retryMs = 45000;
+          }
+        } else {
+          failures++;
+          retryMs = 12000;
+        }
+      } catch {
+        failures++;
+        retryMs = 12000;
+      }
+      rounds++;
+      if (retryMs > 0 && rounds < 240 && failures < 6 && !cancelled) {
+        timer = window.setTimeout(poll, retryMs);
+      }
+    };
+    void poll();
+    return () => {
+      cancelled = true;
+      if (timer !== null) window.clearTimeout(timer);
+    };
+  }, [clipLoudnessFilesSignature, isEditorActive]);
+
+  /** Gain (dB) that levels this clip's audio in the preview. 0 for the Intro / Outro and unmeasured clips. */
+  const getClipNormGainDb = (
+    clip?: {
+      id?: string;
+      clipNumber?: number;
+      videoUrl?: string;
+      opticalFlowUrl?: string;
+      smoothSlowMo?: boolean;
+      speed?: number;
+    } | null
+  ): number => {
+    if (!clip || isBrandClip(clip)) return 0;
+    const file =
+      extractServedFolderFilePath(getClipEffectiveVideoUrl(clip)) || extractServedFolderFilePath(clip.videoUrl);
+    const loud = file ? clipLoudnessByFile[file] : undefined;
+    return loud ? computeFoleyNormGainDb(loud) : 0;
+  };
+
   // Synchronous Dual-Deck (A/B Ping-Pong) assignment: when activeClipAtPlayhead advances to nextClipAtPlayhead,
   // flip activeSlot to the already-decoded standby deck without mutating its src attribute (0ms decoder swap, 0 freeze)
   const activeClipEffectiveUrl = getClipEffectiveVideoUrl(activeClipAtPlayhead);
@@ -10464,6 +10777,19 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     );
   }, [currentTime, voiceStartOffsetSec, activeClipAtPlayhead, activeCaptionAtPlayhead]);
 
+  // What rules a clip's audio level: the two foley sliders (auto-ducking) or the clip's own volume. The preview
+  // (below) and the export request (buildExportClipEntry) both resolve it with the same shared function.
+  const foleyLevelSettings = useMemo<FoleyLevelSettings>(
+    () => ({
+      autoDuckingEnabled,
+      foleyHighPct: foleyHighVolume,
+      foleyDuckedPct: foleyDuckedVolume,
+      voiceStartSec: voiceStartOffsetSec,
+      captions,
+    }),
+    [autoDuckingEnabled, foleyHighVolume, foleyDuckedVolume, voiceStartOffsetSec, captions]
+  );
+
   const effectiveFoleyVolumeAtPlayhead = useMemo(() => {
     if (!activeClipAtPlayhead) return 0;
     if (activeClipAtPlayhead.audioMuted) return 0;
@@ -10477,20 +10803,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       activeClipAtPlayhead.id === 'fixed-doc-outro' ||
       activeClipAtPlayhead.clipNumber === 999;
 
-    let baseFoleyVol = 0;
-    if (isIntro || isOutro) {
-      baseFoleyVol =
-        typeof activeClipAtPlayhead.foleyVolume === 'number'
-          ? activeClipAtPlayhead.foleyVolume
-          : 100;
-    } else if (activeClipAtPlayhead.customVolumeSet || !autoDuckingEnabled) {
-      baseFoleyVol =
-        typeof activeClipAtPlayhead.foleyVolume === 'number'
-          ? activeClipAtPlayhead.foleyVolume
-          : 40;
-    } else {
-      baseFoleyVol = isNarratorSpeakingAtPlayhead ? foleyDuckedVolume : foleyHighVolume;
-    }
+    const baseFoleyVol = resolveClipFoleyLevelPct(activeClipAtPlayhead, currentTime, foleyLevelSettings);
 
     if (baseFoleyVol <= 0) return 0;
 
@@ -10526,15 +10839,35 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     const fadeOutFactor = fadeOutSec > 0 ? Math.min(1, remainingInClip / fadeOutSec) : 1;
     const fadeEnvelope = Math.max(0, Math.min(fadeInFactor, fadeOutFactor));
 
-    return Number(Math.max(0, Math.min(100, baseFoleyVol * fadeEnvelope)).toFixed(2));
-  }, [
-    activeClipAtPlayhead,
-    autoDuckingEnabled,
-    isNarratorSpeakingAtPlayhead,
-    foleyDuckedVolume,
-    foleyHighVolume,
-    currentTime,
-  ]);
+    return Number(Math.max(0, Math.min(100, baseFoleyVol * fadeEnvelope)).toFixed(3));
+  }, [activeClipAtPlayhead, foleyLevelSettings, currentTime]);
+
+  // Clip levelling gain of the clip under the playhead (dB), applied in the preview deck before its level
+  const activeClipNormGainDb = getClipNormGainDb(activeClipAtPlayhead);
+
+  // Level shown in a clip's audio controls: its own volume when set by hand, otherwise the foley slider that
+  // rules it (so the figure on screen is the level that is actually heard and exported)
+  const getClipShownFoleyPct = (clip?: (typeof clipsWithTimelineBounds)[number] | null): number => {
+    if (!clip || clip.audioMuted) return 0;
+    return resolveClipFoleyLevelPct(clip, (clip.start + clip.end) / 2, foleyLevelSettings);
+  };
+  const selectedClipFoleyPct = getClipShownFoleyPct(selectedClip);
+
+  // The narration level as a single dB figure (the gain, plus whatever the old percentage control took off)
+  const VOICE_LEVEL_DB_MIN = -6;
+  const VOICE_LEVEL_DB_MAX = 12;
+  const voiceLevelDb = Number(
+    Math.max(
+      VOICE_LEVEL_DB_MIN,
+      Math.min(VOICE_LEVEL_DB_MAX, voiceGainDb + (voiceVolume > 0 ? volumePctToDb(voiceVolume) : 0))
+    ).toFixed(1)
+  );
+  const setVoiceLevelDb = (db: number) => {
+    if (!Number.isFinite(db)) return;
+    const next = Math.max(VOICE_LEVEL_DB_MIN, Math.min(VOICE_LEVEL_DB_MAX, db));
+    setVoiceVolume(100);
+    setVoiceGainDb(Number(next.toFixed(1)));
+  };
 
   const selectedMusicTrack = useMemo(() => {
     if (selectedMusicTrackId) {
@@ -10681,11 +11014,12 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           const source = ctx.createMediaElementSource(vo);
           const gainNode = ctx.createGain();
           const limiter = ctx.createDynamicsCompressor();
-          limiter.threshold.value = -1.5;
-          limiter.knee.value = 6;
-          limiter.ratio.value = 12;
-          limiter.attack.value = 0.003;
-          limiter.release.value = 0.15;
+          // Shared with the export, which adds this limiter's make-up gain to the voice (utils/audioMix)
+          limiter.threshold.value = VOICE_PREVIEW_LIMITER.thresholdDb;
+          limiter.knee.value = VOICE_PREVIEW_LIMITER.kneeDb;
+          limiter.ratio.value = VOICE_PREVIEW_LIMITER.ratio;
+          limiter.attack.value = VOICE_PREVIEW_LIMITER.attackSec;
+          limiter.release.value = VOICE_PREVIEW_LIMITER.releaseSec;
           source.connect(gainNode);
           gainNode.connect(limiter);
           limiter.connect(ctx.destination);
@@ -11050,6 +11384,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       setCurrentTime(startSec);
     }
 
+    // 0. The clip-audio AudioContext is born (or resumed) on this user gesture, so a deck that gets its chain
+    //    later, during playback, never starts on a suspended context
+    primeDeckAudioContext();
+
     // 1. Unlock & play active deck <video> and unlock standby deck <video> on user gesture
     const vid = previewVideoRef.current;
     const standbyVid = preloadNextVideoRef.current;
@@ -11087,8 +11425,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           targetVol <= 0 ||
           Boolean(activeClipAtPlayhead.audioMuted) ||
           (activeClipAtPlayhead.foleyVolume ?? 0) <= 0;
-        vid.volume = shouldMute ? 0 : targetVol;
-        vid.muted = shouldMute;
+        // The Play click is the user gesture the clip-audio chain (levelling + limiter) is created with
+        applyDeckClipAudio(vid, targetVol, activeClipNormGainDb, shouldMute, true);
         if (!reachedClipMediaEnd) {
           vid.play().catch(() => {});
         }
@@ -12019,13 +12357,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         targetVol <= 0 ||
         Boolean(activeClipAtPlayhead.audioMuted) ||
         (activeClipAtPlayhead.foleyVolume ?? 0) <= 0;
-      const expectedVol = shouldMute ? 0 : targetVol;
-      if (Math.abs(vid.volume - expectedVol) > 0.005) {
-        vid.volume = expectedVol;
-      }
-      if (vid.muted !== shouldMute) {
-        vid.muted = shouldMute;
-      }
+      applyDeckClipAudio(vid, targetVol, activeClipNormGainDb, shouldMute, isPlaying);
       if (vid.style.opacity !== '1') {
         vid.style.opacity = '1';
       }
@@ -12390,6 +12722,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     activeSeparatedMusicAtPlayhead?.volume,
     isPlaying,
     effectiveFoleyVolumeAtPlayhead,
+    activeClipNormGainDb,
     effectiveMusicVolumeAtPlayhead,
     voiceStartOffsetSec,
     voiceVolume,
@@ -13579,7 +13912,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           if (!isMatched) return c;
           const next: TimelineClipItem = { ...c };
           if (typeof patch.foleyVolume === 'number') {
-            next.foleyVolume = Math.max(0, Math.min(100, Math.round(patch.foleyVolume)));
+            // Stored as a linear percentage with decimals: the controls work in dB (e.g. -30 dB = 3.162%)
+            next.foleyVolume = Number(Math.max(0, Math.min(100, patch.foleyVolume)).toFixed(3));
             next.customVolumeSet = patch.customVolumeSet ?? true;
             next.audioMuted = next.foleyVolume <= 0;
           }
@@ -14390,37 +14724,21 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       typeof savedAudio?.foleyVolume === 'number'
         ? savedAudio.foleyVolume
         : c.foleyVolume;
-    const isIntroOrOutroClip =
-      c.id === 'fixed-doc-intro' ||
-      c.id === 'fixed-doc-outro' ||
-      c.clipNumber === 0 ||
-      c.clipNumber === 999;
-    const isNarratedClip =
-      !isIntroOrOutroClip &&
-      c.clipNumber !== 1 &&
-      c.end > voiceStartOffsetSec + 0.5;
-    const rawClipVolPct =
-      typeof clipFoleyVolume === 'number'
-        ? clipFoleyVolume
-        : isIntroOrOutroClip
-        ? 100
-        : isNarratedClip
-        ? foleyDuckedVolume
-        : foleyHighVolume;
-    const isExplicitClipVol =
-      clipCustomVolSet ||
-      (typeof clipFoleyVolume === 'number' &&
-        clipFoleyVolume !== (isIntroOrOutroClip ? 100 : c.clipNumber === 1 ? 80 : 20));
-    const effectiveClipFoleyPct =
-      clipAudioMuted || rawClipVolPct <= 0
-        ? 0
-        : isIntroOrOutroClip
-        ? rawClipVolPct
-        : isExplicitClipVol || !autoDuckingEnabled
-        ? rawClipVolPct
-        : isNarratedClip
-        ? Math.min(rawClipVolPct, foleyDuckedVolume)
-        : rawClipVolPct;
+    // Same level the preview plays (shared resolver): the two foley sliders or the clip's own volume, as
+    // stretches over the clip where the level changes while it is on screen (auto-ducking).
+    const levelClip = {
+      id: c.id,
+      clipNumber: c.clipNumber,
+      start: c.start,
+      end: c.end,
+      foleyVolume: clipFoleyVolume,
+      customVolumeSet: clipCustomVolSet,
+      audioMuted: clipAudioMuted,
+      narrationSegment: c.narrationSegment,
+    };
+    const isExplicitClipVol = isClipFoleyVolumeExplicit(levelClip);
+    const foleyLevelSegments = buildClipFoleyLevelSegments(levelClip, foleyLevelSettings);
+    const effectiveClipFoleyPct = Math.max(0, ...foleyLevelSegments.map((seg) => seg.volume)) * 100;
     return {
       clipNumber: c.clipNumber,
       fileName: c.fileName,
@@ -14439,7 +14757,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       foleyOnlyDisabled: Boolean(c.foleyOnlyDisabled),
       vocalsSeparated: Boolean(c.vocalsSeparated),
       musicSeparated: Boolean(c.musicSeparated),
-      foleyVolume: Math.max(0, Math.min(1, effectiveClipFoleyPct / 100)),
+      foleyVolume: Number(Math.max(0, Math.min(1, effectiveClipFoleyPct / 100)).toFixed(4)),
+      ...(foleyLevelSegments.length > 1 ? { foleyVolumeSegments: foleyLevelSegments } : {}),
       customVolumeSet: Boolean(isExplicitClipVol || clipAudioMuted),
       audioMuted: Boolean(clipAudioMuted || effectiveClipFoleyPct <= 0),
       audioFadeInSec: savedAudio?.audioFadeInSec ?? c.audioFadeInSec,
@@ -14632,6 +14951,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     logoAnimOut,
     logoAnimOutDur,
     foleyDuckedVolume,
+    foleyHighVolume,
     autoDuckingEnabled,
     downloadFolderPath,
     downloadFolderName,
@@ -17932,6 +18252,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                             preloadNextVideoRef.current = el;
                           }
                         }}
+                        // Desktop: loaded with CORS access so the clip audio can go through Web Audio (levelling +
+                        // limiter) even when the media comes from another origin (GitHub Pages -> Mac tunnel);
+                        // without it Web Audio would play silence. iPhone / iPad keep the plain element.
+                        crossOrigin={IS_APPLE_TOUCH_DEVICE ? undefined : 'anonymous'}
                         src={slotSrc || undefined}
                         data-focus-y={zoomUsesFocus ? fY.toFixed(1) : undefined}
                         data-pan={
@@ -18022,8 +18346,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                                 (vid as any).preservesPitch = true;
                                 (vid as any).webkitPreservesPitch = true;
                               } catch {}
-                              vid.volume = shouldMute ? 0 : targetVol;
-                              vid.muted = shouldMute;
+                              applyDeckClipAudio(vid, targetVol, activeClipNormGainDb, shouldMute, isPlaying);
                               if (isPlaying && !reachedClipMediaEnd) {
                                 vid.play().catch(() => {});
                               }
@@ -19361,40 +19684,31 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                       </div>
                     </div>
 
-                    {/* Volume Slider + Numeric Input (0% - 100%) */}
+                    {/* Volume Slider + Numeric Input in dB (0 dB = levelled clip at full level; far left = silence) */}
                     <div className="space-y-1">
                       <div className="flex items-center justify-between gap-2">
                         <label className="text-[10px] text-slate-300 font-semibold">
                           Volumen del Audio:
                         </label>
                         <div className="flex items-center gap-1">
-                          <input
-                            type="number"
-                            min={0}
-                            max={100}
-                            step={1}
-                            value={selectedClip.audioMuted ? 0 : selectedClip.foleyVolume}
-                            onChange={(e) =>
+                          <VolumeDbInput
+                            pct={selectedClipFoleyPct}
+                            onChangePct={(pct) =>
                               handleUpdateClipsAudio({
-                                foleyVolume: Number(e.target.value),
+                                foleyVolume: pct,
                                 customVolumeSet: true,
                               })
                             }
-                            onKeyDown={(e) => e.stopPropagation()}
-                            className="w-14 bg-slate-950 border border-emerald-500/40 rounded px-1.5 py-0.5 text-[11px] font-mono text-emerald-200 text-right"
+                            className="w-16 bg-slate-950 border border-emerald-500/40 rounded px-1.5 py-0.5 text-[11px] font-mono text-emerald-200 text-right"
                           />
-                          <span className="text-[10px] text-emerald-300 font-bold">%</span>
+                          <span className="text-[10px] text-emerald-300 font-bold">dB</span>
                         </div>
                       </div>
-                      <input
-                        type="range"
-                        min={0}
-                        max={100}
-                        step={1}
-                        value={selectedClip.audioMuted ? 0 : selectedClip.foleyVolume}
-                        onChange={(e) =>
+                      <VolumeDbSlider
+                        pct={selectedClipFoleyPct}
+                        onChangePct={(pct) =>
                           handleUpdateClipsAudio({
-                            foleyVolume: Number(e.target.value),
+                            foleyVolume: pct,
                             customVolumeSet: true,
                           })
                         }
@@ -19506,9 +19820,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                         onClick={() => {
                           const fi = selectedClip.audioFadeInSec ?? 0;
                           const fo = selectedClip.audioFadeOutSec ?? 0;
+                          // The level on screen (the one heard): the clip's own, or the foley slider ruling it
+                          const applyPct = selectedClip.audioMuted ? selectedClip.foleyVolume : selectedClipFoleyPct;
                           handleUpdateClipsAudio(
                             {
-                              foleyVolume: selectedClip.foleyVolume,
+                              foleyVolume: applyPct,
                               audioFadeInSec: fi,
                               audioFadeOutSec: fo,
                               audioMuted: Boolean(selectedClip.audioMuted),
@@ -19517,7 +19833,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                             true
                           );
                           setStatusMessage(
-                            `🔊 Volumen (${selectedClip.foleyVolume}%), Fade-In (${fi}s) y Fade-Out (${fo}s) aplicados a los ${timelineClips.length} clips.`
+                            `🔊 Volumen (${formatVolumeDb(selectedClip.audioMuted ? 0 : applyPct)}), Fade-In (${fi}s) y Fade-Out (${fo}s) aplicados a los ${timelineClips.length} clips.`
                           );
                         }}
                         className="px-2 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-[10px] cursor-pointer"
@@ -19758,20 +20074,15 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                         />
                       </div>
                       <div>
-                        <label className="block text-[10px] text-slate-400">Volumen Foley (%)</label>
-                        <input
-                          type="number"
-                          min={0}
-                          max={100}
-                          value={selectedClip.audioMuted ? 0 : selectedClip.foleyVolume}
-                          onChange={(e) => {
-                            const val = Math.min(100, Math.max(0, Number(e.target.value)));
+                        <label className="block text-[10px] text-slate-400">Volumen Foley (dB)</label>
+                        <VolumeDbInput
+                          pct={selectedClipFoleyPct}
+                          onChangePct={(pct) =>
                             handleUpdateClipsAudio({
-                              foleyVolume: val,
+                              foleyVolume: pct,
                               customVolumeSet: true,
-                            });
-                          }}
-                          onKeyDown={(e) => e.stopPropagation()}
+                            })
+                          }
                           className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-xs text-white mt-0.5"
                         />
                       </div>
@@ -19998,33 +20309,24 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                       <div className="flex items-center justify-between text-[10px] text-slate-300 font-semibold mb-0.5">
                         <span>🔊 Vol:</span>
                         <div className="flex items-center gap-0.5">
-                          <input
-                            type="number"
-                            min={0}
-                            max={100}
-                            step={1}
-                            value={selectedClip.audioMuted ? 0 : selectedClip.foleyVolume}
-                            onChange={(e) =>
+                          <VolumeDbInput
+                            pct={selectedClipFoleyPct}
+                            onChangePct={(pct) =>
                               handleUpdateClipsAudio({
-                                foleyVolume: Number(e.target.value),
+                                foleyVolume: pct,
                                 customVolumeSet: true,
                               })
                             }
-                            onKeyDown={(e) => e.stopPropagation()}
-                            className="w-11 bg-slate-950 border border-emerald-500/40 rounded px-1 py-0.5 text-[10px] text-emerald-200 font-mono text-right"
+                            className="w-14 bg-slate-950 border border-emerald-500/40 rounded px-1 py-0.5 text-[10px] text-emerald-200 font-mono text-right"
                           />
-                          <span>%</span>
+                          <span>dB</span>
                         </div>
                       </div>
-                      <input
-                        type="range"
-                        min={0}
-                        max={100}
-                        step={1}
-                        value={selectedClip.audioMuted ? 0 : selectedClip.foleyVolume}
-                        onChange={(e) =>
+                      <VolumeDbSlider
+                        pct={selectedClipFoleyPct}
+                        onChangePct={(pct) =>
                           handleUpdateClipsAudio({
-                            foleyVolume: Number(e.target.value),
+                            foleyVolume: pct,
                             customVolumeSet: true,
                           })
                         }
@@ -20184,29 +20486,32 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     className="w-20 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white"
                   />
                   <label className="text-[11px] text-slate-400">
-                    Volumen Voz: {voiceVolume}%{' '}
-                    <span className="text-emerald-400 font-bold">
-                      ({voiceGainDb >= 0 ? `+${voiceGainDb}` : voiceGainDb} dB)
-                    </span>
+                    Volumen Voz:{' '}
+                    <span className="text-emerald-400 font-bold">{formatGainDb(voiceLevelDb)}</span>
                   </label>
                   <input
                     type="range"
-                    min={50}
-                    max={100}
-                    value={voiceVolume}
-                    onChange={(e) => setVoiceVolume(Number(e.target.value))}
+                    min={VOICE_LEVEL_DB_MIN}
+                    max={VOICE_LEVEL_DB_MAX}
+                    step={0.5}
+                    value={voiceLevelDb}
+                    onChange={(e) => setVoiceLevelDb(Number(e.target.value))}
                     className="flex-1 accent-emerald-500"
+                    title="Volumen de la voz en dB (0 dB = el archivo tal cual)"
                   />
-                  <label className="text-[11px] text-emerald-300 font-bold shrink-0">Ganancia dB:</label>
                   <input
                     type="number"
-                    min={0}
-                    max={12}
+                    min={VOICE_LEVEL_DB_MIN}
+                    max={VOICE_LEVEL_DB_MAX}
                     step={0.5}
-                    value={voiceGainDb}
-                    onChange={(e) => setVoiceGainDb(Number(e.target.value))}
+                    value={voiceLevelDb}
+                    onChange={(e) => {
+                      if (e.target.value.trim() !== '') setVoiceLevelDb(Number(e.target.value));
+                    }}
+                    onKeyDown={(e) => e.stopPropagation()}
                     className="w-16 bg-slate-900 border border-emerald-500/40 rounded px-2 py-1 text-xs text-emerald-300 font-bold"
                   />
+                  <span className="text-[11px] text-emerald-300 font-bold shrink-0">dB</span>
                 </div>
               </div>
 
@@ -20223,27 +20528,21 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 <div className="grid grid-cols-2 gap-3 pt-1">
                   <div>
                     <label className="block text-[11px] text-slate-400">
-                      Foley sin Voz (Clip 1 y pausas): {foleyHighVolume}%
+                      Foley sin Voz (Clip 1 y pausas): {formatVolumeDb(foleyHighVolume)}
                     </label>
-                    <input
-                      type="range"
-                      min={20}
-                      max={100}
-                      value={foleyHighVolume}
-                      onChange={(e) => setFoleyHighVolume(Number(e.target.value))}
+                    <VolumeDbSlider
+                      pct={foleyHighVolume}
+                      onChangePct={(pct) => setFoleyHighVolume(pct)}
                       className="w-full accent-amber-500"
                     />
                   </div>
                   <div>
                     <label className="block text-[11px] text-slate-400">
-                      Foley cuando habla el Narrador: {foleyDuckedVolume}%
+                      Foley cuando habla el Narrador: {formatVolumeDb(foleyDuckedVolume)}
                     </label>
-                    <input
-                      type="range"
-                      min={5}
-                      max={70}
-                      value={foleyDuckedVolume}
-                      onChange={(e) => setFoleyDuckedVolume(Number(e.target.value))}
+                    <VolumeDbSlider
+                      pct={foleyDuckedVolume}
+                      onChangePct={(pct) => setFoleyDuckedVolume(pct)}
                       className="w-full accent-emerald-500"
                     />
                   </div>
@@ -20260,7 +20559,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     🎵 Pista 5: Música Flow Music (Selecciona una canción en el timeline o aquí)
                   </span>
                   <span className="font-mono text-purple-200 text-[11px]">
-                    Actual en Aguja: {effectiveMusicVolumeAtPlayhead}%
+                    Actual en Aguja: {formatVolumeDb(effectiveMusicVolumeAtPlayhead)}
                   </span>
                 </div>
 
@@ -20284,7 +20583,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                         >
                           <span>#{mt.trackNumber}</span>
                           <span className="max-w-[110px] truncate">{mt.title}</span>
-                          <span className="opacity-80">({mt.volume ?? masterMusicVolume}%)</span>
+                          <span className="opacity-80">({formatVolumeDb(mt.volume ?? masterMusicVolume)})</span>
                         </button>
                       );
                     })}
@@ -20335,33 +20634,17 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                         <div className="flex items-center justify-between text-[10px] text-purple-200 mb-0.5">
                           <span>🔊 Volumen:</span>
                           <div className="flex items-center gap-0.5">
-                            <input
-                              type="number"
-                              min={0}
-                              max={100}
-                              step={1}
-                              value={selectedMusicTrack.volume ?? masterMusicVolume}
-                              onChange={(e) => {
-                                const v = Math.max(0, Math.min(100, Number(e.target.value) || 0));
-                                handleUpdateMusicTrack(selectedMusicTrack.id, { volume: v });
-                              }}
-                              onKeyDown={(e) => e.stopPropagation()}
-                              className="w-11 bg-slate-900 border border-purple-500/40 rounded px-1 py-0.5 text-[10px] text-white font-mono text-right"
+                            <VolumeDbInput
+                              pct={selectedMusicTrack.volume ?? masterMusicVolume}
+                              onChangePct={(pct) => handleUpdateMusicTrack(selectedMusicTrack.id, { volume: pct })}
+                              className="w-14 bg-slate-900 border border-purple-500/40 rounded px-1 py-0.5 text-[10px] text-white font-mono text-right"
                             />
-                            <span>%</span>
+                            <span>dB</span>
                           </div>
                         </div>
-                        <input
-                          type="range"
-                          min={0}
-                          max={100}
-                          step={1}
-                          value={selectedMusicTrack.volume ?? masterMusicVolume}
-                          onChange={(e) =>
-                            handleUpdateMusicTrack(selectedMusicTrack.id, {
-                              volume: Number(e.target.value),
-                            })
-                          }
+                        <VolumeDbSlider
+                          pct={selectedMusicTrack.volume ?? masterMusicVolume}
+                          onChangePct={(pct) => handleUpdateMusicTrack(selectedMusicTrack.id, { volume: pct })}
                           className="w-full accent-purple-400 cursor-pointer"
                         />
                       </div>
@@ -20457,7 +20740,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                             true
                           );
                           setStatusMessage(
-                            `🎵 Volumen (${selectedMusicTrack.volume ?? masterMusicVolume}%), Fade-In (${selectedMusicTrack.fadeInSec ?? 5}s) y Fade-Out (${selectedMusicTrack.fadeOutSec ?? 5}s) aplicados a las ${musicTracks.length} canciones.`
+                            `🎵 Volumen (${formatVolumeDb(selectedMusicTrack.volume ?? masterMusicVolume)}), Fade-In (${selectedMusicTrack.fadeInSec ?? 5}s) y Fade-Out (${selectedMusicTrack.fadeOutSec ?? 5}s) aplicados a las ${musicTracks.length} canciones.`
                           );
                         }}
                         className="px-2.5 py-1 rounded-lg bg-purple-500 hover:bg-purple-400 text-slate-950 font-black text-[10px] cursor-pointer"
@@ -20475,7 +20758,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                         }}
                         className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 font-semibold text-[10px] cursor-pointer"
                       >
-                        🔄 Restaurar Canción (20% • 5s / 5s)
+                        🔄 Restaurar Canción ({formatVolumeDb(DEFAULT_MUSIC_TRACK_VOLUME_PCT)} • 5s / 5s)
                       </button>
                     </div>
                   </div>
@@ -22606,11 +22889,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                               )}
                               {clip.audioMuted || (clip.foleyVolume ?? 20) <= 0 ? (
                                 <span className="px-0.5 py-0.2 rounded bg-rose-600/95 text-[7px] font-black text-white leading-none">
-                                  🔇 0%
+                                  🔇
                                 </span>
                               ) : clip.customVolumeSet ? (
                                 <span className="px-0.5 py-0.2 rounded bg-amber-500/90 text-[7px] font-black text-slate-950 leading-none">
-                                  🔊 {clip.foleyVolume}%
+                                  🔊 {formatVolumeDb(clip.foleyVolume)}
                                 </span>
                               ) : null}
                               <span className="px-0.5 py-0.5 rounded bg-black/75 text-[8px] font-mono text-slate-200 leading-none truncate max-w-full">
@@ -22775,7 +23058,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                                   handleUpdateClipsAudio({ audioMuted: nextMuted }, false, [clip.id]);
                                   setStatusMessage(
                                     nextMuted
-                                      ? `🔇 Clip ${String(clip.clipNumber).padStart(2, '0')} silenciado (0%) para reproducción y exportación.`
+                                      ? `🔇 Clip ${String(clip.clipNumber).padStart(2, '0')} silenciado para reproducción y exportación.`
                                       : `🔊 Audio restaurado en Clip ${String(clip.clipNumber).padStart(2, '0')}.`
                                   );
                                 }}
@@ -22789,9 +23072,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                                 }`}
                               >
                                 {clip.audioMuted || (clip.foleyVolume ?? 20) <= 0
-                                  ? '🔇 Silenciado (0%)'
+                                  ? '🔇 Silenciado'
                                   : clip.foleyOnlyIsolated
-                                  ? `🌿 Solo Foley • ${clip.foleyVolume}%`
+                                  ? `🌿 Solo Foley • ${formatVolumeDb(getClipShownFoleyPct(clip))}`
                                   : clip.vocalsSeparated && clip.musicSeparated
                                   ? '🔇 Voz y Música Extraídas'
                                   : clip.vocalsSeparated
@@ -22799,8 +23082,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                                   : clip.musicSeparated
                                   ? '🔇 Música Extraída'
                                   : clip.clipNumber === 0 || clip.clipNumber === 999
-                                  ? `Audio Fade In/Out • ${clip.foleyVolume}%`
-                                  : `🔊 ${clip.foleyVolume}%`}
+                                  ? `Audio Fade In/Out • ${formatVolumeDb(getClipShownFoleyPct(clip))}`
+                                  : `🔊 ${formatVolumeDb(getClipShownFoleyPct(clip))}`}
                                 {(clip.audioFadeInSec || clip.audioFadeOutSec)
                                   ? ` • 📈${clip.audioFadeInSec || 0}s 📉${clip.audioFadeOutSec || 0}s`
                                   : ''}
@@ -22871,7 +23154,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                       voiceStartOffsetSec +
                         Math.max(effectiveVoiceDurationSec, totalDurationSec - voiceStartOffsetSec)
                     )}{' '}
-                    • Vol: {voiceVolume}% / {voiceGainDb >= 0 ? `+${voiceGainDb}` : voiceGainDb}dB)
+                    • Vol: {formatGainDb(voiceLevelDb)})
                   </span>
                   <div className="flex items-center gap-1 shrink-0">
                     {effectiveVoiceoverUrl && (
@@ -23010,7 +23293,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                                     mt.start
                                   )} - ${formatTimeMMSS(
                                     mt.start + mt.duration
-                                  )}) • Vol: ${songVol}% • Fade-In: ${songFadeIn}s • Fade-Out: ${songFadeOut}s`
+                                  )}) • Vol: ${formatVolumeDb(songVol)} • Fade-In: ${songFadeIn}s • Fade-Out: ${songFadeOut}s`
                                 : `⚠️ Pista ${mt.trackNumber} sin archivo local en 02_Audio/ (${mt.title}). Generar en flowmusic.app o suno.com con el prompt de Etapa 8. El reproductor extenderá la Pista 5 automáticamente.`
                             }
                           >
@@ -23043,7 +23326,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                                 </span>
                               )}{' '}
                               ({formatTimeMMSS(mt.start)} -{' '}
-                              {formatTimeMMSS(mt.start + mt.duration)}) • 🔊 {songVol}% • 🎚️ In{' '}
+                              {formatTimeMMSS(mt.start + mt.duration)}) • 🔊 {formatVolumeDb(songVol)} • 🎚️ In{' '}
                               {songFadeIn}s / Out {songFadeOut}s
                               {mt.isLast90Sec ? ' • Cierre 1:30' : ''}
                             </span>
