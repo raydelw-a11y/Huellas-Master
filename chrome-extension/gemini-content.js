@@ -908,9 +908,12 @@
     enableArgonLow,
     enableCreateImage = false,
     aspectRatio = '',
-    enableQuickAnswers = false
+    enableQuickAnswers = false,
+    targetModelName = ''
   ) {
     const wantQuickAnswers = Boolean(enableQuickAnswers);
+    // Only the Stage 3 buttons ask for a model by name ('NEON'); every other order runs on Auto
+    const wantNeonModel = !wantQuickAnswers && String(targetModelName || '').toUpperCase() === 'NEON';
     const wantHigh = !wantQuickAnswers && Boolean(enableHighModel) && !Boolean(enableArgonLow);
     const targetLevel = wantQuickAnswers ? 'QUICK_ANSWERS' : wantHigh ? 'HIGH' : 'LOW';
 
@@ -1390,7 +1393,7 @@
       try {
         hwConfig = await chrome.runtime.sendMessage({
           type: 'GEMINI_HARDWARE_CONFIGURE_MODEL_AND_TOOLS',
-          targetModel: wantQuickAnswers ? 'QUICK_ANSWERS' : wantHigh ? 'CARBON_HIGH' : 'CARBON_LOW',
+          targetModel: wantNeonModel ? 'NEON' : wantQuickAnswers ? 'QUICK_ANSWERS' : wantHigh ? 'CARBON_HIGH' : 'CARBON_LOW',
           enableQuickAnswers: wantQuickAnswers,
           enableHighModel: wantHigh,
           enableDeepResearch: Boolean(enableDeepResearch),
@@ -1423,7 +1426,12 @@
               (el) => el.offsetParent !== null && /mode picker|selector de modo|currently |actualmente /i.test(el.getAttribute('aria-label') || '')
             );
             const lbl = b ? `${b.getAttribute('aria-label') || ''} ${b.innerText || ''}` : '';
-            return { btn: b, ok: /\bauto(?:m[aá]tico)?\b/i.test(lbl) && !/\b(carbon|neon|hydrogen|argon)\b/i.test(lbl) };
+            return {
+              btn: b,
+              ok: wantNeonModel
+                ? /\bneon\b/i.test(lbl) && !/\b(carbon|hydrogen|argon)\b/i.test(lbl)
+                : /\bauto(?:m[aá]tico)?\b/i.test(lbl) && !/\b(carbon|neon|hydrogen|argon)\b/i.test(lbl),
+            };
           };
           let st = isAutoLabel();
           for (let attempt = 0; attempt < 2 && !st.ok && st.btn; attempt++) {
@@ -1435,7 +1443,9 @@
             ).find(
               (el) =>
                 el.offsetParent !== null &&
-                /^(?:[✓✔]\s*)?auto(?:m[aá]tico)?\b/i.test((el.innerText || '').replace(/\s+/g, ' ').trim())
+                (wantNeonModel ? /\bneon\b/i : /^(?:[✓✔]\s*)?auto(?:m[aá]tico)?\b/i).test(
+                  (el.innerText || '').replace(/\s+/g, ' ').trim()
+                )
             );
             if (row && row.getAttribute('aria-checked') !== 'true') row.click();
             await sleep(450);
@@ -1445,8 +1455,8 @@
           if (st.ok) {
             result.thinkingOk = true;
             result.thinkingVerified = true;
-            result.verifiedModel = 'Auto';
-            result.diag.push('Modelo Auto: aplicado desde la página');
+            result.verifiedModel = wantNeonModel ? 'Neon' : 'Auto';
+            result.diag.push(`Modelo ${wantNeonModel ? 'Neon' : 'Auto'}: aplicado desde la página`);
           }
         } catch {}
       }
@@ -4418,6 +4428,12 @@
         // Thinking level High is not used anywhere (user decision 2026-11-24): an order that still asks for it
         // (a page that was not reloaded) runs on Low.
         const wantHighThinking = false;
+        // The Stage 3 buttons (3 on-screen text options = 101, triggers + thumbnail prompt = 5) run on Neon
+        const wantNeonModel =
+          String(payload.preferredModel || '').toUpperCase() === 'NEON' &&
+          !payload.enableDeepResearch &&
+          !wantCreateImage;
+        const orderModelName = wantNeonModel ? 'Neon' : 'Auto';
         const desiredModeKey = payload.enableDeepResearch
           ? wantHighThinking
             ? 'CARBON4_HIGH_DEEP_RESEARCH'
@@ -4432,7 +4448,7 @@
         if (!payload.skipModelSwitch) {
           reportStatus(
             'WORKING',
-            `⚡ Configurando Gemini Web en el modelo Auto${
+            `⚡ Configurando Gemini Web en el modelo ${orderModelName}${
               payload.enableDeepResearch
                 ? ' + Deep Research activo'
                 : wantCreateImage
@@ -4446,7 +4462,9 @@
             Boolean(payload.enableDeepResearch),
             !wantHighThinking,
             wantCreateImage,
-            String(payload.aspectRatio || '')
+            String(payload.aspectRatio || ''),
+            false,
+            wantNeonModel ? 'NEON' : ''
           );
           lastConfiguredModelMode = desiredModeKey;
 
@@ -4495,7 +4513,7 @@
           if (cfgResult) {
             reportStatus(
               'WORKING',
-              `✅ Gemini configurado: modelo Auto${
+              `✅ Gemini configurado: modelo ${orderModelName}${
                 cfgResult.thinkingOk ? ' ✓' : ' (sin confirmar: se envía con el modelo que estaba puesto)'
               }${payload.enableDeepResearch ? ` · Deep research ${cfgResult.deepResearchOk ? '✓' : '✗'}` : ''}${
                 wantCreateImage ? ` · Create image ${cfgResult.createImageOk ? '✓' : '✗'}` : ''

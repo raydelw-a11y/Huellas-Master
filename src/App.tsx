@@ -223,7 +223,7 @@ import { stampBrandMarksOnThumbnail, HD_BADGE_EMPTY_CORNER_CLAUSE, LOGO_EMPTY_CO
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '12:14 PM - 11/25/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '01:07 PM - 11/25/2026';
 
 // PRODUCTION LOCK: while promptConfig.PRODUCTION_LOCKED === 'YES' these fields never change (the server
 // enforces the same list in protectLockedDocs). Metadata, thumbnails, review marks and reframes stay editable.
@@ -14926,6 +14926,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
   ) => {
     const baseDoc = activeDocRef.current || activeDoc;
     if (!baseDoc) return;
+    // "Generar Prompt con Gemini" (5) and "3 Opciones de Texto en Pantalla" (101) run on Gemini's Neon model
+    const isNeonModelStage = stageNum === 5 || stageNum === 101;
+    const geminiModelName = isNeonModelStage ? 'Neon' : 'Auto';
     const currentDoc = options?.overridePromptConfig
       ? {
           ...baseDoc,
@@ -15172,7 +15175,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           enableHighModel: false,
           enableArgonLow: true,
           enableCarbonLow: true,
-          preferredModel: 'CARBON_4_LOW',
+          // The Stage 3 buttons (triggers + thumbnail prompt = 5, 3 on-screen text options = 101) run on Gemini's
+          // Neon model (user decision 2026-11-25); everything else runs on Auto
+          preferredModel: isNeonModelStage ? 'NEON' : 'CARBON_4_LOW',
           thinkingLevel: 'LOW' as 'HIGH' | 'LOW',
           enableDeepResearch: remoteDeep,
           videoName: currentDoc.title || '',
@@ -15229,11 +15234,11 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                 : isDeepResearchRemote
                 ? '⏳ Orden enviada a tu Mac. Gemini Deep Research en curso; el resultado se sincronizará automáticamente en esta caja.'
                 : stageNum === 5
-                ? '⏳ Tu Mac está redactando los 3 disparadores y el prompt en Gemini Web (modelo Auto). Se actualizará aquí automáticamente...'
+                ? `⏳ Tu Mac está redactando los 3 disparadores y el prompt en Gemini Web (modelo ${geminiModelName}). Se actualizará aquí automáticamente...`
                 : stageNum === 6
                 ? '⏳ Tu Mac está redactando los prompts de @Referencias (@Personas y @Lugares — 6 Views) en Gemini Web (modelo Auto). Aparecerán en esta caja automáticamente...'
                 : stageNum === 101
-                ? '⏳ Tu Mac está generando las 3 opciones de texto en pantalla en Gemini Web (modelo Auto)...'
+                ? `⏳ Tu Mac está generando las 3 opciones de texto en pantalla en Gemini Web (modelo ${geminiModelName})...`
                 : '⏳ Orden enviada a tu Mac. Ejecutando en Gemini Web y sincronizando resultado automáticamente...'
             );
             if (!isDeepResearchRemote) {
@@ -15361,7 +15366,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         ? `🔬 Etapa 1 (Parte 2): Enviando a Gemini Web en modelo Auto + Deep Research activo (con Auto-Iniciar Plan)...`
         : stageNum === 8 && stage8ExpectedClipCount > 0
         ? `⚡ Enviando Etapa 6 (${stage8ExpectedClipCount} clips posibles) a Gemini Web en modelo Auto (ventana extendida hasta 20 min con auto-continuación sin reinicios)...`
-        : `⚡ Enviando prompt a Gemini Web en el modelo Auto...`
+        : `⚡ Enviando prompt a Gemini Web en el modelo ${geminiModelName}...`
     );
     const targetVideoBaseName = String(currentCanonicalVideoName || currentDoc.title || '')
       .replace(/_\s*Deep\s*Research$/i, '')
@@ -15383,7 +15388,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       enableHighModel: useHighModel,
       enableArgonLow: useArgonLow,
       enableCarbonLow: true,
-      preferredModel: 'CARBON_4_LOW',
+      preferredModel: isNeonModelStage ? 'NEON' : 'CARBON_4_LOW',
       thinkingLevel: 'LOW',
       enableDeepResearch: useDeepResearch,
       skipModelSwitch: Boolean(options?.skipModelSwitch),

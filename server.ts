@@ -26564,7 +26564,12 @@ function enqueueRemoteGeminiStageFromDoc(doc: any): boolean {
             enableHighModel: false,
             enableArgonLow: true,
             enableCarbonLow: true,
-            preferredModel: 'CARBON_4_LOW',
+            // The Stage 3 buttons (5 and 101) ask for Gemini's Neon model; everything else runs on Auto
+            preferredModel:
+              (resolvedStageNum === 5 || resolvedStageNum === 101) &&
+              String(cmd.preferredModel || '').toUpperCase() === 'NEON'
+                ? 'NEON'
+                : 'CARBON_4_LOW',
             thinkingLevel: 'LOW',
           }),
       enableDeepResearch: Boolean(cmd.enableDeepResearch),
