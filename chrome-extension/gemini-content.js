@@ -1467,6 +1467,13 @@
     const isDeepResearch = Boolean(meta && meta.enableDeepResearch);
     const isImageOrder = Boolean(meta && (meta.enableCreateImage || meta.mediaType === 'THUMBNAILS'));
     const stageNumInit = Number(meta && meta.stageNumber) || 0;
+    // While Gemini is still thinking, the reply holds only the title of its current thought followed by the
+    // "Gemini said" label, with no answer under it. That is never a result: with Thinking High it can last
+    // several minutes (Etapa 1 · Paso 1 was once saved as "Optimizando la extensión… / Gemini said").
+    const isThinkingOnlyText = (t) => {
+      const text = String(t || '').trim();
+      return text.length < 400 && /(?:^|\n)\s*(?:gemini said|gemini dijo|dijo gemini)[.…:]*\s*$/i.test(text);
+    };
     const isLongProductionStage =
       stageNumInit === 4 ||
       stageNumInit === 6 ||
@@ -1478,7 +1485,8 @@
     const initialUserQueries = Number(meta && meta.initialUserQueries) || 0;
     const initialLastImageUrl = String((meta && meta.initialLastImageUrl) || '').trim();
     const promptFingerprint = String((meta && meta.promptFingerprint) || '').trim();
-    // Stage 8 (140+ Image & Clip prompts) gets 25 min; Deep Research gets 20 min; other long stages get 10 min
+    // Stage 8 (140+ Image & Clip prompts) gets 25 min; Deep Research gets 20 min; other long stages get 10 min;
+    // Etapa 1 · Paso 1 (stage 10, Thinking High over several video analyses) gets 15 min
     // Video analyses (975, Thinking High, Gemini watches the video and searches the web) get 20 min
     const maxTimeoutMs =
       stageNumInit === 8
@@ -1489,6 +1497,8 @@
         ? 1200000
         : isLongProductionStage
         ? 600000
+        : stageNumInit === 10
+        ? 900000
         : 180000;
 
     reportStatus(
@@ -1725,6 +1735,9 @@
           /analy[sz]ing (the )?video|analizando (el )?(contenido del )?v[ií]deo|buscando en la web|searching the web|^\s*(gemini said|gemini dijo|pensando|thinking)[.…]*\s*$/im.test(latest.text) &&
           elapsedMs < 15 * 60 * 1000
         ) {
+          stableTicks = 0;
+        }
+        if (isThinkingOnlyText(latest.text) && elapsedMs < 40 * 60 * 1000) {
           stableTicks = 0;
         }
 
@@ -2069,7 +2082,10 @@
       // Never cut off a response that is STILL actively streaming fresh characters (up to 40 min absolute safety ceiling)
       if (
         elapsedMs >= maxTimeoutMs &&
-        !(stillStreaming && elapsedMs - lastTextGrowthAtMs < 45000 && elapsedMs < 2400000)
+        !(stillStreaming && elapsedMs - lastTextGrowthAtMs < 45000 && elapsedMs < 2400000) &&
+        // Still thinking (no answer text yet): the thought titles get shorter and longer, so "no growth" says
+        // nothing. Keep waiting up to the 40 min ceiling.
+        !(stillStreaming && isThinkingOnlyText(latest.text) && elapsedMs < 2400000)
       ) {
         clearInterval(activeWatchTimer);
         activeWatchTimer = null;
@@ -2118,6 +2134,19 @@
           reportStatus(
             'ERROR',
             '⚠️ Tiempo de espera agotado esperando la miniatura en Gemini Web.',
+            meta
+          );
+          processNextQueuedPrompt();
+          return;
+        }
+        if (!isImageOrder && isThinkingOnlyText(finalLatest.text)) {
+          // Time ran out with nothing but Gemini's thinking label: report it instead of saving that as the result
+          try {
+            chrome.runtime.sendMessage({ type: 'HUELLAS_DEBUG_LOG', event: 'gemini:timeout-thinking-only', data: { stage: meta && meta.stageNumber, text: String(finalLatest.text).slice(0, 120) } }).catch(() => {});
+          } catch {}
+          reportStatus(
+            'ERROR',
+            '⚠️ Gemini seguía pensando y no llegó a escribir la respuesta a tiempo. Vuelve a enviar la orden.',
             meta
           );
           processNextQueuedPrompt();
