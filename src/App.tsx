@@ -140,6 +140,24 @@ import {
   extractOverlayFromStage5PromptText,
 } from './utils/smartParsers';
 import {
+  STAGE1_PROPOSALS_KEY,
+  STAGE1_PROPOSAL_SELECTED_KEY,
+  STAGE1_SUBJECT_BASE_KEY,
+  STAGE1_TOPIC_IDEAS_KEY,
+  STAGE1_TOPIC_IDEAS_PICKED_KEY,
+  parseStage1Proposals,
+  parseStage1TopicIdeas,
+  readPickedStage1TopicIdeas,
+  readStoredStage1Proposals,
+  readStoredStage1TopicIdeas,
+  resolveStage1Paso1Mode,
+  sameStage1ProposalSet,
+  sameStage1TopicIdeas,
+  stage1ProposalFields,
+  type Stage1Proposal,
+} from './utils/stage1Proposals';
+import Stage1ProposalsPanel from './components/Stage1ProposalsPanel';
+import {
   checkUrlHashSetup,
   getBrowserGeminiKey,
   getBrowserGitHubToken,
@@ -205,7 +223,7 @@ import { stampBrandMarksOnThumbnail, HD_BADGE_EMPTY_CORNER_CLAUSE, LOGO_EMPTY_CO
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '09:13 PM - 11/24/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '10:06 PM - 11/24/2026';
 
 // PRODUCTION LOCK: while promptConfig.PRODUCTION_LOCKED === 'YES' these fields never change (the server
 // enforces the same list in protectLockedDocs). Metadata, thumbnails, review marks and reframes stay editable.
@@ -3417,6 +3435,131 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     }
   };
 
+  // Paso 1 answers made of COMPLETE PROPOSALS (or of the list of 10 topics to develop). Returns null for the
+  // older answers made of six separate parts, which keep their own reader below.
+  const buildStage1ProposalsAnswerPatch = (
+    docToInspect: DocumentaryProject,
+    answerText: string,
+    selectedVideoObj: ReturnType<typeof resolveSelectedLibraryVideoForDoc>
+  ): Partial<DocumentaryProject> | null => {
+    const cfg = docToInspect.promptConfig || {};
+    const parsedSet = parseStage1Proposals(answerText);
+    const parsedIdeas = parsedSet.proposals.length > 0 ? null : parseStage1TopicIdeas(answerText);
+    // The six lists of an earlier answer are emptied so they never show up again next to the proposals
+    const legacyCleared: Record<string, string> = {};
+    for (const k of Object.keys(cfg)) {
+      if (/^PROP_P\d+_(?:OPTIONS_JSON|OPT\d+|RECOMMENDED|RECOMMENDED_REASON)$/.test(k) && cfg[k]) legacyCleared[k] = '';
+    }
+    const storedSet = readStoredStage1Proposals(cfg);
+    const topicCameFromProposal =
+      Boolean(String(docToInspect.topic || '').trim()) &&
+      storedSet.proposals.some((p) => p.topic === String(docToInspect.topic || '').trim());
+
+    if (parsedIdeas && parsedIdeas.ideas.length >= 3) {
+      const isNewList = !sameStage1TopicIdeas(parsedIdeas, readStoredStage1TopicIdeas(cfg));
+      // A new list of topics starts over: the proposals of an earlier round and what was taken from them go
+      const dropEarlierChoice = isNewList && topicCameFromProposal;
+      return {
+        deepResearchPrompt: answerText,
+        ...(dropEarlierChoice ? { topic: '', typology: '', historicalTime: '', historicalLocation: '' } : {}),
+        promptConfig: {
+          ...cfg,
+          ...legacyCleared,
+          STAGE1_PART1_COMPLETED: 'SI',
+          [STAGE1_TOPIC_IDEAS_KEY]: JSON.stringify(parsedIdeas),
+          ...(isNewList
+            ? {
+                [STAGE1_TOPIC_IDEAS_PICKED_KEY]: '',
+                [STAGE1_PROPOSALS_KEY]: '',
+                [STAGE1_PROPOSAL_SELECTED_KEY]: '',
+                [STAGE1_SUBJECT_BASE_KEY]: '',
+              }
+            : {}),
+          ...(dropEarlierChoice
+            ? {
+                TEMA_VIDEO: '',
+                TIPOLOGIA_VIDEO: '',
+                TIEMPO_EPOCA: '',
+                LUGAR_HISTORICO: '',
+                PROPOSICION_GANCHO: '',
+                ANGULO_CENTRAL: '',
+                PROPOSICION_ESCALETA: '',
+                PROPOSICION_CLIMAX: '',
+              }
+            : {}),
+        },
+      };
+    }
+    if (parsedSet.proposals.length === 0) return null;
+
+    const prevSelected = Number(cfg[STAGE1_PROPOSAL_SELECTED_KEY]) || 0;
+    const prevProposal = storedSet.proposals.find((p) => p.number === prevSelected);
+    const sameAnswer = sameStage1ProposalSet(parsedSet, storedSet);
+    // What the producer chose stays while its proposal is still there (the same answer read again, or an
+    // answer edited by hand). A new answer starts with the proposal Gemini recommends, complete.
+    const keepChoice =
+      Boolean(prevProposal) &&
+      (sameAnswer || parsedSet.proposals.some((p) => p.number === prevSelected && p.topic === prevProposal!.topic));
+    const chosen = keepChoice
+      ? null
+      : parsedSet.proposals.find((p) => p.number === parsedSet.recommendedNumber) || parsedSet.proposals[0];
+    const f = chosen ? stage1ProposalFields(chosen) : null;
+    const nextTypology = f ? f.typology || String(docToInspect.typology || '') : String(docToInspect.typology || '');
+    const nextTopic = f ? f.topic : String(docToInspect.topic || '');
+    const nextTime = f ? f.time || String(docToInspect.historicalTime || '') : String(docToInspect.historicalTime || '');
+    const nextPlace = f
+      ? f.place || String(docToInspect.historicalLocation || '')
+      : String(docToInspect.historicalLocation || '');
+    const choiceCfg: Record<string, string> = f
+      ? {
+          TIPOLOGIA_VIDEO: nextTypology,
+          TEMA_VIDEO: nextTopic,
+          TIEMPO_EPOCA: nextTime,
+          LUGAR_HISTORICO: nextPlace,
+          PROPOSICION_GANCHO: f.hook,
+          ANGULO_CENTRAL: f.hook,
+          PROPOSICION_ESCALETA: f.escaleta,
+          PROPOSICION_CLIMAX: f.climax,
+          [STAGE1_PROPOSAL_SELECTED_KEY]: String(chosen!.number),
+          // The subject the producer typed is remembered, so asking again gives new angles of that subject
+          // and not angles of the angle that was picked
+          [STAGE1_SUBJECT_BASE_KEY]: resolveStage1Paso1Mode(docToInspect, false).subject,
+        }
+      : {};
+    const docPreview: DocumentaryProject = {
+      ...docToInspect,
+      deepResearchPrompt: answerText,
+      typology: nextTypology,
+      topic: nextTopic,
+      historicalTime: nextTime,
+      historicalLocation: nextPlace,
+      promptConfig: { ...cfg, ...choiceCfg },
+    };
+    const durationSuggestion = computeStage1RecommendedDuration(docPreview, selectedVideoObj);
+    const nextTargetDurationSeconds =
+      cfg.DURACION_MANUAL_CONFIRMADA !== 'SI'
+        ? durationSuggestion.recommendedSeconds
+        : docToInspect.targetDurationSeconds || durationSuggestion.recommendedSeconds;
+    return {
+      typology: nextTypology,
+      topic: nextTopic,
+      historicalTime: nextTime,
+      historicalLocation: nextPlace,
+      targetDurationSeconds: nextTargetDurationSeconds,
+      deepResearchPrompt: answerText,
+      promptConfig: {
+        ...cfg,
+        ...legacyCleared,
+        ...choiceCfg,
+        STAGE1_PART1_COMPLETED: 'SI',
+        DURACION_TOTAL_SEGUNDOS: String(nextTargetDurationSeconds),
+        SUGGESTED_DURATION_SECONDS: String(durationSuggestion.recommendedSeconds),
+        SUGGESTED_DURATION_REASON: durationSuggestion.summaryJustification,
+        [STAGE1_PROPOSALS_KEY]: JSON.stringify(parsedSet),
+      },
+    };
+  };
+
   const buildAndApplyStage1PropositionPatch = (
     docToInspect: DocumentaryProject,
     rawResearchText?: string,
@@ -3440,6 +3583,10 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       deepResearchPrompt: phase === 'PART1' ? effectiveResearch : docToInspect.deepResearchPrompt,
       deepResearchResult: phase === 'PART2' ? effectiveResearch : docToInspect.deepResearchResult,
     };
+    if (phase === 'PART1') {
+      const proposalsPatch = buildStage1ProposalsAnswerPatch(docToInspect, effectiveResearch, selectedVideoObj);
+      if (proposalsPatch) return proposalsPatch;
+    }
     const parts = buildStage1PropositionParts(tempDoc, selectedVideoObj, selectedComments);
 
     const p1 = parts[0];
@@ -5374,10 +5521,24 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
   useEffect(() => {
     if (!activeDoc) return;
     const cfg = activeDoc.promptConfig || {};
-    if (cfg.STAGE1_PART1_COMPLETED === 'SI') return;
     if (isDocProductionLocked(activeDoc)) return;
     const phase1Text = String(activeDoc.deepResearchPrompt || '').trim();
-    if (phase1Text.length < 500 || !/(?:PARTE|PART)\s*2\s*[—:\-–]/i.test(phase1Text)) return;
+    if (phase1Text.length < 500) return;
+    // Answers made of complete proposals (or of the list of 10 topics) are applied whenever what is saved
+    // differs from what the answer says, also after an earlier Paso 1: the second request of the two-step
+    // flow (topics, then proposals) often arrives with the page closed.
+    const answerSet = parseStage1Proposals(phase1Text);
+    if (answerSet.proposals.length > 0) {
+      if (sameStage1ProposalSet(answerSet, readStoredStage1Proposals(cfg))) return;
+    } else {
+      const answerIdeas = parseStage1TopicIdeas(phase1Text);
+      if (answerIdeas.ideas.length >= 3) {
+        if (sameStage1TopicIdeas(answerIdeas, readStoredStage1TopicIdeas(cfg))) return;
+      } else {
+        if (cfg.STAGE1_PART1_COMPLETED === 'SI') return;
+        if (!/(?:PARTE|PART)\s*2\s*[—:\-–]/i.test(phase1Text)) return;
+      }
+    }
     const patch = buildAndApplyStage1PropositionPatch(activeDoc, phase1Text, false, 'PART1');
     updateActiveDoc(patch, { docId: activeDoc.id, source: 'stage1-unapplied-part1' });
   }, [activeDoc?.id, activeDoc?.deepResearchPrompt, activeDoc?.promptConfig?.STAGE1_PART1_COMPLETED]);
@@ -15456,7 +15617,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     );
   };
 
-  const handleGenerateWithGemini = async (stageNum: number) => {
+  const handleGenerateWithGemini = async (stageNum: number, extraPromptConfig?: Record<string, string>) => {
     if (!activeDoc) return;
     if ((stageNum === 10 || stageNum === 1 || stageNum === 2 || stageNum === 3) && !confirmResearchAnalysesReady()) {
       return;
@@ -15485,10 +15646,14 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         }
       }
     }
+    const mergedOverride =
+      overridePromptConfig || extraPromptConfig
+        ? { ...(overridePromptConfig || {}), ...(extraPromptConfig || {}) }
+        : undefined;
     handleSendStageToGeminiWeb(
       stageNum,
       undefined,
-      overridePromptConfig ? { overridePromptConfig } : undefined
+      mergedOverride ? { overridePromptConfig: mergedOverride } : undefined
     );
   };
 
@@ -19014,6 +19179,11 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             'SUGGESTED_DURATION_SECONDS',
                             'SUGGESTED_DURATION_REASON',
                             'STAGE1_PART1_APPLIED_FOR_CMD',
+                            STAGE1_PROPOSALS_KEY,
+                            STAGE1_PROPOSAL_SELECTED_KEY,
+                            STAGE1_SUBJECT_BASE_KEY,
+                            STAGE1_TOPIC_IDEAS_KEY,
+                            STAGE1_TOPIC_IDEAS_PICKED_KEY,
                           ]) {
                             clearedStage1Keys[k] = '';
                           }
@@ -20072,7 +20242,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                           1º Investigación del Otro Video + Determinación de 🏛️ Definición Histórica y Continuidad y ⏱️ Calibración Matemática
                         </h4>
                         <p className="text-xs text-slate-300 leading-relaxed break-words">
-                          Usa los videos marcados (Videos Analizados) y los comentarios <code className="text-amber-300">×N</code> seleccionados en <strong>4 Carbon con Thinking level en High (sin activar Deep Research)</strong>, llena automáticamente la <strong>Tipología</strong>, el <strong>Tema Central</strong>, el <strong>Tiempo / Época</strong> y el <strong>Lugar Histórico</strong>, y te entrega <strong>3 opciones seleccionables para cada parte</strong>.
+                          Usa los videos marcados (Videos Analizados) y los comentarios <code className="text-amber-300">×N</code> seleccionados en <strong>4 Carbon con Thinking level en High (sin activar Deep Research)</strong>, te entrega <strong>4 propuestas completas</strong> (cada una con su tema, tiempo y lugar, tipología, clímax, 3 ganchos y 2 escaletas) y llena la <strong>Tipología</strong>, el <strong>Tema Central</strong>, el <strong>Tiempo / Época</strong> y el <strong>Lugar Histórico</strong> con la propuesta que elijas.
                         </p>
                       </div>
 
@@ -20229,48 +20399,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                         }
                       };
 
-                      if (!isPart1OrPart2Done) {
-                        return (
-                          <div className="bg-slate-900/70 border border-slate-800 rounded-xl p-3.5 text-xs text-slate-400">
-                            💡 Al pulsar <strong>&quot;⚡ Paso 1: Determinar Definición + Calibración (High)&quot;</strong>, Gemini (sin Deep Research, con <strong>4 Carbon · Thinking level: High</strong>) usará los videos marcados y llenará <strong>🏛️ Definición Histórica y Continuidad</strong>. Si no escribiste el Tema, propondrá uno por cada video marcado; aquí verás las opciones de cada parte antes de pasar al Paso 2.
-                          </div>
-                        );
-                      }
-
-                      return (
-                        <div className="bg-gradient-to-b from-emerald-950/25 via-slate-950/95 to-slate-950/95 border-2 border-emerald-500/40 rounded-2xl p-3 sm:p-5 space-y-4 shadow-xl w-full max-w-full min-w-0 overflow-hidden">
-                          <div className="flex items-start justify-between flex-wrap gap-3 border-b border-slate-800/90 pb-3 min-w-0">
-                            <div className="space-y-1 min-w-0">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-[11px] font-black">
-                                  ✓ Paso 1 Determinado · Campos Auto-Llenados
-                                </span>
-                                <h4 className="text-sm sm:text-base font-black text-amber-300 break-words">
-                                  📋 Resumen por Partes de la Proposición para Nuestro Documental (Partes 1–6)
-                                </h4>
-                              </div>
-                              <p className="text-xs text-slate-300 break-words">
-                                Gemini deja marcada con ⭐ su opción recomendada en cada parte; revisa sobre todo la <strong>Parte 2 (Tema)</strong> y la <strong>Parte 4 (Gancho)</strong>. En la <strong>Parte 1 (Tipología del Video)</strong> puedes <strong>seleccionar varias opciones a la vez</strong>. La <strong>Parte 3 (Tiempo y Lugar)</strong> muestra primero la época y el lugar del tema elegido en la Parte 2; las Partes 4–6 son la apertura, la escaleta y el clímax:
-                              </p>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const patch = buildAndApplyStage1PropositionPatch(
-                                  activeDoc,
-                                  activeDoc.deepResearchPrompt || activeDoc.deepResearchResult,
-                                  false,
-                                  'PART1'
-                                );
-                                updateActiveDoc(patch);
-                              }}
-                              className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-emerald-500/40 text-emerald-300 text-xs font-bold cursor-pointer shrink-0"
-                            >
-                              🔄 Re-Extraer Opciones del Paso 1
-                            </button>
-                          </div>
-
-                          {/* BANNER DE DURACIÓN TOTAL SUGERIDA TRAS EL PASO 1 + VIDEO DE BIBLIOTECA VINCULADO */}
+                      // Duration suggested after Paso 1 (shown with the proposals and with the older six parts)
+                      const durationBanner = (
                           <div className="bg-slate-900/90 border border-amber-500/40 rounded-xl p-3 sm:p-3.5 flex items-center justify-between flex-wrap gap-3 min-w-0 max-w-full">
                             <div className="space-y-1 max-w-3xl min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
@@ -20316,6 +20446,174 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                 : `⚡ Aplicar ${step1DurationRec.recommendedLabel}`}
                             </button>
                           </div>
+                      );
+
+                      // Answers made of complete proposals (or of the 10 topics to develop) have their own panel;
+                      // documentaries with an older six-part answer keep the lists below.
+                      const stage1Cfg = activeDoc.promptConfig || {};
+                      const storedProposalSet = readStoredStage1Proposals(stage1Cfg);
+                      const proposalSet =
+                        storedProposalSet.proposals.length > 0
+                          ? storedProposalSet
+                          : parseStage1Proposals(String(activeDoc.deepResearchPrompt || ''));
+                      const storedTopicIdeas = readStoredStage1TopicIdeas(stage1Cfg);
+                      const topicIdeas =
+                        storedTopicIdeas.ideas.length > 0 || proposalSet.proposals.length > 0
+                          ? storedTopicIdeas
+                          : parseStage1TopicIdeas(String(activeDoc.deepResearchPrompt || ''));
+                      if (proposalSet.proposals.length > 0 || topicIdeas.ideas.length > 0) {
+                        const hasMarkedVideosNow = Boolean(
+                          String(stage1Cfg.SELECTED_VIDEO_ANALYSES_BLOCK || '').trim()
+                        );
+                        const applyProposal = (p: Stage1Proposal) => {
+                          const f = stage1ProposalFields(p);
+                          const nextTypology = f.typology || activeDoc.typology || '';
+                          const nextTime = f.time || activeDoc.historicalTime || '';
+                          const nextPlace = f.place || activeDoc.historicalLocation || '';
+                          updateActiveDoc({
+                            typology: nextTypology,
+                            topic: f.topic,
+                            historicalTime: nextTime,
+                            historicalLocation: nextPlace,
+                            promptConfig: {
+                              ...(activeDoc.promptConfig || {}),
+                              TIPOLOGIA_VIDEO: nextTypology,
+                              TEMA_VIDEO: f.topic,
+                              TIEMPO_EPOCA: nextTime,
+                              LUGAR_HISTORICO: nextPlace,
+                              PROPOSICION_GANCHO: f.hook,
+                              ANGULO_CENTRAL: f.hook,
+                              PROPOSICION_ESCALETA: f.escaleta,
+                              PROPOSICION_CLIMAX: f.climax,
+                              [STAGE1_PROPOSAL_SELECTED_KEY]: String(p.number),
+                              [STAGE1_SUBJECT_BASE_KEY]: resolveStage1Paso1Mode(activeDoc, false).subject,
+                              // Kept with the documentary even when it was only read from the answer's text
+                              [STAGE1_PROPOSALS_KEY]: JSON.stringify(proposalSet),
+                            },
+                          });
+                        };
+                        const setProposalText = (patch: Record<string, string>) =>
+                          updateActiveDoc({ promptConfig: { ...(activeDoc.promptConfig || {}), ...patch } });
+                        return (
+                          <Stage1ProposalsPanel
+                            proposalSet={proposalSet}
+                            selectedNumber={Number(stage1Cfg[STAGE1_PROPOSAL_SELECTED_KEY]) || 0}
+                            currentHook={String(stage1Cfg.PROPOSICION_GANCHO || '')}
+                            currentEscaleta={String(stage1Cfg.PROPOSICION_ESCALETA || '')}
+                            currentClimax={String(stage1Cfg.PROPOSICION_CLIMAX || '')}
+                            currentTopic={String(activeDoc.topic || '')}
+                            topicIdeas={topicIdeas}
+                            pickedIdeas={readPickedStage1TopicIdeas(stage1Cfg)}
+                            busy={aiGenerating}
+                            durationBanner={durationBanner}
+                            onSelectProposal={applyProposal}
+                            onSelectHook={(text) => setProposalText({ PROPOSICION_GANCHO: text, ANGULO_CENTRAL: text })}
+                            onSelectEscaleta={(text) => setProposalText({ PROPOSICION_ESCALETA: text })}
+                            onEditText={(field, text) =>
+                              setProposalText(
+                                field === 'hook'
+                                  ? { PROPOSICION_GANCHO: text, ANGULO_CENTRAL: text }
+                                  : field === 'escaleta'
+                                  ? { PROPOSICION_ESCALETA: text }
+                                  : { PROPOSICION_CLIMAX: text }
+                              )
+                            }
+                            onDevelopIdeas={(ideas) => {
+                              const override = { [STAGE1_TOPIC_IDEAS_PICKED_KEY]: JSON.stringify(ideas) };
+                              const next = resolveStage1Paso1Mode(
+                                { ...activeDoc, promptConfig: { ...(activeDoc.promptConfig || {}), ...override } },
+                                hasMarkedVideosNow
+                              );
+                              if (next.mode !== 'DEVELOP') {
+                                alert(
+                                  'El campo Tema tiene un texto escrito a mano, y con un tema escrito Gemini propone ángulos de ese tema.\n\nPara desarrollar los temas marcados, deja en blanco el Tema (en 🏛️ Definición Histórica y Continuidad) y vuelve a pulsar este botón.'
+                                );
+                                return;
+                              }
+                              // The list of topics stays saved even when it was only read from the answer's text
+                              updateActiveDoc({
+                                promptConfig: {
+                                  ...(activeDoc.promptConfig || {}),
+                                  ...override,
+                                  [STAGE1_TOPIC_IDEAS_KEY]: JSON.stringify(topicIdeas),
+                                },
+                              });
+                              void handleGenerateWithGemini(10, override);
+                            }}
+                            onAskNewIdeas={() => {
+                              const override = { [STAGE1_TOPIC_IDEAS_PICKED_KEY]: '' };
+                              const next = resolveStage1Paso1Mode(
+                                { ...activeDoc, promptConfig: { ...(activeDoc.promptConfig || {}), ...override } },
+                                hasMarkedVideosNow
+                              );
+                              if (next.mode !== 'IDEAS') {
+                                alert(
+                                  next.mode === 'ANGLES'
+                                    ? 'El campo Tema tiene un texto escrito a mano: déjalo en blanco para que Gemini proponga otros 10 temas.'
+                                    : 'Gemini propone los 10 temas a partir de los videos marcados en Videos Analizados: marca al menos uno.'
+                                );
+                                return;
+                              }
+                              updateActiveDoc({ promptConfig: { ...(activeDoc.promptConfig || {}), ...override } });
+                              void handleGenerateWithGemini(10, override);
+                            }}
+                            onReextract={() =>
+                              updateActiveDoc(
+                                buildAndApplyStage1PropositionPatch(
+                                  activeDoc,
+                                  activeDoc.deepResearchPrompt || '',
+                                  false,
+                                  'PART1'
+                                )
+                              )
+                            }
+                          />
+                        );
+                      }
+
+                      if (!isPart1OrPart2Done) {
+                        return (
+                          <div className="bg-slate-900/70 border border-slate-800 rounded-xl p-3.5 text-xs text-slate-400">
+                            💡 Al pulsar <strong>&quot;⚡ Paso 1: Determinar Definición + Calibración (High)&quot;</strong>, Gemini (sin Deep Research, con <strong>4 Carbon · Thinking level: High</strong>) usará los videos marcados y entregará <strong>4 propuestas completas</strong> (tema, tiempo y lugar, tipología y clímax, con sus ganchos y escaletas); aquí eliges una antes de pasar al Paso 2. Si no escribiste el Tema y hay videos marcados, primero propondrá <strong>10 temas</strong> para que marques los que quieres desarrollar.
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div className="bg-gradient-to-b from-emerald-950/25 via-slate-950/95 to-slate-950/95 border-2 border-emerald-500/40 rounded-2xl p-3 sm:p-5 space-y-4 shadow-xl w-full max-w-full min-w-0 overflow-hidden">
+                          <div className="flex items-start justify-between flex-wrap gap-3 border-b border-slate-800/90 pb-3 min-w-0">
+                            <div className="space-y-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-[11px] font-black">
+                                  ✓ Paso 1 Determinado · Campos Auto-Llenados
+                                </span>
+                                <h4 className="text-sm sm:text-base font-black text-amber-300 break-words">
+                                  📋 Resumen por Partes de la Proposición para Nuestro Documental (Partes 1–6)
+                                </h4>
+                              </div>
+                              <p className="text-xs text-slate-300 break-words">
+                                Gemini deja marcada con ⭐ su opción recomendada en cada parte; revisa sobre todo la <strong>Parte 2 (Tema)</strong> y la <strong>Parte 4 (Gancho)</strong>. En la <strong>Parte 1 (Tipología del Video)</strong> puedes <strong>seleccionar varias opciones a la vez</strong>. La <strong>Parte 3 (Tiempo y Lugar)</strong> muestra primero la época y el lugar del tema elegido en la Parte 2; las Partes 4–6 son la apertura, la escaleta y el clímax:
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const patch = buildAndApplyStage1PropositionPatch(
+                                  activeDoc,
+                                  activeDoc.deepResearchPrompt || activeDoc.deepResearchResult,
+                                  false,
+                                  'PART1'
+                                );
+                                updateActiveDoc(patch);
+                              }}
+                              className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-emerald-500/40 text-emerald-300 text-xs font-bold cursor-pointer shrink-0"
+                            >
+                              🔄 Re-Extraer Opciones del Paso 1
+                            </button>
+                          </div>
+
+                          {/* BANNER DE DURACIÓN TOTAL SUGERIDA TRAS EL PASO 1 + VIDEO DE BIBLIOTECA VINCULADO */}
+                          {durationBanner}
 
                           <div className="space-y-4 min-w-0 max-w-full">
                             {propositionParts.map((part) => (
