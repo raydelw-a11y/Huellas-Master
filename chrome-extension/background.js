@@ -5402,6 +5402,30 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                   return { found: true, expanded: false, did: 'enter' };
                 }
 
+                if (op === 'DESELECT_OTHER_TOOLS_DOM') {
+                  // A tool left active in the composer by mistake ("Guided learning", "Images"…) replaces Deep
+                  // research: take every active tool other than Deep research off before choosing it.
+                  const offBtns = Array.from(document.querySelectorAll('button')).filter((b) => {
+                    const a = (b.getAttribute('aria-label') || '').trim();
+                    const r = b.getBoundingClientRect();
+                    return (
+                      r.width > 4 &&
+                      r.height > 4 &&
+                      /^(deselect|deseleccionar|quitar|desactivar)\b/i.test(a) &&
+                      !DR_RE.test(a) &&
+                      !b.closest('.cdk-overlay-container, .cdk-overlay-popover, bard-sidenav, side-navigation, model-response, user-query')
+                    );
+                  });
+                  const names = [];
+                  for (const b of offBtns) {
+                    names.push((b.getAttribute('aria-label') || '').slice(0, 40));
+                    try {
+                      b.click();
+                    } catch {}
+                  }
+                  return { count: offBtns.length, names };
+                }
+
                 if (op === 'ACTIVATE_DEEP_RESEARCH_DOM') {
                   // Last step of the route that needs no mouse coordinates: click the "Deep research" row itself
                   // (never when it is already checked: that would turn it off).
@@ -5810,6 +5834,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           let clickedOnce = false;
           for (let attempt = 1; attempt <= 3 && !deepResearchOk; attempt++) {
             await closeMenus();
+            const others = await runMainStep('DESELECT_OTHER_TOOLS_DOM');
+            if (others?.count) {
+              diag.push(`D${attempt}: se quitó ${others.names.join(', ')}`);
+              await sleep(450);
+            }
             const plusInfo = await runMainStep('FIND_AND_OPEN_PLUS_MENU');
             let deepInfo = null;
             if (!plusInfo?.found) {
@@ -5849,21 +5878,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 // A previous click may have worked but the chip wasn't detectable: avoid toggling it back off
                 diag.push(`D${attempt}: reintento tras clic previo`);
               }
-              await hardwareHoverAndClick(deepInfo.x, deepInfo.y);
-              clickedOnce = true;
-              if (await waitChipActive(10)) {
-                deepResearchOk = true;
-                break;
-              }
-              // The click by coordinates may have landed elsewhere (the menu moves while it opens): if the
-              // submenu is still open with "Deep research" unchecked, click that row itself.
+              // The row itself is clicked, never its coordinates: the submenu is still moving into place when
+              // it is measured, and a click by coordinates landed on the row below ("Guided learning").
               const domAct = await runMainStep('ACTIVATE_DEEP_RESEARCH_DOM');
+              clickedOnce = true;
               if (domAct?.found && (domAct.alreadyChecked || (await waitChipActive(10)))) {
                 deepResearchOk = true;
-                diag.push(`D${attempt}: activado pulsando la fila "Deep research" directamente`);
                 break;
               }
-              diag.push(`D${attempt}: clic en menú hecho pero Deep Research no quedó activo`);
+              diag.push(`D${attempt}: fila "Deep research" pulsada pero no quedó activo`);
               continue;
             }
 
