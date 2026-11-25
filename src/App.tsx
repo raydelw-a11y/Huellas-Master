@@ -225,7 +225,7 @@ import { stampBrandMarksOnThumbnail, HD_BADGE_EMPTY_CORNER_CLAUSE, LOGO_EMPTY_CO
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '03:06 PM - 11/25/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '03:40 PM - 11/25/2026';
 
 // PRODUCTION LOCK: while promptConfig.PRODUCTION_LOCKED === 'YES' these fields never change (the server
 // enforces the same list in protectLockedDocs). Metadata, thumbnails, review marks and reframes stay editable.
@@ -12540,10 +12540,11 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     });
 
     const exactNamesList = upgradedRefs.map((r) => r.tag).join(', ');
+    const batchAspect = isVerticalProductionDoc(doc) ? '9:16' : '16:9';
     const headerLines = [
       'Act as a historian and documentary director of photography.',
       'Use Nano Banana 2.1 to generate all of these reference model images.',
-      'Every image MUST contain all 6 views inside a single 16:9 image (6-view reference sheet in a 3x2 grid with 100% visual continuity).',
+      `Every image MUST contain all 6 views inside a single ${batchAspect} image (6-view reference sheet in a 3x2 grid with 100% visual continuity).`,
       `Mandatory: rename every generated image strictly to the exact @identifier with underscores specified in each prompt (${exactNamesList}).`,
     ].join('\n');
 
@@ -12674,11 +12675,13 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       (activeDoc.references?.length || 0) > 0 || Boolean((activeDoc.rawReferencePrompts || '').trim());
     if (!hasAnyRefs) return;
 
-    const shouldPoll =
-      activeStage === 6 || (activeDoc.references || []).some((r) => !r.isCreated || !r.imageUrl);
-    if (!shouldPoll) return;
+    // Only on Etapa 4 (internal 6): each pass reads ~/Downloads, iCloud and every recent .zip, so it
+    // must not run every 3.5 s on the other stages. Once every card has its image, one pass is enough.
+    if (activeStage !== 6) return;
 
     syncDownloadedReferenceImages();
+    const hasMissingImages = (activeDoc.references || []).some((r) => !r.isCreated || !r.imageUrl);
+    if (!hasMissingImages && (activeDoc.references?.length || 0) > 0) return;
     const timer = window.setInterval(() => {
       syncDownloadedReferenceImages();
     }, 3500);
