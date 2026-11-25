@@ -3683,6 +3683,15 @@
     let planReloads = Number(meta && meta.planReloads) || 0;
     const waitPlanSince = meta && meta.resumeWaitPlan ? Date.now() : startedAt;
     const MAX_PLAN_RELOADS = 3;
+    // Same freeze at the END: the report finishes but a background tab never repaints it, so the watcher never
+    // sees "done". If the page DOM does not change at all for 8 min while researching, reload this chat tab
+    // (the research runs on Google's side; the watcher resumes in RESEARCHING and captures the report).
+    let researchReloads = Number(meta && meta.researchReloads) || 0;
+    const MAX_RESEARCH_RELOADS = 4;
+    const RESEARCH_FROZEN_MS = 8 * 60 * 1000;
+    let domSig = -1;
+    let domSigChangedAt = Date.now();
+    let domSigCheckedAt = 0;
 
     const finish = (ok, text, images, message) => {
       clearInterval(activeWatchTimer);
@@ -3740,6 +3749,7 @@
             chatPath,
             phase,
             planReloads,
+            researchReloads,
             meta: {
               stageNumber: meta && meta.stageNumber,
               taskType: meta && meta.taskType,
@@ -3865,6 +3875,45 @@
       if (report.text !== lastText || generating) {
         if (report.text !== lastText) lastText = report.text;
         lastChangeAt = now;
+      }
+      // Frozen-tab check (every 30 s, textContent length: no layout cost). A live research keeps adding
+      // sources/thoughts to the DOM; a frozen background tab keeps the very same DOM for minutes.
+      if (now - domSigCheckedAt >= 30000) {
+        domSigCheckedAt = now;
+        const sig = (document.body && document.body.textContent ? document.body.textContent.length : 0) + report.text.length;
+        if (sig !== domSig) {
+          domSig = sig;
+          domSigChangedAt = now;
+        }
+      }
+      const onResearchChatUrl = /^\/(?:u\/\d+\/)?app\/[a-zA-Z0-9_-]{6,}/.test(window.location.pathname);
+      if (
+        onResearchChatUrl &&
+        researchReloads < MAX_RESEARCH_RELOADS &&
+        now - domSigChangedAt >= RESEARCH_FROZEN_MS &&
+        now - planClickedAt >= RESEARCH_FROZEN_MS &&
+        now - startedAt < MAX_TOTAL_MS - 2 * 60 * 1000
+      ) {
+        busyStep = true;
+        researchReloads += 1;
+        try {
+          chrome.runtime
+            .sendMessage({ type: 'HUELLAS_DEBUG_LOG', event: 'gemini:deep-research-frozen-reload', data: { stage: meta && meta.stageNumber, reload: researchReloads, hidden: document.hidden, len: report.text.length } })
+            .catch(() => {});
+        } catch {}
+        reportStatus(
+          'GENERATING',
+          `🔄 La pestaña de Deep Research lleva 8 min sin cambios; recargándola para ver el informe (intento ${researchReloads}/${MAX_RESEARCH_RELOADS}, sin reenviar la orden)...`,
+          meta
+        );
+        try {
+          await persistActiveOrder();
+          const res = await chrome.runtime.sendMessage({ type: 'GEMINI_RELOAD_TAB_KEEP_ORDER' });
+          if (res && res.ok) return;
+        } catch {}
+        domSigChangedAt = now; // reload refused: wait another 8 min before retrying
+        busyStep = false;
+        return;
       }
       if (now - lastStatusAt > 30000) {
         lastStatusAt = now;
@@ -5758,6 +5807,7 @@
         resumeWaitPlan,
         initialUserQueries: 0,
         planReloads: Number(rec.planReloads) || 0,
+        researchReloads: Number(rec.researchReloads) || 0,
         resumeStartedAt: Number(rec.startedAt) || Date.now(),
       });
     } catch {}
