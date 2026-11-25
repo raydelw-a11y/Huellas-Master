@@ -3609,7 +3609,8 @@
   function watchDeepResearchOrder(initialCount, initialLastText, meta) {
     const startedAt = Number(meta && meta.resumeStartedAt) || Date.now();
     const MAX_TOTAL_MS = 60 * 60 * 1000;
-    const MAX_PLAN_WAIT_MS = 6 * 60 * 1000;
+    // 12 min: with a long order the plan can take several minutes, and a tab left in the background is painted late
+    const MAX_PLAN_WAIT_MS = 12 * 60 * 1000;
     const initialUserQueries = Number(meta && meta.initialUserQueries) || 0;
     let phase = 'WAIT_PLAN';
     let planClickedAt = 0;
@@ -3739,7 +3740,7 @@
           return;
         }
         if (now - startedAt > MAX_PLAN_WAIT_MS) {
-          finish(false, '', [], '⛔ Gemini no creó el plan de investigación en 6 minutos. No se rellenó nada.');
+          finish(false, '', [], '⛔ Gemini no creó el plan de investigación en 12 minutos. No se rellenó nada.');
         }
         return;
       }
