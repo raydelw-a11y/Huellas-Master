@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-11-23T02:44:27.074Z",
-    "updatedAt": "2026-11-25T05:03:43.373Z",
+    "updatedAt": "2026-11-25T05:04:40.585Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -262,7 +262,9 @@
       "PROP_PROPOSAL_SELECTED": "1",
       "PROP_SUBJECT_BASE": "",
       "PROP_TOPIC_IDEAS_JSON": "{\"ideas\":[\"La rutina extrema de los 3,400 obreros y los hermanos Starrett al levantar sin arneses el Empire State en Nueva York entre 1930 y 1931 durante la Gran Depresión.\",\"La odisea física de los 10,000 obreros e ingenieros de Leslie Robertson que erigieron las Torres Gemelas en Nueva York entre 1968 y 1971 bajo ventiscas, grúas canguro y asbesto.\",\"La dinastía de montadores indígenas mohawk que ensamblaron sin red el Empire State, las Torres Gemelas y el One World Trade Center en Nueva York entre 1930 y 2010.\",\"El engranaje oculto de técnicos, operarios e inmigrantes nocturnos que hacían funcionar las cuatro plantas mecánicas, refrigeración fluvial y subsuelos de las Torres Gemelas en Nueva York en 1999.\",\"La excavación de La Bañera bajo el río Hudson en Nueva York entre 1966 y 1970, donde la firma Icanda y excavadores contuvieron las aguas bajo trenes colgantes con pasajeros.\",\"El duelo empresarial de John Raskob y Al Smith contra Walter Chrysler en Nueva York entre 1929 y 1932, culminando en un Empire State vacío con mástil para dirigibles.\",\"La transformación de la seguridad y la rutina de 50,000 empleados y la Autoridad Portuaria en las Torres Gemelas de Nueva York entre 1993 y 1999 tras el atentado subterráneo.\",\"Las disputas políticas y la ingeniería acorazada con que Tishman Construction y cientos de herreros levantaron el One World Trade Center en Nueva York entre 2006 y 2014.\",\"La fumigación con asbesto, los paros gremiales y el daño pulmonar investigado por el Mount Sinai en los obreros de las Torres Gemelas en Nueva York entre 1969 y 1978.\",\"Cómo Minoru Yamasaki y Leslie Robertson domaron el viento y el vértigo mediante ventanas estrechas, amortiguadores y vestíbulos aéreos en las Torres Gemelas de Nueva York entre 1962 y 1973.\"],\"recommended\":[0,1,2],\"recommendedReason\":\"Combinan iconos arquitectónicos universales con inmersión sensorial en oficios extremos de altura, garantizando máxima retención en YouTube sin repetir el enfoque corporativo ya publicado en el canal.\"}",
-      "PROP_TOPIC_IDEAS_PICKED_JSON": ""
+      "PROP_TOPIC_IDEAS_PICKED_JSON": "",
+      "GEMINI_DEEP_RESEARCH_CHAT_URL": "https://gemini.google.com/app/2b4bfafeec9301ee",
+      "GEMINI_DEEP_RESEARCH_CHAT_TITLE": "Video 31 Construcción del Empire State_Deep Research"
     },
     "compiledMasterPrompt": "",
     "topic": "La rutina extrema de los 3,400 obreros y los hermanos Starrett al levantar sin arneses el Empire State en Nueva York entre 1930 y 1931 durante la Gran Depresión, reconstruida como una jornada sensorial completa de diez horas desde el asfalto hasta los 381 metros para responder cómo el cuerpo humano lograba comer, coordinarse y ensamblar acero incandescente sobre las nubes sin caer al abismo.",
@@ -338,7 +340,8 @@
     "downloadFolderName": "Video 31 Construcción del Empire State",
     "downloadFolderPath": "/Users/raydelsantana/Library/Mobile Documents/com~apple~CloudDocs/0YouTube/Huellas de la Humanidad/Videos/Video 31 Construcción del Empire State",
     "geminiChatTitle": "Video 31 Construcción del Empire State",
-    "geminiChatUrl": "https://gemini.google.com/app/5c0be2edb7da67b8"
+    "geminiChatUrl": "https://gemini.google.com/app/5c0be2edb7da67b8",
+    "geminiDeepResearchChatUrl": "https://gemini.google.com/app/2b4bfafeec9301ee"
   },
   {
     "id": "doc-1793066748998-7if4",
