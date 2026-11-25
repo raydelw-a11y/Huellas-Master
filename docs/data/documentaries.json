@@ -1,12 +1,12 @@
 [
   {
     "id": "doc-1795644959273-rmqo",
-    "title": "Nuevo Documental — Huellas de la Humanidad",
+    "title": "Video 32 Tenochtitlan Ciudad sin Agua",
     "subtitle": "",
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-11-25T22:15:59.273Z",
-    "updatedAt": "2026-11-25T22:15:59.273Z",
+    "updatedAt": "2026-11-25T22:16:53.143Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -89,9 +89,10 @@
     "hashtags": "",
     "youtubeTags": "",
     "pinnedComment": "",
-    "downloadFolderName": "",
-    "downloadFolderPath": "",
-    "flowVideoEngine": "HYBRID_PEOPLE_OMNI_REST_LOWER"
+    "downloadFolderName": "Video 32 Tenochtitlan Ciudad sin Agua",
+    "downloadFolderPath": "/Users/raydelsantana/Library/Mobile Documents/com~apple~CloudDocs/0YouTube/Huellas de la Humanidad/Videos/Video 32 Tenochtitlan Ciudad sin Agua",
+    "flowVideoEngine": "HYBRID_PEOPLE_OMNI_REST_LOWER",
+    "geminiChatTitle": "Video 32 Tenochtitlan Ciudad sin Agua"
   },
   {
     "id": "doc-1795401867074-v32r",
