@@ -218,6 +218,17 @@ function canRouteElementThroughWebAudio(el: HTMLMediaElement): boolean {
   return el.crossOrigin === 'anonymous' || el.crossOrigin === 'use-credentials';
 }
 
+/** true when a media URL is served by another origin than the page (the Mac tunnel seen from GitHub Pages / Render). */
+function isCrossOriginMediaUrl(urlRaw?: string | null): boolean {
+  const url = String(urlRaw || '');
+  if (!url || typeof window === 'undefined' || url.startsWith('blob:') || url.startsWith('data:')) return false;
+  try {
+    return new URL(url, window.location.href).origin !== window.location.origin;
+  } catch {
+    return false;
+  }
+}
+
 /** Creates / resumes the shared clip-audio AudioContext. Call it from a user gesture (the Play click). */
 function primeDeckAudioContext(): void {
   if (IS_APPLE_TOUCH_DEVICE || typeof window === 'undefined') return;
@@ -4898,6 +4909,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       : 'clips';
   });
   const [voiceAudioError, setVoiceAudioError] = useState<boolean>(false);
+  // Voice URL whose host refused the CORS load (no Access-Control-Allow-Origin): it plays as a plain element
+  const [voiceCorsRefusedUrl, setVoiceCorsRefusedUrl] = useState<string>('');
   const [firstFrameByClip, setFirstFrameByClip] = useState<Record<number, string>>({});
   // Clips whose file in 05_Clips_Video is still being upscaled to 4K (reported by the folder scan)
   const [pending4kClipNums, setPending4kClipNums] = useState<number[]>([]);
@@ -5970,6 +5983,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   useEffect(() => {
     setVoiceAudioError(false);
   }, [effectiveVoiceoverUrl]);
+  // iPhone / iPad play the voice directly (no Web Audio), so they keep loading it exactly as before
+  const voiceLoadsWithCors = !IS_APPLE_TOUCH_DEVICE && voiceCorsRefusedUrl !== effectiveVoiceoverUrl;
 
   const fetchOfficialAssetsJson = async (
     endpointPath: string,
@@ -11010,6 +11025,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
       if (AudioCtx) {
         if (!voiceWebAudioRef.current || voiceWebAudioRef.current.el !== vo) {
+          // A voice from another origin loaded without CORS would play pure silence through Web Audio
+          if (!canRouteElementThroughWebAudio(vo)) {
+            vo.volume = baseLinear;
+            return;
+          }
           const ctx = new AudioCtx();
           const source = ctx.createMediaElementSource(vo);
           const gainNode = ctx.createGain();
@@ -11076,6 +11096,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 readyState: vo.readyState,
                 networkState: vo.networkState,
                 error: vo.error ? vo.error.code : 0,
+                crossOrigin: vo.crossOrigin || '',
+                otherOrigin: isCrossOriginMediaUrl(vo.currentSrc || vo.src),
                 currentTime: Number(vo.currentTime.toFixed(2)),
                 advancedIn1s: Number((vo.currentTime - t0).toFixed(2)),
                 duration: Number.isFinite(vo.duration) ? Math.round(vo.duration) : -1,
@@ -16485,10 +16507,23 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       {/* Hidden audio elements for Voiceover (Track 4) and Suno Music (Track 5) */}
       {effectiveVoiceoverUrl && (
         <audio
+          // Desktop routes the voice through Web Audio (gain + limiter), which plays silence for a voice served by
+          // another origin (the Mac tunnel seen from GitHub Pages / Render) unless it was loaded with CORS. The key
+          // remounts the element when the mode changes: one already wired into Web Audio stays wired.
+          key={voiceLoadsWithCors ? 'voice-cors' : 'voice-plain'}
           ref={voiceAudioRef}
+          crossOrigin={voiceLoadsWithCors ? 'anonymous' : undefined}
           src={effectiveVoiceoverUrl}
           preload={isEditorActive ? 'auto' : 'metadata'}
-          onError={() => setVoiceAudioError(true)}
+          onError={(e) => {
+            const el = e.currentTarget;
+            // A host without Access-Control-Allow-Origin refuses the CORS load: retry once as a plain element
+            if (el.crossOrigin && isCrossOriginMediaUrl(el.currentSrc || el.src)) {
+              setVoiceCorsRefusedUrl(effectiveVoiceoverUrl);
+              return;
+            }
+            setVoiceAudioError(true);
+          }}
           onLoadedMetadata={(e) => {
             setVoiceAudioError(false);
             const dur = e.currentTarget.duration;
