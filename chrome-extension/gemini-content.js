@@ -4370,13 +4370,9 @@
 
         // All Huellas Master app calls run on 4 Carbon · Thinking: Low (Carbon High is reserved exclusively for MODO DUO / MODO TRIO external debate)
         const wantCreateImage = Boolean(payload.enableCreateImage || payload.mediaType === 'THUMBNAILS');
-        // Exceptions written with Thinking level: High when the app asks for it: image and clip prompts (8),
-        // Etapa 1 Paso 1 (10) and its deep research (1/2/3, with Deep Research) and the YouTube video analyses (975).
-        // Every other stage stays on Low.
-        const wantHighThinking =
-          [8, 975, 10, 1, 2, 3].includes(Number(payload.stageNumber)) &&
-          !wantCreateImage &&
-          String(payload.thinkingLevel || '').toUpperCase() === 'HIGH';
+        // Thinking level High is not used anywhere (user decision 2026-11-24): an order that still asks for it
+        // (a page that was not reloaded) runs on Low.
+        const wantHighThinking = false;
         const desiredModeKey = payload.enableDeepResearch
           ? wantHighThinking
             ? 'CARBON4_HIGH_DEEP_RESEARCH'

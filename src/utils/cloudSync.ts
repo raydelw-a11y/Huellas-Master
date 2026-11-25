@@ -3545,7 +3545,7 @@ ${voiceLine}
       ? `1. RADIOGRAFÍA DE PATRONES VIRALES DEL VIDEO INVESTIGADO:\n   - Detailed breakdown in Spanish of the exact patterns that made the reference video go viral (Title formula, Description chapter pacing, Tag intent, Comment triggers, block percentages, and psychological hooks) and how they serve as a mold for our ~${minutesLabel}-minute documentary.`
       : `1. POTENCIAL VIRAL DEL TEMA:\n   - In Spanish: why the chosen or proposed subject can work on YouTube (curiosity gap, emotion, contrasts) and which retention patterns fit a ~${minutesLabel}-minute documentary.`;
     stagePrompt = `Act as Chief Documentary Director and Lead Historical Researcher for the Spanish-language documentary channel "Huellas de la Humanidad".
-This is STAGE 1 — PHASE 1 (4 Carbon · Thinking level: High · WITHOUT Deep Research): ${
+This is STAGE 1 — PHASE 1 (4 Carbon · Thinking level: Low · WITHOUT Deep Research): ${
       hasReferenceVideo ? 'Viral pattern analysis of the reference video + ' : ''
     }Determination of Historical Definition, Continuity, and Mathematical Calibration for our ${
       topicIsChosen ? '' : 'ORIGINAL '
@@ -3616,7 +3616,7 @@ ${section1}
       selectedAnalyzedVideoId;
 
     stagePrompt = `Act as a Master Historian, Film Director, and Chief Documentary Investigator for "Huellas de la Humanidad".
-This is STAGE 1 — PHASE 2 (DEEP HISTORICAL RESEARCH WITH GEMINI DEEP RESEARCH + 4 CARBON THINKING LEVEL: HIGH), building upon the Historical Definition, the Selected Analyzed Library Video from Step 1, and the Mathematical Calibration established in Phase 1.${viralContextBlock}${multiVideoResearchBlock}
+This is STAGE 1 — PHASE 2 (DEEP HISTORICAL RESEARCH WITH GEMINI DEEP RESEARCH + 4 CARBON THINKING LEVEL: LOW), building upon the Historical Definition, the Selected Analyzed Library Video from Step 1, and the Mathematical Calibration established in Phase 1.${viralContextBlock}${multiVideoResearchBlock}
 
 CRITICAL OUTPUT LANGUAGE REQUIREMENT:
 Deliver the entire historical research dossier and structural outline in clear, rigorous Documentary Spanish so it directly feeds the Spanish Voiceover Script in the next stage.
@@ -3650,7 +3650,7 @@ ${selectedAudienceQuestions ? `\n💬 SELECTED AUDIENCE COMMENTS & QUESTIONS TO 
         : ''
     }
 ================================================================================
-🔬 DEEP RESEARCH TASK (4 CARBON · THINKING LEVEL: HIGH + DEEP RESEARCH)
+🔬 DEEP RESEARCH TASK (4 CARBON · THINKING LEVEL: LOW + DEEP RESEARCH)
 ================================================================================
 Execute an exhaustive Deep Research investigation on the topic, era, location, and structure above, ${
       hasReferenceVideo

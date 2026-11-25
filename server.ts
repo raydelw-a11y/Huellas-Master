@@ -19845,8 +19845,9 @@ function enqueueVideoAnalysisGeminiOrder(v: {
   title: string;
   thinking?: 'HIGH' | 'LOW';
 }): void {
-  // Low by default: with High, Gemini sometimes answers without opening the video (user decision 2026-11-23)
-  const high = v.thinking === 'HIGH';
+  // Always Low: with High, Gemini sometimes answers without opening the video (user decision 2026-11-23), and
+  // since 2026-11-24 Thinking level High is not used anywhere
+  const high = false;
   const commandId = `va_${v.videoId}_${Date.now().toString(36)}`;
   pendingGeminiCommands.set(commandId, {
     commandId,
@@ -19969,7 +19970,7 @@ app.post('/api/youtube/video-analysis/start', async (req, res) => {
         comments: Array.isArray(prev?.comments) ? prev.comments : [],
         analysisStatus: 'queued',
         analysisQueuedAt: new Date(nowMs + i).toISOString(),
-        analysisThinking: String(req.body?.thinkingLevel || '').toUpperCase() === 'HIGH' ? 'HIGH' : 'LOW',
+        analysisThinking: 'LOW',
         analysisError: '',
       };
       if (idx >= 0) library[idx] = entry;
@@ -26319,14 +26320,14 @@ function enqueueRemoteGeminiStageFromDoc(doc: any): boolean {
         ? { expectedClipCount: Number(cmd.expectedClipCount) }
         : {}),
       taskType: cmd.taskType || 'STAGE_GENERATION',
-      // Etapa 1 (Paso 1 = 10, deep research = 1/2/3) runs with Thinking level High
+      // Etapa 1 (Paso 1 = 10, deep research = 1/2/3) also runs with Thinking level Low (High is not used anywhere)
       ...([10, 1, 2, 3].includes(resolvedStageNum)
         ? {
-            enableHighModel: true,
-            enableArgonLow: false,
-            enableCarbonLow: false,
-            preferredModel: 'CARBON_HIGH',
-            thinkingLevel: 'HIGH',
+            enableHighModel: false,
+            enableArgonLow: true,
+            enableCarbonLow: true,
+            preferredModel: 'CARBON_4_LOW',
+            thinkingLevel: 'LOW',
           }
         : {
             enableHighModel: false,
@@ -27043,8 +27044,9 @@ app.post('/api/gemini-web/ask-external', async (req, res) => {
     .trim()
     .toUpperCase();
   const targetModel: 'QUICK_ANSWERS' | 'CARBON_LOW' | 'CARBON_HIGH' =
+    // Thinking level High is not used anywhere (user decision 2026-11-24): a request for it runs on Low
     rawModel === 'CARBON_HIGH'
-      ? 'CARBON_HIGH'
+      ? 'CARBON_LOW'
       : rawModel === 'CARBON_LOW'
         ? 'CARBON_LOW'
         : 'QUICK_ANSWERS';
