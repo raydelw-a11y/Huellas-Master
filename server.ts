@@ -76,6 +76,14 @@ import {
   type ViralFaceBox,
 } from './src/utils/viralTitle';
 import { analyzeViralFrames, ensureViralFaceDetector, type ViralFrameInfo } from './server/viralFaceZones';
+import {
+  computeFoleyNormGainDb,
+  dbToLinear,
+  FOLEY_LIMITER_CEILING_DB,
+  VOICE_PREVIEW_MAKEUP_DB,
+  type FoleyLevelSegment,
+} from './src/utils/audioMix';
+import { getOrQueueClipLoudness, measureClipLoudness, type ClipLoudnessResult } from './server/clipLoudness';
 
 // Ensure sufficient libuv I/O worker threads for local + iCloud operations
 process.env.UV_THREADPOOL_SIZE = process.env.UV_THREADPOOL_SIZE || '32';
@@ -6573,6 +6581,10 @@ async function buildSmartNaturalFoleyFilter(opts: {
   afFadePrefix?: string;
   foleyVol: number;
   isIntroOrOutro?: boolean;
+  /** Gain (dB) that levels this clip's audio to the common foley reference; null = leave it as it is. */
+  normGainDb?: number | null;
+  /** The clip's level as stretches over its own duration (auto-ducking); used when there is more than one. */
+  levelSegments?: FoleyLevelSegment[];
 }): Promise<string> {
   const {
     targetDurSec,
@@ -6580,14 +6592,24 @@ async function buildSmartNaturalFoleyFilter(opts: {
     afFadePrefix = '',
     foleyVol,
     isIntroOrOutro = false,
+    normGainDb = null,
+    levelSegments = [],
   } = opts;
 
   const safeTargetDur = Math.max(0.3, targetDurSec);
   const targetAudioSamples = Math.max(1024, Math.round(safeTargetDur * 44100) - 1024);
   const afTrimSuffix = `,aresample=44100,aformat=sample_fmts=fltp:sample_rates=44100:channel_layouts=stereo,apad,atrim=end_sample=${targetAudioSamples},asetpts=N/SR/TB`;
 
+  // Per-clip levelling (same as the editor preview): bring the clip to the common loudness, hold its peaks under
+  // the ceiling, and only then apply the clip / track level.
+  const normStage =
+    typeof normGainDb === 'number' && Number.isFinite(normGainDb) && foleyVol > 0.0001
+      ? `volume=${dbToLinear(normGainDb).toFixed(4)},alimiter=limit=${dbToLinear(FOLEY_LIMITER_CEILING_DB).toFixed(4)}:attack=3:release=100:level=disabled:latency=1,`
+      : '';
+  const levelStage = buildFoleyLevelVolumeFilter(foleyVol, levelSegments, safeTargetDur);
+
   if (isIntroOrOutro || foleyVol <= 0.0001) {
-    return `${afFadePrefix}volume=${foleyVol.toFixed(4)}${afTrimSuffix}`;
+    return `${normStage}${afFadePrefix}${levelStage}${afTrimSuffix}`;
   }
 
   // Keep clip audio 100% locked to exact video playback rate so visual actions and audio never desync.
@@ -6603,7 +6625,41 @@ async function buildSmartNaturalFoleyFilter(opts: {
   const warmSlowMoFilter =
     clampedSpeed < 0.94 ? 'highpass=f=85,lowpass=f=7200,' : '';
 
-  return `${atempoStage}${warmSlowMoFilter}${afFadePrefix}volume=${foleyVol.toFixed(4)}${afTrimSuffix}`;
+  return `${atempoStage}${warmSlowMoFilter}${normStage}${afFadePrefix}${levelStage}${afTrimSuffix}`;
+}
+
+/**
+ * FFmpeg `volume` filter for a clip's level. One constant level for almost every clip; where the level changes
+ * while the clip is on screen (auto-ducking), it glides from one level to the next over FOLEY_LEVEL_RAMP_SEC.
+ */
+const FOLEY_LEVEL_RAMP_SEC = 0.2;
+function buildFoleyLevelVolumeFilter(
+  foleyVol: number,
+  levelSegments: FoleyLevelSegment[],
+  clipDurSec: number
+): string {
+  const segs = (Array.isArray(levelSegments) ? levelSegments : [])
+    .map((s) => ({ startSec: Number(s?.startSec), volume: Number(s?.volume) }))
+    .filter((s) => Number.isFinite(s.startSec) && Number.isFinite(s.volume) && s.startSec >= 0 && s.startSec < clipDurSec)
+    .map((s) => ({ startSec: s.startSec, volume: Math.max(0, Math.min(2, s.volume)) }))
+    .sort((a, b) => a.startSec - b.startSec);
+  if (segs.length < 2 || foleyVol <= 0.0001) {
+    return `volume=${foleyVol.toFixed(4)}`;
+  }
+  segs[0].startSec = 0;
+  let expr = segs[segs.length - 1].volume.toFixed(4);
+  for (let i = segs.length - 1; i >= 1; i--) {
+    const prev = segs[i - 1];
+    const cur = segs[i];
+    const rampStart = Math.max(prev.startSec, cur.startSec - FOLEY_LEVEL_RAMP_SEC / 2);
+    const rampEnd = Math.max(rampStart + 0.02, cur.startSec + FOLEY_LEVEL_RAMP_SEC / 2);
+    const a = rampStart.toFixed(3);
+    const b = rampEnd.toFixed(3);
+    const from = prev.volume.toFixed(4);
+    const delta = (cur.volume - prev.volume).toFixed(4);
+    expr = `if(lt(t,${a}),${from},if(lt(t,${b}),${from}+(${delta})*(t-${a})/${(rampEnd - rampStart).toFixed(3)},${expr}))`;
+  }
+  return `volume='${expr}':eval=frame`;
 }
 
 const EDITOR_CLIENT_STATE_FILE = path.join(process.cwd(), 'data', 'editor-client-state.json');
@@ -8089,6 +8145,16 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
 
       const baseVfChain = `setpts=${ptsFactor}*(PTS-STARTPTS),${scaleAndCropVf},format=yuv420p${vfTrimSuffix}${vfFadeSuffix}${assFilterSuffix}`;
 
+      // Level this clip's audio exactly like the editor preview (the Intro and Outro are mastered: never levelled).
+      // The export reads the file anyway, so a clip iCloud evicted is measured too.
+      let foleyNormGainDb: number | null = null;
+      if (!isIntroClip && !isOutroClip && foleyVol > 0.0001) {
+        const loud: ClipLoudnessResult | null = await measureClipLoudness(ffmpegBin, sourceMp4, {
+          allowDataless: true,
+        }).catch(() => null);
+        if (loud?.status === 'ready') foleyNormGainDb = computeFoleyNormGainDb(loud);
+      }
+
       const afFilter = await buildSmartNaturalFoleyFilter({
         ffmpegBin,
         sourceMp4,
@@ -8099,6 +8165,8 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         afFadePrefix,
         foleyVol,
         isIntroOrOutro: isIntroClip || isOutroClip || usingPrebakedOpticalFlow,
+        normGainDb: foleyNormGainDb,
+        levelSegments: isClipMuted || !Array.isArray(c.foleyVolumeSegments) ? [] : c.foleyVolumeSegments,
       });
 
       const inputTrimArgs: string[] = [];
@@ -8600,8 +8668,9 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       let nextInputIdx = 1;
 
       const safeVoVol = Math.max(0.5, Math.min(1.0, Number(voiceoverVolume || 1.0)));
-      // Match Web Audio API in CapCutEditor: mono-to-stereo without -3.01dB pan loss (pan=stereo|FL=FL+FC|FR=FR+FC) + DynamicsCompressor makeup gain
-      const voDbMultiplier = Math.pow(10, (Number(voiceoverGainDb ?? 5) + 1.5) / 20);
+      // Match Web Audio API in CapCutEditor: mono-to-stereo without -3.01dB pan loss (pan=stereo|FL=FL+FC|FR=FR+FC)
+      // + the exact make-up gain the preview's DynamicsCompressor adds (shared constant, so both stay equal)
+      const voDbMultiplier = Math.pow(10, (Number(voiceoverGainDb ?? 5) + VOICE_PREVIEW_MAKEUP_DB) / 20);
       const boostedVoVol = safeVoVol * voDbMultiplier;
       if (hasVo) {
         muxerArgs.push('-i', voPath);
@@ -8673,8 +8742,9 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       }
 
       const defaultMusicVol = Math.max(0, Math.min(1.0, Number(sunoMasterVolume ?? 0.1)));
-      // Calibrate exported FlowMusic (brickwall 0 dBFS stereo) by 0.45x (-7 dB) so 10% in the editor matches the exact perceived background level in the exported MP4
-      const MUSIC_EXPORT_CALIBRATION = 0.45;
+      // The song level is applied exactly as the editor preview plays it (media element volume = linear gain).
+      // An earlier 0.45x (-7 dB) "calibration" here left the exported music far quieter than the preview.
+      const MUSIC_EXPORT_CALIBRATION = 1;
       for (let mIdx = 0; mIdx < resolvedMusicInputs.length; mIdx++) {
         const mItem = resolvedMusicInputs[mIdx];
         muxerArgs.push('-i', mItem.filePath);
@@ -8714,8 +8784,10 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         nextInputIdx++;
       }
 
+      // Master safety limiter: voice + music + clip audio are summed without scaling, so loud moments together
+      // could pass 0 dBFS and clip in the AAC encoder. It only acts on those peaks (-1 dBFS ceiling).
       filterParts.push(
-        `${mixLabels.join('')}amix=inputs=${mixLabels.length}:duration=first:dropout_transition=2:normalize=0,asetpts=N/SR/TB[aout]`
+        `${mixLabels.join('')}amix=inputs=${mixLabels.length}:duration=first:dropout_transition=2:normalize=0,alimiter=limit=0.891:attack=3:release=100:level=disabled:latency=1,asetpts=N/SR/TB[aout]`
       );
 
       muxerArgs.push(
@@ -10813,6 +10885,48 @@ app.post('/api/flow/preview-proxy-status', async (req, res) => {
       activeWorkers: activePreviewProxyWorkers,
       items,
     });
+  } catch (err: any) {
+    res.status(500).json({ ok: false, error: err?.message || String(err) });
+  }
+});
+
+// Loudness of each clip's own audio, so the editor preview levels the clips exactly like the export does.
+// Answers at once with what is already measured; the rest is measured in the background ('pending') and the
+// editor asks again. Clips iCloud evicted from the disk are never read here ('dataless').
+app.post('/api/flow/clip-loudness', async (req, res) => {
+  try {
+    const rawFiles: string[] = Array.isArray(req.body?.urls)
+      ? req.body.urls
+      : Array.isArray(req.body?.files)
+      ? req.body.files
+      : [];
+    const ffmpegBin = getFfmpegPath();
+    const items: Record<string, { status: string; lufs?: number; peakDb?: number; gainDb?: number }> = {};
+    let pending = 0;
+    for (const raw of rawFiles.slice(0, 1500)) {
+      if (!raw || typeof raw !== 'string' || items[raw]) continue;
+      let filePath = raw.trim();
+      if (filePath.includes('/api/flow/serve-folder-file')) {
+        try {
+          const u = new URL(filePath, 'http://localhost');
+          filePath = u.searchParams.get('filePath') || '';
+        } catch {
+          const match = filePath.match(/[?&]filePath=([^&#]+)/);
+          filePath = match ? decodeURIComponent(match[1]) : '';
+        }
+      } else if (/^(?:https?:|data:|blob:)/i.test(filePath) || filePath.includes('/api/')) {
+        // Official Intro / Outro streams and anything that is not a clip file of a documentary folder
+        continue;
+      }
+      if (!filePath || !path.isAbsolute(filePath) || !/\.(?:mp4|webm|mov)$/i.test(filePath)) continue;
+      const result = await getOrQueueClipLoudness(ffmpegBin, filePath);
+      if (result.status === 'pending') pending++;
+      items[raw] =
+        result.status === 'ready'
+          ? { status: 'ready', lufs: result.lufs, peakDb: result.peakDb, gainDb: computeFoleyNormGainDb(result) }
+          : { status: result.status };
+    }
+    res.json({ ok: true, pending, items });
   } catch (err: any) {
     res.status(500).json({ ok: false, error: err?.message || String(err) });
   }
