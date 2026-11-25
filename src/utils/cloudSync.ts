@@ -3503,7 +3503,8 @@ Deliver this structured report in Spanish with MULTIPLE OPTIONS (3 to 6 per part
     }), preserving the exact Spanish section headers below for parser compatibility. Write every option on its own line exactly as "Opción N: text", in a single paragraph (no line breaks or numbered sub-lists inside an option). In Parte 3 write each option as "era | place" separated by " | " (e.g., "Opción 1: Año 1888 / Siglo XIX | Sevilla, España"), with no label or parentheses before it.${concordanceHint}
 
 0. RESUMEN POR PARTES DE LA PROPOSICIÓN PARA NUESTRO DOCUMENTAL:
-   Deliver numbered options (Opción 1, Opción 2, Opción 3, Opción 4...) in Spanish for each of the 6 parts:
+   Deliver numbered options (Opción 1, Opción 2, Opción 3, Opción 4...) in Spanish for each of the 6 parts.
+   RECOMMENDED OPTION (mandatory in all 6 parts): right after each part's "Resumen de esta parte" line and BEFORE its options, add ONE line written exactly as "• Recomendada: Opción N — [one short sentence in Spanish saying why]", naming the single option of that part you would choose as the channel's director (in Parte 1, the typology that fits best). The recommended options must work together: Parte 3's must be the era and place of the topic recommended in Parte 2, and those of Partes 4, 5 and 6 must fit that same topic.
    - PARTE 1 — TIPOLOGÍA DEL VIDEO:
 ${parte1Lines.join('\n')}
    - PARTE 2 — TEMA CENTRAL DEL DOCUMENTAL / EPISODIO:
