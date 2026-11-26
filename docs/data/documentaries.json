@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-11-25T22:15:59.273Z",
-    "updatedAt": "2026-11-26T03:50:37.201Z",
+    "updatedAt": "2026-11-26T03:50:51.044Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -42,7 +42,7 @@
       "FIELD_CLEARED_AT_clip1OptionsRaw": "0",
       "FIELD_CLEARED_AT_clip1Line1LocationTime": "0",
       "FIELD_CLEARED_AT_clip1Line2Hook": "0",
-      "PROMPTS_RESTORED_AT": "1795665037201",
+      "PROMPTS_RESTORED_AT": "1795665051044",
       "FIELD_CLEARED_AT_rawClipsText": "0",
       "SCREEN_GRAPHICS_PLAN": "[{\"kind\": \"name\", \"spoken\": \"A inicios del siglo XIX, Alexander von Humboldt\", \"a\": \"Alexander von Humboldt\", \"b\": \"Naturalista y geógrafo prusiano\"}, {\"kind\": \"name\", \"spoken\": \"Moctezuma Ilhuicamina llamó a su aliado\", \"a\": \"Moctezuma Ilhuicamina\", \"b\": \"Quinto gobernante de Tenochtitlan\"}, {\"kind\": \"name\", \"spoken\": \"llamó a su aliado de Texcoco, Nezahualcóyotl,\", \"a\": \"Nezahualcóyotl\", \"b\": \"Gobernante e ingeniero hidráulico de Texcoco\"}, {\"kind\": \"name\", \"spoken\": \"Hacia 1499, el gobernante Ahuízotl quiso traer\", \"a\": \"Ahuízotl\", \"b\": \"Octavo gobernante de Tenochtitlan\"}, {\"kind\": \"name\", \"spoken\": \"Carta de Relación de 1520, Hernán Cortés\", \"a\": \"Hernán Cortés\", \"b\": \"Comandante español de la conquista\"}, {\"kind\": \"name\", \"spoken\": \"el cosmógrafo alemán Enrico Martínez inició el\", \"a\": \"Enrico Martínez\", \"b\": \"Cosmógrafo del desagüe colonial\"}, {\"kind\": \"name\", \"spoken\": \"contrató al ingeniero holandés Adrian Boot por\", \"a\": \"Adrian Boot\", \"b\": \"Ingeniero hidráulico holandés\"}, {\"kind\": \"name\", \"spoken\": \"y Nabor Carrillo Flores probó la causa:\", \"a\": \"Nabor Carrillo Flores\", \"b\": \"Científico mexicano de mecánica de suelos\"}, {\"kind\": \"thesis\", \"spoken\": \"y aquí va una corrección: nunca flotaron.\", \"a\": \"Las chinampas eran huertos flotantes\", \"b\": \"Islas artificiales ancladas al fondo del lago\"}, {\"kind\": \"thesis\", \"spoken\": \"no había que secar el lago, sino regularlo\", \"a\": \"Secar el lago evitaba inundaciones\", \"b\": \"Regularlo con diques era la solución correcta\"}, {\"kind\": \"stamp\", \"spoken\": \"marcharon a Chapultepec para quebrar los caños.\", \"a\": \"AGUA CORTADA\"}, {\"kind\": \"stamp\", \"spoken\": \"quedó hasta dos metros bajo el agua durante\", \"a\": \"INUNDADA\"}]",
       "ROUTE_MAP_PLAN": "[{\"clipNumber\": 42, \"places\": [\"Texcoco\", \"Cuautitlan\", \"Tacuba\", \"Chapultepec\"]}]"
