@@ -5480,11 +5480,161 @@ export function balanceCaptionsFor16x9(text: string): string {
     .join('\n');
 }
 
+/**
+ * "Original" caption mode: one complete sentence per caption. A sentence that fits in one line stays in one
+ * line; a longer one is shown in two lines; only a sentence too long for two lines is split, at its commas
+ * when it has them (user request 2026-11-26).
+ */
+export const SENTENCE_CAPTION_LINE_CHARS = 46;
+
+export function groupWordsIntoSentenceCaptions<W>(
+  words: W[],
+  read: (w: W) => { text: string; start: number; end: number; breakFlag?: number },
+  lineChars: number = SENTENCE_CAPTION_LINE_CHARS
+): Array<{ words: W[]; text: string }> {
+  if (!Array.isArray(words) || words.length === 0) return [];
+  const maxLine = Math.max(12, Math.round(lineChars));
+  const txt = (w: W) => String(read(w).text || '').trim();
+  const closers = `["'»”)\\]]*$`;
+  const endsSentenceRe = new RegExp(`[.?!…]${closers}`);
+  const endsClauseRe = new RegExp(`[,;:—–]${closers}`);
+  const isSentenceEnd = (w: W) => {
+    const t = txt(w);
+    const flag = Number(read(w).breakFlag ?? 0);
+    if (flag >= 3) return true; // paragraph or [pausa]
+    if (endsSentenceRe.test(t)) return true;
+    return flag === 2 && !endsClauseRe.test(t); // a colon closes a clause, not the sentence
+  };
+  const isClauseEnd = (w: W) => endsClauseRe.test(txt(w)) || Number(read(w).breakFlag ?? 0) >= 1;
+  const lenOf = (list: W[]) => list.reduce((acc, w, i) => acc + txt(w).length + (i > 0 ? 1 : 0), 0);
+
+  // 1. Sentences (a silence of 1.5s or more also closes one, so a caption never hangs over a long pause)
+  const sentences: W[][] = [];
+  let cur: W[] = [];
+  for (let i = 0; i < words.length; i++) {
+    cur.push(words[i]);
+    const next = i + 1 < words.length ? words[i + 1] : null;
+    const gapToNext = next ? Number(read(next).start) - Number(read(words[i]).end) : 0;
+    if (!next || isSentenceEnd(words[i]) || gapToNext >= 1.5) {
+      sentences.push(cur);
+      cur = [];
+    }
+  }
+
+  // 2. Best place to break a list of words in two lines (null = it does not fit in two lines)
+  const twoLineSplit = (list: W[]): number | null => {
+    let best: number | null = null;
+    let bestScore = Infinity;
+    for (let i = 1; i < list.length; i++) {
+      const l1 = lenOf(list.slice(0, i));
+      const l2 = lenOf(list.slice(i));
+      if (l1 > maxLine || l2 > maxLine) continue;
+      let score = Math.abs(l1 - l2);
+      if (isClauseEnd(list[i - 1])) score -= maxLine * 0.3;
+      if (list.length >= 4 && (i === 1 || i === list.length - 1)) score += maxLine; // no lone word on a line
+      if (score < bestScore) {
+        bestScore = score;
+        best = i;
+      }
+    }
+    return best;
+  };
+  const fits = (list: W[]) => lenOf(list) <= maxLine || twoLineSplit(list) !== null;
+
+  // 3. A sentence too long for two lines is cut into even parts, at a comma when one is near the cut
+  const splitLong = (list: W[]): W[][] => {
+    if (list.length <= 1 || fits(list)) return [list];
+    const total = lenOf(list);
+    const parts = Math.max(2, Math.ceil(total / (maxLine * 2)));
+    const target = total / parts;
+    // First try cuts that do not force an extra part later; a comma only attracts the cut when the part
+    // before it is not a tiny one
+    const pickCut = (keepPartCount: boolean): number => {
+      let best = -1;
+      let bestScore = Infinity;
+      for (let i = 1; i < list.length; i++) {
+        const head = list.slice(0, i);
+        if (!fits(head)) break;
+        const headLen = lenOf(head);
+        if (keepPartCount && total - headLen - 1 > (parts - 1) * maxLine * 2 * 0.95) continue;
+        let score = Math.abs(headLen - target);
+        if (isClauseEnd(list[i - 1]) && headLen >= target * 0.5) score -= maxLine * 0.6;
+        if (score < bestScore) {
+          bestScore = score;
+          best = i;
+        }
+      }
+      return best;
+    };
+    let best = pickCut(true);
+    if (best <= 0) best = pickCut(false);
+    if (best <= 0) best = 1; // a single word longer than a line
+    return [list.slice(0, best), ...splitLong(list.slice(best))];
+  };
+
+  const out: Array<{ words: W[]; text: string }> = [];
+  for (const sentence of sentences) {
+    for (const chunk of splitLong(sentence)) {
+      const plain = chunk.map(txt).join(' ');
+      const cut = plain.length > maxLine ? twoLineSplit(chunk) : null;
+      out.push({
+        words: chunk,
+        text:
+          cut === null
+            ? plain
+            : balanceCaptionsFor16x9(
+                `${chunk.slice(0, cut).map(txt).join(' ')}\n${chunk.slice(cut).map(txt).join(' ')}`
+              ),
+      });
+    }
+  }
+  return out;
+}
+
 export function buildAudioCaptionsFromSidecarWords(
   words: Array<[string, number, number, number]>,
-  options?: { maxWordsPerLine?: number; maxCharsPerLine?: number; lineMode?: 'single' | 'wrap' }
+  options?: { maxWordsPerLine?: number; maxCharsPerLine?: number; lineMode?: 'single' | 'wrap' | 'sentence' }
 ): CaptionItemLike[] {
   if (!Array.isArray(words) || words.length === 0) return [];
+  if (options?.lineMode === 'sentence') {
+    // "Original" mode: complete sentences (see groupWordsIntoSentenceCaptions)
+    const groups = groupWordsIntoSentenceCaptions(
+      words,
+      (w) => ({ text: w[0], start: w[1], end: w[2], breakFlag: w[3] }),
+      typeof options?.maxCharsPerLine === 'number' && options.maxCharsPerLine > 0
+        ? options.maxCharsPerLine
+        : SENTENCE_CAPTION_LINE_CHARS
+    );
+    const sentenceCaps: CaptionItemLike[] = groups.map((g, idx) => {
+      const startSec = Number(g.words[0][1]);
+      const endSec = Math.max(startSec + 0.25, Number(g.words[g.words.length - 1][2]));
+      return {
+        id: `cap-vosk-${idx + 1}`,
+        index: idx + 1,
+        start: Number(startSec.toFixed(3)),
+        end: Number(endSec.toFixed(3)),
+        text: g.text,
+        audioStartSec: Number(startSec.toFixed(3)),
+        audioEndSec: Number(endSec.toFixed(3)),
+        words: g.words.map((w) => ({
+          text: w[0],
+          audioStartSec: Number(Number(w[1]).toFixed(3)),
+          audioEndSec: Number(Number(w[2]).toFixed(3)),
+          breakFlag: (w[3] >= 0 && w[3] <= 4 ? w[3] : 0) as CaptionBreakFlag,
+        })),
+        alignSource: 'vosk-v2',
+      };
+    });
+    for (let i = 0; i < sentenceCaps.length - 1; i++) {
+      if (sentenceCaps[i].end > sentenceCaps[i + 1].start) {
+        sentenceCaps[i].end = Number(
+          Math.max(sentenceCaps[i].start + 0.2, sentenceCaps[i + 1].start - 0.01).toFixed(3)
+        );
+        sentenceCaps[i].audioEndSec = sentenceCaps[i].end;
+      }
+    }
+    return sentenceCaps;
+  }
   const maxWords = typeof options?.maxWordsPerLine === 'number' && options.maxWordsPerLine > 0 ? options.maxWordsPerLine : 6;
   const maxChars = typeof options?.maxCharsPerLine === 'number' && options.maxCharsPerLine > 0 ? options.maxCharsPerLine : 36;
   const lineMode = options?.lineMode || 'wrap';
@@ -5812,6 +5962,50 @@ export function reformatCaptionItems<
   }
 
   if (allTimedWords.length === 0) return [];
+
+  if (lineMode === 'original') {
+    // "Original" mode: complete sentences (see groupWordsIntoSentenceCaptions)
+    const sentenceTemplate = rawItems[0];
+    const sentenceItems = groupWordsIntoSentenceCaptions(allTimedWords, (w) => ({
+      text: w.word,
+      start: w.start,
+      end: w.end,
+      breakFlag: w.breakFlag,
+    })).map((g, gIdx) => {
+      const fTw = g.words[0];
+      const lTw = g.words[g.words.length - 1];
+      const item: any = {};
+      if (sentenceTemplate && typeof sentenceTemplate === 'object') {
+        for (const key of Object.keys(sentenceTemplate)) item[key] = (sentenceTemplate as any)[key];
+      }
+      item.id = `cap-fmt-${gIdx + 1}`;
+      item.index = gIdx + 1;
+      item.start = Number(fTw.start.toFixed(3));
+      item.end = Number(Math.max(fTw.start + 0.2, lTw.end).toFixed(3));
+      item.text = g.text;
+      item.audioStartSec = Number(fTw.audioStartSec.toFixed(3));
+      item.audioEndSec = Number(Math.max(fTw.audioStartSec + 0.2, lTw.audioEndSec).toFixed(3));
+      item.words = g.words.map((w) => ({
+        text: w.word,
+        audioStartSec: Number(w.audioStartSec.toFixed(3)),
+        audioEndSec: Number(w.audioEndSec.toFixed(3)),
+        breakFlag: w.breakFlag,
+      }));
+      item.alignSource = (sentenceTemplate as any)?.alignSource || 'vosk-v2';
+      return item as T;
+    });
+    for (let i = 0; i < sentenceItems.length - 1; i++) {
+      const a: any = sentenceItems[i];
+      const b: any = sentenceItems[i + 1];
+      if (a.end > b.start) {
+        a.end = Number(Math.max(a.start + 0.15, b.start - 0.01).toFixed(3));
+        if (typeof a.audioEndSec === 'number' && typeof b.audioStartSec === 'number') {
+          a.audioEndSec = Number(Math.max(a.audioStartSec + 0.15, b.audioStartSec - 0.01).toFixed(3));
+        }
+      }
+    }
+    return sentenceItems;
+  }
 
   // Group contiguous words into speech islands, breaking island strictly when:
   // - previous word had breakFlag >= 2 (.?!, \n\n, pause tag)

@@ -721,6 +721,26 @@ export interface TimelineSeparatedVocalItem {
 
 export const CAPTIONS_ALIGN_VERSION = 4;
 
+/**
+ * 16:9 caption line length of a documentary: "original" (complete sentences) unless the user chose another one
+ * by hand in THAT documentary (CAPTION_LENGTH_16X9_USER_SET). Values saved before the flag existed are ignored
+ * because 9:16 controls used to overwrite the 16:9 keys; a locked (finished) documentary keeps what it has.
+ */
+export function resolveDocCaptionLength16x9(cfg: Record<string, any> | null | undefined): {
+  mode: 'subdivide' | 'wrap' | 'original';
+  maxChars: number;
+} {
+  const c: Record<string, any> = cfg || {};
+  const trusted = c.CAPTION_LENGTH_16X9_USER_SET === true || c.PRODUCTION_LOCKED === 'YES';
+  const m = c.CAPTION_LINE_MODE;
+  const savedMax = Number(c.CAPTION_MAX_CHARS);
+  return {
+    mode: trusted && (m === 'subdivide' || m === 'wrap' || m === 'original') ? m : 'original',
+    maxChars:
+      trusted && c.CAPTION_MAX_CHARS !== undefined && Number.isFinite(savedMax) && savedMax >= 0 ? savedMax : 32,
+  };
+}
+
 export interface VoiceAlignmentSidecarV2 {
   version: 2;
   engine: 'vosk-es-0.42-nw-v2';
@@ -2794,25 +2814,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       const fromDoc916 = Number(activeDoc?.promptConfig?.CAPTION_MAX_CHARS_9X16);
       return Number.isFinite(fromDoc916) && fromDoc916 > 0 ? fromDoc916 : 16;
     }
-    const fromDoc = Number(activeDoc?.promptConfig?.CAPTION_MAX_CHARS);
-    if (Number.isFinite(fromDoc) && fromDoc >= 0) return fromDoc;
-    const fromProfile = Number(initialFormatProfileForRatio?.captionMaxChars);
-    if (Number.isFinite(fromProfile) && fromProfile >= 0) return fromProfile;
-    const fromSaved = Number(initialOverlayStyles.captionMaxChars);
-    if (Number.isFinite(fromSaved) && fromSaved >= 0) return fromSaved;
-    return 32;
+    return resolveDocCaptionLength16x9(activeDoc?.promptConfig).maxChars;
   });
   const [captionLineMode, setCaptionLineMode] = useState<'subdivide' | 'wrap' | 'original'>(() => {
-    const fromDoc = activeDoc?.promptConfig?.CAPTION_LINE_MODE;
-    if (fromDoc === 'subdivide' || fromDoc === 'wrap' || fromDoc === 'original') return fromDoc;
-    if (aspectRatio === '16:9' && !initialOverlayStyles.captionOriginal16x9V1) {
-      return 'original';
-    }
-    const fromProfile = initialFormatProfileForRatio?.captionLineMode;
-    if (fromProfile === 'subdivide' || fromProfile === 'wrap' || fromProfile === 'original') return fromProfile;
-    const fromSaved = initialOverlayStyles.captionLineMode;
-    if (fromSaved === 'subdivide' || fromSaved === 'wrap' || fromSaved === 'original') return fromSaved;
-    return aspectRatio === '16:9' ? 'original' : 'subdivide';
+    if (aspectRatio === '16:9') return resolveDocCaptionLength16x9(activeDoc?.promptConfig).mode;
+    const fromDoc916 = activeDoc?.promptConfig?.CAPTION_LINE_MODE_9X16;
+    return fromDoc916 === 'subdivide' || fromDoc916 === 'wrap' || fromDoc916 === 'original'
+      ? fromDoc916
+      : 'subdivide';
   });
   const [captionFontSize16x9, setCaptionFontSize16x9] = useState<number>(() => {
     const fromDoc = Number(activeDoc?.promptConfig?.CAPTION_FONT_SIZE_16X9);
@@ -4193,21 +4202,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       setCaptionMaxChars(Number.isFinite(doc916Max) && doc916Max > 0 ? doc916Max : 16);
       setCaptionLineMode(isMode(cfg.CAPTION_LINE_MODE_9X16) ? cfg.CAPTION_LINE_MODE_9X16 : 'subdivide');
     } else {
-      setCaptionLineMode(
-        isMode(cfg.CAPTION_LINE_MODE)
-          ? cfg.CAPTION_LINE_MODE
-          : isMode(targetProfile?.captionLineMode)
-          ? targetProfile!.captionLineMode!
-          : 'original'
-      );
-      const docMax = Number(cfg.CAPTION_MAX_CHARS);
-      setCaptionMaxChars(
-        cfg.CAPTION_MAX_CHARS !== undefined && Number.isFinite(docMax) && docMax >= 0
-          ? docMax
-          : typeof targetProfile?.captionMaxChars === 'number'
-          ? targetProfile.captionMaxChars
-          : 32
-      );
+      // 16:9: "original" unless this documentary has its own manual choice (never the shared profile)
+      const len16x9 = resolveDocCaptionLength16x9(cfg);
+      setCaptionLineMode(len16x9.mode);
+      setCaptionMaxChars(len16x9.maxChars);
     }
     setCaptionFontSize(ratio === '9:16' ? captionFontSize9x16 : captionFontSize16x9);
   };
@@ -4284,17 +4282,18 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     const cfg = activeDoc?.promptConfig;
     if (!cfg) return;
     // 9:16 keeps its own caption length / mode (default 22 chars, subdivide); 16:9 uses the shared keys
+    const len16x9 = resolveDocCaptionLength16x9(cfg);
     const docMaxForRatio =
       aspectRatio === '9:16'
         ? typeof cfg.CAPTION_MAX_CHARS_9X16 === 'number'
           ? cfg.CAPTION_MAX_CHARS_9X16
           : 16
-        : cfg.CAPTION_MAX_CHARS;
+        : len16x9.maxChars;
     if (typeof docMaxForRatio === 'number' && docMaxForRatio !== captionMaxChars) {
       setCaptionMaxChars(docMaxForRatio);
     }
     const docModeForRatio =
-      aspectRatio === '9:16' ? cfg.CAPTION_LINE_MODE_9X16 || 'subdivide' : cfg.CAPTION_LINE_MODE;
+      aspectRatio === '9:16' ? cfg.CAPTION_LINE_MODE_9X16 || 'subdivide' : len16x9.mode;
     if (
       (docModeForRatio === 'subdivide' ||
         docModeForRatio === 'wrap' ||
@@ -4418,6 +4417,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     activeDoc?.promptConfig?.CAPTION_MAX_CHARS_9X16,
     activeDoc?.promptConfig?.CAPTION_LINE_MODE,
     activeDoc?.promptConfig?.CAPTION_LINE_MODE_9X16,
+    activeDoc?.promptConfig?.CAPTION_LENGTH_16X9_USER_SET,
+    activeDoc?.promptConfig?.PRODUCTION_LOCKED,
     activeDoc?.promptConfig?.CAPTION_FONT_SIZE_16X9,
     activeDoc?.promptConfig?.CAPTION_FONT_SIZE_9X16,
     activeDoc?.promptConfig?.CAPTION_WORDS_PER_LINE_16X9,
@@ -4550,10 +4551,13 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
   const handleSetCaptionWordsForFormat = (targetRatio: '16:9' | '9:16', newWords: number) => {
     const clamped = Math.max(0, Math.min(12, Math.round(newWords)));
-    const nextMode =
-      clamped > 0 && captionLineMode === 'original' ? 'subdivide' : captionLineMode;
-    if (nextMode !== captionLineMode) {
-      setCaptionLineMode(nextMode);
+    // The line mode in state belongs to the format on screen: only that format's mode may change here.
+    // (This used to save the 9:16 mode into the 16:9 key, which undid "Original" in 16:9.)
+    const leavesOriginal =
+      targetRatio === aspectRatio && clamped > 0 && captionLineMode === 'original';
+    if (leavesOriginal) {
+      setCaptionLineMode('subdivide');
+      formatProfilesRef.current[aspectRatio].captionLineMode = 'subdivide';
     }
     if (targetRatio === '16:9') {
       setCaptionWordsPerLine16x9(clamped);
@@ -4563,7 +4567,13 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           promptConfig: {
             ...(activeDoc.promptConfig || {}),
             CAPTION_WORDS_PER_LINE_16X9: clamped,
-            CAPTION_LINE_MODE: nextMode,
+            ...(leavesOriginal
+              ? {
+                  CAPTION_LINE_MODE: 'subdivide',
+                  CAPTION_MAX_CHARS: captionMaxChars,
+                  CAPTION_LENGTH_16X9_USER_SET: true,
+                }
+              : {}),
           },
         });
       }
@@ -4575,7 +4585,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           promptConfig: {
             ...(activeDoc.promptConfig || {}),
             CAPTION_WORDS_PER_LINE_9X16: clamped,
-            CAPTION_LINE_MODE: nextMode,
+            ...(leavesOriginal ? { CAPTION_LINE_MODE_9X16: 'subdivide' } : {}),
           },
         });
       }
@@ -4613,8 +4623,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
     setCaptionMaxChars(nextMax);
     setCaptionLineMode(nextMode);
-    setCaptionWordsPerLine16x9(nextWords16x9);
-    setCaptionWordsPerLine9x16(nextWords9x16);
+    // Each format keeps its own words per line: a preset only changes the format on screen
+    if (aspectRatio === '9:16') setCaptionWordsPerLine9x16(nextWords9x16);
+    else setCaptionWordsPerLine16x9(nextWords16x9);
     formatProfilesRef.current[aspectRatio].captionLineMode = nextMode;
     formatProfilesRef.current[aspectRatio].captionMaxChars = nextMax;
 
@@ -4623,10 +4634,17 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         promptConfig: {
           ...(activeDoc.promptConfig || {}),
           ...(aspectRatio === '9:16'
-            ? { CAPTION_MAX_CHARS_9X16: nextMax, CAPTION_LINE_MODE_9X16: nextMode }
-            : { CAPTION_MAX_CHARS: nextMax, CAPTION_LINE_MODE: nextMode }),
-          CAPTION_WORDS_PER_LINE_16X9: nextWords16x9,
-          CAPTION_WORDS_PER_LINE_9X16: nextWords9x16,
+            ? {
+                CAPTION_MAX_CHARS_9X16: nextMax,
+                CAPTION_LINE_MODE_9X16: nextMode,
+                CAPTION_WORDS_PER_LINE_9X16: nextWords9x16,
+              }
+            : {
+                CAPTION_MAX_CHARS: nextMax,
+                CAPTION_LINE_MODE: nextMode,
+                CAPTION_LENGTH_16X9_USER_SET: true,
+                CAPTION_WORDS_PER_LINE_16X9: nextWords16x9,
+              }),
         },
       });
     }
@@ -4639,7 +4657,13 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       updateActiveDoc({
         promptConfig: {
           ...(activeDoc.promptConfig || {}),
-          CAPTION_LINE_MODE: nextMode,
+          ...(aspectRatio === '9:16'
+            ? { CAPTION_LINE_MODE_9X16: nextMode }
+            : {
+                CAPTION_LINE_MODE: nextMode,
+                CAPTION_MAX_CHARS: captionMaxChars,
+                CAPTION_LENGTH_16X9_USER_SET: true,
+              }),
         },
       });
     }
@@ -8828,7 +8852,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         captionLineMode === 'original' ? 9 : activeWordsLimit > 0 ? activeWordsLimit : 6,
       maxCharsPerLine:
         captionLineMode === 'original' ? 46 : captionMaxChars > 0 ? captionMaxChars : 32,
-      lineMode: captionLineMode === 'wrap' ? 'wrap' : 'single',
+      lineMode:
+        captionLineMode === 'original' ? 'sentence' : captionLineMode === 'wrap' ? 'wrap' : 'single',
     });
     if (!Array.isArray(rawBuilt) || rawBuilt.length === 0) return false;
 
@@ -9745,7 +9770,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       maxWordsPerLine:
         captionLineMode === 'original' ? 9 : activeWordsLimit > 0 ? activeWordsLimit : 6,
       maxCharsPerLine: maxCharsPerCaption,
-      lineMode: captionLineMode === 'wrap' ? 'wrap' : 'single',
+      lineMode:
+        captionLineMode === 'original' ? 'sentence' : captionLineMode === 'wrap' ? 'wrap' : 'single',
     }).map((it, idx) => {
       const aS = Number(it.audioStartSec ?? it.start ?? 0);
       const aE = Math.max(aS + 0.12, Number(it.audioEndSec ?? it.end ?? aS + 0.25));
@@ -22271,7 +22297,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                                 ...(activeDoc.promptConfig || {}),
                                 ...(aspectRatio === '9:16'
                                   ? { CAPTION_MAX_CHARS_9X16: nextVal }
-                                  : { CAPTION_MAX_CHARS: nextVal }),
+                                  : {
+                                      CAPTION_MAX_CHARS: nextVal,
+                                      CAPTION_LINE_MODE: captionLineMode,
+                                      CAPTION_LENGTH_16X9_USER_SET: true,
+                                    }),
                               },
                             });
                           }

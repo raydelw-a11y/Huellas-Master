@@ -62,6 +62,7 @@ import {
   OverlayBgStyle,
   ElementAnimationType,
   getTextShadowCss,
+  resolveDocCaptionLength16x9,
 } from './components/CapCutEditor';
 import { ViralClipsStudio } from './components/ViralClipsStudio';
 import MultiVideoResearchPanel from './components/MultiVideoResearchPanel';
@@ -253,7 +254,7 @@ import { stampBrandMarksOnThumbnail, HD_BADGE_EMPTY_CORNER_CLAUSE, LOGO_EMPTY_CO
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '02:26 PM - 11/26/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '02:46 PM - 11/26/2026';
 
 // PRODUCTION LOCK: while promptConfig.PRODUCTION_LOCKED === 'YES' these fields never change (the server
 // enforces the same list in protectLockedDocs). Metadata, thumbnails, review marks and reframes stay editable.
@@ -26564,16 +26565,10 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
 
                   {/* Controles de Largo de Línea de Captions + Tipografía, Sombra, Fondo, Animación y Formato Dual 16:9 / 9:16 (Sincronizado al 100% con el Editor de Video) */}
                   {(() => {
-                    const effMaxChars =
-                      typeof activeDoc.promptConfig?.CAPTION_MAX_CHARS === 'number'
-                        ? activeDoc.promptConfig.CAPTION_MAX_CHARS
-                        : srtMaxChars;
-                    const effLineMode: 'subdivide' | 'wrap' | 'original' =
-                      activeDoc.promptConfig?.CAPTION_LINE_MODE === 'subdivide' ||
-                      activeDoc.promptConfig?.CAPTION_LINE_MODE === 'wrap' ||
-                      activeDoc.promptConfig?.CAPTION_LINE_MODE === 'original'
-                        ? activeDoc.promptConfig.CAPTION_LINE_MODE
-                        : srtLineMode;
+                    // Same rule as the video editor: "original" unless chosen by hand in this documentary
+                    const effLen16x9 = resolveDocCaptionLength16x9(activeDoc.promptConfig);
+                    const effMaxChars = effLen16x9.maxChars;
+                    const effLineMode: 'subdivide' | 'wrap' | 'original' = effLen16x9.mode;
                     const effFontSize16x9 =
                       typeof activeDoc.promptConfig?.CAPTION_FONT_SIZE_16X9 === 'number' &&
                       activeDoc.promptConfig.CAPTION_FONT_SIZE_16X9 >= 12
@@ -26806,6 +26801,10 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                         ...(activeDoc.promptConfig || {}),
                         CAPTION_MAX_CHARS: nextMax,
                         CAPTION_LINE_MODE: nextMode,
+                        // Only a manual change of the line length marks it as the user's own choice
+                        ...(patch.maxChars !== undefined || patch.lineMode !== undefined
+                          ? { CAPTION_LENGTH_16X9_USER_SET: true }
+                          : {}),
                         CAPTION_FONT_SIZE_16X9: nextF16,
                         CAPTION_FONT_SIZE_9X16: nextF9,
                         CAPTION_WORDS_PER_LINE_16X9: nextW16,
@@ -27714,16 +27713,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                       type="button"
                       onClick={() => {
                         try {
-                          const effMax =
-                            typeof activeDoc.promptConfig?.CAPTION_MAX_CHARS === 'number'
-                              ? activeDoc.promptConfig.CAPTION_MAX_CHARS
-                              : srtMaxChars;
-                          const effMode: 'subdivide' | 'wrap' | 'original' =
-                            activeDoc.promptConfig?.CAPTION_LINE_MODE === 'subdivide' ||
-                            activeDoc.promptConfig?.CAPTION_LINE_MODE === 'wrap' ||
-                            activeDoc.promptConfig?.CAPTION_LINE_MODE === 'original'
-                              ? activeDoc.promptConfig.CAPTION_LINE_MODE
-                              : srtLineMode;
+                          const effLen = resolveDocCaptionLength16x9(activeDoc.promptConfig);
+                          const effMax = effLen.maxChars;
+                          const effMode: 'subdivide' | 'wrap' | 'original' = effLen.mode;
                           const effWords =
                             activeDoc.productionType === 'REEL_9X16'
                               ? Number(activeDoc.promptConfig?.CAPTION_WORDS_PER_LINE_9X16 ?? 4)
