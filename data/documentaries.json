@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-11-25T22:15:59.273Z",
-    "updatedAt": "2026-11-26T04:36:44.627Z",
+    "updatedAt": "2026-11-26T04:41:52.977Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -42,7 +42,7 @@
       "FIELD_CLEARED_AT_clip1OptionsRaw": "0",
       "FIELD_CLEARED_AT_clip1Line1LocationTime": "0",
       "FIELD_CLEARED_AT_clip1Line2Hook": "0",
-      "PROMPTS_RESTORED_AT": "1795667577461",
+      "PROMPTS_RESTORED_AT": "1795667804627",
       "FIELD_CLEARED_AT_rawClipsText": "0"
     },
     "compiledMasterPrompt": "",
@@ -937,8 +937,8 @@
         "videoSavedFileName": "03_generate_a_video_in_16_9_94eab89c_4K.mp4",
         "videoDiscardOverriddenAt": 1795665747862,
         "videoSavedAt": 1795665747862,
-        "videoAuditStatus": "approved",
-        "reviewedUpdatedAt": 1795667472431
+        "reviewedUpdatedAt": 1795667472431,
+        "videoAuditStatus": "approved"
       },
       {
         "id": "clip-4-1795649050151-4",
@@ -959,8 +959,8 @@
         "videoSavedFileName": "04_generate_a_video_in_16_9_c4aa4756_4K.mp4",
         "videoDiscardOverriddenAt": 1795665726769,
         "videoSavedAt": 1795665726769,
-        "videoAuditStatus": "approved",
-        "reviewedUpdatedAt": 1795667487366
+        "reviewedUpdatedAt": 1795667487366,
+        "videoAuditStatus": "approved"
       },
       {
         "id": "clip-5-1795649050151-5",
@@ -981,8 +981,8 @@
         "videoSavedFileName": "05_generate_a_video_in_16_9_85ae3d31_4K.mp4",
         "videoDiscardOverriddenAt": 1795665726769,
         "videoSavedAt": 1795665726769,
-        "videoAuditStatus": "approved",
-        "reviewedUpdatedAt": 1795667503148
+        "reviewedUpdatedAt": 1795667503148,
+        "videoAuditStatus": "approved"
       },
       {
         "id": "clip-6-1795649050151-6",
@@ -1003,8 +1003,8 @@
         "videoSavedFileName": "06_generate_a_video_in_16_9_1eda0b31_4K.mp4",
         "videoDiscardOverriddenAt": 1795665726769,
         "videoSavedAt": 1795665726769,
-        "videoAuditStatus": "approved",
-        "reviewedUpdatedAt": 1795667514754
+        "reviewedUpdatedAt": 1795667514754,
+        "videoAuditStatus": "approved"
       },
       {
         "id": "clip-7-1795649050151-7",
@@ -1025,8 +1025,8 @@
         "videoSavedFileName": "07_generate_a_video_in_16_9_11aec7bd_4K.mp4",
         "videoDiscardOverriddenAt": 1795665726769,
         "videoSavedAt": 1795665726769,
-        "videoAuditStatus": "approved",
-        "reviewedUpdatedAt": 1795667526896
+        "reviewedUpdatedAt": 1795667526896,
+        "videoAuditStatus": "approved"
       },
       {
         "id": "clip-8-1795649050152-8",
@@ -1047,8 +1047,8 @@
         "videoSavedFileName": "08_generate_a_video_in_16_9_0d0c3bfc_4K.mp4",
         "videoDiscardOverriddenAt": 1795665682752,
         "videoSavedAt": 1795665682752,
-        "videoAuditStatus": "approved",
-        "reviewedUpdatedAt": 1795667539804
+        "reviewedUpdatedAt": 1795667539804,
+        "videoAuditStatus": "approved"
       },
       {
         "id": "clip-9-1795649050152-9",
@@ -1069,8 +1069,8 @@
         "videoSavedFileName": "09_generate_a_video_in_16_9_18f51bf5_4K.mp4",
         "videoDiscardOverriddenAt": 1795666653820,
         "videoSavedAt": 1795666653820,
-        "videoAuditStatus": "approved",
-        "reviewedUpdatedAt": 1795667552855
+        "reviewedUpdatedAt": 1795667552855,
+        "videoAuditStatus": "approved"
       },
       {
         "id": "clip-10-1795649050152-10",
@@ -1091,8 +1091,8 @@
         "videoSavedFileName": "10_generate_a_video_in_16_9_120e3d23_4K.mp4",
         "videoDiscardOverriddenAt": 1795666653820,
         "videoSavedAt": 1795666653820,
-        "videoAuditStatus": "approved",
-        "reviewedUpdatedAt": 1795667563572
+        "reviewedUpdatedAt": 1795667563572,
+        "videoAuditStatus": "approved"
       },
       {
         "id": "clip-11-1795649050152-11",
