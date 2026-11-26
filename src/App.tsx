@@ -254,7 +254,7 @@ import { stampBrandMarksOnThumbnail, HD_BADGE_EMPTY_CORNER_CLAUSE, LOGO_EMPTY_CO
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '02:46 PM - 11/26/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '03:58 PM - 11/26/2026';
 
 // PRODUCTION LOCK: while promptConfig.PRODUCTION_LOCKED === 'YES' these fields never change (the server
 // enforces the same list in protectLockedDocs). Metadata, thumbnails, review marks and reframes stay editable.
@@ -4154,14 +4154,18 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     // It opens by itself as soon as it arrives.
     if (activeDocId && mainView !== 'capcut_editor') return null;
     if (documentaries.length > 0) {
+      // Nothing chosen on this device yet: open the documentary that was worked on last, not just the first one
+      const byLastWorked = [...documentaries].sort(
+        (x, y) => (Date.parse(y.updatedAt || '') || 0) - (Date.parse(x.updatedAt || '') || 0)
+      );
       if (mainView === 'capcut_editor') {
         return (
-          documentaries.find((d) => (d.clips?.length || 0) > 0 || Boolean(d.masterAudioUrl)) ||
-          documentaries[0] ||
+          byLastWorked.find((d) => (d.clips?.length || 0) > 0 || Boolean(d.masterAudioUrl)) ||
+          byLastWorked[0] ||
           null
         );
       }
-      return documentaries[0] || null;
+      return byLastWorked[0] || null;
     }
     return null;
   }, [documentaries, activeDocId, mainView]);
@@ -4190,7 +4194,14 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     activeDocRef.current = activeDoc;
     // (An old one-off rule switched to Video 77 on every load in Etapa 1 when the phone's saved download folder
     // contained "77"; removed 2026-11-23: the page opens the documentary you chose, nothing else.)
-    if (activeDoc?.id && activeDoc.id !== activeDocId) {
+    // A documentary shown only as a stand-in (the editor does that while the chosen one has not arrived in this
+    // list yet) must not replace the saved choice: the page stays on the documentary that was worked on last.
+    // It only takes its place when nothing is chosen, or when the chosen one was deleted.
+    if (
+      activeDoc?.id &&
+      activeDoc.id !== activeDocId &&
+      (!activeDocId || getLocalDeletedDocIds().includes(activeDocId))
+    ) {
       setActiveDocId(activeDoc.id);
     }
   }, [activeDoc, activeDocId, documentaries, mainView, activeStage]);
