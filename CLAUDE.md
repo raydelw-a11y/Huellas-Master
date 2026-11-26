@@ -45,3 +45,13 @@ Antes de dar por terminado cualquier cambio de código o subir a GitHub/Render, 
 - **Si la tarea pide menos que el effort de la sesión**, también **detente antes de hacer el trabajo** y pide al usuario que lo baje en el selector ("esta tarea es `low` y la sesión está en `medium`; bájalo y te sigo"); espera su respuesta antes de empezar. Si el usuario dice que siga así, continúa con el effort actual.
 - **Al lanzar otra sesión para una tarea**, pásale el `effort` explícito según esa clasificación.
 - Niveles: `low`, `medium`, `high`, `extra` y `max`, más el interruptor Ultracode; el valor por defecto es `low`. **Nunca cambies el modelo.**
+
+## 6. Turno de Publicación entre Sesiones (una sola sesión cambia la página a la vez)
+Varias sesiones trabajan sobre esta misma carpeta, y un `npm run build` o un `git push` publica todo lo que haya en disco, también lo que otra sesión dejó a medias. Por eso:
+1. **Antes de editar código de la página** (`src/`, `server.ts`, `extension/`, `scripts/`, `vite.config.ts`) **y antes de `npm run build`, `git commit`, `git push` o reiniciar el servidor**, comprueba si otra sesión tiene el turno:
+   - Archivo de turno: `"$(git rev-parse --git-common-dir)/claude-publish.lock"` (dentro de `.git`, nunca se sube).
+   - `git status --short`: si hay archivos de código modificados que tú no tocaste, otra sesión está a mitad de un cambio aunque no exista el archivo de turno.
+2. **Si otra sesión tiene el turno, espera**: no edites código, no compiles, no hagas commit ni push. Vuelve a comprobar cada minuto aproximadamente hasta que el archivo desaparezca y no queden cambios ajenos de código sin subir. Mientras tanto puedes leer, investigar y preparar el cambio. Avisa al usuario en una línea de que estás esperando y a qué sesión.
+3. **Al tomar el turno**, crea el archivo con una línea: título o id de tu sesión, hora de Nueva York y qué vas a cambiar. **Bórralo en cuanto termines** (después del push y del reinicio del servidor) o si abandonas el cambio.
+4. **Turno viejo**: si el archivo tiene más de 30 minutos y no cambia, no lo borres por tu cuenta; pregunta al usuario si esa sesión sigue trabajando.
+5. Los archivos de datos que la propia app reescribe (`data/*.json`, `docs/data/*.json`, `docs/index.html`, `docs/tts-files/`) no cuentan como trabajo de otra sesión.
