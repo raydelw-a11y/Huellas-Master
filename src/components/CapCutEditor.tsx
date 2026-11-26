@@ -116,6 +116,8 @@ import {
   isClipFoleyVolumeExplicit,
   resolveClipFoleyLevelPct,
   buildClipFoleyLevelSegments,
+  musicSourceSecAtTimeline,
+  introMusicGainAtTimeline,
   type ClipLoudness,
   type FoleyLevelSettings,
 } from '../utils/audioMix';
@@ -10209,6 +10211,15 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     };
   }, [clipsWithTimelineBounds]);
 
+  // Songs stop during a mid-timeline Intro (Opción B) and resume after it from the same point (utils/audioMix)
+  const musicIntroWindow = useMemo(
+    () =>
+      postSloganIntroBounds
+        ? { startSec: postSloganIntroBounds.start, endSec: postSloganIntroBounds.end }
+        : null,
+    [postSloganIntroBounds?.start, postSloganIntroBounds?.end]
+  );
+
   // Keep latest caption projection options synchronized for async Vosk/WebAudio callbacks
   const effectiveIntroModeForCaptions: 'INTRO_INICIO_00' | 'INTRO_POST_SLOGAN' =
     activeDoc?.promptConfig?.UBICACION_INTRO_MARCA === 'INTRO_POST_SLOGAN' ||
@@ -11348,10 +11359,13 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     );
     const fadeInFactor = fadeInSec > 0 ? Math.min(1, elapsedInTrack / fadeInSec) : 1;
     const fadeOutFactor = fadeOutSec > 0 ? Math.min(1, remainingInTrack / fadeOutSec) : 1;
-    const fadeEnvelope = Math.max(0, Math.min(fadeInFactor, fadeOutFactor));
+    // Intro Opción B: fade out before the Intro and fade back in after it
+    const introGain = introMusicGainAtTimeline(currentTime, musicIntroWindow);
+    const fadeEnvelope = Math.max(0, Math.min(fadeInFactor, fadeOutFactor)) * introGain;
 
     return Number(Math.max(0, Math.min(100, targetBasePct * fadeEnvelope)).toFixed(2));
   }, [
+    musicIntroWindow,
     activeMusicAtPlayhead,
     activeClipAtPlayhead?.id,
     activeClipAtPlayhead?.clipNumber,
@@ -11927,7 +11941,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           mus.playbackRate = 1;
           (mus as any).preservesPitch = true;
           mus.muted = false;
-          mus.currentTime = Math.max(0, startSec - activeMusicAtPlayhead.start);
+          mus.currentTime = musicSourceSecAtTimeline(startSec, activeMusicAtPlayhead.start, musicIntroWindow);
           mus.volume = Math.min(1, Math.max(0.05, effectiveMusicVolumeAtPlayhead / 100));
           mus.play().catch(() => {});
         } else if (musicTracks[0]?.audioUrl) {
@@ -13049,7 +13063,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             : Number.isFinite(activeMusicAtPlayhead.duration) && activeMusicAtPlayhead.duration > 1
             ? activeMusicAtPlayhead.duration
             : 240;
-        const rawMusTime = Math.max(0, currentTime - activeMusicAtPlayhead.start);
+        const rawMusTime = musicSourceSecAtTimeline(currentTime, activeMusicAtPlayhead.start, musicIntroWindow);
         const musTime = rawMusDur > 0 && rawMusTime >= rawMusDur ? rawMusTime % rawMusDur : rawMusTime;
         const isManualMusSeek = appliedMusicSeekVersionRef.current !== lastSeekVersionRef.current;
         if (
@@ -13192,6 +13206,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     effectiveFoleyVolumeAtPlayhead,
     activeClipNormGainDb,
     effectiveMusicVolumeAtPlayhead,
+    musicIntroWindow,
     voiceStartOffsetSec,
     voiceVolume,
     voiceGainDb,

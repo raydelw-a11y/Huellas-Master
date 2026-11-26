@@ -292,3 +292,39 @@ export function buildClipFoleyLevelSegments(clip: FoleyLevelClip, s: FoleyLevelS
   }
   return out.length > 0 ? out : [{ startSec: 0, volume: 0 }];
 }
+
+/**
+ * Intro Opción B (the 8s Intro in the middle of the timeline): the songs never sound during the Intro. They fade
+ * out just before it, stop, and resume right after it from the point where they stopped, fading back in.
+ * The editor preview and the export (render-ffmpeg) both use these, so they sound the same.
+ */
+export const INTRO_MUSIC_FADE_SEC = 1.5;
+
+export type MidTimelineIntroWindow = { startSec: number; endSec: number } | null | undefined;
+
+const isUsableIntroWindow = (intro: MidTimelineIntroWindow): intro is { startSec: number; endSec: number } =>
+  !!intro && Number.isFinite(intro.startSec) && Number.isFinite(intro.endSec) && intro.endSec - intro.startSec > 0.05;
+
+/** Second of the song's file heard at `timelineSec`: the part of its block covered by the Intro is not consumed. */
+export function musicSourceSecAtTimeline(
+  timelineSec: number,
+  trackStartSec: number,
+  intro: MidTimelineIntroWindow
+): number {
+  const raw = Math.max(0, timelineSec - trackStartSec);
+  if (!isUsableIntroWindow(intro)) return raw;
+  const covered = Math.max(
+    0,
+    Math.min(timelineSec, intro.endSec) - Math.max(trackStartSec, intro.startSec)
+  );
+  return Math.max(0, raw - covered);
+}
+
+/** Gain (0–1) of the songs around the Intro: linear fade out before it, silence during it, fade in after it. */
+export function introMusicGainAtTimeline(timelineSec: number, intro: MidTimelineIntroWindow): number {
+  if (!isUsableIntroWindow(intro)) return 1;
+  const F = INTRO_MUSIC_FADE_SEC;
+  if (timelineSec < intro.startSec) return Math.min(1, (intro.startSec - timelineSec) / F);
+  if (timelineSec < intro.endSec) return 0;
+  return Math.min(1, (timelineSec - intro.endSec) / F);
+}

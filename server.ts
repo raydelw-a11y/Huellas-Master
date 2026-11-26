@@ -81,6 +81,7 @@ import {
   computeFoleyNormGainDb,
   dbToLinear,
   FOLEY_LIMITER_CEILING_DB,
+  INTRO_MUSIC_FADE_SEC,
   VOICE_PREVIEW_MAKEUP_DB,
   type FoleyLevelSegment,
 } from './src/utils/audioMix';
@@ -8959,8 +8960,56 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
           const x = `((t-${a.toFixed(3)})/${(b - a).toFixed(3)})`;
           volumeFilter = `volume='if(lt(t,${a.toFixed(3)}),${P},if(lt(t,${b.toFixed(3)}),${P}+(${B}-${P})*${x}*${x}*(3-2*${x}),${B}))':eval=frame`;
         }
+        // Intro Opción B (mid-timeline Intro): the song never sounds during the Intro. It fades out before it,
+        // stops, and resumes after it from the point where it stopped, fading back in (same as the editor,
+        // utils/audioMix musicSourceSecAtTimeline / introMusicGainAtTimeline). Times below are local to the block.
+        let songSourceChain = `[${nextInputIdx}:a]aresample=44100,aformat=sample_fmts=fltp:channel_layouts=stereo,atrim=0:${dur},asetpts=N/SR/TB`;
+        let introGainFilter = '';
+        if (midTimelineIntroBounds && midTimelineIntroBounds.durationSec > 0.05) {
+          const introS = midTimelineIntroBounds.startSec - mItem.startSec;
+          const introE = midTimelineIntroBounds.endSec - mItem.startSec;
+          const gapA = Math.max(0, introS);
+          const gapB = Math.min(dur, introE);
+          const fmt = 'aformat=sample_fmts=fltp:sample_rates=44100:channel_layouts=stereo';
+          if (gapB - gapA > 0.05) {
+            // The block covers part of the Intro: song[0..A] + silence for the covered part + song from A on
+            const tail = Math.max(0, dur - gapB);
+            const parts: string[] = [];
+            const pre: string[] = [`[${nextInputIdx}:a]aresample=44100,aformat=sample_fmts=fltp:channel_layouts=stereo`];
+            const hasP1 = gapA > 0.02;
+            const hasP2 = tail > 0.02;
+            const splitN = (hasP1 ? 1 : 0) + (hasP2 ? 1 : 0);
+            if (splitN === 2) pre[0] += `,asplit=2[${lbl}_s1][${lbl}_s2]`;
+            else if (hasP1) pre[0] += `,anull[${lbl}_s1]`;
+            else if (hasP2) pre[0] += `,anull[${lbl}_s2]`;
+            else pre[0] += `,anullsink`;
+            filterParts.push(pre[0]);
+            if (hasP1) {
+              filterParts.push(`[${lbl}_s1]atrim=0:${gapA.toFixed(4)},asetpts=PTS-STARTPTS,${fmt}[${lbl}_p1]`);
+              parts.push(`[${lbl}_p1]`);
+            }
+            filterParts.push(
+              `anullsrc=r=44100:cl=stereo,atrim=0:${(gapB - gapA).toFixed(4)},asetpts=PTS-STARTPTS,${fmt}[${lbl}_gap]`
+            );
+            parts.push(`[${lbl}_gap]`);
+            if (hasP2) {
+              filterParts.push(
+                `[${lbl}_s2]atrim=start=${gapA.toFixed(4)}:end=${(gapA + tail).toFixed(4)},asetpts=PTS-STARTPTS,${fmt}[${lbl}_p2]`
+              );
+              parts.push(`[${lbl}_p2]`);
+            }
+            songSourceChain = `${parts.join('')}concat=n=${parts.length}:v=0:a=1,asetpts=N/SR/TB`;
+          }
+          // Fade out before the Intro and fade in after it (linear, like the editor); 1 far from the Intro
+          const F = INTRO_MUSIC_FADE_SEC.toFixed(3);
+          const S = introS.toFixed(4);
+          const E = introE.toFixed(4);
+          if (introS - INTRO_MUSIC_FADE_SEC < dur && introE + INTRO_MUSIC_FADE_SEC > 0) {
+            introGainFilter = `,volume='if(lt(t,${S}),min(1,((${S})-t)/${F}),if(lt(t,${E}),0,min(1,(t-(${E}))/${F})))':eval=frame`;
+          }
+        }
         filterParts.push(
-          `[${nextInputIdx}:a]aresample=44100,aformat=sample_fmts=fltp:channel_layouts=stereo,atrim=0:${dur},asetpts=N/SR/TB${fadeChain},${volumeFilter},adelay=${startMs}|${startMs}[${lbl}]`
+          `${songSourceChain}${fadeChain},${volumeFilter}${introGainFilter},adelay=${startMs}|${startMs}[${lbl}]`
         );
         mixLabels.push(`[${lbl}]`);
         nextInputIdx++;
