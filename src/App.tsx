@@ -151,11 +151,19 @@ import {
   extractOverlayFromStage5PromptText,
 } from './utils/smartParsers';
 import {
+  STAGE1_PASO2_SOURCE_KEY,
+  STAGE1_PASO3_RESULT_KEY,
+  STAGE1_PASO3_SOURCE_KEY,
+  STAGE1_PASO3_STAGE,
+  STAGE1_PASO4_RESULT_KEY,
+  STAGE1_PASO4_SOURCE_KEY,
+  STAGE1_PASO4_STAGE,
   STAGE1_PROPOSALS_KEY,
   STAGE1_PROPOSAL_SELECTED_KEY,
   STAGE1_SUBJECT_BASE_KEY,
   STAGE1_TOPIC_IDEAS_KEY,
   STAGE1_TOPIC_IDEAS_PICKED_KEY,
+  parseStage1Check,
   parseStage1Proposals,
   parseStage1TopicIdeas,
   readPickedStage1TopicIdeas,
@@ -164,10 +172,21 @@ import {
   resolveStage1Paso1Mode,
   sameStage1ProposalSet,
   sameStage1TopicIdeas,
+  stage1Paso2SourceFingerprint,
+  stage1Paso3AnswerPatch,
+  stage1Paso4AnswerPatch,
   stage1ProposalFields,
   type Stage1Proposal,
 } from './utils/stage1Proposals';
 import Stage1ProposalsPanel from './components/Stage1ProposalsPanel';
+import {
+  Stage1CheckPanel,
+  Stage1DesignPanel,
+  Stage1StepHeader,
+  computeStage1StepStates,
+  defaultOpenStage1Steps,
+  type Stage1StepId,
+} from './components/Stage1NarrativePanels';
 import {
   checkUrlHashSetup,
   getBrowserGeminiKey,
@@ -234,7 +253,7 @@ import { stampBrandMarksOnThumbnail, HD_BADGE_EMPTY_CORNER_CLAUSE, LOGO_EMPTY_CO
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '01:38 AM - 11/26/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '02:33 AM - 11/26/2026';
 
 // PRODUCTION LOCK: while promptConfig.PRODUCTION_LOCKED === 'YES' these fields never change (the server
 // enforces the same list in protectLockedDocs). Metadata, thumbnails, review marks and reframes stay editable.
@@ -1591,7 +1610,12 @@ function computeStage1RecommendedDuration(
   };
 
   const parts = propositionParts || buildStage1PropositionParts(doc, refVideo, []);
-  const rawStep1Text = String(doc.deepResearchPrompt || '').trim();
+  // The duration is recommended by Paso 3 (narrative design, built on the research); older documentaries had it
+  // in the Paso 1 answer
+  const paso3Text = String(doc.promptConfig?.[STAGE1_PASO3_RESULT_KEY] || '').trim();
+  const rawStep1Text = /RECOMENDACI[OÓ]N_DURACI[OÓ]N_TOTAL|DURACI[OÓ]N\s+TOTAL\s+SUGERIDA/i.test(paso3Text)
+    ? paso3Text
+    : String(doc.deepResearchPrompt || '').trim();
   const topicText = String(doc.topic || parts[1]?.currentValue || '').trim();
   const typologyText = String(doc.typology || parts[0]?.currentValue || '').trim();
   const partById = (id: Stage1PropositionPart['id']) => parts.find((p) => p.id === id);
@@ -4151,6 +4175,10 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
   const latestRenderActiveDocRef = React.useRef<DocumentaryProject | null>(null);
   latestRenderActiveDocRef.current = activeDoc;
 
+  // Etapa 1 step by step: the producer's folding is kept only while the documentary and its first unfinished
+  // step stay the same; then the screen opens the next step by itself.
+  const [stage1StepsOverride, setStage1StepsOverride] = useState<{ key: string; open: Stage1StepId[] } | null>(null);
+
   // Release the single Stage 6 4K hardware decoder immediately when switching documentary, stage, view, or batch filter
   useEffect(() => {
     setActiveStage8VideoClipNum(null);
@@ -6127,6 +6155,44 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           '[DeepResearch] Gemini devolvió un error (sin informe). No se sobrescribe deepResearchResult.'
         );
       }
+      if (parsedRefs.length > 0 && (!activeDoc.references || activeDoc.references.length === 0)) {
+        patch.references = parsedRefs;
+        patch.rawReferencePrompts = parsedRefs.map((r) => `${r.tag}: ${r.prompt}`).join('\n\n');
+      }
+      if (patch.deepResearchResult) {
+        // Remember what was researched: if the topic changes later, Paso 2 shows as out of date
+        patch.promptConfig = {
+          ...(patch.promptConfig || activeDoc.promptConfig || {}),
+          [STAGE1_PASO2_SOURCE_KEY]: stage1Paso2SourceFingerprint({ ...activeDoc, ...patch }),
+        };
+      }
+      updateActiveDoc(patch);
+    } else if (stageNum === STAGE1_PASO3_STAGE) {
+      // Etapa 1 · Paso 3 (narrative design): its recommended hook, outline and climax become the chosen design
+      const paso3 = stage1Paso3AnswerPatch(activeDoc, text);
+      if (!paso3) {
+        setBridgeStatusType('ERROR');
+        setBridgeStatusMsg('⚠️ La respuesta del Paso 3 no trae ganchos ni escaletas. Revisa el chat de Gemini y vuelve a pedirlo.');
+        updateActiveDoc({
+          promptConfig: { ...(activeDoc.promptConfig || {}), [STAGE1_PASO3_RESULT_KEY]: text },
+        });
+        return;
+      }
+      updateActiveDoc({
+        ...(paso3.targetDurationSeconds ? { targetDurationSeconds: paso3.targetDurationSeconds } : {}),
+        promptConfig: { ...(activeDoc.promptConfig || {}), ...paso3.promptConfig },
+      });
+    } else if (stageNum === STAGE1_PASO4_STAGE) {
+      // Etapa 1 · Paso 4 (fact-check): kept with the design it checked; its @characters and @places fill the
+      // reference list when it is still empty (they are never replaced, images may already exist for them)
+      const paso4 = stage1Paso4AnswerPatch(activeDoc, text);
+      const patch: Partial<DocumentaryProject> = {
+        promptConfig: {
+          ...(activeDoc.promptConfig || {}),
+          ...(paso4 ? paso4.promptConfig : { [STAGE1_PASO4_RESULT_KEY]: text }),
+        },
+      };
+      const parsedRefs = paso4?.check.references ? parseReferencesFromRawText(paso4.check.references) : [];
       if (parsedRefs.length > 0 && (!activeDoc.references || activeDoc.references.length === 0)) {
         patch.references = parsedRefs;
         patch.rawReferencePrompts = parsedRefs.map((r) => `${r.tag}: ${r.prompt}`).join('\n\n');
@@ -13932,6 +13998,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
             2: 'deepResearchResult',
             3: 'deepResearchResult',
             10: 'deepResearchPrompt',
+            [STAGE1_PASO3_STAGE]: STAGE1_PASO3_RESULT_KEY,
+            [STAGE1_PASO4_STAGE]: STAGE1_PASO4_RESULT_KEY,
             4: 'voiceoverScript',
             5: 'thumbnailPrompt',
             101: 'thumbnailTextOverlay',
@@ -13974,7 +14042,26 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
               setDocumentaries((prev) => {
                 const next = prev.map((d) =>
                   d.id === msgDocId
-                    ? ({ ...d, [fieldKey]: text, updatedAt: new Date().toISOString() } as DocumentaryProject)
+                    ? targetStage === STAGE1_PASO3_STAGE || targetStage === STAGE1_PASO4_STAGE
+                      ? (() => {
+                          // Etapa 1 Pasos 3 and 4 are kept inside promptConfig, the same as on the Mac server
+                          const stepPatch =
+                            targetStage === STAGE1_PASO3_STAGE
+                              ? stage1Paso3AnswerPatch(d, text)
+                              : stage1Paso4AnswerPatch(d, text);
+                          return {
+                            ...d,
+                            ...(stepPatch && 'targetDurationSeconds' in stepPatch && stepPatch.targetDurationSeconds
+                              ? { targetDurationSeconds: stepPatch.targetDurationSeconds }
+                              : {}),
+                            promptConfig: {
+                              ...(d.promptConfig || {}),
+                              ...(stepPatch ? stepPatch.promptConfig : { [fieldKey]: text }),
+                            },
+                            updatedAt: new Date().toISOString(),
+                          } as DocumentaryProject;
+                        })()
+                      : ({ ...d, [fieldKey]: text, updatedAt: new Date().toISOString() } as DocumentaryProject)
                     : d
                 );
                 pushDocumentariesToGitHub(next as any)
@@ -14974,6 +15061,10 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         setBridgeStatusMsg(
           isPart1Remote
             ? '📡 Enviando Paso 1 desde tu móvil a tu Mac (Gemini, modelo Neon)...'
+            : stageNum === STAGE1_PASO3_STAGE
+            ? '📡 Enviando Paso 3 (diseño narrativo) desde tu móvil a tu Mac (Gemini, modelo Neon)...'
+            : stageNum === STAGE1_PASO4_STAGE
+            ? '📡 Enviando Paso 4 (comprobación del diseño) desde tu móvil a tu Mac (Gemini, modelo Neon)...'
             : isDeepResearchRemote
             ? '📡 Enviando Paso 2 desde tu móvil a tu Mac: Gemini en modelo Neon + Deep Research. El informe aparecerá aquí al terminar (10–20 min).'
             : stageNum === 5
@@ -15133,6 +15224,10 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         ? `⚡ Etapa 1 (Parte 1): Enviando a Gemini Web en modelo Neon (SIN Deep Research) para investigar video y determinar Definición Histórica y Calibración...`
         : isResearchStage
         ? `🔬 Etapa 1 (Parte 2): Enviando a Gemini Web en modelo Neon + Deep Research activo (con Auto-Iniciar Plan)...`
+        : stageNum === STAGE1_PASO3_STAGE
+        ? `🎬 Etapa 1 · Paso 3: enviando a Gemini Web (modelo Neon, sin Deep Research) el diseño narrativo sobre la investigación...`
+        : stageNum === STAGE1_PASO4_STAGE
+        ? `✅ Etapa 1 · Paso 4: enviando a Gemini Web (modelo Neon, sin Deep Research) la comprobación del diseño contra las fuentes...`
         : stageNum === 8 && stage8ExpectedClipCount > 0
         ? `⚡ Enviando Etapa 6 (${stage8ExpectedClipCount} clips posibles) a Gemini Web en modelo Neon (ventana extendida hasta 20 min con auto-continuación sin reinicios)...`
         : `⚡ Enviando prompt a Gemini Web en el modelo ${geminiModelName}...`
@@ -17775,6 +17870,23 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     return matchesSearch && matchesStatus;
   });
 
+  // Etapa 1 step by step: status of each step and which ones are unfolded
+  const stage1StepView = activeDoc ? computeStage1StepStates(activeDoc) : null;
+  const stage1AutoKey = activeDoc && stage1StepView ? `${activeDoc.id}|${stage1StepView.firstUnfinished || 'all'}` : '';
+  const stage1OpenSteps: Stage1StepId[] =
+    stage1StepsOverride && stage1StepsOverride.key === stage1AutoKey
+      ? stage1StepsOverride.open
+      : defaultOpenStage1Steps(stage1StepView?.firstUnfinished || null);
+  const isStage1StepOpen = (id: Stage1StepId) => stage1OpenSteps.includes(id);
+  const toggleStage1Step = (id: Stage1StepId) =>
+    setStage1StepsOverride({
+      key: stage1AutoKey,
+      open: isStage1StepOpen(id) ? stage1OpenSteps.filter((s) => s !== id) : [...stage1OpenSteps, id],
+    });
+  /** Place of a piece of Etapa 1 in the step-by-step order, hidden (still mounted) while its step is folded */
+  const stage1Slot = (order: number, step?: Stage1StepId): React.CSSProperties =>
+    step && !isStage1StepOpen(step) ? { order, display: 'none' } : { order };
+
   return (
     <div
       className={`${
@@ -18926,7 +19038,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                 ETAPA 1 UNIFICADA: PROMPT MAESTRO (CARPETA + TEMA Y DURACIÓN + VIDEOS ANALIZADOS + COMENTARIOS ×N + DEEP RESEARCH + PERGAMINO)
             =============================================================== */}
             {(activeStage === 1 || activeStage === 2 || activeStage === 3) && (
-              <div className="space-y-4 sm:space-y-6 w-full max-w-full min-w-0 overflow-x-hidden">
+              <div className="flex flex-col gap-4 sm:gap-6 w-full max-w-full min-w-0 overflow-x-hidden">
                 {/* BLOQUE 1: CARPETA DE DESCARGA OBLIGATORIA + EDITOR EN TIEMPO REAL DEL NOMBRE DEL VIDEO / CARPETA MAC / CHAT GEMINI */}
                 <div
                   className={`rounded-2xl p-3.5 sm:p-5 border-2 transition-all shadow-lg space-y-4 w-full max-w-full min-w-0 overflow-hidden ${
@@ -19017,7 +19129,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                         type="button"
                         onClick={() => {
                           const confirmed = window.confirm(
-                            `¿Estás seguro de que deseas limpiar toda la Etapa 1 de "${activeDoc.title}"?\n\nSe borrarán:\n• Definición Histórica (Tipología, Tema Central, Tiempo/Época, Lugar y Continuidad)\n• Video de referencia, Link pegado, Comentarios marcados y Videos de investigación marcados\n• Resumen por Partes de la Proposición (Paso 1)\n• Prompt de Investigación y Resultado de Investigación Profunda (Paso 2)\n• Prompt Maestro Compilado\n\n(Se conservará el Nombre del Video y su Carpeta de Descarga).`
+                            `¿Estás seguro de que deseas limpiar toda la Etapa 1 de "${activeDoc.title}"?\n\nSe borrarán:\n• Definición Histórica (Tipología, Tema Central, Tiempo/Época, Lugar y Continuidad)\n• Video de referencia, Link pegado, Comentarios marcados y Videos de investigación marcados\n• Resumen por Partes de la Proposición (Paso 1)\n• Prompt de Investigación y Resultado de Investigación Profunda (Paso 2)\n• Diseño narrativo (Paso 3) y Comprobación (Paso 4)\n• Prompt Maestro Compilado\n\n(Se conservará el Nombre del Video y su Carpeta de Descarga).`
                           );
                           if (!confirmed) return;
                           setSelectedAnalyzedVideoId('');
@@ -19074,6 +19186,11 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             STAGE1_SUBJECT_BASE_KEY,
                             STAGE1_TOPIC_IDEAS_KEY,
                             STAGE1_TOPIC_IDEAS_PICKED_KEY,
+                            STAGE1_PASO3_RESULT_KEY,
+                            STAGE1_PASO4_RESULT_KEY,
+                            STAGE1_PASO2_SOURCE_KEY,
+                            STAGE1_PASO3_SOURCE_KEY,
+                            STAGE1_PASO4_SOURCE_KEY,
                           ]) {
                             clearedStage1Keys[k] = '';
                           }
@@ -19218,9 +19335,13 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                   </div>
                 </div>
 
-                {/* BLOQUE 2: DEFINICIÓN HISTÓRICA + ÁNGULO / CONTINUIDAD + CALIBRACIÓN MATEMÁTICA CON INTRO (8s) Y OUTRO (8s) */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 w-full max-w-full min-w-0">
-                  <div className="bg-[#14120f] border border-slate-800 rounded-2xl p-3.5 sm:p-6 space-y-4 min-w-0 max-w-full overflow-hidden">
+                {/* BLOQUE 2: DEFINICIÓN HISTÓRICA + ÁNGULO / CONTINUIDAD + CALIBRACIÓN MATEMÁTICA CON INTRO (8s) Y OUTRO (8s)
+                    (step by step: the Definición goes with the material and the Calibración with Paso 3) */}
+                <div className="contents">
+                  <div
+                    style={stage1Slot(11, 'material')}
+                    className="bg-[#14120f] border border-slate-800 rounded-2xl p-3.5 sm:p-6 space-y-4 min-w-0 max-w-full overflow-hidden"
+                  >
                     <div className="flex items-center justify-between flex-wrap gap-2">
                       <h3 className="font-bold text-amber-300 text-base">
                         🏛️ Definición Histórica y Continuidad
@@ -19497,7 +19618,10 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                   </div>
 
                   {/* CALIBRACIÓN MATEMÁTICA CON INTRO OFICIAL (8s) + CLIP 1 + CUERPO + OUTRO OFICIAL (8s) */}
-                  <div className="bg-[#14120f] border border-slate-800 rounded-2xl p-3.5 sm:p-6 space-y-4 min-w-0 max-w-full overflow-hidden">
+                  <div
+                    style={stage1Slot(41, 'paso3')}
+                    className="bg-[#14120f] border border-slate-800 rounded-2xl p-3.5 sm:p-6 space-y-4 min-w-0 max-w-full overflow-hidden"
+                  >
                     <div className="flex items-center justify-between flex-wrap gap-2">
                       <h3 className="font-bold text-amber-300 text-base">
                         ⏱️ Calibración Matemática (Intro 8s + Clips + Outro 8s)
@@ -19793,7 +19917,10 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                 </div>
 
                 {/* BLOQUE 3: ESTRUCTURA DE VIDEOS ANALIZADOS PREVIAMENTE + LISTADO DE COMENTARIOS AGRUPADOS (×N) */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 w-full max-w-full min-w-0">
+                <div
+                  style={stage1Slot(12, 'material')}
+                  className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 w-full max-w-full min-w-0"
+                >
                   {/* COLUMNA IZQUIERDA: SELECTOR DE ESTRUCTURA DE VIDEOS ANALIZADOS + EXPLICACIÓN E INVESTIGACIÓN */}
                   <div className="bg-[#14120f] border border-amber-500/30 rounded-2xl p-3.5 sm:p-6 space-y-4 min-w-0 max-w-full overflow-hidden">
                     <div className="flex items-center justify-between flex-wrap gap-2">
@@ -20096,23 +20223,15 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                 {/* BLOQUE 4: ETAPA 1 DIVIDIDA EN DOS PARTES:
                     PARTE 1: INVESTIGACIÓN DEL OTRO VIDEO + DETERMINACIÓN DE DEFINICIÓN HISTÓRICA Y CALIBRACIÓN MATEMÁTICA (4 CARBON · THINKING LOW · SIN DEEP RESEARCH)
                     PARTE 2: INVESTIGACIÓN PROFUNDA DE NUESTRO DOCUMENTAL (4 CARBON · THINKING LOW · CON DEEP RESEARCH ACTIVO) */}
-                <div className="bg-[#14120f] border-2 border-amber-500/40 rounded-2xl p-3.5 sm:p-6 space-y-5 shadow-xl w-full max-w-full min-w-0 overflow-hidden">
-                  {/* CABECERA GENERAL DE LAS 2 FASES DE ETAPA 1 */}
-                  <div className="flex items-center justify-between flex-wrap gap-2 border-b border-slate-800 pb-3 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap min-w-0">
-                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500 text-slate-950">
-                        Etapa 1 Dividida en 2 Fases
-                      </span>
-                      <h3 className="font-black text-amber-300 text-sm sm:text-lg break-words">
-                        🔬 Flujo en 2 Pasos: 1º Definición y Calibración (modelo Neon) → 2º Investigación Profunda (Deep Research + modelo Neon)
-                      </h3>
-                    </div>
-                  </div>
+                <div className="contents">
 
                   {/* =====================================================================
                       FASE 1 DE ETAPA 1: INVESTIGACIÓN DEL OTRO VIDEO + DEFINICIÓN HISTÓRICA Y CALIBRACIÓN MATEMÁTICA (SIN DEEP RESEARCH · THINKING LEVEL: LOW)
                      ===================================================================== */}
-                  <div className="bg-slate-950/90 border border-amber-500/40 rounded-2xl p-3 sm:p-5 space-y-4 w-full max-w-full min-w-0 overflow-hidden">
+                  <div
+                    style={stage1Slot(21, 'paso1')}
+                    className="bg-slate-950/90 border border-amber-500/40 rounded-2xl p-3 sm:p-5 space-y-4 w-full max-w-full min-w-0 overflow-hidden"
+                  >
                     <div className="flex items-start justify-between flex-wrap gap-3 sm:gap-4 min-w-0">
                       <div className="space-y-1 max-w-3xl min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
@@ -20129,10 +20248,10 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                           )}
                         </div>
                         <h4 className="font-extrabold text-slate-100 text-sm sm:text-base break-words">
-                          1º Investigación del Otro Video + Determinación de 🏛️ Definición Histórica y Continuidad y ⏱️ Calibración Matemática
+                          1º Tema: elegir qué documental hacer
                         </h4>
                         <p className="text-xs text-slate-300 leading-relaxed break-words">
-                          Usa los videos marcados (Videos Analizados) y los comentarios <code className="text-amber-300">×N</code> seleccionados en <strong>el modelo Neon (sin activar Deep Research)</strong>, te entrega <strong>4 propuestas completas</strong> (cada una con su tema, tiempo y lugar, tipología, clímax, 3 ganchos y 2 escaletas) y llena la <strong>Tipología</strong>, el <strong>Tema Central</strong>, el <strong>Tiempo / Época</strong> y el <strong>Lugar Histórico</strong> con la propuesta que elijas.
+                          Con un <strong>Tema escrito</strong>, Gemini (<strong>modelo Neon</strong>, sin Deep Research) propone <strong>4 ángulos</strong> de ese tema; sin Tema y con videos marcados, propone <strong>10 temas</strong> para que marques los que quieres desarrollar. Usa los videos marcados y los comentarios <code className="text-amber-300">×N</code> elegidos. Cada propuesta trae <strong>tema, tiempo y lugar, tipología</strong> y su <strong>prueba de fuentes</strong>; la que elijas llena la Tipología, el Tema, el Tiempo y el Lugar. El gancho y la escaleta se escriben en el <strong>Paso 3</strong>, con la investigación hecha.
                         </p>
                       </div>
 
@@ -20151,7 +20270,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             title={
                               duplicateBlockForStart
                                 ? `Bloqueado: el link pegado ya fue investigado ("${duplicateBlockForStart.title}"). Deja la caja de link en blanco o pega un link no investigado.`
-                                : 'Ejecutar Paso 1 con el modelo Neon (sin Deep Research)'
+                                : 'Ejecutar el Paso 1 con el modelo Neon (sin Deep Research)'
                             }
                             className={`w-full sm:w-auto max-w-full px-3.5 sm:px-5 py-2.5 sm:py-3 rounded-xl font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg transition whitespace-normal text-left sm:text-center ${
                               duplicateBlockForStart
@@ -20165,7 +20284,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                 ? 'Procesando en Gemini...'
                                 : duplicateBlockForStart
                                 ? '🔒 Link Ya Investigado (Limpia la Caja)'
-                                : '⚡ Paso 1: Determinar Definición + Calibración (Neon)'}
+                                : '⚡ Paso 1: Proponer temas (Neon)'}
                             </span>
                           </button>
                         );
@@ -20395,7 +20514,11 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             topicIdeas={topicIdeas}
                             pickedIdeas={readPickedStage1TopicIdeas(stage1Cfg)}
                             busy={aiGenerating}
-                            durationBanner={durationBanner}
+                            durationBanner={
+                              proposalSet.proposals.some((p) => p.hooks.length > 0 || p.escaletas.length > 0)
+                                ? durationBanner
+                                : undefined
+                            }
                             onSelectProposal={applyProposal}
                             onSelectHook={(text) => setProposalText({ PROPOSICION_GANCHO: text, ANGULO_CENTRAL: text })}
                             onSelectEscaleta={(text) => setProposalText({ PROPOSICION_ESCALETA: text })}
@@ -20464,7 +20587,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                       if (!isPart1OrPart2Done) {
                         return (
                           <div className="bg-slate-900/70 border border-slate-800 rounded-xl p-3.5 text-xs text-slate-400">
-                            💡 Al pulsar <strong>&quot;⚡ Paso 1: Determinar Definición + Calibración (Neon)&quot;</strong>, Gemini (sin Deep Research, con <strong>modelo Neon</strong>) usará los videos marcados y entregará <strong>4 propuestas completas</strong> (tema, tiempo y lugar, tipología y clímax, con sus ganchos y escaletas); aquí eliges una antes de pasar al Paso 2. Si no escribiste el Tema y hay videos marcados, primero propondrá <strong>10 temas</strong> para que marques los que quieres desarrollar.
+                            💡 Al pulsar <strong>&quot;⚡ Paso 1: Proponer temas (Neon)&quot;</strong>, Gemini (sin Deep Research, con <strong>modelo Neon</strong>) usará los videos marcados y entregará <strong>4 propuestas</strong> (tema, tiempo y lugar, tipología y prueba de fuentes); aquí eliges una antes de pasar al Paso 2. Si no escribiste el Tema y hay videos marcados, primero propondrá <strong>10 temas</strong> para que marques los que quieres desarrollar.
                           </div>
                         );
                       }
@@ -20601,7 +20724,10 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                   {/* =====================================================================
                       FASE 2 DE ETAPA 1: INVESTIGACIÓN PROFUNDA CON GEMINI DEEP RESEARCH + 4 CARBON THINKING LEVEL: LOW
                      ===================================================================== */}
-                  <div className="bg-slate-950/90 border-2 border-purple-500/40 rounded-2xl p-3 sm:p-5 space-y-4 w-full max-w-full min-w-0 overflow-hidden">
+                  <div
+                    style={stage1Slot(31, 'paso2')}
+                    className="bg-slate-950/90 border-2 border-purple-500/40 rounded-2xl p-3 sm:p-5 space-y-4 w-full max-w-full min-w-0 overflow-hidden"
+                  >
                     <div className="flex items-start justify-between flex-wrap gap-3 sm:gap-4 min-w-0">
                       <div className="space-y-1 max-w-3xl min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
@@ -20629,7 +20755,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                           2º Investigación Profunda con el Feature de Gemini Deep Research y el modelo Neon
                         </h4>
                         <p className="text-xs text-slate-300 leading-relaxed break-words">
-                          Una vez determinados <strong>🏛️ Definición Histórica y Continuidad</strong>, el <strong>📚 Video Analizado de la Biblioteca</strong> y <strong>⏱️ Calibración Matemática</strong> en el Paso 1, este botón abre en Gemini el menú <strong>&quot;+&quot; → &quot;More tools&quot; → &quot;Deep research&quot;</strong>, deja el modelo en <strong>&quot;Auto&quot;</strong> y ejecuta la Investigación Profunda completa con auto-clic en <em>&quot;Iniciar investigación&quot;</em>.
+                          Con el tema elegido en el Paso 1, este botón abre en Gemini el menú <strong>&quot;+&quot; → &quot;More tools&quot; → &quot;Deep research&quot;</strong> y pide una <strong>investigación neutral</strong> (sin gancho ni escaleta) en 8 secciones: crónica, micro-historias, cifras en conflicto, errores de otros videos corregidos, respuestas a los comentarios, huecos, citas para pantalla y referencias. Sobre ella se escribe el diseño del <strong>Paso 3</strong>.
                         </p>
                       </div>
 
@@ -20652,7 +20778,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                           <span>
                             {aiGenerating
                               ? 'Investigando en Gemini Deep Research...'
-                              : '🔬 Paso 2: Comenzar Investigación Profunda (Deep Research + Auto)'}
+                              : '🔬 Paso 2: Comenzar Investigación Profunda (Deep Research + Neon)'}
                           </span>
                         </button>
                       </div>
@@ -20660,7 +20786,10 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                   </div>
 
                   {/* Dos Cajas de Texto: 1. Prompt de Investigación (Auto-pegado) y 2. Resultado de la Investigación Profunda */}
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 pt-2 min-w-0 max-w-full">
+                  <div
+                    style={stage1Slot(32, 'paso2')}
+                    className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 min-w-0 max-w-full"
+                  >
                     <div className="bg-slate-950/90 border border-slate-800 rounded-2xl p-3 sm:p-4 space-y-2.5 min-w-0 max-w-full overflow-hidden">
                       <div className="flex items-center justify-between flex-wrap gap-2">
                         <label className="text-xs sm:text-sm font-bold text-amber-300">
@@ -20805,16 +20934,24 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
 
                   {/* PRE-DETECCIÓN TEMPRANA DE @PERSONAJES Y LUGARES PARA ETAPA 4 (REFERENCIAS @) */}
                   {(() => {
-                    const detectedRefs = parseReferencesFromRawText(
-                      `${activeDoc.deepResearchResult || ''}\n${activeDoc.sectionsStructure || ''}`
-                    );
+                    const paso4Refs = parseStage1Check(
+                      String(activeDoc.promptConfig?.[STAGE1_PASO4_RESULT_KEY] || '')
+                    ).references;
+                    const detectedRefs = paso4Refs
+                      ? parseReferencesFromRawText(paso4Refs)
+                      : parseReferencesFromRawText(
+                          `${activeDoc.deepResearchResult || ''}\n${activeDoc.sectionsStructure || ''}`
+                        );
                     if (detectedRefs.length === 0) return null;
                     return (
-                      <div className="bg-emerald-950/30 border border-emerald-500/40 rounded-xl p-4 flex items-center justify-between flex-wrap gap-3">
+                      <div
+                        style={stage1Slot(52, 'paso4')}
+                        className="bg-emerald-950/30 border border-emerald-500/40 rounded-xl p-4 flex items-center justify-between flex-wrap gap-3"
+                      >
                         <div className="space-y-1">
                           <div className="text-xs font-bold text-emerald-300">
-                            🎭 Pre-detección Temprana de @Personajes y Lugares ({detectedRefs.length}{' '}
-                            detectados en la Investigación):
+                            🎭 @Personajes y Lugares ({detectedRefs.length}{' '}
+                            {paso4Refs ? 'listados por la Comprobación' : 'detectados en la Investigación'}):
                           </div>
                           <div className="flex flex-wrap gap-1.5">
                             {detectedRefs.map((r, idx) => (
@@ -20845,6 +20982,118 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                           ➕ Enviar a Etapa 4 (Referencias @)
                         </button>
                       </div>
+                    );
+                  })()}
+
+                  {/* ETAPA 1 PASO A PASO: the bar of each step (status + summary, folds its pieces) and the
+                      panels of Paso 3 · Diseño narrativo and Paso 4 · Comprobación */}
+                  {stage1StepView && (() => {
+                    const markedVideosCount = String(activeDoc.promptConfig?.SELECTED_VIDEO_ANALYSES_IDS || '')
+                      .split(',')
+                      .map((x) => x.trim())
+                      .filter(Boolean).length;
+                    const runningStage = aiGenerating ? aiGeneratingStage : null;
+                    const setDesign = (patch: Record<string, string>) =>
+                      updateActiveDoc({ promptConfig: { ...(activeDoc.promptConfig || {}), ...patch } });
+                    const paso4Refs = parseStage1Check(
+                      String(activeDoc.promptConfig?.[STAGE1_PASO4_RESULT_KEY] || '')
+                    ).references;
+                    return (
+                      <>
+                        <div style={{ order: 10 }} className="min-w-0 max-w-full">
+                          <Stage1StepHeader
+                            number="0"
+                            title="Material: videos analizados, comentarios y definición"
+                            summary={`${markedVideosCount} video${markedVideosCount === 1 ? '' : 's'} marcado${
+                              markedVideosCount === 1 ? '' : 's'
+                            } · ${selectedResearchCommentIds.length} comentario${
+                              selectedResearchCommentIds.length === 1 ? '' : 's'
+                            } ×N elegido${selectedResearchCommentIds.length === 1 ? '' : 's'}${
+                              (activeDoc.topic || '').trim() ? '' : ' · Tema en blanco'
+                            }`}
+                            open={isStage1StepOpen('material')}
+                            onToggle={() => toggleStage1Step('material')}
+                          />
+                        </div>
+                        <div style={{ order: 20 }} className="min-w-0 max-w-full">
+                          <Stage1StepHeader
+                            number="1"
+                            title="Tema"
+                            model="Neon"
+                            status={stage1StepView.paso1.status}
+                            summary={stage1StepView.paso1.summary}
+                            running={runningStage === 10}
+                            open={isStage1StepOpen('paso1')}
+                            onToggle={() => toggleStage1Step('paso1')}
+                          />
+                        </div>
+                        <div style={{ order: 30 }} className="min-w-0 max-w-full">
+                          <Stage1StepHeader
+                            number="2"
+                            title="Investigación"
+                            model="Deep Research"
+                            status={stage1StepView.paso2.status}
+                            summary={stage1StepView.paso2.summary}
+                            running={runningStage === 1 || runningStage === 2 || runningStage === 3}
+                            open={isStage1StepOpen('paso2')}
+                            onToggle={() => toggleStage1Step('paso2')}
+                          />
+                        </div>
+                        <div style={{ order: 40 }} className="min-w-0 max-w-full">
+                          <Stage1StepHeader
+                            number="3"
+                            title="Diseño narrativo"
+                            model="Neon"
+                            status={stage1StepView.paso3.status}
+                            summary={stage1StepView.paso3.summary}
+                            running={runningStage === STAGE1_PASO3_STAGE}
+                            open={isStage1StepOpen('paso3')}
+                            onToggle={() => toggleStage1Step('paso3')}
+                          />
+                        </div>
+                        <div style={stage1Slot(42, 'paso3')} className="min-w-0 max-w-full">
+                          <Stage1DesignPanel
+                            doc={activeDoc}
+                            busy={aiGenerating}
+                            running={runningStage === STAGE1_PASO3_STAGE}
+                            onGenerate={() => void handleGenerateWithGemini(STAGE1_PASO3_STAGE)}
+                            onCheck={() => void handleGenerateWithGemini(STAGE1_PASO4_STAGE)}
+                            onSetDesign={setDesign}
+                            onApplyDuration={(seconds) =>
+                              updateActiveDoc({
+                                targetDurationSeconds: seconds,
+                                promptConfig: {
+                                  ...(activeDoc.promptConfig || {}),
+                                  DURACION_TOTAL_SEGUNDOS: String(seconds),
+                                  DURACION_MANUAL_CONFIRMADA: 'SI',
+                                },
+                              })
+                            }
+                          />
+                        </div>
+                        <div style={{ order: 50 }} className="min-w-0 max-w-full">
+                          <Stage1StepHeader
+                            number="4"
+                            title="Comprobación"
+                            model="Neon"
+                            status={stage1StepView.paso4.status}
+                            summary={stage1StepView.paso4.summary}
+                            running={runningStage === STAGE1_PASO4_STAGE}
+                            open={isStage1StepOpen('paso4')}
+                            onToggle={() => toggleStage1Step('paso4')}
+                          />
+                        </div>
+                        <div style={stage1Slot(51, 'paso4')} className="min-w-0 max-w-full">
+                          <Stage1CheckPanel
+                            doc={activeDoc}
+                            busy={aiGenerating}
+                            running={runningStage === STAGE1_PASO4_STAGE}
+                            onCheck={() => void handleGenerateWithGemini(STAGE1_PASO4_STAGE)}
+                            onSetDesign={setDesign}
+                            referenceCount={paso4Refs ? parseReferencesFromRawText(paso4Refs).length : 0}
+                          />
+                        </div>
+                      </>
                     );
                   })()}
                 </div>

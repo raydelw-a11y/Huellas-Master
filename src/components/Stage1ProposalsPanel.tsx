@@ -34,7 +34,7 @@ interface Props {
 const same = (a: string, b: string) => String(a || '').trim() === String(b || '').trim();
 
 /** A text box that saves when the producer leaves it (not on every key). */
-function EditOnBlur({ label, value, onCommit }: { label: string; value: string; onCommit: (v: string) => void }) {
+export function EditOnBlur({ label, value, onCommit }: { label: string; value: string; onCommit: (v: string) => void }) {
   const [draft, setDraft] = useState(value);
   useEffect(() => setDraft(value), [value]);
   return (
@@ -53,7 +53,7 @@ function EditOnBlur({ label, value, onCommit }: { label: string; value: string; 
   );
 }
 
-function VariantList({
+export function VariantList({
   title,
   noun,
   variants,
@@ -61,6 +61,7 @@ function VariantList({
   recommendedIdx,
   reason,
   onPick,
+  badge = '🔗 Escritos para esta propuesta',
 }: {
   title: string;
   noun: string;
@@ -69,6 +70,8 @@ function VariantList({
   recommendedIdx: number;
   reason: string;
   onPick: (text: string) => void;
+  /** Badge next to the title (the Paso 3 design uses its own) */
+  badge?: string;
 }) {
   if (variants.length === 0) return null;
   const editedByHand = Boolean(String(current || '').trim()) && !variants.some((v) => same(v, current));
@@ -77,7 +80,7 @@ function VariantList({
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="text-xs sm:text-sm font-extrabold text-amber-200 break-words">{title}</div>
         <span className="text-[10px] px-2 py-0.5 rounded-md bg-amber-500/15 border border-amber-500/40 text-amber-300 font-bold">
-          🔗 Escritos para esta propuesta
+          {badge}
         </span>
       </div>
       {reason && (
@@ -115,7 +118,7 @@ function VariantList({
                 {idx === recommendedIdx && <span className="text-[10px] font-bold text-amber-300">⭐ Recomendado</span>}
                 {isSelected && <span className="text-[10px] font-bold text-emerald-300">✓ Activo en Documental</span>}
               </div>
-              <p className="text-xs leading-relaxed break-words">{text}</p>
+              <p className="text-xs leading-relaxed break-words whitespace-pre-line">{text}</p>
             </button>
           );
         })}
@@ -147,6 +150,10 @@ export default function Stage1ProposalsPanel({
   const hasProposals = proposals.length > 0;
   const hasIdeas = topicIdeas.ideas.length > 0;
   const selected = proposals.find((p) => p.number === selectedNumber) || null;
+  // Since the restructure, Paso 1 only proposes the topic; hooks, outline and climax are written in Paso 3
+  // with the research done. Older documentaries keep their hooks and outlines inside each proposal.
+  const proposalsCarryDesign = proposals.some((p) => p.hooks.length > 0 || p.escaletas.length > 0);
+  const selectedCarriesDesign = Boolean(selected && (selected.hooks.length > 0 || selected.escaletas.length > 0));
 
   const pickedKey = pickedIdeas.join('\u0001');
   const ideasKey = topicIdeas.ideas.join('\u0001');
@@ -196,10 +203,21 @@ export default function Stage1ProposalsPanel({
           <p className="text-xs text-slate-300 break-words">
             {hasProposals ? (
               <>
-                Cada propuesta es un documental entero: <strong>tema, tiempo y lugar, tipología y clímax</strong> van
-                juntos. Elige <strong>una propuesta</strong> y, dentro de ella, su <strong>gancho</strong> y su{' '}
-                <strong>escaleta</strong>; así nunca se mezclan piezas que no encajan. Gemini deja marcada con ⭐ la
-                que recomienda.
+                {proposalsCarryDesign ? (
+                  <>
+                    Cada propuesta es un documental entero: <strong>tema, tiempo y lugar, tipología y clímax</strong>{' '}
+                    van juntos. Elige <strong>una propuesta</strong> y, dentro de ella, su <strong>gancho</strong> y su{' '}
+                    <strong>escaleta</strong>; así nunca se mezclan piezas que no encajan. Gemini deja marcada con ⭐ la
+                    que recomienda.
+                  </>
+                ) : (
+                  <>
+                    Cada propuesta trae <strong>tema, tiempo y lugar, tipología</strong> y su{' '}
+                    <strong>prueba de fuentes</strong>. Elige <strong>una</strong> para investigarla en el Paso 2; el
+                    gancho, la escaleta y el clímax se escriben en el Paso 3, ya con la investigación hecha. Gemini deja
+                    marcada con ⭐ la que recomienda.
+                  </>
+                )}
               </>
             ) : (
               <>
@@ -371,10 +389,18 @@ export default function Stage1ProposalsPanel({
                         <dd className="inline break-words">{p.why}</dd>
                       </div>
                     )}
+                    {p.sources && (
+                      <div className="text-sky-200">
+                        <dt className="inline font-bold text-sky-300">📚 Prueba de fuentes: </dt>
+                        <dd className="inline break-words">{p.sources}</dd>
+                      </div>
+                    )}
                   </dl>
                   <div className="flex items-center justify-between gap-2 flex-wrap pt-1">
                     <span className="text-[10px] text-slate-400">
-                      {p.hooks.length} ganchos · {p.escaletas.length} escaletas
+                      {p.hooks.length > 0 || p.escaletas.length > 0
+                        ? `${p.hooks.length} ganchos · ${p.escaletas.length} escaletas`
+                        : 'Gancho y escaleta: en el Paso 3'}
                     </span>
                     <button
                       type="button"
@@ -394,7 +420,23 @@ export default function Stage1ProposalsPanel({
             })}
           </div>
 
-          {selected ? (
+          {selected && !selectedCarriesDesign ? (
+            <div className="bg-slate-900/80 border border-emerald-500/40 rounded-xl p-3 sm:p-4 space-y-2 min-w-0 max-w-full">
+              <div className="text-xs sm:text-sm font-black text-emerald-300 break-words">
+                ✓ Propuesta {selected.number}
+                {selected.title ? ` — ${selected.title}` : ''} aplicada al documental
+              </div>
+              {Boolean(currentTopic.trim()) && !same(currentTopic, selected.topic) && (
+                <p className="text-[11px] text-sky-300 break-words">
+                  ✏️ El Tema del documental fue editado a mano después de elegir esta propuesta.
+                </p>
+              )}
+              <p className="text-[11px] text-slate-300 break-words">
+                Siguiente: el <strong>Paso 2</strong> investiga este tema a fondo. El gancho, la escaleta y el clímax
+                se escriben después, en el <strong>Paso 3</strong>, con lo que la investigación encuentre.
+              </p>
+            </div>
+          ) : selected ? (
             <div className="bg-slate-900/80 border border-emerald-500/40 rounded-xl p-3 sm:p-4 space-y-4 min-w-0 max-w-full overflow-hidden">
               <div className="text-xs sm:text-sm font-black text-emerald-300 break-words">
                 Propuesta {selected.number}
@@ -454,7 +496,9 @@ export default function Stage1ProposalsPanel({
             </div>
           ) : (
             <div className="bg-slate-900/70 border border-amber-500/40 rounded-xl p-3 text-xs text-amber-200">
-              Elige una propuesta para ver sus ganchos y sus escaletas.
+              {proposalsCarryDesign
+                ? 'Elige una propuesta para ver sus ganchos y sus escaletas.'
+                : 'Elige una propuesta para investigarla en el Paso 2.'}
             </div>
           )}
         </>

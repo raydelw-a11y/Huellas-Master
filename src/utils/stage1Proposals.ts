@@ -16,6 +16,8 @@ export interface Stage1Proposal {
   timeAndPlace: string;
   climax: string;
   why: string;
+  /** "Prueba de fuentes": the archives and chronicles that exist for this topic and how solid they are */
+  sources: string;
   hooks: string[];
   /** Index (0-based) of the hook Gemini would choose */
   recommendedHook: number;
@@ -70,6 +72,20 @@ const stripMarks = (s: string): string =>
     .replace(/\s+/g, ' ')
     .trim();
 
+/**
+ * Like stripMarks, but citations stay: "… el tribunal [6]." keeps its "[6]". Only a field written whole as a
+ * placeholder ("[texto]") loses its brackets.
+ */
+const cleanField = (s: string): string => {
+  const v = String(s || '')
+    .replace(/\*\*|__/g, '')
+    .replace(/^\s*#+\s*/, '')
+    .replace(/^\*+\s*|\s*\*+$/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return /^\[[^\[\]]*\]$/.test(v) && !/^\[\d+\]$/.test(v) ? v.slice(1, -1).trim() : v;
+};
+
 /** The answer without markdown emphasis, so labels can be matched at the start of a line. */
 const normalizeAnswer = (raw: string): string =>
   String(raw || '')
@@ -84,7 +100,7 @@ const AFTER_PROPOSALS_RE =
 const PROPOSAL_HEADER_RE = /^[ \t]*(?:[-*•][ \t]*)?PROPUESTA[ \t]+(\d+)[ \t]*(?:[—–:.\-][ \t]*(.*))?$/i;
 
 const FIELD_RE =
-  /^[ \t]*(?:[-*•][ \t]*)?(Propuesta recomendada|Gancho recomendado|Escaleta recomendada|Tipolog[ií]as?|Tema(?: central)?|Tiempo y lugar(?: hist[óo]rico)?|Cl[ií]max(?: y cierre)?|Por qu[eé] funciona|Gancho[ \t]*\d+|Escaleta[ \t]*\d+)[ \t]*(?:\([^)\n]*\))?[ \t]*:[ \t]*(.*)$/i;
+  /^[ \t]*(?:[-*•][ \t]*)?(Propuesta recomendada|Gancho recomendado|Escaleta recomendada|Tipolog[ií]as?|Tema(?: central)?|Tiempo y lugar(?: hist[óo]rico)?|Cl[ií]max(?: y cierre)?|Por qu[eé] funciona|Prueba de fuentes|Gancho[ \t]*\d+|Escaleta[ \t]*\d+)[ \t]*(?:\([^)\n]*\))?[ \t]*:[ \t]*(.*)$/i;
 
 const fieldKey = (label: string): string => {
   const l = label
@@ -101,6 +117,7 @@ const fieldKey = (label: string): string => {
   if (l.startsWith('tiempo y lugar')) return 'timeAndPlace';
   if (l.startsWith('climax')) return 'climax';
   if (l.startsWith('por que funciona')) return 'why';
+  if (l.startsWith('prueba de fuentes')) return 'sources';
   const hook = l.match(/^gancho (\d+)$/);
   if (hook) return `hook${hook[1]}`;
   const esc = l.match(/^escaleta (\d+)$/);
@@ -151,16 +168,20 @@ export function parseStage1Proposals(rawAnswer: string): Stage1ProposalSet {
     const recHook = splitRecommendation(f.recHook || '');
     const recEsc = splitRecommendation(f.recEscaleta || '');
     const topic = stripMarks(f.topic || '');
-    // A proposal counts only when it can stand on its own: a topic and at least one hook
-    if (topic && hooks.length > 0) {
+    const sources = cleanField(f.sources || '');
+    const timeAndPlace = stripMarks(f.timeAndPlace || '');
+    // A proposal counts only when it can stand on its own: a topic plus its sources or era and place (Paso 1 no
+    // longer writes hooks: they come in Paso 3, after the research) or, in older answers, at least one hook
+    if (topic && (hooks.length > 0 || sources || timeAndPlace)) {
       proposals.push({
         number: current.number,
         title: stripMarks(current.title),
         typology: stripMarks(f.typology || ''),
         topic,
-        timeAndPlace: stripMarks(f.timeAndPlace || ''),
+        timeAndPlace,
         climax: stripMarks(f.climax || ''),
         why: stripMarks(f.why || ''),
+        sources,
         hooks,
         recommendedHook: recHook.n >= 1 && recHook.n <= hooks.length ? recHook.n - 1 : 0,
         hookReason: recHook.reason,
@@ -295,7 +316,9 @@ export function readStoredStage1Proposals(promptConfig?: Record<string, any> | n
   for (const p of list) {
     const hooks = cleanList(p?.hooks);
     const topic = String(p?.topic || '').trim();
-    if (!topic || hooks.length === 0) continue;
+    const timeAndPlace = String(p?.timeAndPlace || '').trim();
+    const sources = String(p?.sources || '').trim();
+    if (!topic || (hooks.length === 0 && !timeAndPlace && !sources)) continue;
     const escaletas = cleanList(p?.escaletas);
     const clampIdx = (n: unknown, len: number) => {
       const i = Number(n);
@@ -306,9 +329,10 @@ export function readStoredStage1Proposals(promptConfig?: Record<string, any> | n
       title: String(p?.title || '').trim(),
       typology: String(p?.typology || '').trim(),
       topic,
-      timeAndPlace: String(p?.timeAndPlace || '').trim(),
+      timeAndPlace,
       climax: String(p?.climax || '').trim(),
       why: String(p?.why || '').trim(),
+      sources,
       hooks,
       recommendedHook: clampIdx(p?.recommendedHook, hooks.length),
       hookReason: String(p?.hookReason || '').trim(),
@@ -403,3 +427,324 @@ export const sameStage1ProposalSet = (a: Stage1ProposalSet, b: Stage1ProposalSet
 
 export const sameStage1TopicIdeas = (a: Stage1TopicIdeas, b: Stage1TopicIdeas): boolean =>
   JSON.stringify(a) === JSON.stringify(b);
+
+// ---------------------------------------------------------------------------------------------------------------
+// Paso 3 · Diseño narrativo and Paso 4 · Comprobación.
+// Paso 1 only chooses the topic and Paso 2 researches it without a hook or outline; Paso 3 designs the hooks,
+// outlines and climax on top of that research, and Paso 4 checks the chosen design against it.
+// ---------------------------------------------------------------------------------------------------------------
+
+/** Gemini's raw answers of Pasos 3 and 4, kept with the documentary (read on the fly by the screen). */
+export const STAGE1_PASO3_RESULT_KEY = 'ETAPA1_PASO3_RESULT';
+export const STAGE1_PASO4_RESULT_KEY = 'ETAPA1_PASO4_RESULT';
+/** What each step was built on, saved when its answer arrives: a later change marks the step as out of date. */
+export const STAGE1_PASO2_SOURCE_KEY = 'ETAPA1_PASO2_SOURCE_FP';
+export const STAGE1_PASO3_SOURCE_KEY = 'ETAPA1_PASO3_SOURCE_FP';
+export const STAGE1_PASO4_SOURCE_KEY = 'ETAPA1_PASO4_SOURCE_FP';
+/** Etapa 1 step numbers sent to Gemini: Paso 1 = 10, Paso 2 = 1 (Deep Research), Paso 3 = 13, Paso 4 = 14. */
+export const STAGE1_PASO3_STAGE = 13;
+export const STAGE1_PASO4_STAGE = 14;
+
+/** Short fingerprint of some texts (spaces collapsed), to know whether what a step was built on changed. */
+export function stage1Fingerprint(...parts: unknown[]): string {
+  const s = parts.map((p) => String(p ?? '').replace(/\s+/g, ' ').trim()).join('␞');
+  if (!s.replace(/␞/g, '')) return '';
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+  return `${s.length.toString(36)}-${(h >>> 0).toString(36)}`;
+}
+
+/** What Paso 2 researched: the topic with its era and place. */
+export const stage1Paso2SourceFingerprint = (doc: {
+  topic?: string;
+  historicalTime?: string;
+  historicalLocation?: string;
+}): string => stage1Fingerprint(doc.topic, doc.historicalTime, doc.historicalLocation);
+
+/** What Paso 3 designed on: the research dossier. */
+export const stage1Paso3SourceFingerprint = (doc: { deepResearchResult?: string }): string =>
+  stage1Fingerprint(doc.deepResearchResult);
+
+/** What Paso 4 checked: the chosen hook, outline and climax. */
+export const stage1Paso4SourceFingerprint = (cfg?: Record<string, any> | null): string =>
+  stage1Fingerprint(cfg?.PROPOSICION_GANCHO || cfg?.ANGULO_CENTRAL, cfg?.PROPOSICION_ESCALETA, cfg?.PROPOSICION_CLIMAX);
+
+export interface Stage1NarrativeDesign {
+  hooks: string[];
+  /** Index (0-based) of the hook Gemini would choose */
+  recommendedHook: number;
+  hookReason: string;
+  /** Each outline keeps its acts on separate lines */
+  escaletas: string[];
+  recommendedEscaleta: number;
+  escaletaReason: string;
+  climax: string;
+}
+
+const DESIGN_FIELD_RE =
+  /^[ \t]*(?:[-*•][ \t]*)?(Gancho recomendado|Escaleta recomendada|Gancho[ \t]*\d+|Escaleta[ \t]*\d+|Cl[ií]max y cierre|Cl[ií]max)[ \t]*(?:\([^)\n]*\))?[ \t]*:[ \t]*(.*)$/i;
+
+/** A field written over several lines (an outline's acts): each line cleaned, the line breaks kept. */
+const cleanMultiline = (s: string): string =>
+  String(s || '')
+    .split('\n')
+    .map((l) => cleanField(l))
+    .filter(Boolean)
+    .join('\n');
+
+/** Reads the Paso 3 answer: 3 hooks, 2 outlines and the climax, with Gemini's recommendations. */
+export function parseStage1NarrativeDesign(rawAnswer: string): Stage1NarrativeDesign {
+  const empty: Stage1NarrativeDesign = {
+    hooks: [],
+    recommendedHook: 0,
+    hookReason: '',
+    escaletas: [],
+    recommendedEscaleta: 0,
+    escaletaReason: '',
+    climax: '',
+  };
+  const text = normalizeAnswer(rawAnswer);
+  const head = text.search(/DISE[ÑN]O NARRATIVO/i);
+  let region = head >= 0 ? text.slice(head) : text;
+  const after = region.search(AFTER_PROPOSALS_RE);
+  if (after >= 0) region = region.slice(0, after);
+  const fields: Record<string, string> = {};
+  let currentKey = '';
+  for (const line of region.split('\n')) {
+    const field = line.match(DESIGN_FIELD_RE);
+    const key = field ? fieldKey(field[1]) : '';
+    // An outline's act called "Clímax (85–95%): …" is part of that outline, not the climax field
+    const actInsideOutline = key === 'climax' && !/y cierre/i.test(field?.[1] || '') && currentKey.startsWith('escaleta');
+    if (field && key && !actInsideOutline) {
+      if (fields[key] === undefined) {
+        fields[key] = field[2].trim();
+        currentKey = key;
+      } else {
+        currentKey = '';
+      }
+      continue;
+    }
+    if (/^[=\-_*\s]{3,}$/.test(line)) continue;
+    const cont = line.replace(/^[ \t]*[-*•][ \t]*/, '').trim();
+    if (!currentKey || !cont) continue;
+    // Outlines and the climax keep their lines (one act per line); hooks are one paragraph
+    const sep = currentKey.startsWith('escaleta') || currentKey === 'climax' ? '\n' : ' ';
+    fields[currentKey] = fields[currentKey] ? `${fields[currentKey]}${sep}${cont}` : cont;
+  }
+  const numbered = (prefix: string, multiline: boolean): string[] => {
+    const out: string[] = [];
+    for (let i = 1; i <= 9; i++) {
+      const v = multiline ? cleanMultiline(fields[`${prefix}${i}`] || '') : cleanField(fields[`${prefix}${i}`] || '');
+      if (v && !out.includes(v)) out.push(v);
+    }
+    return out;
+  };
+  const hooks = numbered('hook', false);
+  const escaletas = numbered('escaleta', true);
+  if (hooks.length === 0 && escaletas.length === 0) return empty;
+  const recHook = splitRecommendation(fields.recHook || '');
+  const recEsc = splitRecommendation(fields.recEscaleta || '');
+  return {
+    hooks,
+    recommendedHook: recHook.n >= 1 && recHook.n <= hooks.length ? recHook.n - 1 : 0,
+    hookReason: recHook.reason,
+    escaletas,
+    recommendedEscaleta: recEsc.n >= 1 && recEsc.n <= escaletas.length ? recEsc.n - 1 : 0,
+    escaletaReason: recEsc.reason,
+    climax: cleanMultiline(fields.climax || ''),
+  };
+}
+
+/** "RECOMENDACIÓN_DURACIÓN_TOTAL: 1200" -> 1200 (one of the studio durations), 0 when the answer has none. */
+export function parseStage1DurationRecommendation(rawAnswer: string): number {
+  const text = String(rawAnswer || '');
+  const m = text.match(/(?:RECOMENDACI[OÓ]N_DURACI[OÓ]N_TOTAL|RECOMMENDED_TOTAL_DURATION)\**\s*:\s*\**\s*(\d{3,4})/i);
+  if (!m) return 0;
+  const sec = parseInt(m[1], 10);
+  const tiers = [600, 900, 1200, 1800, 3600, 7200];
+  return tiers.reduce((best, t) => (Math.abs(t - sec) < Math.abs(best - sec) ? t : best), tiers[0]);
+}
+
+export interface Stage1Check {
+  /** Claims of the design that no reference of the research backs */
+  noSource: string[];
+  /** Points the research marks "(incierto)" that the design tells as fact */
+  uncertain: string[];
+  /** Errors of the marked videos that the design repeats */
+  repeatedErrors: string[];
+  verdict: 'LISTO' | 'CORREGIR' | '';
+  verdictReason: string;
+  /** Corrected texts ('' when Gemini wrote "sin cambios") */
+  correctedHook: string;
+  correctedEscaleta: string;
+  correctedClimax: string;
+  /** Section 5: the @characters and @locations, in the format the Etapa 4 reader understands */
+  references: string;
+}
+
+const CHECK_SECTION_RE =
+  /^[ \t]*(?:[-*•][ \t]*)?(?:\d+[.)][ \t]*)?(SIN FUENTE|INCIERTO USADO COMO HECHO|ERRORES REPETIDOS[^:\n]*|VEREDICTO|PERSONAJES Y LUGARES[^:\n]*)[ \t]*:?[ \t]*(.*)$/i;
+const CHECK_FIELD_RE =
+  /^[ \t]*(?:[-*•][ \t]*)?(Gancho corregido|Escaleta corregida|Cl[ií]max corregido)[ \t]*:[ \t]*(.*)$/i;
+const NOTHING_RE = /^(?:ningun[oa]s?|nada|no aplica\b.*|no hay\b|sin (?:observaciones|problemas|cambios|errores)|—|-)[\s.]*$/i;
+const NO_CHANGES_RE = /^(?:sin cambios|ninguno|igual|no cambia)[\s.]*$/i;
+
+/** Reads the Paso 4 answer (the check of the chosen design against the research). */
+export function parseStage1Check(rawAnswer: string): Stage1Check {
+  const out: Stage1Check = {
+    noSource: [],
+    uncertain: [],
+    repeatedErrors: [],
+    verdict: '',
+    verdictReason: '',
+    correctedHook: '',
+    correctedEscaleta: '',
+    correctedClimax: '',
+    references: '',
+  };
+  const text = normalizeAnswer(rawAnswer);
+  let section = '';
+  let fieldKeyName = '';
+  const fields: Record<string, string> = {};
+  const refLines: string[] = [];
+  const pushItem = (list: string[], line: string) => {
+    const v = cleanField(line.replace(/^[ \t]*(?:[-*•]|\d+[.)])[ \t]*/, ''));
+    if (v && !NOTHING_RE.test(v)) list.push(v);
+  };
+  for (const line of text.split('\n')) {
+    const sec = line.match(CHECK_SECTION_RE);
+    if (sec) {
+      const name = sec[1].toUpperCase();
+      section = name.startsWith('SIN FUENTE')
+        ? 'noSource'
+        : name.startsWith('INCIERTO')
+        ? 'uncertain'
+        : name.startsWith('ERRORES')
+        ? 'repeatedErrors'
+        : name.startsWith('VEREDICTO')
+        ? 'verdict'
+        : 'references';
+      fieldKeyName = '';
+      const rest = sec[2].trim();
+      if (section === 'verdict' && rest) {
+        const v = stripMarks(rest);
+        if (/CORREGIR/i.test(v)) out.verdict = 'CORREGIR';
+        else if (/LISTO/i.test(v)) out.verdict = 'LISTO';
+        out.verdictReason = v.replace(/^(?:LISTO|CORREGIR)[\s—–:.\-]*/i, '').trim();
+      } else if (rest && section !== 'references' && section !== 'verdict') {
+        pushItem((out as any)[section], rest);
+      }
+      continue;
+    }
+    if (!section || /^[=\-_*\s]{3,}$/.test(line) || !line.trim()) continue;
+    if (section === 'references') {
+      refLines.push(line.trim());
+      continue;
+    }
+    if (section === 'verdict') {
+      const f = line.match(CHECK_FIELD_RE);
+      if (f) {
+        const n = f[1].toLowerCase();
+        fieldKeyName = n.startsWith('gancho') ? 'hook' : n.startsWith('escaleta') ? 'escaleta' : 'climax';
+        fields[fieldKeyName] = f[2].trim();
+        continue;
+      }
+      if (fieldKeyName) {
+        const cont = line.replace(/^[ \t]*[-*•][ \t]*/, '').trim();
+        const sep = fieldKeyName === 'hook' ? ' ' : '\n';
+        fields[fieldKeyName] = fields[fieldKeyName] ? `${fields[fieldKeyName]}${sep}${cont}` : cont;
+        continue;
+      }
+      const v = stripMarks(line);
+      if (!out.verdict) {
+        if (/CORREGIR/i.test(v)) out.verdict = 'CORREGIR';
+        else if (/LISTO/i.test(v)) out.verdict = 'LISTO';
+        out.verdictReason = v.replace(/^(?:LISTO|CORREGIR)[\s—–:.\-]*/i, '').trim();
+      } else if (!out.verdictReason) {
+        out.verdictReason = v;
+      }
+      continue;
+    }
+    pushItem((out as any)[section], line);
+  }
+  const corrected = (key: string, multiline: boolean): string => {
+    const v = multiline ? cleanMultiline(fields[key] || '') : cleanField(fields[key] || '');
+    return v && !NO_CHANGES_RE.test(v) ? v : '';
+  };
+  out.correctedHook = corrected('hook', false);
+  out.correctedEscaleta = corrected('escaleta', true);
+  out.correctedClimax = corrected('climax', true);
+  out.references = refLines.join('\n').trim();
+  return out;
+}
+
+/** The keys Etapas 2 and 4 read as the chosen design (hook, outline and climax). */
+export function stage1DesignConfig(hook: string, escaleta: string, climax: string): Record<string, string> {
+  return {
+    PROPOSICION_GANCHO: hook,
+    ANGULO_CENTRAL: hook,
+    PROPOSICION_ESCALETA: escaleta,
+    PROPOSICION_CLIMAX: climax,
+  };
+}
+
+type Stage1DocLike = {
+  topic?: string;
+  historicalTime?: string;
+  historicalLocation?: string;
+  deepResearchResult?: string;
+  promptConfig?: Record<string, any> | null;
+};
+
+/**
+ * What Paso 3's answer changes, the same on the Mac and from the iPhone: the answer is kept, its recommended hook,
+ * outline and climax become the chosen design, and its recommended duration becomes the documentary's unless the
+ * producer fixed it. Null when the answer holds no design (an error message from Gemini).
+ */
+export function stage1Paso3AnswerPatch(
+  doc: Stage1DocLike,
+  answer: string
+): { promptConfig: Record<string, string>; targetDurationSeconds?: number } | null {
+  const design = parseStage1NarrativeDesign(answer);
+  if (design.hooks.length === 0 && design.escaletas.length === 0) return null;
+  const cfg = doc.promptConfig || {};
+  const hook = design.hooks[design.recommendedHook] || design.hooks[0] || '';
+  const escaleta = design.escaletas[design.recommendedEscaleta] || design.escaletas[0] || '';
+  const sec = parseStage1DurationRecommendation(answer);
+  const reason = (String(answer || '').match(/JUSTIFICACI[OÓ]N\s+DE\s+DURACI[OÓ]N\**\s*:\s*\**\s*([^\n]+)/i)?.[1] || '')
+    .replace(/\*+/g, '')
+    .replace(/^\[|\]\.?$/g, '')
+    .trim();
+  const applyDuration = sec > 0 && cfg.DURACION_MANUAL_CONFIRMADA !== 'SI';
+  return {
+    ...(applyDuration ? { targetDurationSeconds: sec } : {}),
+    promptConfig: {
+      [STAGE1_PASO3_RESULT_KEY]: answer,
+      [STAGE1_PASO3_SOURCE_KEY]: stage1Paso3SourceFingerprint(doc),
+      ...stage1DesignConfig(hook, escaleta, design.climax),
+      ...(applyDuration ? { DURACION_TOTAL_SEGUNDOS: String(sec) } : {}),
+      ...(sec > 0 ? { SUGGESTED_DURATION_SECONDS: String(sec) } : {}),
+      ...(sec > 0 && reason ? { SUGGESTED_DURATION_REASON: reason } : {}),
+    },
+  };
+}
+
+/** What Paso 4's answer changes: the answer is kept with the design it checked. Null when it holds no check. */
+export function stage1Paso4AnswerPatch(
+  doc: Stage1DocLike,
+  answer: string
+): { promptConfig: Record<string, string>; check: Stage1Check } | null {
+  const check = parseStage1Check(answer);
+  const hasCheck =
+    Boolean(check.verdict) ||
+    Boolean(check.references) ||
+    check.noSource.length + check.uncertain.length + check.repeatedErrors.length > 0;
+  if (!hasCheck) return null;
+  return {
+    check,
+    promptConfig: {
+      [STAGE1_PASO4_RESULT_KEY]: answer,
+      [STAGE1_PASO4_SOURCE_KEY]: stage1Paso4SourceFingerprint(doc.promptConfig),
+    },
+  };
+}

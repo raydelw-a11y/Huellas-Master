@@ -57,7 +57,12 @@ import {
 } from './geminiTtsAudioClean';
 import { HD_BADGE_EMPTY_CORNER_CLAUSE, LOGO_EMPTY_CORNER_CLAUSE } from './hdBadge';
 import {
+  STAGE1_PASO3_STAGE,
+  STAGE1_PASO4_RESULT_KEY,
+  STAGE1_PASO4_STAGE,
+  STAGE1_PROPOSAL_SELECTED_KEY,
   STAGE1_PROTOCOL_TYPOLOGIES,
+  parseStage1Check,
   readStoredStage1Proposals,
   resolveStage1Paso1Mode,
   splitProposalTimeAndPlace,
@@ -3276,6 +3281,61 @@ function compactVideoAnalysesForScript(block: string, maxTotal = 14000): string 
   return out.join('\n\n').slice(0, maxTotal);
 }
 
+// The 7 sections of each marked video's analysis (buildVideoAnalysisPrompt in server.ts), by number
+const VIDEO_ANALYSIS_SECTION_WORDS: RegExp[] = [
+  /TEMA|RESUMEN/i,
+  /HECHOS|DATOS/i,
+  /FUENTES|PRUEBAS/i,
+  /TEOR[IÍ]AS|EXPLICACIONES/i,
+  /DUDAS|ERRORES/i,
+  /NO CUENTA|HUECOS/i,
+  /ESTRUCTURA|GANCHOS/i,
+];
+
+/**
+ * Only the sections of each marked video's analysis that one Etapa 1 step needs (1 tema, 2 hechos, 3 fuentes,
+ * 4 teorías, 5 dudas y errores, 6 lo que no cuenta, 7 estructura y ganchos). A video whose analysis has no
+ * numbered sections keeps the start of its text.
+ */
+export function pickVideoAnalysisSections(
+  block: string,
+  wanted: number[],
+  maxPerVideo = 6000,
+  maxTotal = MULTI_VIDEO_RESEARCH_MAX_CHARS
+): string {
+  const raw = String(block || '');
+  if (!raw.trim()) return '';
+  const chunks = raw.split(/(?=^=== VIDEO \d+:)/m).filter((c) => c.trim());
+  const headingRe = /^[ \t]*(?:[-*•#][ \t]*)*\**[ \t]*([1-7])[).:][ \t]*\**[ \t]*([^\n]{0,60})/gm;
+  const out: string[] = [];
+  for (const chunk of chunks) {
+    const headerEnd = chunk.indexOf('\n');
+    const header = headerEnd > 0 ? chunk.slice(0, headerEnd).trim() : chunk.trim();
+    const body = headerEnd > 0 ? chunk.slice(headerEnd + 1) : '';
+    const starts: { n: number; at: number }[] = [];
+    for (const m of body.matchAll(headingRe)) {
+      const n = parseInt(m[1], 10);
+      // A heading has its section's words and comes after the previous one (a numbered list is not a heading)
+      if (!VIDEO_ANALYSIS_SECTION_WORDS[n - 1].test(m[2])) continue;
+      if (starts.length > 0 && n <= starts[starts.length - 1].n) continue;
+      starts.push({ n, at: m.index || 0 });
+    }
+    let picked = '';
+    if (starts.length >= 3) {
+      const parts: string[] = [];
+      starts.forEach((st, i) => {
+        if (!wanted.includes(st.n)) return;
+        parts.push(body.slice(st.at, i + 1 < starts.length ? starts[i + 1].at : body.length).trim());
+      });
+      picked = parts.join('\n');
+    } else {
+      picked = body.trim();
+    }
+    if (picked) out.push(`${header}\n${picked.slice(0, maxPerVideo)}`);
+  }
+  return out.join('\n\n').slice(0, maxTotal);
+}
+
 export function buildStagePromptText(
   stageNumber: number,
   doc: DocumentaryProject,
@@ -3341,7 +3401,7 @@ export function buildStagePromptText(
   // 00:08). The order must say both, or Gemini writes "Clip 1 of 8 seconds".
   const clip1OnTimelineSec = clip2StartSec;
   const silentClip2Sec = Math.max(0, clip1TimelineSec - clip1OnTimelineSec);
-  const buildIntroCalibrationLines = (clip1Label: string, introNote: string) => {
+  const buildIntroCalibrationLines = (clip1Label: string, introNote: string, narrationLabel = '') => {
     const hookStartSec = introIsPostSlogan ? 0 : fixedIntroSec;
     const clip1EndSec = hookStartSec + clip1OnTimelineSec;
     const voiceAtSec = hookStartSec + clip1TimelineSec;
@@ -3356,11 +3416,11 @@ export function buildStagePromptText(
       ? `${clip1Line}
 ${voiceLine}; it opens with the first paragraph + Slogan Completo ("...Aquí seguimos sus rastros.")
   • Official Brand Intro: ${fixedIntroSec}s fixed${introNote}, placed IMMEDIATELY AFTER the opening Slogan Completo (the narration pauses exactly ${fixedIntroSec}s there, no clip is cut)
-  • Body Clips (${clipDurationLabel} each) resume right after that Intro, for ~${effectiveNarratedSec}s of effective narration in total`
+  • Body Clips (${clipDurationLabel} each) resume right after that Intro, for ${narrationLabel || `~${effectiveNarratedSec}s of effective narration`} in total`
       : `  • Official Brand Intro: 00:00 - 00:08 (${fixedIntroSec}s fixed${introNote})
 ${clip1Line}
 ${voiceLine}
-  • Body Clips (${clipDurationLabel} each) carry ~${effectiveNarratedSec}s of effective narration`;
+  • Body Clips (${clipDurationLabel} each) carry ${narrationLabel || `~${effectiveNarratedSec}s of effective narration`}`;
   };
 
   const hasExplicitMetadataFields = Boolean(
@@ -3377,6 +3437,13 @@ ${voiceLine}
   const multiVideoResearchBlock = selectedVideoAnalysesRaw
     ? `\n================================================================================\n📚 ANALYSES OF ${selectedVideoAnalysesCount || 'SEVERAL'} YOUTUBE VIDEOS MARKED BY THE PRODUCER (they may be about our subject or about other subjects)\n================================================================================\nEach video was analyzed separately by Gemini. Take from each one what fits OUR documentary:\n- If a video is about our subject (or overlaps it), use its facts as SOURCE MATERIAL: cross-check them against the other videos and against reliable historical sources, keep what is verified, resolve contradictions, discard errors and exaggerations, and cover the gaps and unanswered questions it leaves.\n- From ANY video, whatever its subject, you may take ideas of structure, hooks, pacing and why it works with the audience.\n- Never copy their phrases, titles or order of scenes, and never let a video about another subject change our subject. Our documentary must be better and more complete than all of them.\n\n${selectedVideoAnalysesRaw.slice(0, MULTI_VIDEO_RESEARCH_MAX_CHARS)}\n`
     : '';
+  // Each Etapa 1 step reads only the sections of the video analyses it needs (pickVideoAnalysisSections)
+  const videoAnalysesBlockFor = (wanted: number[], what: string, howToUse: string, maxPerVideo = 6000): string => {
+    if (!selectedVideoAnalysesRaw) return '';
+    const picked = pickVideoAnalysisSections(selectedVideoAnalysesRaw, wanted, maxPerVideo);
+    if (!picked) return '';
+    return `\n================================================================================\n📚 ANALYSES OF ${selectedVideoAnalysesCount || 'SEVERAL'} YOUTUBE VIDEOS MARKED BY THE PRODUCER — ONLY ${what}\n================================================================================\nEach video was analyzed separately by Gemini; they may be about our subject or about other subjects. ${howToUse} Never copy their phrases, titles or order of scenes, and never let a video about another subject change our subject.\n\n${picked}\n`;
+  };
   // "Chosen topic": the producer typed the subject. Then a structural reference video is only a mold and never
   // makes Gemini replace or avoid our subject. Without a topic and with marked videos, Paso 1 proposes one topic
   // per marked video.
@@ -3456,7 +3523,6 @@ ${voiceLine}
     });
     const cleanTime = timePlaceFromProposal ? '' : rawTime;
     const cleanLoc = timePlaceFromProposal ? '' : rawLoc;
-    const minutesLabel = (totalTargetSec / 60).toFixed(0);
     const typologyLine =
       cleanTypology ||
       (hasReferenceVideo && !topicIsChosen && !hasMarkedVideos
@@ -3517,44 +3583,35 @@ ${voiceLine}
         : hasReferenceVideo
         ? `Each of the ${proposalCount} proposals has its own 100% ORIGINAL historical topic (all different from each other and from the analyzed video), built on the viral patterns of the reference video.`
         : `Each of the ${proposalCount} proposals has its own ORIGINAL historical topic with strong contrast, tension and viral potential (all different from each other).`;
-    const voiceEntryClock = fmtCalibClock((introIsPostSlogan ? 0 : fixedIntroSec) + clip1TimelineSec);
-    const clip1EndClock = fmtCalibClock((introIsPostSlogan ? 0 : fixedIntroSec) + clip1OnTimelineSec);
+    // Paso 1 only chooses the topic: hooks, outlines, climax and duration are designed in Paso 3, on top of the
+    // Deep Research of Paso 2, so nothing in them is invented before the research.
     const proposalsSpec = `Deliver this structured report in Spanish, preserving the exact Spanish section headers and field labels below for parser compatibility.
 
-0. PROPUESTAS COMPLETAS PARA NUESTRO DOCUMENTAL:
-   Write EXACTLY ${proposalCount} COMPLETE PROPOSALS. Each proposal is ONE whole, coherent documentary: its topic, its era and place, its typology and its climax belong together, and it brings its own 3 hook variants and 2 outline variants. The producer picks ONE proposal and, inside it, one hook and one outline. Never write loose lists of options to be combined across proposals.
+0. PROPUESTAS DE TEMA PARA NUESTRO DOCUMENTAL:
+   Write EXACTLY ${proposalCount} PROPOSALS. Each proposal is ONE coherent documentary subject: its topic, its era and place and its typology belong together. The producer picks ONE; Deep Research will then investigate it (Step 2) and the hooks, outline and climax will be designed on top of that research (Step 3).
    ${proposalsScope}
 
-   COHERENCE RULES (mandatory):
-   - The 3 hooks and the 2 outlines of a proposal are written ONLY for that proposal's topic, era, place and climax. ANY of its hooks must work with ANY of its outlines and lead to its climax: check the six combinations before writing them.
-   - The 3 hooks of a proposal differ in the opening image and first sentence (not in the subject). The 2 outlines differ in structure (for example chronological vs. starting in the middle of the action, or one axis vs. two), telling the same story towards the same climax.
-   - Never reuse the hook, outline or climax of another proposal.
+   RULES (mandatory):
+   - Do NOT write hooks, outlines, act maps, climaxes or durations: they belong to Step 3, after the research.
+   - Never reuse the topic or angle of another proposal.
    - Typology: one or two of the 8 protocol typologies, written exactly as in this list and joined with " + " (${STAGE1_PROTOCOL_TYPOLOGIES.join(' | ')}); only if none fits, a new universal archetypal typology${
      hasReferenceVideo && !topicIsChosen && !hasMarkedVideos ? ' (never the name or topic of the analyzed video)' : ''
    }.
+   - "Prueba de fuentes": name the concrete primary sources that exist for the topic (archives, court or trial records, chronicles, letters, newspapers of the time, official reports, academic books) and rate the material as "sólida", "media" or "débil". Never invent a source: if you are not sure a document or book exists, do not name it. Prefer topics with solid sources, and say it plainly when the material is weak.
 
    FORMAT (mandatory): write every proposal exactly with these lines, each field on its own line, as a single paragraph (no line breaks, tables or numbered sub-lists inside a field), with the label exactly as written and no other labels:
    PROPUESTA 1 — [short title in Spanish, 3 to 7 words]
    • Tipología: [typology]
    • Tema: [the documentary's topic in Spanish: what, where, when, who, and the central question or thesis]
    • Tiempo y lugar: [era | place — years in digits and centuries in Roman numerals, then City, Country; e.g., Año 1888 / Siglo XIX | Sevilla, España]
-   • Clímax y cierre: [historical climax, revelation and reflective ending leading into the 8s Outro]
-   • Por qué funciona: [one or two sentences: why this proposal would work on YouTube${
-     hasReferenceVideo ? ' and which pattern of the reference video it uses' : ''
-   }]
-   • Gancho 1: [opening hook and central paradox. Clip 1 runs ${hookStartClock}–${clip1EndClock} without voiceover and the voiceover enters at ${voiceEntryClock}: use exactly those times]
-   • Gancho 2: [another opening for the SAME proposal]
-   • Gancho 3: [another opening for the SAME proposal]
-   • Gancho recomendado: Gancho N — [one short sentence saying why]
-   • Escaleta 1: [act outline by percentage (%) and minutes for ~${minutesLabel} min, with the 8s Intro${
-     introIsPostSlogan ? ' placed right after the opening Slogan (NOT at 00:00)' : ' at 00:00'
-   } and the 8s Outro]
-   • Escaleta 2: [a different structure for the SAME story and climax]
-   • Escaleta recomendada: Escaleta N — [one short sentence saying why]
+   • Por qué funciona: [one or two sentences: why this topic would work on YouTube${
+     hasReferenceVideo ? ', which pattern of the reference video it can use' : ''
+   }${hasMarkedVideos ? ' and what it adds that the marked videos do not cover' : ''}]
+   • Prueba de fuentes: [the primary sources that exist for it — Nivel: sólida | media | débil]
    PROPUESTA 2 — [...]
    (same lines for every proposal, up to PROPUESTA ${proposalCount})
    After the last proposal, add ONE line: "• Propuesta recomendada: Propuesta N — [one short sentence in Spanish saying why you would choose it as the channel's director]".`;
-    const ideasSpec = `Deliver ONLY this short report in Spanish, preserving the exact Spanish headers and labels below for parser compatibility. Do NOT write hooks, outlines or climaxes yet: the producer will mark the topics to develop, and a second request will turn them into complete proposals.
+    const ideasSpec = `Deliver ONLY this short report in Spanish, preserving the exact Spanish headers and labels below for parser compatibility. Do NOT write hooks, outlines or climaxes: the producer will mark the topics to develop, and a second request will turn them into proposals.
 
 0. TEMAS PROPUESTOS PARA NUESTRO DOCUMENTAL:
    EXACTLY 10 topics built from the marked videos' material, ranked by viral potential on YouTube (Tema 1 = the strongest), all different from each other. Each one on its own line, in a single sentence of at most 35 words that names what, where, when and who, written exactly as:
@@ -3566,22 +3623,26 @@ ${voiceLine}
 1. ANÁLISIS DE LOS VIDEOS MARCADOS:
    - In Spanish, in at most 150 words: which material of the marked videos supports these topics and what none of them covers.`;
     const section1 = hasMarkedVideos
-      ? `1. ANÁLISIS DE LOS VIDEOS MARCADOS:\n   - In Spanish: which marked videos are about our subject (or about each proposed topic) and what their facts agree on or contradict, the errors or exaggerations to avoid, what none of them covers, and which structure and hook ideas from any of them fit our ~${minutesLabel}-minute documentary.`
+      ? `1. ANÁLISIS DE LOS VIDEOS MARCADOS:\n   - In Spanish, in at most 250 words: which marked videos are about our subject (or about each proposed topic), which stories, characters and theories in them are worth telling, and what NONE of them covers (the gap our documentary can fill).`
       : hasReferenceVideo
-      ? `1. RADIOGRAFÍA DE PATRONES VIRALES DEL VIDEO INVESTIGADO:\n   - Detailed breakdown in Spanish of the exact patterns that made the reference video go viral (Title formula, Description chapter pacing, Tag intent, Comment triggers, block percentages, and psychological hooks) and how they serve as a mold for our ~${minutesLabel}-minute documentary.`
-      : `1. POTENCIAL VIRAL DEL TEMA:\n   - In Spanish: why the chosen or proposed subject can work on YouTube (curiosity gap, emotion, contrasts) and which retention patterns fit a ~${minutesLabel}-minute documentary.`;
+      ? `1. RADIOGRAFÍA DE PATRONES VIRALES DEL VIDEO INVESTIGADO:\n   - Detailed breakdown in Spanish of the exact patterns that made the reference video go viral (Title formula, Description chapter pacing, Tag intent, Comment triggers, block percentages, and psychological hooks), to be used later as a structural mold for our documentary.`
+      : `1. POTENCIAL VIRAL DEL TEMA:\n   - In Spanish: why the proposed subjects can work on YouTube (curiosity gap, emotion, contrasts).`;
+    const paso1VideosBlock = videoAnalysesBlockFor(
+      [1, 4, 6],
+      'THEIR SUBJECT, THEIR THEORIES AND WHAT THEY LEAVE OUT',
+      'Use them to choose the topic: the subjects, stories, characters and theories in them, and above all what none of them covers.'
+    );
     stagePrompt = `Act as Chief Documentary Director and Lead Historical Researcher for the Spanish-language documentary channel "Huellas de la Humanidad".
-This is STAGE 1 — PHASE 1 (WITHOUT Deep Research): ${
+This is STAGE 1 — STEP 1 OF 4 (WITHOUT Deep Research): ${
       hasReferenceVideo ? 'Viral pattern analysis of the reference video + ' : ''
-    }Determination of Historical Definition, Continuity, and Mathematical Calibration for our ${
-      topicIsChosen ? '' : 'ORIGINAL '
-    }documentary.${viralContextBlock}${multiVideoResearchBlock}
+    }choosing the TOPIC of our ${topicIsChosen ? '' : 'ORIGINAL '}documentary.
+The four steps of Stage 1 are: 1) the topic (this request); 2) Deep Research of the chosen topic; 3) the narrative design (hooks, outline, climax and duration) built on that research; 4) a fact-check of that design. So in this step write NO hooks, outlines, climaxes or durations.${viralContextBlock}${paso1VideosBlock}
 
 CRITICAL OUTPUT LANGUAGE REQUIREMENT:
 Write all explanatory prose, summaries, and option texts in Spanish (Neutral Documentary Spanish for our producer UI), while keeping the exact structural section markers requested below.
 
 ================================================================================
-🏛️ CURRENT HISTORICAL DEFINITION & MATHEMATICAL CALIBRATION STATE TO DETERMINE
+🏛️ CURRENT HISTORICAL DEFINITION TO DETERMINE
 ================================================================================
 - Protocol Typology: ${typologyLine}
 - Central Documentary Topic: ${topicLine}
@@ -3596,110 +3657,244 @@ ${
   excludePreviousParts
     ? `- Continuity / FORBIDDEN Elements that MUST NOT be repeated from previous episodes: ${excludePreviousParts}\n`
     : ''
-}- ⏱️ Selected Mathematical Calibration:
-  • Target Total Project Duration: ~${totalTargetSec} seconds (~${minutesLabel} minutes)
-${buildIntroCalibrationLines('Visual Hook without voiceover', '')}
-  • Official Brand Outro at closing: Last ${fixedOutroSec} fixed seconds
-${selectedAudienceQuestions ? `\n💬 SELECTED AUDIENCE COMMENTS & QUESTIONS:\n${selectedAudienceQuestions}\n` : ''}
+}${selectedAudienceQuestions ? `\n💬 SELECTED AUDIENCE COMMENTS & QUESTIONS (what our audience wants to know):\n${selectedAudienceQuestions}\n` : ''}
 ================================================================================
-⚡ PHASE 1 TASK (${hasReferenceVideo ? 'VIRAL PATTERN ANALYSIS + ' : ''}HISTORICAL DEFINITION & MATHEMATICAL CALIBRATION)
+⚡ STEP 1 TASK (${hasReferenceVideo ? 'VIRAL PATTERN ANALYSIS + ' : ''}TOPIC)
 ================================================================================
 ${originalityRules.filter(Boolean).join('\n')}
 
-${
-      paso1Mode === 'IDEAS'
-        ? ideasSpec
-        : `${proposalsSpec}
-
-${section1}
-
-2. DURACIÓN TOTAL SUGERIDA DEL DOCUMENTAL:
-   - For the proposal you recommend, evaluate topic complexity, act density, plot twists, climax weight, and chronological span to recommend the optimal official studio duration (600s = 10 min, 900s = 15 min, 1200s = 20 min, 1800s = 30 min, 3600s = 1 hour, 7200s = 2 hours).
-   - RECOMENDACIÓN_DURACIÓN_TOTAL: [Write EXACTLY one of these values in seconds: 600 | 900 | 1200 | 1800 | 3600 | 7200]
-   - DURACIÓN TOTAL SUGERIDA: [e.g., 15 minutos (900s) o 20 minutos (1200s)]
-   - JUSTIFICACIÓN DE DURACIÓN: [Explain in Spanish why that exact duration is ideal based on topic, acts, plot development, and climax].`
-    }`;
+${paso1Mode === 'IDEAS' ? ideasSpec : `${proposalsSpec}\n\n${section1}`}`;
   } else if (stageNumber === 1 || stageNumber === 2 || stageNumber === 3) {
+    // Paso 2 — neutral Deep Research of the topic chosen in Paso 1: no hook, outline or act map to follow (they
+    // are designed in Paso 3 on top of this dossier), so the research covers the story as it really happened.
     const cleanTopic = (doc.topic || '').trim();
     const cleanTypology = (doc.typology || '').trim();
     const cleanTime = (doc.historicalTime || '').trim();
     const cleanLoc = (doc.historicalLocation || '').trim();
-    const chosenHookProp = (
-      doc.promptConfig?.PROPOSICION_GANCHO ||
-      doc.promptConfig?.ANGULO_CENTRAL ||
-      centralParadox ||
-      ''
-    ).trim();
-    const chosenEscaletaProp = (doc.promptConfig?.PROPOSICION_ESCALETA || '').trim();
-    const chosenClimaxProp = (doc.promptConfig?.PROPOSICION_CLIMAX || '').trim();
-    // Paso 1 conclusions for Deep Research: its analysis of the videos and the duration, never the lists of options
-    // the producer did not pick (they would mix other subjects into the research)
+    const selectedProposalNumber = Number(doc.promptConfig?.[STAGE1_PROPOSAL_SELECTED_KEY]) || 0;
+    const chosenProposal = readStoredStage1Proposals(doc.promptConfig).proposals.find(
+      (p) => p.number === selectedProposalNumber && p.topic === cleanTopic
+    );
+    const chosenSources = (chosenProposal?.sources || '').trim();
+    // Paso 1 conclusions: its analysis of the videos, never the proposals the producer did not pick (they would
+    // mix other subjects into the research)
     const part1ConclusionsText = extractPhase1Conclusions(doc.deepResearchPrompt || '');
-    const referenceVideoLabel =
-      selectedStructureTitle ||
-      youtubeVideoTitle ||
-      youtubeViralLink ||
-      selectedAnalyzedVideoId;
+    const paso2VideosBlock = videoAnalysesBlockFor(
+      [1, 2, 3, 5, 6],
+      'THEIR FACTS, SOURCES, DOUBTFUL CLAIMS AND GAPS',
+      'The facts of the videos about our subject are claims to verify, never sources: cross-check every one against primary sources, correct their errors (section 4 of the dossier) and cover what they leave out. Ignore the videos about other subjects.'
+    );
+    const hasAudienceMaterial = Boolean(selectedAudienceQuestions || youtubeCommentsResearchBlock);
 
-    stagePrompt = `Act as a Master Historian, Film Director, and Chief Documentary Investigator for "Huellas de la Humanidad".
-This is STAGE 1 — PHASE 2 (DEEP HISTORICAL RESEARCH WITH GEMINI DEEP RESEARCH), building upon the Historical Definition, the Selected Analyzed Library Video from Step 1, and the Mathematical Calibration established in Phase 1.${viralContextBlock}${multiVideoResearchBlock}
+    stagePrompt = `Act as a Master Historian and Chief Documentary Investigator for "Huellas de la Humanidad".
+This is STAGE 1 — STEP 2 OF 4 (DEEP HISTORICAL RESEARCH WITH GEMINI DEEP RESEARCH) of the topic the producer chose in Step 1.
+This research is NEUTRAL: it follows no hook, outline or act structure (those are designed in Step 3 on top of this dossier). Investigate the whole story as it really happened, including what does not fit an attractive narrative.${
+      youtubeCommentsResearchBlock ? `\n${youtubeCommentsResearchBlock}\n` : ''
+    }${paso2VideosBlock}
 
 CRITICAL OUTPUT LANGUAGE REQUIREMENT:
-Deliver the entire historical research dossier and structural outline in clear, rigorous Documentary Spanish so it directly feeds the Spanish Voiceover Script in the next stage.
+Deliver the entire research dossier in clear, rigorous Documentary Spanish: it feeds the narrative design (Step 3) and the Spanish Voiceover Script (Stage 2).
 
 ================================================================================
-🏛️ HISTORICAL DEFINITION, REFERENCE LIBRARY VIDEO & CALIBRATION FROM PHASE 1
+🏛️ TOPIC CHOSEN IN STEP 1
 ================================================================================
-${
-  referenceVideoLabel && hasReferenceVideo
-    ? `- 📚 Selected Analyzed Library / Structural Reference Video from Step 1 (PART OF THIS DEEP RESEARCH): "${referenceVideoLabel}"${
-        selectedAnalyzedVideoId ? ` [ID: ${selectedAnalyzedVideoId}]` : ''
-      }${youtubeViralLink ? ` (${youtubeViralLink})` : ''}\n`
-    : ''
-}- Confirmed Protocol Typology: ${cleanTypology || 'To be confirmed in research'}
+- Confirmed Protocol Typology: ${cleanTypology || 'To be confirmed in research'}
 - Confirmed Central Documentary Topic: ${cleanTopic || 'To be confirmed in research'}
 - Confirmed Historical Time / Era: ${cleanTime || 'To be confirmed in research'}
 - Confirmed Historical Location (City, Country): ${cleanLoc || 'To be confirmed in research'}
-${chosenHookProp ? `- Selected Opening Hook & Central Paradox (Part 4): ${chosenHookProp}\n` : ''}${
-      chosenEscaletaProp ? `- Selected Mathematical Calibration & Act Outline (Part 5): ${chosenEscaletaProp}\n` : ''
-    }${chosenClimaxProp ? `- Selected Historical Climax & Reflective Ending (Part 6): ${chosenClimaxProp}\n` : ''}${
+${chosenSources ? `- Sources identified in Step 1 (start from them, verify that they exist and say what they really contain, and add more): ${chosenSources}\n` : ''}${
       excludePreviousParts
         ? `- Continuity / FORBIDDEN Elements NOT to repeat from previous parts: ${excludePreviousParts}\n`
         : ''
-    }- ⏱️ Video Mathematical Calibration (with 8s Official Brand Intro & Outro):
-  • Target Total Project Duration: ~${totalTargetSec} seconds (~${(totalTargetSec / 60).toFixed(1)} min)
-${buildIntroCalibrationLines('Visual Hook with On-Screen Text, no voiceover', ' — no voiceover or background music')}
-  • Official Brand Outro at closing: Last ${fixedOutroSec} fixed seconds
-${selectedAudienceQuestions ? `\n💬 SELECTED AUDIENCE COMMENTS & QUESTIONS TO ANSWER IN DEEP RESEARCH:\n${selectedAudienceQuestions}\n` : ''}${
-      part1ConclusionsText
-        ? `\n📌 PHASE 1 PRIOR CONCLUSIONS (VIDEO ANALYSIS & DURATION):\n${part1ConclusionsText}\n`
-        : ''
+    }${selectedAudienceQuestions ? `\n💬 SELECTED AUDIENCE COMMENTS & QUESTIONS TO ANSWER IN THE RESEARCH:\n${selectedAudienceQuestions}\n` : ''}${
+      part1ConclusionsText ? `\n📌 STEP 1 NOTES (MARKED VIDEOS / REFERENCE VIDEO):\n${part1ConclusionsText}\n` : ''
     }
 ================================================================================
-🔬 DEEP RESEARCH TASK (DEEP RESEARCH)
+🔬 DEEP RESEARCH TASK
 ================================================================================
-Execute an exhaustive Deep Research investigation on the topic, era, location, and structure above, ${
-      hasReferenceVideo
-        ? topicIsChosen
-          ? 'integrating the Step 1 reference video strictly as a structural and retention mold (never copying its narration or phrases)'
-          : 'integrating the Step 1 Analyzed Reference Video strictly as a structural and retention mold (never copying its topic)'
-        : selectedVideoAnalysesRaw
-        ? 'using from the marked videos what fits (verified facts from those about our subject, structure ideas from any of them)'
-        : 'with original structure and retention design'
-    }, and deliver the report in Spanish organized into these 4 clear sections:
-1. MATHEMATICAL & STRUCTURAL BREAKDOWN BY ACTS (~${(totalTargetSec / 60).toFixed(0)} MIN WITH 8S INTRO${introIsPostSlogan ? ' RIGHT AFTER THE OPENING SLOGAN (NOT AT 00:00)' : ' AT 00:00'} & 8S OUTRO${hasReferenceVideo ? ' + VIRAL PATTERNS FROM STEP 1' : ''}):
-   - Exact map of narrative acts with percentage (%), exact time range, turning points, and retention micro-hooks${hasReferenceVideo ? ' calibrated to the Step 1 reference blueprint' : ''}.
-   - Close every act with a line "Fuentes: [n][n]" listing the numbered references (section 3) that back the facts of that act.
-2. CHRONOLOGICAL HISTORICAL ACCOUNT, UNUSUAL FACTS & DOCUMENTED CONTRADICTIONS:
-   - Deep act-by-act historical account with exact dates, verified numbers, laws, contracts, period prices, sensory details (smells, sounds, textures, architecture), and historical answers to audience questions.
-   - Put a numbered citation [n] right after every date, number, name and quote (numbers of the reference list in section 3). Mark with "(incierto)" every point the sources do not settle.
-3. COMPLETE PRIMARY-SOURCE RESEARCH DOSSIER (ARCHIVES, CHRONICLES & RECORDS):
-   - Documented facts, judicial/commercial/archaeological records, real human micro-stories with verified names, and historical quotes ready to feed the Voiceover Script.
-   - Sub-section "CIFRAS EN CONFLICTO": every figure, date or name on which the sources disagree, written as "<dato>: la fuente [a] dice X; la fuente [b] dice Y. Redacción recomendada: «...»". Never resolve a disagreement silently.
-   - Sub-section "CITAS PARA PANTALLA": 4 to 8 short sentences (at most 30 words each) copied word for word from primary sources (chronicles, letters, decrees, logbooks, trial records), translated into Spanish when the original is in another language, one per line in exactly this format: 1. «<cita exacta>» — <autor>, <obra o documento>, <año> [n]. Never invent, paraphrase or merge quotes; leave a quote out when its exact wording cannot be verified.
-   - Sub-section "REFERENCIAS": the numbered list behind every [n], one per line: [n] <autor o institución>, «<título>», <año o fecha>. <URL si existe>. Favour archives, primary chronicles, academic books and reputable encyclopedias.
-4. EARLY PRE-DETECTION OF KEY ANONYMOUS @CHARACTER ROLES & @LOCATIONS (FOR GOOGLE FLOW REFERENCES):
-   - List of historical protagonists mapped to anonymous role handles (e.g., @Scottish_Bacteriologist_1928, @Senior_Oxford_Professor — NEVER real person names in @Tags) and primary settings (@Location_Name) with physical traits, adult age, face, and exact period attire (${cleanTime || 'target era'}, ${cleanLoc || 'target location'}).`;
+Execute an exhaustive Deep Research investigation of the topic, era and place above and deliver the dossier in Spanish organized in exactly these 8 sections, with these exact headers:
+1. CRÓNICA HISTÓRICA:
+   - The complete chronological account: causes, events, consequences, exact dates, verified numbers, names, laws, contracts, period prices and sensory details (smells, sounds, textures, architecture).
+   - Put a numbered citation [n] right after every date, number, name and quote (numbers of the reference list in section 8). Mark with "(incierto)" every point the sources do not settle.
+2. MICRO-HISTORIAS:
+   - 4 to 8 real human stories inside the topic, with verified names (or the person's role when the name is unknown), each in a short paragraph with its [n].
+3. CIFRAS EN CONFLICTO:
+   - Every figure, date or name on which the sources disagree, written as "<dato>: la fuente [a] dice X; la fuente [b] dice Y. Redacción recomendada: «...»". Never resolve a disagreement silently. Write "Ninguna" if the sources agree on everything.
+4. ERRORES DE OTROS VIDEOS CORREGIDOS:
+   - ${
+     paso2VideosBlock
+       ? 'For each doubtful claim or error of the marked videos that concerns our subject (their sections "DUDAS Y POSIBLES ERRORES" and "HECHOS Y DATOS"), one per line: "<lo que dice el video> (Video N) → <lo que dicen las fuentes> [n]". Also confirm with [n] the doubtful claims that turn out to be right.'
+       : 'Write "No aplica" (no videos were marked).'
+   }
+5. RESPUESTAS A LOS COMENTARIOS:
+   - ${
+     hasAudienceMaterial
+       ? 'Answer each audience question and doubt above with documented facts and [n]; say it plainly when the sources cannot answer one.'
+       : 'The 3 to 5 questions a viewer would most likely ask about this topic, each answered with documented facts and [n].'
+   }
+6. HUECOS Y PREGUNTAS ABIERTAS:
+   - What the sources do not settle, what historians still debate, and what ${paso2VideosBlock ? 'no marked video covers and ' : ''}our documentary could reveal (with [n] where sources exist).
+7. CITAS PARA PANTALLA:
+   - 4 to 8 short sentences (at most 30 words each) copied word for word from primary sources (chronicles, letters, decrees, logbooks, trial records), translated into Spanish when the original is in another language, one per line in exactly this format: 1. «<cita exacta>» — <autor>, <obra o documento>, <año> [n]. Never invent, paraphrase or merge quotes; leave a quote out when its exact wording cannot be verified.
+8. REFERENCIAS:
+   - The numbered list behind every [n], one per line: [n] <autor o institución>, «<título>», <año o fecha>. <URL si existe>. Favour archives, primary chronicles, academic books and reputable encyclopedias.
+Do NOT write hooks, outlines, act maps, scene proposals or lists of @characters: Steps 3 and 4 do that.`;
+  } else if (stageNumber === STAGE1_PASO3_STAGE) {
+    // Paso 3 — narrative design on top of the Paso 2 dossier: 3 hooks, 2 outlines and the climax, every moment
+    // backed by the dossier's [n], and the duration the material can sustain (unless the producer fixed it).
+    const cleanTopic = (doc.topic || '').trim();
+    const cleanTypology = (doc.typology || '').trim();
+    const cleanTime = (doc.historicalTime || '').trim();
+    const cleanLoc = (doc.historicalLocation || '').trim();
+    const durationIsFixed = doc.promptConfig?.DURACION_MANUAL_CONFIRMADA === 'SI' && Boolean(doc.targetDurationSeconds);
+    const minutesLabel = (totalTargetSec / 60).toFixed(0);
+    const voiceEntryClock = fmtCalibClock((introIsPostSlogan ? 0 : fixedIntroSec) + clip1TimelineSec);
+    const clip1EndClock = fmtCalibClock((introIsPostSlogan ? 0 : fixedIntroSec) + clip1OnTimelineSec);
+    const dossier = researchForVoiceoverScript(doc.deepResearchResult || '').trim().slice(0, 120000);
+    const paso3VideosBlock = videoAnalysesBlockFor(
+      [1, 7],
+      'THEIR SUBJECT AND THEIR STRUCTURE, HOOKS AND WHY THEY WORK',
+      'Take from them only structure ideas: hook formulas, pacing, act proportions and retention micro-hooks. Never take facts from them: facts come only from the research dossier.',
+      4000
+    );
+    stagePrompt = `Act as Chief Documentary Director and Head Scriptwriter for the Spanish-language documentary channel "Huellas de la Humanidad".
+This is STAGE 1 — STEP 3 OF 4 (NARRATIVE DESIGN, WITHOUT Deep Research). The topic was chosen in Step 1 and investigated with Deep Research in Step 2; that research dossier is below. Design how to TELL this story: 3 opening hooks, 2 outlines, the climax and the duration the material can sustain.${viralContextBlock}${paso3VideosBlock}
+
+CRITICAL OUTPUT LANGUAGE REQUIREMENT:
+Write everything in Spanish (Neutral Documentary Spanish for our producer UI), keeping the exact section headers and field labels requested below for parser compatibility.
+
+================================================================================
+🏛️ DOCUMENTARY DEFINITION & CALIBRATION
+================================================================================
+- Protocol Typology: ${cleanTypology || 'see the research'}
+- Central Documentary Topic: ${cleanTopic || 'see the research'}
+- Historical Time / Era: ${cleanTime || 'see the research'}
+- Historical Location (City, Country): ${cleanLoc || 'see the research'}
+${
+  excludePreviousParts
+    ? `- Continuity / FORBIDDEN Elements NOT to repeat from previous parts: ${excludePreviousParts}\n`
+    : ''
+}- ⏱️ Mathematical Calibration:
+  • Target Total Project Duration: ${
+    durationIsFixed
+      ? `~${totalTargetSec} seconds (~${minutesLabel} minutes) — FIXED by the producer: design for exactly this duration`
+      : 'TO DETERMINE in section 1 from the amount of verified material in the dossier; compute every act time from that duration'
+  }
+${buildIntroCalibrationLines(
+  'Visual Hook without voiceover',
+  '',
+  durationIsFixed ? '' : 'the rest of the duration you recommend as effective narration'
+)}
+  • Official Brand Outro at closing: Last ${fixedOutroSec} fixed seconds
+${selectedAudienceQuestions ? `\n💬 SELECTED AUDIENCE COMMENTS & QUESTIONS (answer them somewhere in the outline):\n${selectedAudienceQuestions}\n` : ''}
+================================================================================
+🔬 RESEARCH DOSSIER FROM STEP 2 (THE ONLY SOURCE OF FACTS)
+================================================================================
+${dossier || '(The research of Step 2 is empty: say so in one line and design nothing.)'}
+
+================================================================================
+🎬 STEP 3 TASK (NARRATIVE DESIGN)
+================================================================================
+RULES (mandatory):
+- FACTS ONLY FROM THE DOSSIER: every date, figure, name, event or quote in a hook, act or climax must come from the dossier above, followed by its reference number [n]. Never add facts that are not in the dossier. Never tell as certain what the dossier marks "(incierto)" or lists under "CIFRAS EN CONFLICTO": use its recommended wording or a hedge.
+- Build the strongest moments with the dossier's "MICRO-HISTORIAS" and "CITAS PARA PANTALLA", and use its "HUECOS Y PREGUNTAS ABIERTAS" and "ERRORES DE OTROS VIDEOS CORREGIDOS" as revelations our documentary can offer.
+- The 3 hooks differ in the opening image and first sentence (not in the subject). Each hook works with each of the 2 outlines and leads to the same climax: check the six combinations before writing them. Clip 1 runs ${hookStartClock}–${clip1EndClock} without voiceover and the voiceover enters at ${voiceEntryClock}: use exactly those times.
+- The 2 outlines differ in structure (for example chronological vs. starting in the middle of the action, or one axis vs. two) telling the same story towards the same climax, with the 8s Intro${
+      introIsPostSlogan ? ' placed right after the opening Slogan (NOT at 00:00)' : ' at 00:00'
+    } and the 8s Outro.
+
+FORMAT (mandatory), with the labels exactly as written:
+0. DISEÑO NARRATIVO:
+• Gancho 1: [opening hook and central paradox in one paragraph, with the [n] of its facts]
+• Gancho 2: [another opening for the same story]
+• Gancho 3: [another opening for the same story]
+• Gancho recomendado: Gancho N — [one short sentence saying why]
+• Escaleta 1: [one line naming the structure]
+  Acto 1 (0–X%, mm:ss–mm:ss): [what is told, the turning point and the retention micro-hook] Fuentes: [n][n]
+  Acto 2 (X–Y%, mm:ss–mm:ss): [...] Fuentes: [n]
+  (one line per act, every line starting with "Acto")
+• Escaleta 2: [one line naming the other structure]
+  Acto 1 (...): [...] Fuentes: [n]
+• Escaleta recomendada: Escaleta N — [one short sentence saying why]
+• Clímax y cierre: [historical climax, revelation and reflective ending leading into the 8s Outro, with its [n]]
+
+1. DURACIÓN TOTAL SUGERIDA DEL DOCUMENTAL:
+   - ${
+     durationIsFixed
+       ? `The producer fixed ~${minutesLabel} minutes: write RECOMENDACIÓN_DURACIÓN_TOTAL: ${totalTargetSec} and say in the justification whether the verified material is enough (or too much) for that duration.`
+       : 'Evaluate how much verified material the dossier holds (events, micro-stories, turning points, chronological span, open questions) and recommend the duration it can sustain WITHOUT padding (600s = 10 min, 900s = 15 min, 1200s = 20 min, 1800s = 30 min, 3600s = 1 hour, 7200s = 2 hours).'
+   }
+   - RECOMENDACIÓN_DURACIÓN_TOTAL: [Write EXACTLY one of these values in seconds: 600 | 900 | 1200 | 1800 | 3600 | 7200]
+   - DURACIÓN TOTAL SUGERIDA: [e.g., 15 minutos (900s)]
+   - JUSTIFICACIÓN DE DURACIÓN: [In Spanish: why that duration fits the material of the dossier].`;
+  } else if (stageNumber === STAGE1_PASO4_STAGE) {
+    // Paso 4 — fact-check of the design the producer chose in Paso 3 against the Paso 2 dossier (and the errors
+    // found in the marked videos), plus the @characters and @locations for the Etapa 4 reference images.
+    const cleanTopic = (doc.topic || '').trim();
+    const cleanTime = (doc.historicalTime || '').trim();
+    const cleanLoc = (doc.historicalLocation || '').trim();
+    const chosenHook = (doc.promptConfig?.PROPOSICION_GANCHO || doc.promptConfig?.ANGULO_CENTRAL || '').trim();
+    const chosenEscaleta = (doc.promptConfig?.PROPOSICION_ESCALETA || '').trim();
+    const chosenClimax = (doc.promptConfig?.PROPOSICION_CLIMAX || '').trim();
+    const dossier = researchForVoiceoverScript(doc.deepResearchResult || '').trim().slice(0, 120000);
+    const paso4VideosBlock = videoAnalysesBlockFor(
+      [5],
+      'THEIR DOUBTFUL CLAIMS AND POSSIBLE ERRORS',
+      'Check whether our design repeats any of these claims.',
+      3000
+    );
+    stagePrompt = `Act as Lead Historical Fact-Checker for the Spanish-language documentary channel "Huellas de la Humanidad".
+This is STAGE 1 — STEP 4 OF 4 (FACT-CHECK OF THE NARRATIVE DESIGN, WITHOUT Deep Research). The producer chose the hook, outline and climax below in Step 3. Check them claim by claim against the research dossier of Step 2${
+      paso4VideosBlock ? ' and against the doubtful claims of the marked videos' : ''
+    }. Do not redesign the documentary: only flag and fix what is not backed.
+
+CRITICAL OUTPUT LANGUAGE REQUIREMENT:
+Write everything in Spanish, except the image descriptions of section 5 (in English), keeping the exact section headers and labels below for parser compatibility.
+
+================================================================================
+🏛️ DOCUMENTARY
+================================================================================
+- Topic: ${cleanTopic || doc.title || ''}
+- Historical Time / Era: ${cleanTime || 'see the research'}
+- Historical Location (City, Country): ${cleanLoc || 'see the research'}
+
+================================================================================
+🎬 DESIGN CHOSEN IN STEP 3 (TO CHECK)
+================================================================================
+- Gancho: ${chosenHook || '(empty)'}
+- Escaleta:
+${chosenEscaleta || '(empty)'}
+- Clímax y cierre: ${chosenClimax || '(empty)'}
+
+================================================================================
+🔬 RESEARCH DOSSIER FROM STEP 2
+================================================================================
+${dossier || '(The research of Step 2 is empty: say so in one line.)'}
+${paso4VideosBlock}
+================================================================================
+✅ STEP 4 TASK
+================================================================================
+Deliver exactly these 5 sections, with these exact headers:
+1. SIN FUENTE:
+   - Each claim of the design (date, figure, name, event or quote) that no reference [n] of the dossier backs, one per line: "<afirmación> — <dónde: Gancho / Acto N / Clímax>". Write "Ninguna" if every claim is backed.
+2. INCIERTO USADO COMO HECHO:
+   - Each point that the dossier marks "(incierto)" or lists under "CIFRAS EN CONFLICTO" and that the design tells as certain, one per line: "<afirmación> — <redacción prudente recomendada>". Write "Ninguno" if there is none.
+3. ERRORES REPETIDOS DE OTROS VIDEOS:
+   - ${
+     paso4VideosBlock
+       ? 'Each doubtful claim or error of the marked videos that the design repeats, one per line: "<afirmación> (Video N) — <lo que dicen las fuentes> [n]". Write "Ninguno" if there is none.'
+       : 'Write "No aplica" (no videos were marked).'
+   }
+4. VEREDICTO: LISTO | CORREGIR — [one sentence in Spanish]
+   • Gancho corregido: [the whole hook with the fixes, or "sin cambios"]
+   • Escaleta corregida: [the whole outline with the fixes, one act per line starting with "Acto", or "sin cambios"]
+   • Clímax corregido: [the whole climax with the fixes, or "sin cambios"]
+   Write LISTO only when sections 1 to 3 found nothing; then the three lines say "sin cambios". Keep the [n] references in the corrected texts.
+5. PERSONAJES Y LUGARES (@):
+   - The key people and places of the chosen design, one per line, for the reference images of Stage 4, in exactly this format:
+     @Anonymous_Role_Handle: Create an image of a [adult age]-year-old [role], [face and physical traits], wearing [exact period attire for ${cleanTime || 'the era'}, ${cleanLoc || 'the place'}].
+     @Location_Name: Create an image of [the place], establishing shot of the environment, no people, [period architecture and details].
+   - The @handles are anonymous roles, NEVER real person names (e.g., @Scottish_Bacteriologist_1928, @Senior_Oxford_Professor); the descriptions after "Create an image of" are in English.`;
   } else if (stageNumber === 4) {
     const introPlacement = doc.promptConfig?.UBICACION_INTRO_MARCA || 'INTRO_INICIO_00';
     const FIXED_INTRO_SEC = 8;
@@ -3735,6 +3930,18 @@ Execute an exhaustive Deep Research investigation on the topic, era, location, a
             chosenActsProp ? `- Act Outline & Development: ${chosenActsProp}\n` : ''
           }${chosenClimaxProp ? `- Climax & Reflective Ending: ${chosenClimaxProp}\n` : ''}`
         : '';
+    // Stage 1 Step 4 fact-check: the claims it flagged must never be narrated as certain
+    const paso4Check = parseStage1Check(doc.promptConfig?.[STAGE1_PASO4_RESULT_KEY] || '');
+    const paso4NotesLines = [
+      ...paso4Check.noSource.map((s) => `- Without a source (leave it out or hedge it): ${s}`),
+      ...paso4Check.uncertain.map((s) => `- Uncertain (use the cautious wording): ${s}`),
+      ...paso4Check.repeatedErrors.map((s) => `- Error of other videos (never repeat it): ${s}`),
+    ];
+    const paso4NotesBlock = paso4NotesLines.length
+      ? `\nFact-check notes (Stage 1 Step 4) — never narrate these points as certain:\n${paso4NotesLines
+          .join('\n')
+          .slice(0, 3000)}\n`
+      : '';
 
     if (isRecalibratingExisting) {
       const cleanedCurrent = cleanVoiceoverNarrationOnly(doc.voiceoverScript || '');
@@ -3777,7 +3984,7 @@ Target Total Duration Selected in Stage 1: ${budget.totalMinutesLabel} MINUTES (
 Step 1 conclusions (analysis of the marked/reference videos and suggested duration — the proposals the producer did not pick are left out on purpose):
 ${extractPhase1Conclusions(doc.deepResearchPrompt || '', 9000)}
 Deep Historical Research (Step 2 — Deep Research):
-${researchForVoiceoverScript(doc.deepResearchResult || (!doc.deepResearchPrompt ? doc.sectionsStructure || '' : ''))}${
+${researchForVoiceoverScript(doc.deepResearchResult || (!doc.deepResearchPrompt ? doc.sectionsStructure || '' : ''))}${paso4NotesBlock}${
         selectedVideoAnalysesRaw
           ? `\nNotes from the ${selectedVideoAnalysesCount || 'several'} marked YouTube videos — their doubtful claims and what they leave out (use only what concerns our subject and is verified; never copy their phrasing or structure):\n${compactVideoAnalysesForScript(selectedVideoAnalysesRaw)}\n`
           : ''

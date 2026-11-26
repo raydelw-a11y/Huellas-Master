@@ -38,6 +38,16 @@ import {
 } from './src/utils/smartParsers';
 import { buildShotDirectionClause } from './src/utils/shotCatalogue';
 import {
+  STAGE1_PASO2_SOURCE_KEY,
+  STAGE1_PASO3_RESULT_KEY,
+  STAGE1_PASO3_STAGE,
+  STAGE1_PASO4_RESULT_KEY,
+  STAGE1_PASO4_STAGE,
+  stage1Paso2SourceFingerprint,
+  stage1Paso3AnswerPatch,
+  stage1Paso4AnswerPatch,
+} from './src/utils/stage1Proposals';
+import {
   computeViralClipCuts,
   buildViralLocalWords,
   viralCutTimes,
@@ -26499,7 +26509,11 @@ app.post('/api/gemini-web/remote-stage-result', async (req, res) => {
         114: 'youtubeTags',
         115: 'publishTitle',
         12: 'commentReplies',
+        // Etapa 1 Pasos 3 and 4 live inside promptConfig (see stage1PasoConfig below)
+        [STAGE1_PASO3_STAGE]: STAGE1_PASO3_RESULT_KEY,
+        [STAGE1_PASO4_STAGE]: STAGE1_PASO4_RESULT_KEY,
       };
+      const isStage1ConfigStep = stageNumber === STAGE1_PASO3_STAGE || stageNumber === STAGE1_PASO4_STAGE;
       const fieldKey = STAGE_FIELD_MAP[stageNumber];
       if (!fieldKey) {
         res.status(400).json({ ok: false, error: `Unsupported stageNumber: ${stageNumber}` });
@@ -26512,7 +26526,7 @@ app.post('/api/gemini-web/remote-stage-result', async (req, res) => {
       const validChatUrl = /^https:\/\/gemini\.google\.com\/(?:u\/\d+\/)?app\/[a-zA-Z0-9_-]{6,}$/.test(chatUrl) ? chatUrl : '';
       const validDrChatUrl = isDeepResearch ? validChatUrl : '';
       if (onlyIfEmpty) {
-        const existingVal = list[idx][fieldKey];
+        const existingVal = isStage1ConfigStep ? list[idx].promptConfig?.[fieldKey] : list[idx][fieldKey];
         const isStage8Continuation =
           stageNumber === 8 &&
           (isPartialContinuation ||
@@ -26539,6 +26553,25 @@ app.post('/api/gemini-web/remote-stage-result', async (req, res) => {
         }
       }
       const extraPatch: Record<string, any> = {};
+      // promptConfig keys written together with the result (extraPatch.promptConfig would be overwritten)
+      const stage1PasoConfig: Record<string, string> = {};
+      if (stageNumber === 1 || stageNumber === 2 || stageNumber === 3) {
+        // What Paso 2 researched: if the topic changes later, the screen shows it as out of date
+        stage1PasoConfig[STAGE1_PASO2_SOURCE_KEY] = stage1Paso2SourceFingerprint(list[idx]);
+      } else if (stageNumber === STAGE1_PASO3_STAGE) {
+        const paso3 = stage1Paso3AnswerPatch(list[idx], sanitizeBrandSafeEditorialText(text));
+        Object.assign(stage1PasoConfig, paso3 ? paso3.promptConfig : { [fieldKey]: sanitizeBrandSafeEditorialText(text) });
+        if (paso3?.targetDurationSeconds) extraPatch.targetDurationSeconds = paso3.targetDurationSeconds;
+      } else if (stageNumber === STAGE1_PASO4_STAGE) {
+        const paso4 = stage1Paso4AnswerPatch(list[idx], sanitizeBrandSafeEditorialText(text));
+        Object.assign(stage1PasoConfig, paso4 ? paso4.promptConfig : { [fieldKey]: sanitizeBrandSafeEditorialText(text) });
+        // Its @characters and @places fill the reference list only while it is empty
+        const refs = paso4?.check.references ? parseReferencesFromRawText(paso4.check.references) : [];
+        if (refs.length > 0 && (!Array.isArray(list[idx].references) || list[idx].references.length === 0)) {
+          extraPatch.references = refs;
+          extraPatch.rawReferencePrompts = refs.map((r: any) => `${r.tag}: ${r.prompt}`).join('\n\n');
+        }
+      }
       if (stageNumber === 4) {
         extraPatch.timelineSentences = [];
         extraPatch.timelineFormattedText = '';
@@ -26745,7 +26778,7 @@ app.post('/api/gemini-web/remote-stage-result', async (req, res) => {
 
       list[idx] = {
         ...list[idx],
-        ...([5, 8, 101, 115, 12].includes(stageNumber)
+        ...([5, 8, 101, 115, 12].includes(stageNumber) || isStage1ConfigStep
           ? {}
           : {
               [fieldKey]:
@@ -26764,6 +26797,7 @@ app.post('/api/gemini-web/remote-stage-result', async (req, res) => {
         ...(nextMainChatUrl ? { geminiChatUrl: nextMainChatUrl } : {}),
         promptConfig: {
           ...(list[idx].promptConfig || {}),
+          ...stage1PasoConfig,
           REMOTE_GEMINI_STAGE_STATUS: isPartialContinuation ? 'running' : 'completed',
           REMOTE_GEMINI_STAGE_ERROR: '',
           [`FIELD_CLEARED_AT_${fieldKey}`]: '0',
