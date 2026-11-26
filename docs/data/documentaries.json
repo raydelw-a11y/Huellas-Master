@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-11-25T22:15:59.273Z",
-    "updatedAt": "2026-11-26T02:53:49.260Z",
+    "updatedAt": "2026-11-26T02:53:59.285Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -695,8 +695,7 @@
         "category": "persona",
         "description": "Mexica Lake Warrior 1325",
         "prompt": "Create an image in 16:9 horizontal aspect ratio structured as a 6-view character reference sheet (6 distinct views in a single 3x2 grid image of the exact same person with 100% identical facial, hair, and wardrobe continuity: 1. front full-body standing view, 2. three-quarter full-body view, 3. side profile full-body view, 4. back full-body view, 5. neutral front close-up portrait of head and shoulders, 6. three-quarter close-up portrait showing skin pores and facial structure), depicting a 32-year-old Indigenous Mesoamerican Mexica lake warrior and scout with sun-weathered bronze skin, prominent cheekbones, dark straight shoulder-length hair tied back with a woven red cotton band, athletic lean build, wearing authentic fourteenth-century Central Mexican attire including a quilted unbleached cotton ichcahuipilli tunic, woven geometric loincloth maxtlatl, flat open rawhide sandals cactli with a low heel guard, a round woven reed shield, and holding in the right hand a historically accurate macuahuitl: a flat broad wooden war club about 80 centimeters long shaped like a long paddle, with a continuous row of sharp black obsidian blades set into BOTH edges (not a short club, not a knife, not a metal sword), Lake Texcoco, Tenochtitlan, Mexico, 1325 to 1521, against a clean neutral studio background with even lighting, strictly zero person proper names or surnames anywhere in the prompt, portrayed by an anonymous historical reenactment actor in authentic period costume, no real public figures or prominent people, 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Mexica_Lake_Warrior_1325",
-        "isCreated": false,
-        "imageUrl": ""
+        "isCreated": false
       },
       {
         "id": "ref-1795658466010-2",
@@ -704,8 +703,7 @@
         "category": "persona",
         "description": "Mexica Chinampa Farmer 1450",
         "prompt": "Create an image in 16:9 horizontal aspect ratio structured as a 6-view character reference sheet (6 distinct views in a single 3x2 grid image of the exact same person with 100% identical facial, hair, and wardrobe continuity: 1. front full-body standing view, 2. three-quarter full-body view, 3. side profile full-body view, 4. back full-body view, 5. neutral front close-up portrait of head and shoulders, 6. three-quarter close-up portrait showing skin pores and facial structure), depicting a 38-year-old Indigenous Mexica agricultural laborer and freshwater canoe vendor with tanned weathered skin, calloused hands, dark eyes, straight black hair cropped neatly at the nape, wiry muscular frame, wearing authentic fifteenth-century Valley of Mexico working attire including a simple coarse maguey-fiber tilmatli cape knotted over one shoulder, plain off-white cotton loincloth, mud-dusted calves, woven fiber sandals, and a woven carrying tumpline across the chest, Tenochtitlan, Lake Texcoco, Mexico, 1450 to 1519, against a clean neutral studio background with even lighting, strictly zero person proper names or surnames anywhere in the prompt, portrayed by an anonymous historical reenactment actor in authentic period costume, no real public figures or prominent people, 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Mexica_Chinampa_Farmer_1450",
-        "isCreated": false,
-        "imageUrl": ""
+        "isCreated": false
       },
       {
         "id": "ref-1795658466010-3",
@@ -713,8 +711,7 @@
         "category": "persona",
         "description": "Texcocan Hydraulic Architect 1449",
         "prompt": "Create an image in 16:9 horizontal aspect ratio structured as a 6-view character reference sheet (6 distinct views in a single 3x2 grid image of the exact same person with 100% identical facial, hair, and wardrobe continuity: 1. front full-body standing view, 2. three-quarter full-body view, 3. side profile full-body view, 4. back full-body view, 5. neutral front close-up portrait of head and shoulders, 6. three-quarter close-up portrait showing skin pores and facial structure), depicting a 47-year-old Mesoamerican noble statesman and master hydraulic architect from Texcoco with dignified angular features, calm observant dark eyes, straight dark hair with subtle grey strands bound by a turquoise-inlaid headband, wearing authentic fifteenth-century Valley of Mexico royal court attire including a smooth finely woven COTTON tilmatli mantle in turquoise and white with geometric embroidered borders, worn as a rectangular cape KNOTTED OVER THE RIGHT SHOULDER leaving the right arm free (not a poncho, not a serape, no wool texture, no modern Mexican handicraft pattern), a white cotton loincloth maxtlatl with embroidered ends, understated jade ear spools and lip ornament, and fine leather sandals, Lake Texcoco, Tenochtitlan, Mexico, 1449 to 1466, against a clean neutral studio background with even lighting, strictly zero person proper names or surnames anywhere in the prompt, portrayed by an anonymous historical reenactment actor in authentic period costume, no real public figures or prominent people, 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Texcocan_Hydraulic_Architect_1449",
-        "isCreated": false,
-        "imageUrl": ""
+        "isCreated": false
       },
       {
         "id": "ref-1795658466011-4",
@@ -722,8 +719,7 @@
         "category": "persona",
         "description": "Mexica Imperial Ruler 1499",
         "prompt": "Create an image in 16:9 horizontal aspect ratio structured as a 6-view character reference sheet (6 distinct views in a single 3x2 grid image of the exact same person with 100% identical facial, hair, and wardrobe continuity: 1. front full-body standing view, 2. three-quarter full-body view, 3. side profile full-body view, 4. back full-body view, 5. neutral front close-up portrait of head and shoulders, 6. three-quarter close-up portrait showing skin pores and facial structure), depicting a 44-year-old Mexica supreme imperial ruler with stern commanding features, deep-set dark eyes, strong jawline, straight black hair beneath a turquoise mosaic diadem xiuhuitzolli with green quetzal plumes, wearing authentic late fifteenth-century imperial Tenochtitlan regalia including a richly dyed crimson-and-turquoise feathered cotton mantle, intricate gold and jade pectoral collar, embroidered loincloth, and ornate ceremonial sandals, Tenochtitlan, Mexico, 1499, against a clean neutral studio background with even lighting, strictly zero person proper names or surnames anywhere in the prompt, portrayed by an anonymous historical reenactment actor in authentic period costume, no real public figures or prominent people, 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Mexica_Imperial_Ruler_1499",
-        "isCreated": false,
-        "imageUrl": ""
+        "isCreated": false
       },
       {
         "id": "ref-1795658466012-5",
@@ -731,8 +727,7 @@
         "category": "persona",
         "description": "Spanish Conquistador Commander 1521",
         "prompt": "Create an image in 16:9 horizontal aspect ratio structured as a 6-view character reference sheet (6 distinct views in a single 3x2 grid image of the exact same person with 100% identical facial, hair, and wardrobe continuity: 1. front full-body standing view, 2. three-quarter full-body view, 3. side profile full-body view, 4. back full-body view, 5. neutral front close-up portrait of head and shoulders, 6. three-quarter close-up portrait showing skin pores and facial structure), depicting a 36-year-old sixteenth-century Castilian military expedition commander with pale sun-tanned Mediterranean skin, trimmed dark brown beard and mustache, calculating sharp eyes, wearing authentic 1521 Spanish campaign attire including a dark velvet doublet under a scuffed polished steel breastplate and gorget, dark crimson sash across the chest, slashed woolen breeches, a leather sword belt carrying an early sixteenth-century Spanish sword with a SIMPLE cruciform hilt, straight quillons and at most one small finger ring (no swept hilt, no cup hilt, no rapier basket), and dust-worn knee-high riding boots, Valley of Mexico, 1521, against a clean neutral studio background with even lighting, strictly zero person proper names or surnames anywhere in the prompt, portrayed by an anonymous historical reenactment actor in authentic period costume, no real public figures or prominent people, 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Spanish_Conquistador_Commander_1521",
-        "isCreated": false,
-        "imageUrl": ""
+        "isCreated": false
       },
       {
         "id": "ref-1795658466013-6",
@@ -740,8 +735,7 @@
         "category": "persona",
         "description": "Spanish Siege Soldier 1521",
         "prompt": "Create an image in 16:9 horizontal aspect ratio structured as a 6-view character reference sheet (6 distinct views in a single 3x2 grid image of the exact same person with 100% identical facial, hair, and wardrobe continuity: 1. front full-body standing view, 2. three-quarter full-body view, 3. side profile full-body view, 4. back full-body view, 5. neutral front close-up portrait of head and shoulders, 6. three-quarter close-up portrait showing skin pores and facial structure), depicting a 30-year-old sixteenth-century Spanish infantry soldier and campaign chronicler with weathered sunburnt skin, scruffy dark beard, tired determined eyes, wearing authentic 1521 siege combat attire including a battered steel kettle hat chapel-de-fer with a low ROUNDED crown and a wide FLAT brim (no pointed peak, no comb, not a later morion or cabasset), sweat-stained quilted cotton gambeson adopted in Mesoamerica, worn leather jerkin, sturdy wool hose, mud-caked leather ankle boots, and a leather waist belt with water flask and iron dagger sheath, Chapultepec and Tenochtitlan, Mexico, 1521, against a clean neutral studio background with even lighting, strictly zero person proper names or surnames anywhere in the prompt, portrayed by an anonymous historical reenactment actor in authentic period costume, no real public figures or prominent people, 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Spanish_Siege_Soldier_1521",
-        "isCreated": false,
-        "imageUrl": ""
+        "isCreated": false
       },
       {
         "id": "ref-1795658466014-7",
@@ -749,8 +743,7 @@
         "category": "persona",
         "description": "German Royal Cosmographer 1607",
         "prompt": "Create an image in 16:9 horizontal aspect ratio structured as a 6-view character reference sheet (6 distinct views in a single 3x2 grid image of the exact same person with 100% identical facial, hair, and wardrobe continuity: 1. front full-body standing view, 2. three-quarter full-body view, 3. side profile full-body view, 4. back full-body view, 5. neutral front close-up portrait of head and shoulders, 6. three-quarter close-up portrait showing skin pores and facial structure), depicting a 52-year-old seventeenth-century German-born royal cosmographer, printer, and colonial drainage director in New Spain with fair weathered complexion, receding greying hair, pointed silver-streaked beard, furrowed scholarly brow, wearing authentic early seventeenth-century Spanish colonial attire including a heavy black wool doublet with buttoned front, modest white linen falling collar, dark wool cloak draped over the shoulders, knee breeches, dark stockings, and mud-dusted buckled leather shoes, Mexico City and Huehuetoca, New Spain, 1607 to 1629, against a clean neutral studio background with even lighting, strictly zero person proper names or surnames anywhere in the prompt, portrayed by an anonymous historical reenactment actor in authentic period costume, no real public figures or prominent people, 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @German_Royal_Cosmographer_1607",
-        "isCreated": false,
-        "imageUrl": ""
+        "isCreated": false
       },
       {
         "id": "ref-1795658466014-8",
@@ -758,8 +751,7 @@
         "category": "persona",
         "description": "Dutch Hydraulic Engineer 1614",
         "prompt": "Create an image in 16:9 horizontal aspect ratio structured as a 6-view character reference sheet (6 distinct views in a single 3x2 grid image of the exact same person with 100% identical facial, hair, and wardrobe continuity: 1. front full-body standing view, 2. three-quarter full-body view, 3. side profile full-body view, 4. back full-body view, 5. neutral front close-up portrait of head and shoulders, 6. three-quarter close-up portrait showing skin pores and facial structure), depicting a 45-year-old seventeenth-century Dutch hydraulic engineer contracted by the Spanish Crown with fair ruddy Northern European complexion, light brown hair, neat sandy beard and mustache, pragmatic steady gaze, wearing authentic 1614 Dutch field attire including a dark brown wool coat, plain pleated linen ruff collar, wide-brimmed black felt hat, heavy leather surveyor satchel across the chest, wool breeches, and tall waterproofed leather boots, Mexico City, New Spain, 1614, against a clean neutral studio background with even lighting, strictly zero person proper names or surnames anywhere in the prompt, portrayed by an anonymous historical reenactment actor in authentic period costume, no real public figures or prominent people, 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Dutch_Hydraulic_Engineer_1614",
-        "isCreated": false,
-        "imageUrl": ""
+        "isCreated": false
       },
       {
         "id": "ref-1795658466015-9",
@@ -767,8 +759,7 @@
         "category": "persona",
         "description": "Prussian Naturalist Explorer 1803",
         "prompt": "Create an image in 16:9 horizontal aspect ratio structured as a 6-view character reference sheet (6 distinct views in a single 3x2 grid image of the exact same person with 100% identical facial, hair, and wardrobe continuity: 1. front full-body standing view, 2. three-quarter full-body view, 3. side profile full-body view, 4. back full-body view, 5. neutral front close-up portrait of head and shoulders, 6. three-quarter close-up portrait showing skin pores and facial structure), depicting a 34-year-old early nineteenth-century European naturalist and geographer with fair skin, tousled wavy brown hair, clean-shaven oval face, intense curious eyes, wearing authentic 1803 scientific expedition attire including a tailored dark navy wool tailcoat with brass buttons, buff-colored waistcoat, crisp white linen cravat, light tan riding breeches, tall polished black leather boots, and a brass field instrument pouch at the hip, Valley of Mexico, 1803, against a clean neutral studio background with even lighting, strictly zero person proper names or surnames anywhere in the prompt, portrayed by an anonymous historical reenactment actor in authentic period costume, no real public figures or prominent people, 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Prussian_Naturalist_Explorer_1803",
-        "isCreated": false,
-        "imageUrl": ""
+        "isCreated": false
       },
       {
         "id": "ref-1795658466015-10",
@@ -776,8 +767,7 @@
         "category": "persona",
         "description": "Mexican Geotechnical Engineer 1948",
         "prompt": "Create an image in 16:9 horizontal aspect ratio structured as a 6-view character reference sheet (6 distinct views in a single 3x2 grid image of the exact same person with 100% identical facial, hair, and wardrobe continuity: 1. front full-body standing view, 2. three-quarter full-body view, 3. side profile full-body view, 4. back full-body view, 5. neutral front close-up portrait of head and shoulders, 6. three-quarter close-up portrait showing skin pores and facial structure), depicting a 40-year-old mid-twentieth-century Mexican civil and soil-mechanics engineer with olive skin, neatly parted dark hair, thin mustache, round tortoiseshell eyeglasses, thoughtful analytical expression, wearing authentic 1940s Mexico City professional attire including a charcoal grey double-breasted wool suit, white collared dress shirt, dark silk necktie, leather wristwatch, and polished dark oxford shoes, Mexico City, Mexico, 1925 to 1952, against a clean neutral studio background with even lighting, strictly zero person proper names or surnames anywhere in the prompt, portrayed by an anonymous historical reenactment actor in authentic period costume, no real public figures or prominent people, 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Mexican_Geotechnical_Engineer_1948",
-        "isCreated": false,
-        "imageUrl": ""
+        "isCreated": false
       },
       {
         "id": "ref-1795658466016-11",
@@ -785,8 +775,7 @@
         "category": "persona",
         "description": "Contemporary CDMX Hydrologist 2026",
         "prompt": "Create an image in 16:9 horizontal aspect ratio structured as a 6-view character reference sheet (6 distinct views in a single 3x2 grid image of the exact same person with 100% identical facial, hair, and wardrobe continuity: 1. front full-body standing view, 2. three-quarter full-body view, 3. side profile full-body view, 4. back full-body view, 5. neutral front close-up portrait of head and shoulders, 6. three-quarter close-up portrait showing skin pores and facial structure), depicting a 37-year-old contemporary Mexican female urban hydrologist and water systems engineer with warm brown skin, dark hair pulled back into a practical low bun, focused expression, wearing authentic 2026 field inspection attire including a navy moisture-wicking long-sleeve utility shirt under a reflective neon-yellow safety vest, charcoal cargo work trousers, rugged brown waterproof work boots, and a rugged tablet case clipped to the belt, Mexico City, Mexico, 2026, against a clean neutral studio background with even lighting, strictly zero person proper names or surnames anywhere in the prompt, portrayed by an anonymous historical reenactment actor in authentic period costume, no real public figures or prominent people, 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Contemporary_CDMX_Hydrologist_2026",
-        "isCreated": false,
-        "imageUrl": ""
+        "isCreated": false
       },
       {
         "id": "ref-1795658466016-12",
@@ -794,8 +783,7 @@
         "category": "lugar",
         "description": "Alkaline Lake Texcoco 1325",
         "prompt": "Create an image in 16:9 horizontal aspect ratio structured as a 6-view historical location reference sheet (6 distinct views in a single 3x2 grid image of the exact same historical location with 100% architectural, material, and atmospheric continuity: 1. wide establishing shot, 2. reverse wide angle, 3. medium focal architectural view, 4. ground-level entrance or street perspective, 5. elevated overview angle, 6. close-up structural materials and period lighting detail), depicting the raw marshy islet in the brackish alkaline waters of Lake Texcoco at the founding of Tenochtitlan in 1325, surrounded by dense green tule reeds, muddy volcanic shorelines encrusted with white crystalline mineral salt deposits, yellowish murky mineral water reflecting the high-altitude sky, and snow-capped volcanic mountain ranges enclosing the closed basin in the misty distance under crisp highland morning sunlight, Tenochtitlan, Lake Texcoco, Mexico, 1325, strictly empty environment with zero people, zero animals, and zero characters anywhere in the frame, 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Alkaline_Lake_Texcoco_1325",
-        "isCreated": false,
-        "imageUrl": ""
+        "isCreated": false
       },
       {
         "id": "ref-1795658466016-13",
@@ -803,8 +791,7 @@
         "category": "lugar",
         "description": "Tenochtitlan Chinampas Canals 1500",
         "prompt": "Create an image in 16:9 horizontal aspect ratio structured as a 6-view historical location reference sheet (6 distinct views in a single 3x2 grid image of the exact same historical location with 100% architectural, material, and atmospheric continuity: 1. wide establishing shot, 2. reverse wide angle, 3. medium focal architectural view, 4. ground-level entrance or street perspective, 5. elevated overview angle, 6. close-up structural materials and period lighting detail), depicting the vast pre-Hispanic chinampa agricultural grid of Tenochtitlan around 1500, featuring long rectangular raised islands of dark fertile mud anchored by woven wooden stake fences, lined with slender vertical ahuejote willow trees, rows of lush maize, squash, and marigolds, straight freshwater irrigation canals, empty moored flat-bottomed wooden canoes, and whitewashed lime-stucco pyramid temples rising in the hazy highland distance under warm golden afternoon light, Tenochtitlan, Mexico, 1450 to 1519, strictly empty environment with zero people, zero animals, and zero characters anywhere in the frame, 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Tenochtitlan_Chinampas_Canals_1500",
-        "isCreated": false,
-        "imageUrl": ""
+        "isCreated": false
       },
       {
         "id": "ref-1795658466016-14",
@@ -812,8 +799,7 @@
         "category": "lugar",
         "description": "Great Lake Stone Dike 1449",
         "prompt": "Create an image in 16:9 horizontal aspect ratio structured as a 6-view historical location reference sheet (6 distinct views in a single 3x2 grid image of the exact same historical location with 100% architectural, material, and atmospheric continuity: 1. wide establishing shot, 2. reverse wide angle, 3. medium focal architectural view, 4. ground-level entrance or street perspective, 5. elevated overview angle, 6. close-up structural materials and period lighting detail), depicting the monumental sixteen-kilometer stone and timber dike built across Lake Texcoco in 1449, constructed of heavy dark volcanic basalt stone blocks, lime mortar, and thick wooden pilings driven into the lakebed, equipped with adjustable timber sluice gates, visually separating the choppy brackish yellowish-brown waters of eastern Lake Texcoco from the calm clear freshwater lagoon of Mexico on the western side under dramatic overcast highland skies, Lake Texcoco, Tenochtitlan, Mexico, 1449 to 1519, strictly empty environment with zero people, zero animals, and zero characters anywhere in the frame, 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Great_Lake_Stone_Dike_1449",
-        "isCreated": false,
-        "imageUrl": ""
+        "isCreated": false
       },
       {
         "id": "ref-1795658466016-15",
@@ -821,8 +807,7 @@
         "category": "lugar",
         "description": "Chapultepec Double Aqueduct 1520",
         "prompt": "Create an image in 16:9 horizontal aspect ratio structured as a 6-view historical location reference sheet (6 distinct views in a single 3x2 grid image of the exact same historical location with 100% architectural, material, and atmospheric continuity: 1. wide establishing shot, 2. reverse wide angle, 3. medium focal architectural view, 4. ground-level entrance or street perspective, 5. elevated overview angle, 6. close-up structural materials and period lighting detail), depicting the pre-Hispanic stone aqueduct running from the forested springs of Chapultepec along the top of the raised stone causeway into island Tenochtitlan in 1520, featuring two parallel lime-mortar and volcanic stone conduits standing about chest-high on the causeway, the LEFT conduit brimming with fast-flowing crystal-clear spring water and the RIGHT conduit clearly DRY AND EMPTY for cleaning; wherever the causeway is cut by an open canal gap, the water crosses the gap inside massive hollowed-out wooden troughs as thick as an ox (no plank footbridges, no boards laid across the channels), the white stucco temples of Tenochtitlan visible in the distance across the lake, bathed in clear bright highland daylight, Chapultepec and Tenochtitlan, Mexico, 1466 to 1521, strictly empty environment with zero people, zero animals, and zero characters anywhere in the frame, 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Chapultepec_Double_Aqueduct_1520",
-        "isCreated": false,
-        "imageUrl": ""
+        "isCreated": false
       },
       {
         "id": "ref-1795658466016-16",
@@ -830,8 +815,7 @@
         "category": "lugar",
         "description": "Huehuetoca Drainage Tunnel 1607",
         "prompt": "Create an image in 16:9 horizontal aspect ratio structured as a 6-view historical location reference sheet (6 distinct views in a single 3x2 grid image of the exact same historical location with 100% architectural, material, and atmospheric continuity: 1. wide establishing shot, 2. reverse wide angle, 3. medium focal architectural view, 4. ground-level entrance or street perspective, 5. elevated overview angle, 6. close-up structural materials and period lighting detail), depicting the colonial Huehuetoca drainage TUNNEL at Nochistongo in New Spain around 1607 to 1629: a long, low, narrow subterranean gallery cut through stratified volcanic clay and soft rock, lined with simple stone masonry vaulting in some stretches and shored up with rough-hewn pine timber frames in others, muddy rainwater flowing along the tunnel floor, a vertical brick-lined access shaft (lumbrera) with a wooden hand windlass and rope bucket above it, small earthen spoil heaps, wooden ladders and modest scaffolding at the tunnel mouth set into dry agave-covered hills, under moody grey overcast clouds (NO giant open-pit trench, NO deep canyon cut, NO quarry terraces), Huehuetoca, Valley of Mexico, 1607 to 1629, strictly empty environment with zero people, zero animals, and zero characters anywhere in the frame, 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Huehuetoca_Drainage_Tunnel_1607",
-        "isCreated": false,
-        "imageUrl": ""
+        "isCreated": false
       },
       {
         "id": "ref-1795658466017-17",
@@ -839,8 +823,7 @@
         "category": "lugar",
         "description": "Flooded Colonial Mexico City 1629",
         "prompt": "Create an image in 16:9 horizontal aspect ratio structured as a 6-view historical location reference sheet (6 distinct views in a single 3x2 grid image of the exact same historical location with 100% architectural, material, and atmospheric continuity: 1. wide establishing shot, 2. reverse wide angle, 3. medium focal architectural view, 4. ground-level entrance or street perspective, 5. elevated overview angle, 6. close-up structural materials and period lighting detail), depicting the submerged EARLY seventeenth-century colonial center of Mexico City during the great flood of 1629 to 1634, showing modest two-story Renaissance-style stone buildings with plain flat façades, simple carved stone doorframes, small wooden balconies, flat roofs with stone rain spouts, built of dark red volcanic tezontle and grey stone, arcaded ground-floor portales half-buried under nearly two meters of dark murky stagnant floodwater, high-water stains along the columns, makeshift elevated wooden plank walkways between upper floors, flat-bottomed wooden canoes tied to iron window grilles, and the cathedral shown only as UNFINISHED low stone walls with wooden scaffolding, with NO bell towers and NO dome, plus simple single-nave churches with plain façades and small bell gables, under heavy slate-grey storm clouds (strictly no eighteenth-century baroque or churrigueresque façades, no twin bell towers, no domes), Mexico City, New Spain, 1629 to 1634, strictly empty environment with zero people, zero animals, and zero characters anywhere in the frame, 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Flooded_Colonial_Mexico_City_1629",
-        "isCreated": false,
-        "imageUrl": ""
+        "isCreated": false
       },
       {
         "id": "ref-1795658466017-18",
@@ -848,8 +831,7 @@
         "category": "lugar",
         "description": "Sinking Historic Center CDMX 2026",
         "prompt": "Create an image in 16:9 horizontal aspect ratio structured as a 6-view historical location reference sheet (6 distinct views in a single 3x2 grid image of the exact same historical location with 100% architectural, material, and atmospheric continuity: 1. wide establishing shot, 2. reverse wide angle, 3. medium focal architectural view, 4. ground-level entrance or street perspective, 5. elevated overview angle, 6. close-up structural materials and period lighting detail), depicting contemporary Mexico City land subsidence in 2026 shown in TWO clearly separate real locations: views 1 to 3 show the tall golden winged independence victory column on its roundabout on Paseo de la Reforma, a wide modern tree-lined boulevard surrounded ONLY by modern glass and concrete skyscrapers (no colonial buildings anywhere near the column), its stone base standing above the sunken surrounding pavement with more than a dozen added granite steps; views 4 to 6 show the colonial Historic Center several kilometers away, with red volcanic tezontle façades and a baroque stone cathedral visibly leaning and sinking unevenly below sidewalk level, cracked undulating asphalt and broken sidewalks, under crisp hazy highland morning light, Mexico City, Mexico, 2026, strictly empty environment with zero people, zero animals, and zero characters anywhere in the frame, 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Sinking_Historic_Center_CDMX_2026",
-        "isCreated": false,
-        "imageUrl": ""
+        "isCreated": false
       },
       {
         "id": "ref-1795658466017-19",
@@ -857,8 +839,7 @@
         "category": "lugar",
         "description": "Cutzamala Pumping Station 2026",
         "prompt": "Create an image in 16:9 horizontal aspect ratio structured as a 6-view historical location reference sheet (6 distinct views in a single 3x2 grid image of the exact same historical location with 100% architectural, material, and atmospheric continuity: 1. wide establishing shot, 2. reverse wide angle, 3. medium focal architectural view, 4. ground-level entrance or street perspective, 5. elevated overview angle, 6. close-up structural materials and period lighting detail), depicting the massive modern Cutzamala water transfer system in central Mexico in 2026, showing gigantic industrial blue-and-grey steel pressure pipelines anchored in concrete saddles climbing steeply up forested mountain ridges, heavy concrete open-air aqueduct channels carrying rushing water, high-voltage electrical transmission towers, and brutalist reinforced-concrete pumping plant buildings with massive industrial manifolds under bright afternoon highland sun, State of Mexico and Mexico City, Mexico, 2026, strictly empty environment with zero people, zero animals, and zero characters anywhere in the frame, 8k photorealistic cinematic documentary realism, uncropped 6-panel reference sheet, strictly no text, no labels, no numbers, no words, no speech, no music. fix the name to @Cutzamala_Pumping_Station_2026",
-        "isCreated": false,
-        "imageUrl": ""
+        "isCreated": false
       }
     ],
     "clip1TextMode": "CAPCUT_MANUAL",
