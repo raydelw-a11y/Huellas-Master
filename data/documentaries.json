@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-11-25T22:15:59.273Z",
-    "updatedAt": "2026-11-26T03:34:33.329Z",
+    "updatedAt": "2026-11-26T03:34:35.816Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -42,7 +42,7 @@
       "FIELD_CLEARED_AT_clip1OptionsRaw": "0",
       "FIELD_CLEARED_AT_clip1Line1LocationTime": "0",
       "FIELD_CLEARED_AT_clip1Line2Hook": "0",
-      "PROMPTS_RESTORED_AT": "1795663619661",
+      "PROMPTS_RESTORED_AT": "1795664075816",
       "FIELD_CLEARED_AT_rawClipsText": "0"
     },
     "compiledMasterPrompt": "",
@@ -2267,7 +2267,52 @@
     "srtFileName": "captions_corregidos",
     "confirmedFinalDuration": "10:51",
     "rawSunoText": "Track 1\nTrack Title: Mirror of Salt\nDuration: 2:05\nVideo Time Range: 00:08 - 02:13 (Clip 2 to Clip 16)\nLyrics Prompt:\n[00:00 Soft 2.5s Fade-In Intro]\n[Warm Documentary Underscore Below Voice]\n[00:35 Subtle Mesoamerican Clay Flute and Low Cello Drone]\n[01:10 Gentle Rhythmic Pulse Representing the Closed Volcanic Basin]\n[01:40 Subtle Emotional Swell]\n[02:02 Gentle 3s Fade-Out Outro]\n[End - 2:05]\nStyle Prompt: 100% instrumental documentary film score, strictly no vocals, no singing, no spoken words, smooth 2.5-second fade-in intro, gentle 3-second fade-out outro, mixed as warm low-mid frequency underscore designed to sit softly below a male documentary narrator voice without competing in the 1kHz-4kHz vocal clarity range, featuring soft low-register pre-Hispanic clay ocarina, muted huehuetl wooden drum pulse, warm sustained cello drones, and subtle nylon-string acoustic guitar harmonics, 76 BPM, intriguing, atmospheric, and mysterious historical mood.\nScene Explanation: Inicia exactamente en el segundo 00:08 (tras los 8 segundos iniciales mudos del Clip 1) para acompañar el gancho paradójico, la fundación de Tenochtitlan en 1325 y la explicación geológica de la cuenca cerrada y la salinidad del lago de Texcoco hasta la medición de Humboldt. Cierra en 02:13 para abrir el primer espacio sin música de 40 segundos (02:13 - 02:53), donde el humor seco desmiente el mito de las chinampas flotantes solo con voz y sonido ambiente.\nTrack 2\nTrack Title: The Stone Dike of Texcoco\nDuration: 2:00\nVideo Time Range: 02:53 - 04:53 (Clip 22 to Clip 36)\nLyrics Prompt:\n[00:00 Soft 2.5s Fade-In Intro]\n[Warm Documentary Underscore Below Voice]\n[00:30 Steady Wooden Percussion and Warm Plucked Strings]\n[01:05 Subtle Emotional Swell for the Monumental Dike]\n[01:35 Darker Low-String Tension for the 1499 Flood]\n[01:57 Gentle 3s Fade-Out Outro]\n[End - 2:00]\nStyle Prompt: 100% instrumental documentary film score, strictly no vocals, no singing, no spoken words, smooth 2.5-second fade-in intro, gentle 3-second fade-out outro, mixed as warm low-mid frequency underscore designed to sit softly below a male documentary narrator voice without competing in the 1kHz-4kHz vocal clarity range, featuring warm wooden teponaztli percussion, deep contrabass pizzicato, mellow acoustic marimba, and rich low-register string ensemble, 88 BPM, ingenious, steady, and building historical grandeur with a brief tense shift.\nScene Explanation: Entra tras la pausa musical de 40 segundos (02:13 - 02:53) para impulsar el auge agrícola de las chinampas, la proeza de ingeniería del Albarradón de Nezahualcóyotl en 1449 y el giro dramático de la inundación de Ahuízotl en 1499. Se retira en 04:53 para dar paso a un segundo silencio musical de 40 segundos (04:53 - 05:33) mientras se detalla la mecánica del doble acueducto de Chapultepec y se siembra la tensión táctica de 1521.\nTrack 3\nTrack Title: The Broken Conduit and the Deluge\nDuration: 3:00\nVideo Time Range: 05:33 - 08:33 (Clip 42 to Clip 64)\nLyrics Prompt:\n[00:00 Soft 2.5s Fade-In Intro]\n[Warm Documentary Underscore Below Voice]\n[00:25 Tense Low-String Ostinato and Muted Frame Drum]\n[01:15 Baroque Vihuela and Somber Cello Transition to Colonial Era]\n[02:05 Subtle Emotional Swell for the Five-Year Flood of 1629]\n[02:40 Deep Resounding Bass Notes Leading to the Dried Lakebed]\n[02:57 Gentle 3s Fade-Out Outro]\n[End - 3:00]\nStyle Prompt: 100% instrumental documentary film score, strictly no vocals, no singing, no spoken words, smooth 2.5-second fade-in intro, gentle 3-second fade-out outro, mixed as warm low-mid frequency underscore designed to sit softly below a male documentary narrator voice without competing in the 1kHz-4kHz vocal clarity range, featuring brooding low cellos, muted military frame drum, austere sixteenth-century Spanish vihuela arpeggios, and deep baroque bass strings, 82 BPM, dramatic, solemn, and relentless historical tension.\nScene Explanation: Arranca tras el respiro de 40 segundos (04:53 - 05:33) exactamente en el quiebre del 26 de mayo de 1521, acompañando el corte del acueducto, el asedio, el viraje colonial del Desagüe de Huehuetoca, el duelo técnico entre Enrico Martínez y Adrian Boot, y los cinco años bajo el agua del Diluvio de San Mateo. Concluye en 08:33 para dejar una pausa sin música de 48 segundos (08:33 - 09:21) donde solo la voz y el Foley exponen la venganza geológica del subsuelo arcilloso y el hundimiento del Ángel de la Independencia.\nTrack 4\nTrack Title: Seven Centuries of Thirst\nDuration: 1:30\nVideo Time Range: 09:21 - 10:51 (Clip 70 to Clip 81)\nLyrics Prompt:\n[00:00 Soft 2.5s Fade-In Intro]\n[Warm Documentary Underscore Below Voice]\n[00:25 Pulsing Deep Contrabass and Minimalist Felt Piano]\n[00:55 Subtle Emotional Swell with Poignant Solo Cello]\n[01:15 Reflective Contemplative Resolution for the Final Question]\n[01:27 Gentle 3s Fade-Out Outro]\n[End - 1:30]\nStyle Prompt: 100% instrumental documentary film score, strictly no vocals, no singing, no spoken words, smooth 2.5-second fade-in intro, gentle 3-second fade-out outro, mixed as warm low-mid frequency underscore designed to sit softly below a male documentary narrator voice without competing in the 1kHz-4kHz vocal clarity range, featuring intimate warm felt piano, deep pulsing contrabass, subtle analog ambient pad, and a melancholic low-register solo cello, 74 BPM, reflective, poignant, and thought-provoking modern documentary finale.\nScene Explanation: Pista final obligatoria de 1:30 que entra en 09:21 tras el espacio sin música de 48 segundos (08:33 - 09:21), uniendo las mediciones satelitales de 2026, el bombeo cuesta arriba del Sistema Cutzamala y la paradoja contemporánea de fugas e inundaciones hasta cerrar con la pregunta detonante y el lema del canal en 10:51.",
-    "sunoTracks": [],
+    "sunoTracks": [
+      {
+        "id": "suno-1795664075001-1",
+        "trackNumber": 1,
+        "title": "Mirror of Salt",
+        "duration": "2:05",
+        "videoTimeRange": "00:08 - 02:13 (Clip 2 to Clip 16)",
+        "lyricsPrompt": "[00:00 Soft 2.5s Fade-In Intro]\n[Warm Documentary Underscore Below Voice]\n[00:35 Subtle Mesoamerican Clay Flute and Low Cello Drone]\n[01:10 Gentle Rhythmic Pulse Representing the Closed Volcanic Basin]\n[01:40 Subtle Emotional Swell]\n[02:02 Gentle 3s Fade-Out Outro]\n[End - 2:05]",
+        "stylePrompt": "100% instrumental documentary film score, strictly no vocals, no singing, no spoken words, smooth 2.5-second fade-in intro, gentle 3-second fade-out outro, mixed as warm low-mid frequency underscore designed to sit softly below a male documentary narrator voice without competing in the 1kHz-4kHz vocal clarity range, featuring soft low-register pre-Hispanic clay ocarina, muted huehuetl wooden drum pulse, warm sustained cello drones, and subtle nylon-string acoustic guitar harmonics, 76 BPM, intriguing, atmospheric, and mysterious historical mood.",
+        "explanation": "Inicia exactamente en el segundo 00:08 (tras los 8 segundos iniciales mudos del Clip 1) para acompañar el gancho paradójico, la fundación de Tenochtitlan en 1325 y la explicación geológica de la cuenca cerrada y la salinidad del lago de Texcoco hasta la medición de Humboldt. Cierra en 02:13 para abrir el primer espacio sin música de 40 segundos (02:13 - 02:53), donde el humor seco desmiente el mito de las chinampas flotantes solo con voz y sonido ambiente.",
+        "isGenerated": false
+      },
+      {
+        "id": "suno-1795664075002-2",
+        "trackNumber": 2,
+        "title": "The Stone Dike of Texcoco",
+        "duration": "2:00",
+        "videoTimeRange": "02:53 - 04:53 (Clip 22 to Clip 36)",
+        "lyricsPrompt": "[00:00 Soft 2.5s Fade-In Intro]\n[Warm Documentary Underscore Below Voice]\n[00:30 Steady Wooden Percussion and Warm Plucked Strings]\n[01:05 Subtle Emotional Swell for the Monumental Dike]\n[01:35 Darker Low-String Tension for the 1499 Flood]\n[01:57 Gentle 3s Fade-Out Outro]\n[End - 2:00]",
+        "stylePrompt": "100% instrumental documentary film score, strictly no vocals, no singing, no spoken words, smooth 2.5-second fade-in intro, gentle 3-second fade-out outro, mixed as warm low-mid frequency underscore designed to sit softly below a male documentary narrator voice without competing in the 1kHz-4kHz vocal clarity range, featuring warm wooden teponaztli percussion, deep contrabass pizzicato, mellow acoustic marimba, and rich low-register string ensemble, 88 BPM, ingenious, steady, and building historical grandeur with a brief tense shift.",
+        "explanation": "Entra tras la pausa musical de 40 segundos (02:13 - 02:53) para impulsar el auge agrícola de las chinampas, la proeza de ingeniería del Albarradón de Nezahualcóyotl en 1449 y el giro dramático de la inundación de Ahuízotl en 1499. Se retira en 04:53 para dar paso a un segundo silencio musical de 40 segundos (04:53 - 05:33) mientras se detalla la mecánica del doble acueducto de Chapultepec y se siembra la tensión táctica de 1521.",
+        "isGenerated": false
+      },
+      {
+        "id": "suno-1795664075002-3",
+        "trackNumber": 3,
+        "title": "The Broken Conduit and the Deluge",
+        "duration": "3:00",
+        "videoTimeRange": "05:33 - 08:33 (Clip 42 to Clip 64)",
+        "lyricsPrompt": "[00:00 Soft 2.5s Fade-In Intro]\n[Warm Documentary Underscore Below Voice]\n[00:25 Tense Low-String Ostinato and Muted Frame Drum]\n[01:15 Baroque Vihuela and Somber Cello Transition to Colonial Era]\n[02:05 Subtle Emotional Swell for the Five-Year Flood of 1629]\n[02:40 Deep Resounding Bass Notes Leading to the Dried Lakebed]\n[02:57 Gentle 3s Fade-Out Outro]\n[End - 3:00]",
+        "stylePrompt": "100% instrumental documentary film score, strictly no vocals, no singing, no spoken words, smooth 2.5-second fade-in intro, gentle 3-second fade-out outro, mixed as warm low-mid frequency underscore designed to sit softly below a male documentary narrator voice without competing in the 1kHz-4kHz vocal clarity range, featuring brooding low cellos, muted military frame drum, austere sixteenth-century Spanish vihuela arpeggios, and deep baroque bass strings, 82 BPM, dramatic, solemn, and relentless historical tension.",
+        "explanation": "Arranca tras el respiro de 40 segundos (04:53 - 05:33) exactamente en el quiebre del 26 de mayo de 1521, acompañando el corte del acueducto, el asedio, el viraje colonial del Desagüe de Huehuetoca, el duelo técnico entre Enrico Martínez y Adrian Boot, y los cinco años bajo el agua del Diluvio de San Mateo. Concluye en 08:33 para dejar una pausa sin música de 48 segundos (08:33 - 09:21) donde solo la voz y el Foley exponen la venganza geológica del subsuelo arcilloso y el hundimiento del Ángel de la Independencia.",
+        "isGenerated": false
+      },
+      {
+        "id": "suno-1795664075002-4",
+        "trackNumber": 4,
+        "title": "Seven Centuries of Thirst",
+        "duration": "1:30",
+        "videoTimeRange": "09:21 - 10:51 (Clip 70 to Clip 81)",
+        "lyricsPrompt": "[00:00 Soft 2.5s Fade-In Intro]\n[Warm Documentary Underscore Below Voice]\n[00:25 Pulsing Deep Contrabass and Minimalist Felt Piano]\n[00:55 Subtle Emotional Swell with Poignant Solo Cello]\n[01:15 Reflective Contemplative Resolution for the Final Question]\n[01:27 Gentle 3s Fade-Out Outro]\n[End - 1:30]",
+        "stylePrompt": "100% instrumental documentary film score, strictly no vocals, no singing, no spoken words, smooth 2.5-second fade-in intro, gentle 3-second fade-out outro, mixed as warm low-mid frequency underscore designed to sit softly below a male documentary narrator voice without competing in the 1kHz-4kHz vocal clarity range, featuring intimate warm felt piano, deep pulsing contrabass, subtle analog ambient pad, and a melancholic low-register solo cello, 74 BPM, reflective, poignant, and thought-provoking modern documentary finale.",
+        "explanation": "Pista final obligatoria de 1:30 que entra en 09:21 tras el espacio sin música de 48 segundos (08:33 - 09:21), uniendo las mediciones satelitales de 2026, el bombeo cuesta arriba del Sistema Cutzamala y la paradoja contemporánea de fugas e inundaciones hasta cerrar con la pregunta detonante y el lema del canal en 10:51.",
+        "isGenerated": false
+      }
+    ],
     "thumbnailOrientation": "HORIZONTAL_16X9",
     "thumbnailTextOptions": [],
     "thumbnailPrompt": "",
