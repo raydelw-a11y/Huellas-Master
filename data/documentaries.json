@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-11-23T02:44:27.074Z",
-    "updatedAt": "2026-11-26T01:40:04.028Z",
+    "updatedAt": "2026-11-26T01:40:26.289Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -4360,7 +4360,7 @@
         "anchorSpoken": "primero de mayo de 1931"
       },
       {
-        "id": "stamp_mwwvxp4b_rthfk",
+        "id": "stamp_mwwvy6jr_ccj5e",
         "kind": "stamp",
         "startSec": 427.81,
         "durationSec": 2.6,
