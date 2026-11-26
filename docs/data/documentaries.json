@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-10-27T02:05:48.997Z",
-    "updatedAt": "2026-11-26T19:50:23.832Z",
+    "updatedAt": "2026-11-26T19:50:36.284Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -20,7 +20,7 @@
       "TEMA_DEL_VIDEO": "Video 74 Castillo Louvre Parte II",
       "UBICACION_INTRO_MARCA": "INTRO_INICIO_00",
       "FIELD_CLEARED_AT_voiceoverScript": "0",
-      "PROMPTS_RESTORED_AT": "1795722623832",
+      "PROMPTS_RESTORED_AT": "1795722636284",
       "FIELD_CLEARED_AT_rawClipsText": "0",
       "FIELD_CLEARED_AT_pinnedComment": "1795091965654",
       "FIELD_CLEARED_AT_correctedSrt": "0",
@@ -2877,9 +2877,9 @@
     "docGraphics": [
       {
         "id": "date_card_mwxy3lnn_t6kq6",
-        "kind": "date_card",
         "startSec": 219.36,
         "durationSec": 3.6,
+        "kind": "date_card",
         "line1": "1200",
         "line2": "",
         "position": "center",
@@ -5049,7 +5049,8 @@
         "brollCameraMotion": "zoom_in",
         "previousVideoPrompt": "Clip 48: Generate a video in 16-9 horizontal aspect ratio across 8 seconds showing a ground-level medium shot with a lateral tracking shot moving beside a heavy wooden colonial cart with iron-rimmed wheels creaking over cobblestone pavement in sixteenth-century Mexico City in 1545 past stacked cut timber and dusty colonial stone walls. Solid, non-deforming stone walls and wooden wheel geometry. Steady continuous daylight with zero sudden flashes, with no people present and zero human figures, all background furniture, architectural fixtures, and tabletop props remain 100% gravity-locked and stationary, fixed subject count from 0s to 8s, single continuous shot, strictly no shot changes, with subtle ambient foley of heavy wooden wheels rumbling over cobblestones, creaking iron axles, and dry highland wind. cinematic documentary realism, safe framing composition, 8k resolution, sharp focus, no modern objects, no CGI look, no text, no spoken voice, no human speech, no music. fix the name to Clip_48_generate_a_video_in_16_9",
         "videoDiscardOverriddenAt": 1795710294894,
-        "videoSavedAt": 1795710294894
+        "videoSavedAt": 1795710294894,
+        "videoAuditStatus": "approved"
       },
       {
         "id": "clip-49-1795649050154-49",
