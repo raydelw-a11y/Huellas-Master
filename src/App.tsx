@@ -234,7 +234,7 @@ import { stampBrandMarksOnThumbnail, HD_BADGE_EMPTY_CORNER_CLAUSE, LOGO_EMPTY_CO
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '08:41 PM - 11/25/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '10:13 PM - 11/25/2026';
 
 // PRODUCTION LOCK: while promptConfig.PRODUCTION_LOCKED === 'YES' these fields never change (the server
 // enforces the same list in protectLockedDocs). Metadata, thumbnails, review marks and reframes stay editable.
@@ -6469,19 +6469,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         },
       });
 
-      // Only auto-chain Stage 80 (Flow Music) when Gemini genuinely completed the full clip list
-      const isCompleteGeneration =
-        parsedDirectly.length > 0 && parsedDirectly.length >= Math.max(1, syncedClips.length - 2);
-      if (
-        isCompleteGeneration &&
-        syncedClips.length > 0 &&
-        (activeDoc.voiceoverScript || '').trim() &&
-        (!activeDoc.sunoTracks || activeDoc.sunoTracks.length === 0)
-      ) {
-        setTimeout(() => {
-          handleGenerateWithGemini(80);
-        }, 2500);
-      }
+      // Stage 80 (Flow Music) is never chained automatically after the clips: the user asks for it with its own
+      // button (decided 11/25/2026)
     } else if (stageNum === 9) {
       const cleanSrt = text
         .replace(/^```(?:srt|txt|plaintext)?\s*\n?/i, '')
