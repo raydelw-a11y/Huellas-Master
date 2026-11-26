@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-11-25T22:15:59.273Z",
-    "updatedAt": "2026-11-26T04:32:57.461Z",
+    "updatedAt": "2026-11-26T04:36:44.627Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -892,15 +892,9 @@
         "videoSavedFileName": "01_generate_a_video_in_16_9_607711b6_4K.mp4",
         "videoDiscardOverriddenAt": 1795665682752,
         "videoSavedAt": 1795665682752,
-        "reframe9x16Mode": "auto_focus",
-        "reframeFocusXStart": 39,
-        "reframeFocusXEnd": 39,
-        "reframeFocusY": 50,
-        "reframeConfidence": 0.75,
-        "reframeReason": "Enfoque inteligente IA en tercio izquierdo (39%)",
-        "isStaticBroll": false,
         "reviewedUpdatedAt": 1795667248118,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "isStaticBroll": false
       },
       {
         "id": "clip-2-1795649050151-2",
@@ -921,12 +915,6 @@
         "videoSavedFileName": "02_generate_a_video_in_16_9_f3253d3c_4K.mp4",
         "videoDiscardOverriddenAt": 1795666621864,
         "videoSavedAt": 1795667243543,
-        "reframe9x16Mode": "auto_center",
-        "reframeFocusXStart": 50,
-        "reframeFocusXEnd": 50,
-        "reframeFocusY": 50,
-        "reframeConfidence": 0.55,
-        "reframeReason": "Encuadre central simétrico IA (50%)",
         "reviewedUpdatedAt": 1795667251391,
         "videoAuditStatus": "approved"
       },
@@ -949,12 +937,6 @@
         "videoSavedFileName": "03_generate_a_video_in_16_9_94eab89c_4K.mp4",
         "videoDiscardOverriddenAt": 1795665747862,
         "videoSavedAt": 1795665747862,
-        "reframe9x16Mode": "auto_pan",
-        "reframeFocusXStart": 22,
-        "reframeFocusXEnd": 78,
-        "reframeFocusY": 50,
-        "reframeConfidence": 0.78,
-        "reframeReason": "Paneo dinámico IA (22% → 78%) entre dos sujetos (Izq → Der)",
         "videoAuditStatus": "approved",
         "reviewedUpdatedAt": 1795667472431
       },
@@ -977,12 +959,6 @@
         "videoSavedFileName": "04_generate_a_video_in_16_9_c4aa4756_4K.mp4",
         "videoDiscardOverriddenAt": 1795665726769,
         "videoSavedAt": 1795665726769,
-        "reframe9x16Mode": "auto_pan",
-        "reframeFocusXStart": 36,
-        "reframeFocusXEnd": 21,
-        "reframeFocusY": 50,
-        "reframeConfidence": 0.62,
-        "reframeReason": "Paneo dinámico IA (36% → 21%) siguiendo acción/sujeto",
         "videoAuditStatus": "approved",
         "reviewedUpdatedAt": 1795667487366
       },
@@ -1005,12 +981,6 @@
         "videoSavedFileName": "05_generate_a_video_in_16_9_85ae3d31_4K.mp4",
         "videoDiscardOverriddenAt": 1795665726769,
         "videoSavedAt": 1795665726769,
-        "reframe9x16Mode": "auto_center",
-        "reframeFocusXStart": 50,
-        "reframeFocusXEnd": 50,
-        "reframeFocusY": 50,
-        "reframeConfidence": 0.55,
-        "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
         "reviewedUpdatedAt": 1795667503148
       },
@@ -1033,12 +1003,6 @@
         "videoSavedFileName": "06_generate_a_video_in_16_9_1eda0b31_4K.mp4",
         "videoDiscardOverriddenAt": 1795665726769,
         "videoSavedAt": 1795665726769,
-        "reframe9x16Mode": "auto_focus",
-        "reframeFocusXStart": 82,
-        "reframeFocusXEnd": 82,
-        "reframeFocusY": 50,
-        "reframeConfidence": 0.55,
-        "reframeReason": "Enfoque inteligente IA en tercio derecho (82%)",
         "videoAuditStatus": "approved",
         "reviewedUpdatedAt": 1795667514754
       },
@@ -1061,12 +1025,6 @@
         "videoSavedFileName": "07_generate_a_video_in_16_9_11aec7bd_4K.mp4",
         "videoDiscardOverriddenAt": 1795665726769,
         "videoSavedAt": 1795665726769,
-        "reframe9x16Mode": "auto_center",
-        "reframeFocusXStart": 50,
-        "reframeFocusXEnd": 50,
-        "reframeFocusY": 50,
-        "reframeConfidence": 0.55,
-        "reframeReason": "Encuadre central simétrico IA (50%)",
         "videoAuditStatus": "approved",
         "reviewedUpdatedAt": 1795667526896
       },
@@ -1089,12 +1047,6 @@
         "videoSavedFileName": "08_generate_a_video_in_16_9_0d0c3bfc_4K.mp4",
         "videoDiscardOverriddenAt": 1795665682752,
         "videoSavedAt": 1795665682752,
-        "reframe9x16Mode": "auto_focus",
-        "reframeFocusXStart": 20,
-        "reframeFocusXEnd": 20,
-        "reframeFocusY": 50,
-        "reframeConfidence": 0.67,
-        "reframeReason": "Enfoque inteligente IA en tercio izquierdo (20%)",
         "videoAuditStatus": "approved",
         "reviewedUpdatedAt": 1795667539804
       },
@@ -1117,12 +1069,6 @@
         "videoSavedFileName": "09_generate_a_video_in_16_9_18f51bf5_4K.mp4",
         "videoDiscardOverriddenAt": 1795666653820,
         "videoSavedAt": 1795666653820,
-        "reframe9x16Mode": "auto_focus",
-        "reframeFocusXStart": 16,
-        "reframeFocusXEnd": 16,
-        "reframeFocusY": 50,
-        "reframeConfidence": 0.99,
-        "reframeReason": "Enfoque inteligente IA en tercio izquierdo (16%)",
         "videoAuditStatus": "approved",
         "reviewedUpdatedAt": 1795667552855
       },
@@ -1145,12 +1091,6 @@
         "videoSavedFileName": "10_generate_a_video_in_16_9_120e3d23_4K.mp4",
         "videoDiscardOverriddenAt": 1795666653820,
         "videoSavedAt": 1795666653820,
-        "reframe9x16Mode": "auto_focus",
-        "reframeFocusXStart": 84,
-        "reframeFocusXEnd": 84,
-        "reframeFocusY": 50,
-        "reframeConfidence": 0.75,
-        "reframeReason": "Enfoque inteligente IA en tercio derecho (84%)",
         "videoAuditStatus": "approved",
         "reviewedUpdatedAt": 1795667563572
       },
@@ -1169,7 +1109,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": ""
+        "auditReason": "Sincronizado con el tramo de voz narrativa."
       },
       {
         "id": "clip-12-1795649050152-12",
@@ -1186,7 +1126,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": ""
+        "auditReason": "Sincronizado con el tramo de voz narrativa."
       },
       {
         "id": "clip-13-1795649050152-13",
@@ -1203,7 +1143,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": ""
+        "auditReason": "Sincronizado con el tramo de voz narrativa."
       },
       {
         "id": "clip-14-1795649050152-14",
@@ -1220,7 +1160,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": ""
+        "auditReason": "Sincronizado con el tramo de voz narrativa."
       },
       {
         "id": "clip-15-1795649050152-15",
@@ -1237,7 +1177,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": ""
+        "auditReason": "Sincronizado con el tramo de voz narrativa."
       },
       {
         "id": "clip-16-1795649050152-16",
@@ -1254,7 +1194,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": "",
+        "auditReason": "🖼️ Escena B-Roll Solo Imagen lista — movimiento 4K 60fps local en Editor.",
         "isStaticBroll": true,
         "brollCameraMotion": "zoom_in"
       },
@@ -1273,7 +1213,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": ""
+        "auditReason": "Sincronizado con el tramo de voz narrativa."
       },
       {
         "id": "clip-18-1795649050152-18",
@@ -1290,7 +1230,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": ""
+        "auditReason": "Sincronizado con el tramo de voz narrativa."
       },
       {
         "id": "clip-19-1795649050152-19",
@@ -1307,7 +1247,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": ""
+        "auditReason": "Sincronizado con el tramo de voz narrativa."
       },
       {
         "id": "clip-20-1795649050152-20",
@@ -1324,7 +1264,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": ""
+        "auditReason": "Sincronizado con el tramo de voz narrativa."
       },
       {
         "id": "clip-21-1795649050152-21",
@@ -1341,7 +1281,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": ""
+        "auditReason": "Sincronizado con el tramo de voz narrativa."
       },
       {
         "id": "clip-22-1795649050152-22",
@@ -1358,7 +1298,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": ""
+        "auditReason": "Sincronizado con el tramo de voz narrativa."
       },
       {
         "id": "clip-23-1795649050152-23",
@@ -1375,7 +1315,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": ""
+        "auditReason": "Sincronizado con el tramo de voz narrativa."
       },
       {
         "id": "clip-24-1795649050152-24",
@@ -1392,7 +1332,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": ""
+        "auditReason": "Sincronizado con el tramo de voz narrativa."
       },
       {
         "id": "clip-25-1795649050153-25",
@@ -1409,7 +1349,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": ""
+        "auditReason": "Sincronizado con el tramo de voz narrativa."
       },
       {
         "id": "clip-26-1795649050153-26",
@@ -1426,7 +1366,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": ""
+        "auditReason": "Sincronizado con el tramo de voz narrativa."
       },
       {
         "id": "clip-27-1795649050153-27",
@@ -1443,7 +1383,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": ""
+        "auditReason": "Sincronizado con el tramo de voz narrativa."
       },
       {
         "id": "clip-28-1795649050153-28",
@@ -1460,7 +1400,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": ""
+        "auditReason": "Sincronizado con el tramo de voz narrativa."
       },
       {
         "id": "clip-29-1795649050153-29",
@@ -1477,7 +1417,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": ""
+        "auditReason": "Sincronizado con el tramo de voz narrativa."
       },
       {
         "id": "clip-30-1795649050153-30",
@@ -1494,7 +1434,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": ""
+        "auditReason": "Sincronizado con el tramo de voz narrativa."
       },
       {
         "id": "clip-31-1795649050153-31",
@@ -1511,7 +1451,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": ""
+        "auditReason": "Sincronizado con el tramo de voz narrativa."
       },
       {
         "id": "clip-32-1795649050153-32",
@@ -1528,7 +1468,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": ""
+        "auditReason": "Sincronizado con el tramo de voz narrativa."
       },
       {
         "id": "clip-33-1795649050153-33",
@@ -1545,7 +1485,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": "",
+        "auditReason": "🖼️ Escena B-Roll Solo Imagen lista — movimiento 4K 60fps local en Editor.",
         "isStaticBroll": true,
         "brollCameraMotion": "zoom_in"
       },
@@ -1564,7 +1504,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": ""
+        "auditReason": "Sincronizado con el tramo de voz narrativa."
       },
       {
         "id": "clip-35-1795649050153-35",
@@ -1581,7 +1521,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": ""
+        "auditReason": "Sincronizado con el tramo de voz narrativa."
       },
       {
         "id": "clip-36-1795649050153-36",
@@ -1598,7 +1538,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": ""
+        "auditReason": "Sincronizado con el tramo de voz narrativa."
       },
       {
         "id": "clip-37-1795649050153-37",
@@ -1615,7 +1555,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": ""
+        "auditReason": "Sincronizado con el tramo de voz narrativa."
       },
       {
         "id": "clip-38-1795649050153-38",
@@ -1632,7 +1572,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": ""
+        "auditReason": "Sincronizado con el tramo de voz narrativa."
       },
       {
         "id": "clip-39-1795649050153-39",
@@ -1649,7 +1589,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": ""
+        "auditReason": "Sincronizado con el tramo de voz narrativa."
       },
       {
         "id": "clip-40-1795649050153-40",
@@ -1666,7 +1606,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": ""
+        "auditReason": "Sincronizado con el tramo de voz narrativa."
       },
       {
         "id": "clip-41-1795649050153-41",
@@ -1683,7 +1623,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": ""
+        "auditReason": "Sincronizado con el tramo de voz narrativa."
       },
       {
         "id": "clip-42-1795649050153-42",
@@ -1700,7 +1640,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": ""
+        "auditReason": "Sincronizado con el tramo de voz narrativa."
       },
       {
         "id": "clip-43-1795649050153-43",
@@ -1717,7 +1657,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": ""
+        "auditReason": "Sincronizado con el tramo de voz narrativa."
       },
       {
         "id": "clip-44-1795649050153-44",
@@ -1734,7 +1674,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": "",
+        "auditReason": "🖼️ Escena B-Roll Solo Imagen lista — movimiento 4K 60fps local en Editor.",
         "isStaticBroll": true,
         "brollCameraMotion": "zoom_in"
       },
@@ -1753,7 +1693,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": ""
+        "auditReason": "Sincronizado con el tramo de voz narrativa."
       },
       {
         "id": "clip-46-1795649050154-46",
@@ -1770,7 +1710,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": ""
+        "auditReason": "Sincronizado con el tramo de voz narrativa."
       },
       {
         "id": "clip-47-1795649050154-47",
@@ -1787,7 +1727,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": ""
+        "auditReason": "Sincronizado con el tramo de voz narrativa."
       },
       {
         "id": "clip-48-1795649050154-48",
@@ -1804,7 +1744,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": ""
+        "auditReason": "Sincronizado con el tramo de voz narrativa."
       },
       {
         "id": "clip-49-1795649050154-49",
@@ -1821,7 +1761,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": ""
+        "auditReason": "Sincronizado con el tramo de voz narrativa."
       },
       {
         "id": "clip-50-1795649050154-50",
@@ -1838,7 +1778,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": ""
+        "auditReason": "Sincronizado con el tramo de voz narrativa."
       },
       {
         "id": "clip-51-1795649050154-51",
@@ -1855,7 +1795,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": ""
+        "auditReason": "Sincronizado con el tramo de voz narrativa."
       },
       {
         "id": "clip-52-1795649050154-52",
@@ -1872,7 +1812,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": ""
+        "auditReason": "Sincronizado con el tramo de voz narrativa."
       },
       {
         "id": "clip-53-1795649050154-53",
@@ -1889,7 +1829,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": ""
+        "auditReason": "Sincronizado con el tramo de voz narrativa."
       },
       {
         "id": "clip-54-1795649050154-54",
@@ -1906,7 +1846,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": ""
+        "auditReason": "Sincronizado con el tramo de voz narrativa."
       },
       {
         "id": "clip-55-1795649050154-55",
@@ -1923,7 +1863,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": ""
+        "auditReason": "Sincronizado con el tramo de voz narrativa."
       },
       {
         "id": "clip-56-1795649050154-56",
@@ -1940,7 +1880,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": ""
+        "auditReason": "Sincronizado con el tramo de voz narrativa."
       },
       {
         "id": "clip-57-1795649050154-57",
@@ -1957,7 +1897,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": ""
+        "auditReason": "Sincronizado con el tramo de voz narrativa."
       },
       {
         "id": "clip-58-1795649050154-58",
@@ -1974,7 +1914,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": "",
+        "auditReason": "🖼️ Escena B-Roll Solo Imagen lista — movimiento 4K 60fps local en Editor.",
         "isStaticBroll": true,
         "brollCameraMotion": "zoom_in"
       },
@@ -1993,7 +1933,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": ""
+        "auditReason": "Sincronizado con el tramo de voz narrativa."
       },
       {
         "id": "clip-60-1795649050155-60",
@@ -2010,7 +1950,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": ""
+        "auditReason": "Sincronizado con el tramo de voz narrativa."
       },
       {
         "id": "clip-61-1795649050155-61",
@@ -2027,7 +1967,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": ""
+        "auditReason": "Sincronizado con el tramo de voz narrativa."
       },
       {
         "id": "clip-62-1795649050155-62",
@@ -2044,7 +1984,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": ""
+        "auditReason": "Sincronizado con el tramo de voz narrativa."
       },
       {
         "id": "clip-63-1795649050155-63",
@@ -2061,7 +2001,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": ""
+        "auditReason": "Sincronizado con el tramo de voz narrativa."
       },
       {
         "id": "clip-64-1795649050155-64",
@@ -2078,7 +2018,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": ""
+        "auditReason": "Sincronizado con el tramo de voz narrativa."
       },
       {
         "id": "clip-65-1795649050155-65",
@@ -2095,7 +2035,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": ""
+        "auditReason": "Sincronizado con el tramo de voz narrativa."
       },
       {
         "id": "clip-66-1795649050155-66",
@@ -2112,7 +2052,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": ""
+        "auditReason": "Sincronizado con el tramo de voz narrativa."
       },
       {
         "id": "clip-67-1795649050155-67",
@@ -2129,7 +2069,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": ""
+        "auditReason": "Sincronizado con el tramo de voz narrativa."
       },
       {
         "id": "clip-68-1795649050155-68",
@@ -2146,7 +2086,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": ""
+        "auditReason": "Sincronizado con el tramo de voz narrativa."
       },
       {
         "id": "clip-69-1795649050155-69",
@@ -2163,7 +2103,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": ""
+        "auditReason": "Sincronizado con el tramo de voz narrativa."
       },
       {
         "id": "clip-70-1795649050155-70",
@@ -2180,7 +2120,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": ""
+        "auditReason": "Sincronizado con el tramo de voz narrativa."
       },
       {
         "id": "clip-71-1795650989624-71",
@@ -2197,7 +2137,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": ""
+        "auditReason": "Sincronizado con el tramo de voz narrativa."
       },
       {
         "id": "clip-72-1795650989624-72",
@@ -2214,7 +2154,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": ""
+        "auditReason": "Sincronizado con el tramo de voz narrativa."
       },
       {
         "id": "clip-73-1795650989624-73",
@@ -2231,7 +2171,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": ""
+        "auditReason": "Sincronizado con el tramo de voz narrativa."
       },
       {
         "id": "clip-74-1795650989624-74",
@@ -2248,7 +2188,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": ""
+        "auditReason": "Sincronizado con el tramo de voz narrativa."
       },
       {
         "id": "clip-75-1795650989625-75",
@@ -2265,7 +2205,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": "",
+        "auditReason": "🖼️ Escena B-Roll Solo Imagen lista — movimiento 4K 60fps local en Editor.",
         "isStaticBroll": true,
         "brollCameraMotion": "zoom_in"
       },
@@ -2284,7 +2224,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": ""
+        "auditReason": "Sincronizado con el tramo de voz narrativa."
       },
       {
         "id": "clip-77-1795650989625-77",
@@ -2301,7 +2241,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": ""
+        "auditReason": "Sincronizado con el tramo de voz narrativa."
       },
       {
         "id": "clip-78-1795650989625-78",
@@ -2318,7 +2258,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": ""
+        "auditReason": "Sincronizado con el tramo de voz narrativa."
       },
       {
         "id": "clip-79-1795650989625-79",
@@ -2335,7 +2275,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": ""
+        "auditReason": "Sincronizado con el tramo de voz narrativa."
       },
       {
         "id": "clip-80-1795650989626-80",
@@ -2352,7 +2292,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": ""
+        "auditReason": "Sincronizado con el tramo de voz narrativa."
       },
       {
         "id": "clip-81-1795650989626-81",
@@ -2369,7 +2309,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": ""
+        "auditReason": "Sincronizado con el tramo de voz narrativa."
       }
     ],
     "capcutRawSrt": "",
