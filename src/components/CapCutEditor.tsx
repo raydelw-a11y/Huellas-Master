@@ -20093,7 +20093,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 <label className="block font-bold text-slate-200">
                   Transición entre Clips (Por defecto: Corte Directo):
                 </label>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <select
                     value={defaultTransition}
                     onChange={(e) =>
@@ -20871,7 +20871,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between gap-2 pt-1">
+                  <div className="flex items-center justify-between gap-2 pt-1 flex-wrap">
                     <select
                       value={selectedClip.transition}
                       onChange={(e) => {
@@ -21128,7 +21128,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     </label>
                   </div>
                 )}
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-x-3 gap-y-1.5 flex-wrap">
                   <label className="text-[11px] text-slate-400">Segundo de entrada:</label>
                   <input
                     type="number"
@@ -21641,7 +21641,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     </span>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
-                    <div>
+                    <div className="min-w-0">
                       <label className="block text-[10px] text-slate-400">
                         Entrada ({logoAnimInDur}s):
                       </label>
@@ -21649,7 +21649,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                         <select
                           value={logoAnimIn}
                           onChange={(e) => setLogoAnimIn(e.target.value as ElementAnimationType)}
-                          className="flex-1 bg-slate-900 border border-slate-700 rounded px-1.5 py-1 text-[11px] text-amber-200"
+                          className="flex-1 min-w-0 w-0 bg-slate-900 border border-slate-700 rounded px-1.5 py-1 text-[11px] text-amber-200"
                         >
                           {ELEMENT_ANIMATION_OPTIONS.map((a) => (
                             <option key={a.value} value={a.value}>
@@ -21669,7 +21669,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                         />
                       </div>
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <label className="block text-[10px] text-slate-400">
                         Salida Final ({logoAnimOutDur}s):
                       </label>
@@ -21677,7 +21677,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                         <select
                           value={logoAnimOut}
                           onChange={(e) => setLogoAnimOut(e.target.value as ElementAnimationType)}
-                          className="flex-1 bg-slate-900 border border-slate-700 rounded px-1.5 py-1 text-[11px] text-amber-200"
+                          className="flex-1 min-w-0 w-0 bg-slate-900 border border-slate-700 rounded px-1.5 py-1 text-[11px] text-amber-200"
                         >
                           {ELEMENT_ANIMATION_OPTIONS.map((a) => (
                             <option key={a.value} value={a.value}>
@@ -21969,7 +21969,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                       </label>
                     </div>
                     <div className="grid grid-cols-2 gap-1.5">
-                      <div>
+                      <div className="min-w-0">
                         <label className="block text-[9px] text-slate-400">
                           Entrada L1 ({hookLine1AnimInDur}s):
                         </label>
@@ -21977,7 +21977,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                           <select
                             value={hookLine1AnimIn}
                             onChange={(e) => setHookLine1AnimIn(e.target.value as ElementAnimationType)}
-                            className="flex-1 bg-slate-950 border border-slate-700 rounded px-1.5 py-0.5 text-[10px] text-amber-200"
+                            className="flex-1 min-w-0 w-0 bg-slate-950 border border-slate-700 rounded px-1.5 py-0.5 text-[10px] text-amber-200"
                           >
                             {ELEMENT_ANIMATION_OPTIONS.map((a) => (
                               <option key={a.value} value={a.value}>
@@ -21996,7 +21996,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                           />
                         </div>
                       </div>
-                      <div>
+                      <div className="min-w-0">
                         <label className="block text-[9px] text-slate-400">
                           Salida L1 ({hookLine1AnimOutDur}s → seg {clip1OverlayEndSec}):
                         </label>
@@ -22004,7 +22004,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                           <select
                             value={hookLine1AnimOut}
                             onChange={(e) => setHookLine1AnimOut(e.target.value as ElementAnimationType)}
-                            className="flex-1 bg-slate-950 border border-slate-700 rounded px-1.5 py-0.5 text-[10px] text-amber-200"
+                            className="flex-1 min-w-0 w-0 bg-slate-950 border border-slate-700 rounded px-1.5 py-0.5 text-[10px] text-amber-200"
                           >
                             {ELEMENT_ANIMATION_OPTIONS.map((a) => (
                               <option key={a.value} value={a.value}>
@@ -22050,7 +22050,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                       </label>
                     </div>
                     <div className="grid grid-cols-2 gap-1.5">
-                      <div>
+                      <div className="min-w-0">
                         <label className="block text-[9px] text-slate-400">
                           Entrada L2 ({hookLine2AnimInDur}s):
                         </label>
@@ -22058,7 +22058,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                           <select
                             value={hookLine2AnimIn}
                             onChange={(e) => setHookLine2AnimIn(e.target.value as ElementAnimationType)}
-                            className="flex-1 bg-slate-950 border border-slate-700 rounded px-1.5 py-0.5 text-[10px] text-amber-200"
+                            className="flex-1 min-w-0 w-0 bg-slate-950 border border-slate-700 rounded px-1.5 py-0.5 text-[10px] text-amber-200"
                           >
                             {ELEMENT_ANIMATION_OPTIONS.map((a) => (
                               <option key={a.value} value={a.value}>
@@ -22077,7 +22077,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                           />
                         </div>
                       </div>
-                      <div>
+                      <div className="min-w-0">
                         <label className="block text-[9px] text-slate-400">
                           Salida L2 ({hookLine2AnimOutDur}s → seg {clip1OverlayEndSec}):
                         </label>
@@ -22085,7 +22085,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                           <select
                             value={hookLine2AnimOut}
                             onChange={(e) => setHookLine2AnimOut(e.target.value as ElementAnimationType)}
-                            className="flex-1 bg-slate-950 border border-slate-700 rounded px-1.5 py-0.5 text-[10px] text-amber-200"
+                            className="flex-1 min-w-0 w-0 bg-slate-950 border border-slate-700 rounded px-1.5 py-0.5 text-[10px] text-amber-200"
                           >
                             {ELEMENT_ANIMATION_OPTIONS.map((a) => (
                               <option key={a.value} value={a.value}>
@@ -22114,7 +22114,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           {/* TAB 4: AUTO-CAPTIONS (.SRT) + FONT, SIZE, SHADOW & BACKGROUND */}
           {activeInspectorTab === 'captions' && (
             <div className="space-y-3 text-xs flex-1 min-h-0 overflow-y-auto pr-1">
-              <div className="flex items-center justify-between gap-2 bg-slate-950/90 border border-slate-800 rounded-xl p-3">
+              <div className="flex items-center justify-between gap-2 flex-wrap bg-slate-950/90 border border-slate-800 rounded-xl p-3">
                 <div>
                   <div className="font-bold text-emerald-300">
                     💬 Subtítulos Sincronizados ({captions.length} bloques desde 00:{String(Math.floor(voiceStartOffsetSec)).padStart(2, '0')})
@@ -22123,7 +22123,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     💾 Guardado automático en tiempo real • Voz Narrativa ({formatTimeMMSS(effectiveVoiceDurationSec)})
                   </div>
                 </div>
-                <div className="flex items-center gap-1.5 shrink-0">
+                <div className="flex items-center gap-1.5 flex-wrap justify-end">
                   <button
                     type="button"
                     onClick={() => {
