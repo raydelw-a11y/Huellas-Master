@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-11-25T22:15:59.273Z",
-    "updatedAt": "2026-11-26T04:55:14.578Z",
+    "updatedAt": "2026-11-26T04:56:26.467Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -42,7 +42,7 @@
       "FIELD_CLEARED_AT_clip1OptionsRaw": "0",
       "FIELD_CLEARED_AT_clip1Line1LocationTime": "0",
       "FIELD_CLEARED_AT_clip1Line2Hook": "0",
-      "PROMPTS_RESTORED_AT": "1795668914578",
+      "PROMPTS_RESTORED_AT": "1795668986467",
       "FIELD_CLEARED_AT_rawClipsText": "0"
     },
     "compiledMasterPrompt": "",
@@ -1565,7 +1565,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": "🖼️ Escena B-Roll Solo Imagen lista — movimiento 4K 60fps local en Editor.",
+        "auditReason": "🖼️ Escena B-Roll Solo Imagen (Zoom In) lista — movimiento 4K 60fps local en Editor.",
         "isStaticBroll": true,
         "brollCameraMotion": "zoom_in"
       },
@@ -1754,7 +1754,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": "🖼️ Escena B-Roll Solo Imagen lista — movimiento 4K 60fps local en Editor.",
+        "auditReason": "🖼️ Escena B-Roll Solo Imagen (Zoom In) lista — movimiento 4K 60fps local en Editor.",
         "isStaticBroll": true,
         "brollCameraMotion": "zoom_in"
       },
@@ -1994,7 +1994,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": "🖼️ Escena B-Roll Solo Imagen lista — movimiento 4K 60fps local en Editor.",
+        "auditReason": "🖼️ Escena B-Roll Solo Imagen (Zoom In) lista — movimiento 4K 60fps local en Editor.",
         "isStaticBroll": true,
         "brollCameraMotion": "zoom_in"
       },
@@ -2285,7 +2285,7 @@
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": "🖼️ Escena B-Roll Solo Imagen lista — movimiento 4K 60fps local en Editor.",
+        "auditReason": "🖼️ Escena B-Roll Solo Imagen (Zoom In) lista — movimiento 4K 60fps local en Editor.",
         "isStaticBroll": true,
         "brollCameraMotion": "zoom_in"
       },
