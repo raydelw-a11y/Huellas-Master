@@ -305,8 +305,8 @@ export const INTRO_MUSIC_FADE_SEC = 1.5;
  * the Intro then fades in, picture and sound (user request 2026-11-26). Opción A (Intro at 00:00) is not
  * affected. The editor preview and the export (render-ffmpeg) both use these.
  */
-export const PRE_INTRO_CLIP_FADE_OUT_SEC = 2;
-export const MID_INTRO_FADE_IN_SEC = 2;
+export const PRE_INTRO_CLIP_FADE_OUT_SEC = 1;
+export const MID_INTRO_FADE_IN_SEC = 1;
 
 export type MidTimelineIntroWindow = { startSec: number; endSec: number } | null | undefined;
 

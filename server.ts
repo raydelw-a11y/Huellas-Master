@@ -7803,7 +7803,7 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
           : typeof c.audioFadeOutSec === 'number'
           ? Math.max(0, c.audioFadeOutSec)
           : defaultAudioFadeOut;
-      // In front of the Intro the clip's sound is down to silence over at least those 2s (a longer fade set by
+      // In front of the Intro the clip's sound is down to silence over at least that fade (a longer one set by
       // hand on that clip is kept)
       const audioFadeOutSec = isClipBeforeMidIntro
         ? Math.min(effectiveClipDur, Math.max(PRE_INTRO_CLIP_FADE_OUT_SEC, ownAudioFadeOutSec))
