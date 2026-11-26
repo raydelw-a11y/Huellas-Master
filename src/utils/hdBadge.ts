@@ -18,7 +18,7 @@ export const THUMBNAIL_BRAND_GEOMETRY = {
   horizontal: {
     refW: 5504,
     refH: 3072,
-    logo: { x: 205, y: 112, w: 530 }, // 20% smaller than the Video 30 logo (user request 2026-11-25)
+    logo: { x: 165, y: 92, w: 530 }, // x, y = 3% (same default as the 16:9 editor); w 20% smaller than Video 30 (user requests 2026-11-25/26)
     badge: { x: 5065, y: 80, w: 370 },
   },
 } as const;

@@ -11585,7 +11585,7 @@ const THUMB_BADGE_FILES = {
 };
 const THUMB_BRAND_GEOMETRY = {
   vertical: { refW: 3072, refH: 5504, logo: { x: 100, y: 110, w: 415 }, badge: { x: 2550, y: 165, w: 430 } },
-  horizontal: { refW: 5504, refH: 3072, logo: { x: 205, y: 112, w: 530 }, badge: { x: 5065, y: 80, w: 370 } },
+  horizontal: { refW: 5504, refH: 3072, logo: { x: 165, y: 92, w: 530 }, badge: { x: 5065, y: 80, w: 370 } },
 };
 function stampBrandMarksOnThumbnailServer(img: Buffer, orientation: 'vertical' | 'horizontal'): Buffer {
   const g = THUMB_BRAND_GEOMETRY[orientation];
