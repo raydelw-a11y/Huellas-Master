@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-11-25T22:15:59.273Z",
-    "updatedAt": "2026-11-26T05:48:54.735Z",
+    "updatedAt": "2026-11-26T05:54:14.881Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -42,7 +42,7 @@
       "FIELD_CLEARED_AT_clip1OptionsRaw": "0",
       "FIELD_CLEARED_AT_clip1Line1LocationTime": "0",
       "FIELD_CLEARED_AT_clip1Line2Hook": "0",
-      "PROMPTS_RESTORED_AT": "1795672134735",
+      "PROMPTS_RESTORED_AT": "1795672454881",
       "FIELD_CLEARED_AT_rawClipsText": "0",
       "CAPTION_BOTTOM_PCT_16X9": 11,
       "CAPTION_SETTINGS_UPDATED_AT": "1795671143491",
@@ -2503,7 +2503,11 @@
         "lyricsPrompt": "[00:00 Soft 2.5s Fade-In Intro]\n[Warm Documentary Underscore Below Voice]\n[00:35 Subtle Mesoamerican Clay Flute and Low Cello Drone]\n[01:10 Gentle Rhythmic Pulse Representing the Closed Volcanic Basin]\n[01:40 Subtle Emotional Swell]\n[02:02 Gentle 3s Fade-Out Outro]\n[End - 2:05]",
         "stylePrompt": "100% instrumental documentary film score, strictly no vocals, no singing, no spoken words, smooth 2.5-second fade-in intro, gentle 3-second fade-out outro, mixed as warm low-mid frequency underscore designed to sit softly below a male documentary narrator voice without competing in the 1kHz-4kHz vocal clarity range, featuring soft low-register pre-Hispanic clay ocarina, muted huehuetl wooden drum pulse, warm sustained cello drones, and subtle nylon-string acoustic guitar harmonics, 76 BPM, intriguing, atmospheric, and mysterious historical mood.",
         "explanation": "Inicia exactamente en el segundo 00:08 (tras los 8 segundos iniciales mudos del Clip 1) para acompañar el gancho paradójico, la fundación de Tenochtitlan en 1325 y la explicación geológica de la cuenca cerrada y la salinidad del lago de Texcoco hasta la medición de Humboldt. Cierra en 02:13 para abrir el primer espacio sin música de 40 segundos (02:13 - 02:53), donde el humor seco desmiente el mito de las chinampas flotantes solo con voz y sonido ambiente.",
-        "isGenerated": false
+        "isGenerated": true,
+        "audioUrl": "",
+        "ready": true,
+        "audioFileName": "Canción_01_Mirror_of_Salt.mp3",
+        "musicEngine": "SUNO"
       },
       {
         "id": "suno-1795664075002-2",
@@ -2514,7 +2518,11 @@
         "lyricsPrompt": "[00:00 Soft 2.5s Fade-In Intro]\n[Warm Documentary Underscore Below Voice]\n[00:30 Steady Wooden Percussion and Warm Plucked Strings]\n[01:05 Subtle Emotional Swell for the Monumental Dike]\n[01:35 Darker Low-String Tension for the 1499 Flood]\n[01:57 Gentle 3s Fade-Out Outro]\n[End - 2:00]",
         "stylePrompt": "100% instrumental documentary film score, strictly no vocals, no singing, no spoken words, smooth 2.5-second fade-in intro, gentle 3-second fade-out outro, mixed as warm low-mid frequency underscore designed to sit softly below a male documentary narrator voice without competing in the 1kHz-4kHz vocal clarity range, featuring warm wooden teponaztli percussion, deep contrabass pizzicato, mellow acoustic marimba, and rich low-register string ensemble, 88 BPM, ingenious, steady, and building historical grandeur with a brief tense shift.",
         "explanation": "Entra tras la pausa musical de 40 segundos (02:13 - 02:53) para impulsar el auge agrícola de las chinampas, la proeza de ingeniería del Albarradón de Nezahualcóyotl en 1449 y el giro dramático de la inundación de Ahuízotl en 1499. Se retira en 04:53 para dar paso a un segundo silencio musical de 40 segundos (04:53 - 05:33) mientras se detalla la mecánica del doble acueducto de Chapultepec y se siembra la tensión táctica de 1521.",
-        "isGenerated": false
+        "isGenerated": true,
+        "audioUrl": "",
+        "ready": true,
+        "audioFileName": "Canción_02_The_Stone_Dike_of_Texcoco.mp3",
+        "musicEngine": "SUNO"
       },
       {
         "id": "suno-1795664075002-3",
@@ -2525,7 +2533,11 @@
         "lyricsPrompt": "[00:00 Soft 2.5s Fade-In Intro]\n[Warm Documentary Underscore Below Voice]\n[00:25 Tense Low-String Ostinato and Muted Frame Drum]\n[01:15 Baroque Vihuela and Somber Cello Transition to Colonial Era]\n[02:05 Subtle Emotional Swell for the Five-Year Flood of 1629]\n[02:40 Deep Resounding Bass Notes Leading to the Dried Lakebed]\n[02:57 Gentle 3s Fade-Out Outro]\n[End - 3:00]",
         "stylePrompt": "100% instrumental documentary film score, strictly no vocals, no singing, no spoken words, smooth 2.5-second fade-in intro, gentle 3-second fade-out outro, mixed as warm low-mid frequency underscore designed to sit softly below a male documentary narrator voice without competing in the 1kHz-4kHz vocal clarity range, featuring brooding low cellos, muted military frame drum, austere sixteenth-century Spanish vihuela arpeggios, and deep baroque bass strings, 82 BPM, dramatic, solemn, and relentless historical tension.",
         "explanation": "Arranca tras el respiro de 40 segundos (04:53 - 05:33) exactamente en el quiebre del 26 de mayo de 1521, acompañando el corte del acueducto, el asedio, el viraje colonial del Desagüe de Huehuetoca, el duelo técnico entre Enrico Martínez y Adrian Boot, y los cinco años bajo el agua del Diluvio de San Mateo. Concluye en 08:33 para dejar una pausa sin música de 48 segundos (08:33 - 09:21) donde solo la voz y el Foley exponen la venganza geológica del subsuelo arcilloso y el hundimiento del Ángel de la Independencia.",
-        "isGenerated": false
+        "isGenerated": true,
+        "audioUrl": "",
+        "ready": true,
+        "audioFileName": "Canción_03_The_Broken_Conduit_and_the_Deluge.mp3",
+        "musicEngine": "SUNO"
       },
       {
         "id": "suno-1795664075002-4",
@@ -2536,7 +2548,11 @@
         "lyricsPrompt": "[00:00 Soft 2.5s Fade-In Intro]\n[Warm Documentary Underscore Below Voice]\n[00:25 Pulsing Deep Contrabass and Minimalist Felt Piano]\n[00:55 Subtle Emotional Swell with Poignant Solo Cello]\n[01:15 Reflective Contemplative Resolution for the Final Question]\n[01:27 Gentle 3s Fade-Out Outro]\n[End - 1:30]",
         "stylePrompt": "100% instrumental documentary film score, strictly no vocals, no singing, no spoken words, smooth 2.5-second fade-in intro, gentle 3-second fade-out outro, mixed as warm low-mid frequency underscore designed to sit softly below a male documentary narrator voice without competing in the 1kHz-4kHz vocal clarity range, featuring intimate warm felt piano, deep pulsing contrabass, subtle analog ambient pad, and a melancholic low-register solo cello, 74 BPM, reflective, poignant, and thought-provoking modern documentary finale.",
         "explanation": "Pista final obligatoria de 1:30 que entra en 09:21 tras el espacio sin música de 48 segundos (08:33 - 09:21), uniendo las mediciones satelitales de 2026, el bombeo cuesta arriba del Sistema Cutzamala y la paradoja contemporánea de fugas e inundaciones hasta cerrar con la pregunta detonante y el lema del canal en 10:51.",
-        "isGenerated": false
+        "isGenerated": true,
+        "audioUrl": "",
+        "ready": true,
+        "audioFileName": "Canción_04_Seven_Centuries_of_Thirst.mp3",
+        "musicEngine": "SUNO"
       }
     ],
     "thumbnailOrientation": "HORIZONTAL_16X9",
@@ -2657,6 +2673,16 @@
         "anchorSpoken": "A inicios del siglo XIX, Alexander von Humboldt"
       },
       {
+        "id": "name_tag_mwx4iy69_8xzm0",
+        "startSec": 114.94,
+        "durationSec": 4,
+        "kind": "name_tag",
+        "name": "Alexander von Humboldt",
+        "role": "Naturalista y geógrafo prusiano",
+        "target": null,
+        "anchorSpoken": "A inicios del siglo XIX, Alexander von Humboldt"
+      },
+      {
         "id": "thesis_card_mwx241zf_4t1ku",
         "startSec": 144.48,
         "durationSec": 5,
@@ -2721,6 +2747,15 @@
       },
       {
         "id": "thesis_card_mwx45ro8_7om0e",
+        "startSec": 144.48,
+        "durationSec": 5,
+        "kind": "thesis_card",
+        "oldText": "Las chinampas eran huertos flotantes",
+        "newText": "Islas artificiales ancladas al fondo del lago",
+        "anchorSpoken": "y aquí va una corrección: nunca flotaron."
+      },
+      {
+        "id": "thesis_card_mwx4iy75_qmasf",
         "startSec": 144.48,
         "durationSec": 5,
         "kind": "thesis_card",
@@ -2819,6 +2854,16 @@
         "anchorSpoken": "Moctezuma Ilhuicamina llamó a su aliado"
       },
       {
+        "id": "name_tag_mwx4iy6d_oxnz5",
+        "startSec": 202.19,
+        "durationSec": 4,
+        "kind": "name_tag",
+        "name": "Moctezuma Ilhuicamina",
+        "role": "Quinto gobernante de Tenochtitlan",
+        "target": null,
+        "anchorSpoken": "Moctezuma Ilhuicamina llamó a su aliado"
+      },
+      {
         "id": "name_tag_mwx241ys_d107r",
         "startSec": 203.34,
         "durationSec": 4,
@@ -2890,6 +2935,16 @@
       },
       {
         "id": "name_tag_mwx45rmh_h2gqa",
+        "startSec": 203.34,
+        "durationSec": 4,
+        "kind": "name_tag",
+        "name": "Nezahualcóyotl",
+        "role": "Gobernante e ingeniero hidráulico de Texcoco",
+        "target": null,
+        "anchorSpoken": "llamó a su aliado de Texcoco, Nezahualcóyotl,"
+      },
+      {
+        "id": "name_tag_mwx4iy6g_uao5w",
         "startSec": 203.34,
         "durationSec": 4,
         "kind": "name_tag",
@@ -2999,6 +3054,16 @@
         "anchorSpoken": "Hacia 1499, el gobernante Ahuízotl quiso traer"
       },
       {
+        "id": "name_tag_mwx4iy6k_attgy",
+        "startSec": 244.46,
+        "durationSec": 4,
+        "kind": "name_tag",
+        "name": "Ahuízotl",
+        "role": "Octavo gobernante de Tenochtitlan",
+        "target": null,
+        "anchorSpoken": "Hacia 1499, el gobernante Ahuízotl quiso traer"
+      },
+      {
         "id": "name_tag_mwx241yz_2gmtx",
         "startSec": 303.09,
         "durationSec": 4,
@@ -3070,6 +3135,16 @@
       },
       {
         "id": "name_tag_mwx45rnr_wbmeu",
+        "startSec": 303.09,
+        "durationSec": 4,
+        "kind": "name_tag",
+        "name": "Hernán Cortés",
+        "role": "Comandante español de la conquista",
+        "target": null,
+        "anchorSpoken": "Carta de Relación de 1520, Hernán Cortés"
+      },
+      {
+        "id": "name_tag_mwx4iy6q_o5wka",
         "startSec": 303.09,
         "durationSec": 4,
         "kind": "name_tag",
@@ -3157,6 +3232,14 @@
       },
       {
         "id": "stamp_mwx45roh_sqbrv",
+        "startSec": 341.91,
+        "durationSec": 2.6,
+        "kind": "stamp",
+        "text": "AGUA CORTADA",
+        "anchorSpoken": "marcharon a Chapultepec para quebrar los caños."
+      },
+      {
+        "id": "stamp_mwx4iy7c_s6nnw",
         "startSec": 341.91,
         "durationSec": 2.6,
         "kind": "stamp",
@@ -3265,6 +3348,16 @@
         "anchorSpoken": "el cosmógrafo alemán Enrico Martínez inició el"
       },
       {
+        "id": "name_tag_mwx4iy6u_mj1oz",
+        "startSec": 411.48,
+        "durationSec": 4,
+        "kind": "name_tag",
+        "name": "Enrico Martínez",
+        "role": "Cosmógrafo del desagüe colonial",
+        "target": null,
+        "anchorSpoken": "el cosmógrafo alemán Enrico Martínez inició el"
+      },
+      {
         "id": "date_card_mwx241yg_30lh1",
         "startSec": 421.95,
         "durationSec": 3.6,
@@ -3355,6 +3448,16 @@
         "anchorSpoken": "contrató al ingeniero holandés Adrian Boot por"
       },
       {
+        "id": "name_tag_mwx4iy6x_ljk65",
+        "startSec": 425.22,
+        "durationSec": 4,
+        "kind": "name_tag",
+        "name": "Adrian Boot",
+        "role": "Ingeniero hidráulico holandés",
+        "target": null,
+        "anchorSpoken": "contrató al ingeniero holandés Adrian Boot por"
+      },
+      {
         "id": "thesis_card_mwx241zj_x59jc",
         "startSec": 436.44,
         "durationSec": 5,
@@ -3427,6 +3530,15 @@
         "anchorSpoken": "no había que secar el lago, sino regularlo"
       },
       {
+        "id": "thesis_card_mwx4iy78_9rvyc",
+        "startSec": 436.44,
+        "durationSec": 5,
+        "kind": "thesis_card",
+        "oldText": "Secar el lago evitaba inundaciones",
+        "newText": "Regularlo con diques era la solución correcta",
+        "anchorSpoken": "no había que secar el lago, sino regularlo"
+      },
+      {
         "id": "stamp_mwx241zq_qcecb",
         "startSec": 456.24,
         "durationSec": 2.6,
@@ -3484,6 +3596,14 @@
       },
       {
         "id": "stamp_mwx45rol_q37mr",
+        "startSec": 456.24,
+        "durationSec": 2.6,
+        "kind": "stamp",
+        "text": "INUNDADA",
+        "anchorSpoken": "quedó hasta dos metros bajo el agua durante"
+      },
+      {
+        "id": "stamp_mwx4iy7g_fpvz7",
         "startSec": 456.24,
         "durationSec": 2.6,
         "kind": "stamp",
@@ -3581,7 +3701,17 @@
         "anchorSpoken": "y Nabor Carrillo Flores probó la causa:"
       },
       {
-        "id": "name_tag_mwx4iy69_8xzm0",
+        "id": "name_tag_mwx4iy71_s8fgz",
+        "startSec": 526.71,
+        "durationSec": 4,
+        "kind": "name_tag",
+        "name": "Nabor Carrillo Flores",
+        "role": "Científico mexicano de mecánica de suelos",
+        "target": null,
+        "anchorSpoken": "y Nabor Carrillo Flores probó la causa:"
+      },
+      {
+        "id": "name_tag_mwx50l8w_y2esq",
         "kind": "name_tag",
         "startSec": 114.94,
         "durationSec": 4,
@@ -3591,7 +3721,7 @@
         "anchorSpoken": "A inicios del siglo XIX, Alexander von Humboldt"
       },
       {
-        "id": "name_tag_mwx4iy6d_oxnz5",
+        "id": "name_tag_mwx50l90_x52qs",
         "kind": "name_tag",
         "startSec": 202.19,
         "durationSec": 4,
@@ -3601,7 +3731,7 @@
         "anchorSpoken": "Moctezuma Ilhuicamina llamó a su aliado"
       },
       {
-        "id": "name_tag_mwx4iy6g_uao5w",
+        "id": "name_tag_mwx50l93_rcnhp",
         "kind": "name_tag",
         "startSec": 203.34,
         "durationSec": 4,
@@ -3611,7 +3741,7 @@
         "anchorSpoken": "llamó a su aliado de Texcoco, Nezahualcóyotl,"
       },
       {
-        "id": "name_tag_mwx4iy6k_attgy",
+        "id": "name_tag_mwx50l97_mub9u",
         "kind": "name_tag",
         "startSec": 244.46,
         "durationSec": 4,
@@ -3621,7 +3751,7 @@
         "anchorSpoken": "Hacia 1499, el gobernante Ahuízotl quiso traer"
       },
       {
-        "id": "name_tag_mwx4iy6q_o5wka",
+        "id": "name_tag_mwx50l9a_uirs0",
         "kind": "name_tag",
         "startSec": 303.09,
         "durationSec": 4,
@@ -3631,7 +3761,7 @@
         "anchorSpoken": "Carta de Relación de 1520, Hernán Cortés"
       },
       {
-        "id": "name_tag_mwx4iy6u_mj1oz",
+        "id": "name_tag_mwx50l9d_wj6wh",
         "kind": "name_tag",
         "startSec": 411.48,
         "durationSec": 4,
@@ -3641,7 +3771,7 @@
         "anchorSpoken": "el cosmógrafo alemán Enrico Martínez inició el"
       },
       {
-        "id": "name_tag_mwx4iy6x_ljk65",
+        "id": "name_tag_mwx50l9h_jm467",
         "kind": "name_tag",
         "startSec": 425.22,
         "durationSec": 4,
@@ -3651,7 +3781,7 @@
         "anchorSpoken": "contrató al ingeniero holandés Adrian Boot por"
       },
       {
-        "id": "name_tag_mwx4iy71_s8fgz",
+        "id": "name_tag_mwx50l9l_1l74m",
         "kind": "name_tag",
         "startSec": 526.71,
         "durationSec": 4,
@@ -3661,7 +3791,7 @@
         "anchorSpoken": "y Nabor Carrillo Flores probó la causa:"
       },
       {
-        "id": "thesis_card_mwx4iy75_qmasf",
+        "id": "thesis_card_mwx50l9o_5do5n",
         "kind": "thesis_card",
         "startSec": 144.48,
         "durationSec": 5,
@@ -3670,7 +3800,7 @@
         "anchorSpoken": "y aquí va una corrección: nunca flotaron."
       },
       {
-        "id": "thesis_card_mwx4iy78_9rvyc",
+        "id": "thesis_card_mwx50l9s_8w94g",
         "kind": "thesis_card",
         "startSec": 436.44,
         "durationSec": 5,
@@ -3679,7 +3809,7 @@
         "anchorSpoken": "no había que secar el lago, sino regularlo"
       },
       {
-        "id": "stamp_mwx4iy7c_s6nnw",
+        "id": "stamp_mwx50l9w_qv3qf",
         "kind": "stamp",
         "startSec": 341.91,
         "durationSec": 2.6,
@@ -3687,7 +3817,7 @@
         "anchorSpoken": "marcharon a Chapultepec para quebrar los caños."
       },
       {
-        "id": "stamp_mwx4iy7g_fpvz7",
+        "id": "stamp_mwx50l9z_taqkz",
         "kind": "stamp",
         "startSec": 456.24,
         "durationSec": 2.6,
