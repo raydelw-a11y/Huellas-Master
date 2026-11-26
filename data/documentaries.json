@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-11-25T22:15:59.273Z",
-    "updatedAt": "2026-11-26T04:31:12.432Z",
+    "updatedAt": "2026-11-26T04:31:27.366Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -42,7 +42,7 @@
       "FIELD_CLEARED_AT_clip1OptionsRaw": "0",
       "FIELD_CLEARED_AT_clip1Line1LocationTime": "0",
       "FIELD_CLEARED_AT_clip1Line2Hook": "0",
-      "PROMPTS_RESTORED_AT": "1795667472432",
+      "PROMPTS_RESTORED_AT": "1795667487366",
       "FIELD_CLEARED_AT_rawClipsText": "0"
     },
     "compiledMasterPrompt": "",
@@ -970,7 +970,7 @@
         "pauseNotes": "",
         "imageReady": true,
         "videoReady": true,
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "auditStatus": "ok",
         "auditReason": "Sincronizado con el tramo de voz narrativa.",
@@ -983,7 +983,8 @@
         "reframeFocusY": 50,
         "reframeConfidence": 0.62,
         "reframeReason": "Paneo dinámico IA (36% → 21%) siguiendo acción/sujeto",
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "reviewedUpdatedAt": 1795667487366
       },
       {
         "id": "clip-5-1795649050151-5",
