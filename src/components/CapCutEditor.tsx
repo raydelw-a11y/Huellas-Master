@@ -77,6 +77,7 @@ import {
   docGraphicSfxEvents,
   findSpokenInCaptions,
   screenPlanKey,
+  splitScreenGraphicsBlock,
   synthGraphicSfx,
   type ScreenGraphicPlanItem,
   findQuoteInCaptions,
@@ -10700,6 +10701,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     captions,
     activeDoc?.deepResearchResult,
     activeDoc?.promptConfig?.SCREEN_GRAPHICS_PLAN,
+    activeDoc?.rawClipsText,
     voiceStartOffsetSec,
   ]);
   useEffect(() => {
@@ -10801,6 +10803,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       screenPlan = JSON.parse(String(activeDoc.promptConfig?.SCREEN_GRAPHICS_PLAN || '[]'));
     } catch {
       screenPlan = [];
+    }
+    // When the Stage 8 answer was saved by the Mac server (hidden tab, iPhone order) the plan was never split off:
+    // read the names / theses / stamps straight from the ON-SCREEN GRAPHICS block still inside the clip text
+    if (!Array.isArray(screenPlan) || screenPlan.length === 0) {
+      screenPlan = splitScreenGraphicsBlock(String(activeDoc.rawClipsText || '')).items;
     }
     for (const it of Array.isArray(screenPlan) ? screenPlan : []) {
       if (!it || !it.spoken || !it.a) continue;
