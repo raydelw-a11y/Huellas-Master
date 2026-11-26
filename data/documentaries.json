@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-11-23T02:44:27.074Z",
-    "updatedAt": "2026-11-26T01:42:13.643Z",
+    "updatedAt": "2026-11-26T01:42:37.603Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -4328,20 +4328,6 @@
         "line2": "",
         "position": "center",
         "anchorSpoken": "primero de mayo de 1931"
-      },
-      {
-        "id": "stamp_mwwvy6jr_ccj5e",
-        "startSec": 427.81,
-        "durationSec": 2.6,
-        "kind": "stamp",
-        "text": ""
-      },
-      {
-        "id": "stamp_mwww0fhp_612tz",
-        "startSec": 427.81,
-        "durationSec": 2.6,
-        "kind": "stamp",
-        "text": "Rechazado"
       },
       {
         "id": "date_card_mwwuu62x_haz5f",
