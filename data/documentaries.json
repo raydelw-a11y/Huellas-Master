@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-11-25T22:15:59.273Z",
-    "updatedAt": "2026-11-26T16:42:37.599Z",
+    "updatedAt": "2026-11-26T16:42:41.779Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -42,7 +42,7 @@
       "FIELD_CLEARED_AT_clip1OptionsRaw": "0",
       "FIELD_CLEARED_AT_clip1Line1LocationTime": "0",
       "FIELD_CLEARED_AT_clip1Line2Hook": "0",
-      "PROMPTS_RESTORED_AT": "1795711357599",
+      "PROMPTS_RESTORED_AT": "1795711361779",
       "FIELD_CLEARED_AT_rawClipsText": "0",
       "CAPTION_BOTTOM_PCT_16X9": 11,
       "CAPTION_SETTINGS_UPDATED_AT": "1795671143491",
@@ -2122,7 +2122,7 @@
         "pauseNotes": "",
         "imageReady": true,
         "videoReady": true,
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "auditStatus": "ok",
         "auditReason": "Sincronizado con el tramo de voz narrativa.",
@@ -2131,7 +2131,8 @@
         "videoAuditStatus": "approved",
         "videoAuditReason": "",
         "videoAuditIssues": [],
-        "videoDiscardOverriddenAt": 1795710073443
+        "videoDiscardOverriddenAt": 1795710073443,
+        "reviewedUpdatedAt": 1795711389625
       },
       {
         "id": "clip-48-1795649050154-48",
@@ -2145,7 +2146,7 @@
         "pauseNotes": "",
         "imageReady": true,
         "videoReady": true,
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "auditStatus": "ok",
         "auditReason": "Sincronizado con el tramo de voz narrativa.",
@@ -2154,7 +2155,7 @@
         "brollCameraMotion": "zoom_in",
         "promptUpdatedAt": 1795710294894,
         "videoAuditStatus": "approved",
-        "reviewedUpdatedAt": 1795710294894,
+        "reviewedUpdatedAt": 1795711391953,
         "videoSavedFileName": "48_Create_an_image_in_16_Broll_4K.mp4",
         "videoSavedAt": 1795710294894,
         "videoDiscardOverriddenAt": 1795710294894
@@ -2171,7 +2172,7 @@
         "pauseNotes": "Contiene [pausa: 1.2s] en la locución",
         "imageReady": true,
         "videoReady": true,
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "auditStatus": "ok",
         "auditReason": "Sincronizado con el tramo de voz narrativa.",
@@ -2180,7 +2181,8 @@
         "videoDiscardOverriddenAt": 1795710041224,
         "videoAuditStatus": "approved",
         "videoAuditReason": "",
-        "videoAuditIssues": []
+        "videoAuditIssues": [],
+        "reviewedUpdatedAt": 1795711395084
       },
       {
         "id": "clip-50-1795649050154-50",
