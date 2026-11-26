@@ -1331,14 +1331,29 @@
       }
       const durInput = await musicWaitFor(() => document.querySelector('input[aria-label="Duration"]'), 6000, 300, alive);
       if (!durInput) return musicFail(trackNum, `⚠️ ${label}: no encontré el campo Duration (More Options → Custom).`);
-      musicSetReactValue(durInput, durationLabel);
-      durInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }));
-      durInput.blur();
-      await musicSleep(700);
       const [mm, ss] = durationLabel.split(':').map((x) => Number(x) || 0);
       const wantSec = mm * 60 + ss;
+      const readSliderSec = () => {
+        const sl = document.querySelector('[role="slider"][aria-label="Duration"]');
+        return sl ? Number(sl.getAttribute('aria-valuenow')) : NaN;
+      };
+      // Si la casilla ya muestra el mismo texto (de un intento anterior) pero el deslizador volvió a "auto",
+      // React no ve cambio y Suno ignora la duración: se vacía primero y se reintenta hasta que el deslizador coincida.
+      let gotSec = NaN;
+      for (let attempt = 0; attempt < 4 && alive(); attempt++) {
+        const inp = document.querySelector('input[aria-label="Duration"]') || durInput;
+        musicSetReactValue(inp, '');
+        await musicSleep(250);
+        musicSetReactValue(inp, durationLabel);
+        inp.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }));
+        inp.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
+        inp.blur();
+        await musicWaitFor(() => Math.abs(readSliderSec() - wantSec) <= 2, 2500, 250, alive);
+        gotSec = readSliderSec();
+        if (!Number.isFinite(gotSec) || Math.abs(gotSec - wantSec) <= 2) break;
+      }
+      if (!alive()) return;
       const slider = document.querySelector('[role="slider"][aria-label="Duration"]');
-      const gotSec = Number(slider && slider.getAttribute('aria-valuenow'));
       if (slider && Number.isFinite(gotSec) && gotSec > 0 && Math.abs(gotSec - wantSec) > 2) {
         return musicFail(trackNum, `⚠️ ${label}: Suno no aceptó la duración ${durationLabel} (quedó en ${gotSec}s).`);
       }

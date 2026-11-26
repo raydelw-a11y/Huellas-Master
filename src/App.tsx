@@ -234,7 +234,7 @@ import { stampBrandMarksOnThumbnail, HD_BADGE_EMPTY_CORNER_CLAUSE, LOGO_EMPTY_CO
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '12:37 AM - 11/26/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '12:46 AM - 11/26/2026';
 
 // PRODUCTION LOCK: while promptConfig.PRODUCTION_LOCKED === 'YES' these fields never change (the server
 // enforces the same list in protectLockedDocs). Metadata, thumbnails, review marks and reframes stay editable.
@@ -13383,7 +13383,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       ? styleWithDucking
       : `${styleWithDucking}\n\n${normalizedLyricsWithEnd}`;
 
-    const engine = (activeDocRef.current?.musicEngine || activeDoc?.musicEngine || 'FLOWMUSIC') as MusicEngine;
+    const engine = (activeDocRef.current?.musicEngine || activeDoc?.musicEngine || 'SUNO') as MusicEngine;
     const engineName = engine === 'SUNO' ? 'Suno' : 'Flow Music';
     const songFileBase = buildSongFileBase(trackNumber, title);
     const durationLabel = toSongDurationLabel(duration);
@@ -27569,7 +27569,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                       >
                         <span className="px-2 text-slate-400">🎵 Motor:</span>
                         {(['FLOWMUSIC', 'SUNO'] as MusicEngine[]).map((eng) => {
-                          const selected = (activeDoc.musicEngine || 'FLOWMUSIC') === eng;
+                          const selected = (activeDoc.musicEngine || 'SUNO') === eng;
                           return (
                             <button
                               key={eng}
@@ -27594,7 +27594,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                           className="px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs flex items-center gap-1.5 cursor-pointer shadow"
                           title="Crea las canciones una por una con el motor elegido, las guarda en MP3 como Canción_##_Título en 02_Audio y las coloca en la Pista 5 del Editor"
                         >
-                          🚀 Crear Todas las Canciones ({activeDoc.musicEngine === 'SUNO' ? 'Suno' : 'Flow Music'})
+                          🚀 Crear Todas las Canciones ({(activeDoc.musicEngine || 'SUNO') === 'SUNO' ? 'Suno' : 'Flow Music'})
                         </button>
                       ) : (
                         <button
@@ -27952,7 +27952,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             className="px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs cursor-pointer flex items-center gap-1.5 shadow disabled:opacity-50 disabled:cursor-not-allowed"
                             title="Crea esta canción con el motor elegido, la guarda en MP3 como Canción_##_Título en 02_Audio y la coloca en la Pista 5 del Editor"
                           >
-                            🎵 Crear con {activeDoc.musicEngine === 'SUNO' ? 'Suno' : 'Flow Music'} (Pista 5)
+                            🎵 Crear con {(activeDoc.musicEngine || 'SUNO') === 'SUNO' ? 'Suno' : 'Flow Music'} (Pista 5)
                           </button>
                           <label className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-xs text-amber-300 cursor-pointer flex items-center gap-1.5 border border-slate-700">
                             <Upload className="w-3.5 h-3.5" /> Adjuntar Audio Manual

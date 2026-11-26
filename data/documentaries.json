@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-11-25T22:15:59.273Z",
-    "updatedAt": "2026-11-26T05:40:58.048Z",
+    "updatedAt": "2026-11-26T05:21:34.079Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -42,13 +42,13 @@
       "FIELD_CLEARED_AT_clip1OptionsRaw": "0",
       "FIELD_CLEARED_AT_clip1Line1LocationTime": "0",
       "FIELD_CLEARED_AT_clip1Line2Hook": "0",
-      "PROMPTS_RESTORED_AT": "1795671631751",
+      "PROMPTS_RESTORED_AT": "1795670494079",
       "FIELD_CLEARED_AT_rawClipsText": "0",
       "CAPTION_BOTTOM_PCT_16X9": 11,
-      "CAPTION_SETTINGS_UPDATED_AT": "1795671143491",
+      "CAPTION_SETTINGS_UPDATED_AT": "1795670033092",
       "CAPTION_MAX_CHARS": 16,
-      "CAPTION_LINE_MODE": "subdivide",
-      "CAPTION_WORDS_PER_LINE_16X9": 8,
+      "CAPTION_LINE_MODE": "original",
+      "CAPTION_WORDS_PER_LINE_16X9": 0,
       "CAPTION_WORDS_PER_LINE_9X16": 0
     },
     "compiledMasterPrompt": "",
@@ -899,8 +899,10 @@
         "videoDiscardOverriddenAt": 1795665682752,
         "videoSavedAt": 1795665682752,
         "reviewedUpdatedAt": 1795667248118,
+        "isStaticBroll": false,
         "videoAuditStatus": "approved",
-        "isStaticBroll": false
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-2-1795649050151-2",
@@ -922,7 +924,9 @@
         "videoDiscardOverriddenAt": 1795667129477,
         "videoSavedAt": 1795667243543,
         "reviewedUpdatedAt": 1795667251391,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-3-1795649050151-3",
@@ -944,7 +948,9 @@
         "videoDiscardOverriddenAt": 1795665747862,
         "videoSavedAt": 1795665747862,
         "reviewedUpdatedAt": 1795667472431,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-4-1795649050151-4",
@@ -966,7 +972,9 @@
         "videoDiscardOverriddenAt": 1795665726769,
         "videoSavedAt": 1795665726769,
         "reviewedUpdatedAt": 1795667487366,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-5-1795649050151-5",
@@ -988,7 +996,9 @@
         "videoDiscardOverriddenAt": 1795665726769,
         "videoSavedAt": 1795665726769,
         "reviewedUpdatedAt": 1795667503148,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-6-1795649050151-6",
@@ -1010,7 +1020,9 @@
         "videoDiscardOverriddenAt": 1795665726769,
         "videoSavedAt": 1795665726769,
         "reviewedUpdatedAt": 1795667514754,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-7-1795649050151-7",
@@ -1032,7 +1044,9 @@
         "videoDiscardOverriddenAt": 1795665726769,
         "videoSavedAt": 1795665726769,
         "reviewedUpdatedAt": 1795667526896,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-8-1795649050152-8",
@@ -1054,7 +1068,9 @@
         "videoDiscardOverriddenAt": 1795665682752,
         "videoSavedAt": 1795665682752,
         "reviewedUpdatedAt": 1795667539804,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-9-1795649050152-9",
@@ -1076,7 +1092,9 @@
         "videoDiscardOverriddenAt": 1795666653820,
         "videoSavedAt": 1795666653820,
         "reviewedUpdatedAt": 1795667552855,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-10-1795649050152-10",
@@ -1098,7 +1116,9 @@
         "videoDiscardOverriddenAt": 1795666653820,
         "videoSavedAt": 1795666653820,
         "reviewedUpdatedAt": 1795667563572,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-11-1795649050152-11",
@@ -1120,7 +1140,9 @@
         "videoSavedFileName": "11_generate_a_video_in_16_9_00280e14_4K.mp4",
         "videoDiscardOverriddenAt": 1795668738102,
         "videoSavedAt": 1795668738102,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-12-1795649050152-12",
@@ -1142,7 +1164,9 @@
         "videoSavedFileName": "12_generate_a_video_in_16_9_cc86b963_4K.mp4",
         "videoDiscardOverriddenAt": 1795668750869,
         "videoSavedAt": 1795668750869,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-13-1795649050152-13",
@@ -1164,7 +1188,9 @@
         "videoSavedFileName": "13_generate_a_video_in_16_9_bc7dd177_4K.mp4",
         "videoDiscardOverriddenAt": 1795668786920,
         "videoSavedAt": 1795668786920,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-14-1795649050152-14",
@@ -1186,7 +1212,9 @@
         "videoSavedFileName": "14_generate_a_video_in_16_9_98663a6d_4K.mp4",
         "videoDiscardOverriddenAt": 1795668557264,
         "videoSavedAt": 1795668557264,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-15-1795649050152-15",
@@ -1208,7 +1236,9 @@
         "videoSavedFileName": "15_generate_a_video_in_16_9_ac249c9e_4K.mp4",
         "videoDiscardOverriddenAt": 1795669274283,
         "videoSavedAt": 1795669579258,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-16-1795649050152-16",
@@ -1232,7 +1262,9 @@
         "brollCameraMotion": "zoom_in",
         "videoDiscardOverriddenAt": 1795668557887,
         "videoSavedAt": 1795668557887,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-17-1795649050152-17",
@@ -1254,7 +1286,9 @@
         "videoSavedFileName": "17_generate_a_video_in_16_9_4ac281ac_4K.mp4",
         "videoDiscardOverriddenAt": 1795668557264,
         "videoSavedAt": 1795668557264,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-18-1795649050152-18",
@@ -1276,7 +1310,9 @@
         "videoSavedFileName": "18_generate_a_video_in_16_9_789a3018_4K.mp4",
         "videoDiscardOverriddenAt": 1795668806907,
         "videoSavedAt": 1795668806907,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-19-1795649050152-19",
@@ -1298,7 +1334,9 @@
         "videoSavedFileName": "19_generate_a_video_in_16_9_c93af4ac_4K.mp4",
         "videoDiscardOverriddenAt": 1795668806907,
         "videoSavedAt": 1795668806907,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-20-1795649050152-20",
@@ -1320,7 +1358,9 @@
         "videoSavedFileName": "20_generate_a_video_in_16_9_404f987e_4K.mp4",
         "videoDiscardOverriddenAt": 1795669264857,
         "videoSavedAt": 1795669579258,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-21-1795649050152-21",
@@ -2487,56 +2527,6 @@
         "anchorSpoken": "A inicios del siglo XIX, Alexander von Humboldt"
       },
       {
-        "id": "name_tag_mwx3ukcw_09i53",
-        "startSec": 114.94,
-        "durationSec": 4,
-        "kind": "name_tag",
-        "name": "Alexander von Humboldt",
-        "role": "Naturalista y geógrafo prusiano",
-        "target": null,
-        "anchorSpoken": "A inicios del siglo XIX, Alexander von Humboldt"
-      },
-      {
-        "id": "name_tag_mwx3yd43_isfpf",
-        "startSec": 114.94,
-        "durationSec": 4,
-        "kind": "name_tag",
-        "name": "Alexander von Humboldt",
-        "role": "Naturalista y geógrafo prusiano",
-        "target": null,
-        "anchorSpoken": "A inicios del siglo XIX, Alexander von Humboldt"
-      },
-      {
-        "id": "name_tag_mwx43476_xcw46",
-        "startSec": 114.94,
-        "durationSec": 4,
-        "kind": "name_tag",
-        "name": "Alexander von Humboldt",
-        "role": "Naturalista y geógrafo prusiano",
-        "target": null,
-        "anchorSpoken": "A inicios del siglo XIX, Alexander von Humboldt"
-      },
-      {
-        "id": "name_tag_mwx44xmh_mri7v",
-        "startSec": 114.94,
-        "durationSec": 4,
-        "kind": "name_tag",
-        "name": "Alexander von Humboldt",
-        "role": "Naturalista y geógrafo prusiano",
-        "target": null,
-        "anchorSpoken": "A inicios del siglo XIX, Alexander von Humboldt"
-      },
-      {
-        "id": "name_tag_mwx45rm7_4qum1",
-        "startSec": 114.94,
-        "durationSec": 4,
-        "kind": "name_tag",
-        "name": "Alexander von Humboldt",
-        "role": "Naturalista y geógrafo prusiano",
-        "target": null,
-        "anchorSpoken": "A inicios del siglo XIX, Alexander von Humboldt"
-      },
-      {
         "id": "thesis_card_mwx241zf_4t1ku",
         "startSec": 144.48,
         "durationSec": 5,
@@ -2556,51 +2546,6 @@
       },
       {
         "id": "thesis_card_mwx3hjdm_otgpx",
-        "startSec": 144.48,
-        "durationSec": 5,
-        "kind": "thesis_card",
-        "oldText": "Las chinampas eran huertos flotantes",
-        "newText": "Islas artificiales ancladas al fondo del lago",
-        "anchorSpoken": "y aquí va una corrección: nunca flotaron."
-      },
-      {
-        "id": "thesis_card_mwx3ukec_6h644",
-        "startSec": 144.48,
-        "durationSec": 5,
-        "kind": "thesis_card",
-        "oldText": "Las chinampas eran huertos flotantes",
-        "newText": "Islas artificiales ancladas al fondo del lago",
-        "anchorSpoken": "y aquí va una corrección: nunca flotaron."
-      },
-      {
-        "id": "thesis_card_mwx3yd4z_kqobq",
-        "startSec": 144.48,
-        "durationSec": 5,
-        "kind": "thesis_card",
-        "oldText": "Las chinampas eran huertos flotantes",
-        "newText": "Islas artificiales ancladas al fondo del lago",
-        "anchorSpoken": "y aquí va una corrección: nunca flotaron."
-      },
-      {
-        "id": "thesis_card_mwx43483_lzdaj",
-        "startSec": 144.48,
-        "durationSec": 5,
-        "kind": "thesis_card",
-        "oldText": "Las chinampas eran huertos flotantes",
-        "newText": "Islas artificiales ancladas al fondo del lago",
-        "anchorSpoken": "y aquí va una corrección: nunca flotaron."
-      },
-      {
-        "id": "thesis_card_mwx44xnr_p2mmb",
-        "startSec": 144.48,
-        "durationSec": 5,
-        "kind": "thesis_card",
-        "oldText": "Las chinampas eran huertos flotantes",
-        "newText": "Islas artificiales ancladas al fondo del lago",
-        "anchorSpoken": "y aquí va una corrección: nunca flotaron."
-      },
-      {
-        "id": "thesis_card_mwx45ro8_7om0e",
         "startSec": 144.48,
         "durationSec": 5,
         "kind": "thesis_card",
@@ -2649,56 +2594,6 @@
         "anchorSpoken": "Moctezuma Ilhuicamina llamó a su aliado"
       },
       {
-        "id": "name_tag_mwx3ukd1_okih9",
-        "startSec": 202.19,
-        "durationSec": 4,
-        "kind": "name_tag",
-        "name": "Moctezuma Ilhuicamina",
-        "role": "Quinto gobernante de Tenochtitlan",
-        "target": null,
-        "anchorSpoken": "Moctezuma Ilhuicamina llamó a su aliado"
-      },
-      {
-        "id": "name_tag_mwx3yd47_j66gu",
-        "startSec": 202.19,
-        "durationSec": 4,
-        "kind": "name_tag",
-        "name": "Moctezuma Ilhuicamina",
-        "role": "Quinto gobernante de Tenochtitlan",
-        "target": null,
-        "anchorSpoken": "Moctezuma Ilhuicamina llamó a su aliado"
-      },
-      {
-        "id": "name_tag_mwx4347a_q08ht",
-        "startSec": 202.19,
-        "durationSec": 4,
-        "kind": "name_tag",
-        "name": "Moctezuma Ilhuicamina",
-        "role": "Quinto gobernante de Tenochtitlan",
-        "target": null,
-        "anchorSpoken": "Moctezuma Ilhuicamina llamó a su aliado"
-      },
-      {
-        "id": "name_tag_mwx44xmn_2d4zr",
-        "startSec": 202.19,
-        "durationSec": 4,
-        "kind": "name_tag",
-        "name": "Moctezuma Ilhuicamina",
-        "role": "Quinto gobernante de Tenochtitlan",
-        "target": null,
-        "anchorSpoken": "Moctezuma Ilhuicamina llamó a su aliado"
-      },
-      {
-        "id": "name_tag_mwx45rmc_0qo2h",
-        "startSec": 202.19,
-        "durationSec": 4,
-        "kind": "name_tag",
-        "name": "Moctezuma Ilhuicamina",
-        "role": "Quinto gobernante de Tenochtitlan",
-        "target": null,
-        "anchorSpoken": "Moctezuma Ilhuicamina llamó a su aliado"
-      },
-      {
         "id": "name_tag_mwx241ys_d107r",
         "startSec": 203.34,
         "durationSec": 4,
@@ -2720,56 +2615,6 @@
       },
       {
         "id": "name_tag_mwx3hjcy_x8wgp",
-        "startSec": 203.34,
-        "durationSec": 4,
-        "kind": "name_tag",
-        "name": "Nezahualcóyotl",
-        "role": "Gobernante e ingeniero hidráulico de Texcoco",
-        "target": null,
-        "anchorSpoken": "llamó a su aliado de Texcoco, Nezahualcóyotl,"
-      },
-      {
-        "id": "name_tag_mwx3ukd7_rw64i",
-        "startSec": 203.34,
-        "durationSec": 4,
-        "kind": "name_tag",
-        "name": "Nezahualcóyotl",
-        "role": "Gobernante e ingeniero hidráulico de Texcoco",
-        "target": null,
-        "anchorSpoken": "llamó a su aliado de Texcoco, Nezahualcóyotl,"
-      },
-      {
-        "id": "name_tag_mwx3yd4b_uusn1",
-        "startSec": 203.34,
-        "durationSec": 4,
-        "kind": "name_tag",
-        "name": "Nezahualcóyotl",
-        "role": "Gobernante e ingeniero hidráulico de Texcoco",
-        "target": null,
-        "anchorSpoken": "llamó a su aliado de Texcoco, Nezahualcóyotl,"
-      },
-      {
-        "id": "name_tag_mwx4347e_8t107",
-        "startSec": 203.34,
-        "durationSec": 4,
-        "kind": "name_tag",
-        "name": "Nezahualcóyotl",
-        "role": "Gobernante e ingeniero hidráulico de Texcoco",
-        "target": null,
-        "anchorSpoken": "llamó a su aliado de Texcoco, Nezahualcóyotl,"
-      },
-      {
-        "id": "name_tag_mwx44xms_qd3ei",
-        "startSec": 203.34,
-        "durationSec": 4,
-        "kind": "name_tag",
-        "name": "Nezahualcóyotl",
-        "role": "Gobernante e ingeniero hidráulico de Texcoco",
-        "target": null,
-        "anchorSpoken": "llamó a su aliado de Texcoco, Nezahualcóyotl,"
-      },
-      {
-        "id": "name_tag_mwx45rmh_h2gqa",
         "startSec": 203.34,
         "durationSec": 4,
         "kind": "name_tag",
@@ -2829,56 +2674,6 @@
         "anchorSpoken": "Hacia 1499, el gobernante Ahuízotl quiso traer"
       },
       {
-        "id": "name_tag_mwx3ukdc_urydg",
-        "startSec": 244.46,
-        "durationSec": 4,
-        "kind": "name_tag",
-        "name": "Ahuízotl",
-        "role": "Octavo gobernante de Tenochtitlan",
-        "target": null,
-        "anchorSpoken": "Hacia 1499, el gobernante Ahuízotl quiso traer"
-      },
-      {
-        "id": "name_tag_mwx3yd4g_9rz5v",
-        "startSec": 244.46,
-        "durationSec": 4,
-        "kind": "name_tag",
-        "name": "Ahuízotl",
-        "role": "Octavo gobernante de Tenochtitlan",
-        "target": null,
-        "anchorSpoken": "Hacia 1499, el gobernante Ahuízotl quiso traer"
-      },
-      {
-        "id": "name_tag_mwx4347i_34qxi",
-        "startSec": 244.46,
-        "durationSec": 4,
-        "kind": "name_tag",
-        "name": "Ahuízotl",
-        "role": "Octavo gobernante de Tenochtitlan",
-        "target": null,
-        "anchorSpoken": "Hacia 1499, el gobernante Ahuízotl quiso traer"
-      },
-      {
-        "id": "name_tag_mwx44xmy_47qmx",
-        "startSec": 244.46,
-        "durationSec": 4,
-        "kind": "name_tag",
-        "name": "Ahuízotl",
-        "role": "Octavo gobernante de Tenochtitlan",
-        "target": null,
-        "anchorSpoken": "Hacia 1499, el gobernante Ahuízotl quiso traer"
-      },
-      {
-        "id": "name_tag_mwx45rnn_y6kxo",
-        "startSec": 244.46,
-        "durationSec": 4,
-        "kind": "name_tag",
-        "name": "Ahuízotl",
-        "role": "Octavo gobernante de Tenochtitlan",
-        "target": null,
-        "anchorSpoken": "Hacia 1499, el gobernante Ahuízotl quiso traer"
-      },
-      {
         "id": "name_tag_mwx241yz_2gmtx",
         "startSec": 303.09,
         "durationSec": 4,
@@ -2900,56 +2695,6 @@
       },
       {
         "id": "name_tag_mwx3hjd6_6e22e",
-        "startSec": 303.09,
-        "durationSec": 4,
-        "kind": "name_tag",
-        "name": "Hernán Cortés",
-        "role": "Comandante español de la conquista",
-        "target": null,
-        "anchorSpoken": "Carta de Relación de 1520, Hernán Cortés"
-      },
-      {
-        "id": "name_tag_mwx3ukdh_nj4k7",
-        "startSec": 303.09,
-        "durationSec": 4,
-        "kind": "name_tag",
-        "name": "Hernán Cortés",
-        "role": "Comandante español de la conquista",
-        "target": null,
-        "anchorSpoken": "Carta de Relación de 1520, Hernán Cortés"
-      },
-      {
-        "id": "name_tag_mwx3yd4j_gdajk",
-        "startSec": 303.09,
-        "durationSec": 4,
-        "kind": "name_tag",
-        "name": "Hernán Cortés",
-        "role": "Comandante español de la conquista",
-        "target": null,
-        "anchorSpoken": "Carta de Relación de 1520, Hernán Cortés"
-      },
-      {
-        "id": "name_tag_mwx4347m_ngt20",
-        "startSec": 303.09,
-        "durationSec": 4,
-        "kind": "name_tag",
-        "name": "Hernán Cortés",
-        "role": "Comandante español de la conquista",
-        "target": null,
-        "anchorSpoken": "Carta de Relación de 1520, Hernán Cortés"
-      },
-      {
-        "id": "name_tag_mwx44xn4_6rgfo",
-        "startSec": 303.09,
-        "durationSec": 4,
-        "kind": "name_tag",
-        "name": "Hernán Cortés",
-        "role": "Comandante español de la conquista",
-        "target": null,
-        "anchorSpoken": "Carta de Relación de 1520, Hernán Cortés"
-      },
-      {
-        "id": "name_tag_mwx45rnr_wbmeu",
         "startSec": 303.09,
         "durationSec": 4,
         "kind": "name_tag",
@@ -2997,46 +2742,6 @@
       },
       {
         "id": "stamp_mwx3hjdt_iptta",
-        "startSec": 341.91,
-        "durationSec": 2.6,
-        "kind": "stamp",
-        "text": "AGUA CORTADA",
-        "anchorSpoken": "marcharon a Chapultepec para quebrar los caños."
-      },
-      {
-        "id": "stamp_mwx3ukeo_50kdz",
-        "startSec": 341.91,
-        "durationSec": 2.6,
-        "kind": "stamp",
-        "text": "AGUA CORTADA",
-        "anchorSpoken": "marcharon a Chapultepec para quebrar los caños."
-      },
-      {
-        "id": "stamp_mwx3yd56_vh3an",
-        "startSec": 341.91,
-        "durationSec": 2.6,
-        "kind": "stamp",
-        "text": "AGUA CORTADA",
-        "anchorSpoken": "marcharon a Chapultepec para quebrar los caños."
-      },
-      {
-        "id": "stamp_mwx4348a_hgwgc",
-        "startSec": 341.91,
-        "durationSec": 2.6,
-        "kind": "stamp",
-        "text": "AGUA CORTADA",
-        "anchorSpoken": "marcharon a Chapultepec para quebrar los caños."
-      },
-      {
-        "id": "stamp_mwx44xo2_5kfkv",
-        "startSec": 341.91,
-        "durationSec": 2.6,
-        "kind": "stamp",
-        "text": "AGUA CORTADA",
-        "anchorSpoken": "marcharon a Chapultepec para quebrar los caños."
-      },
-      {
-        "id": "stamp_mwx45roh_sqbrv",
         "startSec": 341.91,
         "durationSec": 2.6,
         "kind": "stamp",
@@ -3095,56 +2800,6 @@
         "anchorSpoken": "el cosmógrafo alemán Enrico Martínez inició el"
       },
       {
-        "id": "name_tag_mwx3ukdl_dtoiu",
-        "startSec": 411.48,
-        "durationSec": 4,
-        "kind": "name_tag",
-        "name": "Enrico Martínez",
-        "role": "Cosmógrafo del desagüe colonial",
-        "target": null,
-        "anchorSpoken": "el cosmógrafo alemán Enrico Martínez inició el"
-      },
-      {
-        "id": "name_tag_mwx3yd4o_93031",
-        "startSec": 411.48,
-        "durationSec": 4,
-        "kind": "name_tag",
-        "name": "Enrico Martínez",
-        "role": "Cosmógrafo del desagüe colonial",
-        "target": null,
-        "anchorSpoken": "el cosmógrafo alemán Enrico Martínez inició el"
-      },
-      {
-        "id": "name_tag_mwx4347q_agrab",
-        "startSec": 411.48,
-        "durationSec": 4,
-        "kind": "name_tag",
-        "name": "Enrico Martínez",
-        "role": "Cosmógrafo del desagüe colonial",
-        "target": null,
-        "anchorSpoken": "el cosmógrafo alemán Enrico Martínez inició el"
-      },
-      {
-        "id": "name_tag_mwx44xna_ho5jg",
-        "startSec": 411.48,
-        "durationSec": 4,
-        "kind": "name_tag",
-        "name": "Enrico Martínez",
-        "role": "Cosmógrafo del desagüe colonial",
-        "target": null,
-        "anchorSpoken": "el cosmógrafo alemán Enrico Martínez inició el"
-      },
-      {
-        "id": "name_tag_mwx45rnx_g1v40",
-        "startSec": 411.48,
-        "durationSec": 4,
-        "kind": "name_tag",
-        "name": "Enrico Martínez",
-        "role": "Cosmógrafo del desagüe colonial",
-        "target": null,
-        "anchorSpoken": "el cosmógrafo alemán Enrico Martínez inició el"
-      },
-      {
         "id": "date_card_mwx241yg_30lh1",
         "startSec": 421.95,
         "durationSec": 3.6,
@@ -3185,56 +2840,6 @@
         "anchorSpoken": "contrató al ingeniero holandés Adrian Boot por"
       },
       {
-        "id": "name_tag_mwx3ukdp_aqxib",
-        "startSec": 425.22,
-        "durationSec": 4,
-        "kind": "name_tag",
-        "name": "Adrian Boot",
-        "role": "Ingeniero hidráulico holandés",
-        "target": null,
-        "anchorSpoken": "contrató al ingeniero holandés Adrian Boot por"
-      },
-      {
-        "id": "name_tag_mwx3yd4s_v3iac",
-        "startSec": 425.22,
-        "durationSec": 4,
-        "kind": "name_tag",
-        "name": "Adrian Boot",
-        "role": "Ingeniero hidráulico holandés",
-        "target": null,
-        "anchorSpoken": "contrató al ingeniero holandés Adrian Boot por"
-      },
-      {
-        "id": "name_tag_mwx4347u_1uglh",
-        "startSec": 425.22,
-        "durationSec": 4,
-        "kind": "name_tag",
-        "name": "Adrian Boot",
-        "role": "Ingeniero hidráulico holandés",
-        "target": null,
-        "anchorSpoken": "contrató al ingeniero holandés Adrian Boot por"
-      },
-      {
-        "id": "name_tag_mwx44xnf_8qlln",
-        "startSec": 425.22,
-        "durationSec": 4,
-        "kind": "name_tag",
-        "name": "Adrian Boot",
-        "role": "Ingeniero hidráulico holandés",
-        "target": null,
-        "anchorSpoken": "contrató al ingeniero holandés Adrian Boot por"
-      },
-      {
-        "id": "name_tag_mwx45ro1_al0df",
-        "startSec": 425.22,
-        "durationSec": 4,
-        "kind": "name_tag",
-        "name": "Adrian Boot",
-        "role": "Ingeniero hidráulico holandés",
-        "target": null,
-        "anchorSpoken": "contrató al ingeniero holandés Adrian Boot por"
-      },
-      {
         "id": "thesis_card_mwx241zj_x59jc",
         "startSec": 436.44,
         "durationSec": 5,
@@ -3262,51 +2867,6 @@
         "anchorSpoken": "no había que secar el lago, sino regularlo"
       },
       {
-        "id": "thesis_card_mwx3ukej_qh6b3",
-        "startSec": 436.44,
-        "durationSec": 5,
-        "kind": "thesis_card",
-        "oldText": "Secar el lago evitaba inundaciones",
-        "newText": "Regularlo con diques era la solución correcta",
-        "anchorSpoken": "no había que secar el lago, sino regularlo"
-      },
-      {
-        "id": "thesis_card_mwx3yd53_ycym7",
-        "startSec": 436.44,
-        "durationSec": 5,
-        "kind": "thesis_card",
-        "oldText": "Secar el lago evitaba inundaciones",
-        "newText": "Regularlo con diques era la solución correcta",
-        "anchorSpoken": "no había que secar el lago, sino regularlo"
-      },
-      {
-        "id": "thesis_card_mwx43487_pkyiz",
-        "startSec": 436.44,
-        "durationSec": 5,
-        "kind": "thesis_card",
-        "oldText": "Secar el lago evitaba inundaciones",
-        "newText": "Regularlo con diques era la solución correcta",
-        "anchorSpoken": "no había que secar el lago, sino regularlo"
-      },
-      {
-        "id": "thesis_card_mwx44xnw_5k5i0",
-        "startSec": 436.44,
-        "durationSec": 5,
-        "kind": "thesis_card",
-        "oldText": "Secar el lago evitaba inundaciones",
-        "newText": "Regularlo con diques era la solución correcta",
-        "anchorSpoken": "no había que secar el lago, sino regularlo"
-      },
-      {
-        "id": "thesis_card_mwx45rod_amzgl",
-        "startSec": 436.44,
-        "durationSec": 5,
-        "kind": "thesis_card",
-        "oldText": "Secar el lago evitaba inundaciones",
-        "newText": "Regularlo con diques era la solución correcta",
-        "anchorSpoken": "no había que secar el lago, sino regularlo"
-      },
-      {
         "id": "stamp_mwx241zq_qcecb",
         "startSec": 456.24,
         "durationSec": 2.6,
@@ -3324,46 +2884,6 @@
       },
       {
         "id": "stamp_mwx3hjdx_t8oj0",
-        "startSec": 456.24,
-        "durationSec": 2.6,
-        "kind": "stamp",
-        "text": "INUNDADA",
-        "anchorSpoken": "quedó hasta dos metros bajo el agua durante"
-      },
-      {
-        "id": "stamp_mwx3ukes_1flsy",
-        "startSec": 456.24,
-        "durationSec": 2.6,
-        "kind": "stamp",
-        "text": "INUNDADA",
-        "anchorSpoken": "quedó hasta dos metros bajo el agua durante"
-      },
-      {
-        "id": "stamp_mwx3yd5a_m293e",
-        "startSec": 456.24,
-        "durationSec": 2.6,
-        "kind": "stamp",
-        "text": "INUNDADA",
-        "anchorSpoken": "quedó hasta dos metros bajo el agua durante"
-      },
-      {
-        "id": "stamp_mwx4348e_s96zc",
-        "startSec": 456.24,
-        "durationSec": 2.6,
-        "kind": "stamp",
-        "text": "INUNDADA",
-        "anchorSpoken": "quedó hasta dos metros bajo el agua durante"
-      },
-      {
-        "id": "stamp_mwx44xo7_4p4vd",
-        "startSec": 456.24,
-        "durationSec": 2.6,
-        "kind": "stamp",
-        "text": "INUNDADA",
-        "anchorSpoken": "quedó hasta dos metros bajo el agua durante"
-      },
-      {
-        "id": "stamp_mwx45rol_q37mr",
         "startSec": 456.24,
         "durationSec": 2.6,
         "kind": "stamp",
@@ -3411,57 +2931,7 @@
         "anchorSpoken": "y Nabor Carrillo Flores probó la causa:"
       },
       {
-        "id": "name_tag_mwx3uke6_ryj4w",
-        "startSec": 526.71,
-        "durationSec": 4,
-        "kind": "name_tag",
-        "name": "Nabor Carrillo Flores",
-        "role": "Científico mexicano de mecánica de suelos",
-        "target": null,
-        "anchorSpoken": "y Nabor Carrillo Flores probó la causa:"
-      },
-      {
-        "id": "name_tag_mwx3yd4v_um8yk",
-        "startSec": 526.71,
-        "durationSec": 4,
-        "kind": "name_tag",
-        "name": "Nabor Carrillo Flores",
-        "role": "Científico mexicano de mecánica de suelos",
-        "target": null,
-        "anchorSpoken": "y Nabor Carrillo Flores probó la causa:"
-      },
-      {
-        "id": "name_tag_mwx4347x_pghiw",
-        "startSec": 526.71,
-        "durationSec": 4,
-        "kind": "name_tag",
-        "name": "Nabor Carrillo Flores",
-        "role": "Científico mexicano de mecánica de suelos",
-        "target": null,
-        "anchorSpoken": "y Nabor Carrillo Flores probó la causa:"
-      },
-      {
-        "id": "name_tag_mwx44xnl_vu2qt",
-        "startSec": 526.71,
-        "durationSec": 4,
-        "kind": "name_tag",
-        "name": "Nabor Carrillo Flores",
-        "role": "Científico mexicano de mecánica de suelos",
-        "target": null,
-        "anchorSpoken": "y Nabor Carrillo Flores probó la causa:"
-      },
-      {
-        "id": "name_tag_mwx45ro5_thwt0",
-        "startSec": 526.71,
-        "durationSec": 4,
-        "kind": "name_tag",
-        "name": "Nabor Carrillo Flores",
-        "role": "Científico mexicano de mecánica de suelos",
-        "target": null,
-        "anchorSpoken": "y Nabor Carrillo Flores probó la causa:"
-      },
-      {
-        "id": "name_tag_mwx4iy69_8xzm0",
+        "id": "name_tag_mwx3ukcw_09i53",
         "kind": "name_tag",
         "startSec": 114.94,
         "durationSec": 4,
@@ -3471,7 +2941,7 @@
         "anchorSpoken": "A inicios del siglo XIX, Alexander von Humboldt"
       },
       {
-        "id": "name_tag_mwx4iy6d_oxnz5",
+        "id": "name_tag_mwx3ukd1_okih9",
         "kind": "name_tag",
         "startSec": 202.19,
         "durationSec": 4,
@@ -3481,7 +2951,7 @@
         "anchorSpoken": "Moctezuma Ilhuicamina llamó a su aliado"
       },
       {
-        "id": "name_tag_mwx4iy6g_uao5w",
+        "id": "name_tag_mwx3ukd7_rw64i",
         "kind": "name_tag",
         "startSec": 203.34,
         "durationSec": 4,
@@ -3491,7 +2961,7 @@
         "anchorSpoken": "llamó a su aliado de Texcoco, Nezahualcóyotl,"
       },
       {
-        "id": "name_tag_mwx4iy6k_attgy",
+        "id": "name_tag_mwx3ukdc_urydg",
         "kind": "name_tag",
         "startSec": 244.46,
         "durationSec": 4,
@@ -3501,7 +2971,7 @@
         "anchorSpoken": "Hacia 1499, el gobernante Ahuízotl quiso traer"
       },
       {
-        "id": "name_tag_mwx4iy6q_o5wka",
+        "id": "name_tag_mwx3ukdh_nj4k7",
         "kind": "name_tag",
         "startSec": 303.09,
         "durationSec": 4,
@@ -3511,7 +2981,7 @@
         "anchorSpoken": "Carta de Relación de 1520, Hernán Cortés"
       },
       {
-        "id": "name_tag_mwx4iy6u_mj1oz",
+        "id": "name_tag_mwx3ukdl_dtoiu",
         "kind": "name_tag",
         "startSec": 411.48,
         "durationSec": 4,
@@ -3521,7 +2991,7 @@
         "anchorSpoken": "el cosmógrafo alemán Enrico Martínez inició el"
       },
       {
-        "id": "name_tag_mwx4iy6x_ljk65",
+        "id": "name_tag_mwx3ukdp_aqxib",
         "kind": "name_tag",
         "startSec": 425.22,
         "durationSec": 4,
@@ -3531,7 +3001,7 @@
         "anchorSpoken": "contrató al ingeniero holandés Adrian Boot por"
       },
       {
-        "id": "name_tag_mwx4iy71_s8fgz",
+        "id": "name_tag_mwx3uke6_ryj4w",
         "kind": "name_tag",
         "startSec": 526.71,
         "durationSec": 4,
@@ -3541,7 +3011,7 @@
         "anchorSpoken": "y Nabor Carrillo Flores probó la causa:"
       },
       {
-        "id": "thesis_card_mwx4iy75_qmasf",
+        "id": "thesis_card_mwx3ukec_6h644",
         "kind": "thesis_card",
         "startSec": 144.48,
         "durationSec": 5,
@@ -3550,7 +3020,7 @@
         "anchorSpoken": "y aquí va una corrección: nunca flotaron."
       },
       {
-        "id": "thesis_card_mwx4iy78_9rvyc",
+        "id": "thesis_card_mwx3ukej_qh6b3",
         "kind": "thesis_card",
         "startSec": 436.44,
         "durationSec": 5,
@@ -3559,7 +3029,7 @@
         "anchorSpoken": "no había que secar el lago, sino regularlo"
       },
       {
-        "id": "stamp_mwx4iy7c_s6nnw",
+        "id": "stamp_mwx3ukeo_50kdz",
         "kind": "stamp",
         "startSec": 341.91,
         "durationSec": 2.6,
@@ -3567,7 +3037,7 @@
         "anchorSpoken": "marcharon a Chapultepec para quebrar los caños."
       },
       {
-        "id": "stamp_mwx4iy7g_fpvz7",
+        "id": "stamp_mwx3ukes_1flsy",
         "kind": "stamp",
         "startSec": 456.24,
         "durationSec": 2.6,
