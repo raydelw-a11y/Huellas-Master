@@ -152,13 +152,31 @@ export const DOC_GRAPHIC_FADE_IN_SEC = 0.35;
 export const DOC_GRAPHIC_FADE_OUT_SEC = 0.45;
 
 export const DOC_GRAPHIC_DEFAULT_DURATION: Record<DocGraphicKind, number> = {
-  date_card: 3.6,
+  date_card: 5,
   quote_card: 7,
   route_map: 6,
+  circle_mark: 4,
+  name_tag: 6,
+  thesis_card: 7,
+  stamp: 3.5,
+};
+
+/**
+ * Durations the cards were created with before they were lengthened (they left the screen too soon).
+ * A saved card that still has exactly its old default gets the current one; any other value was set by hand.
+ */
+const LEGACY_DOC_GRAPHIC_DEFAULT_DURATION: Partial<Record<DocGraphicKind, number>> = {
+  date_card: 3.6,
   circle_mark: 3,
   name_tag: 4,
   thesis_card: 5,
   stamp: 2.6,
+};
+const upgradeLegacyGraphicDuration = (kind: unknown, durationSec: number): number => {
+  const legacy = LEGACY_DOC_GRAPHIC_DEFAULT_DURATION[kind as DocGraphicKind];
+  return typeof legacy === 'number' && Math.abs(durationSec - legacy) < 0.005
+    ? DOC_GRAPHIC_DEFAULT_DURATION[kind as DocGraphicKind]
+    : durationSec;
 };
 
 export const DOC_GRAPHIC_KIND_LABEL: Record<DocGraphicKind, string> = {
@@ -1188,20 +1206,41 @@ export function findSpokenInCaptions(
  */
 export function resolveSpokenAnchors(graphics: DocGraphic[], captions: TimedCaptionLike[]): DocGraphic[] {
   if (!captions.length) return graphics;
-  return graphics.map((g) => {
+  const resolved = graphics.map((g) => {
     const anchor = g.kind === 'route_map' ? '' : g.anchorSpoken || '';
     if (!anchor) return g;
     const hit = findSpokenInCaptions(anchor, captions, { nearSec: g.startSec });
     if (!hit) return g;
+    if (g.kind === 'name_tag') {
+      // The anchor is a whole phrase ("A inicios del siglo XIX, Alexander von Humboldt"): the tag enters when
+      // the voice reaches the name itself, not at the first word of the phrase
+      const nameHit = g.name ? findSpokenInCaptions(g.name, captions, { nearSec: hit.startSec }) : null;
+      const onName = nameHit && nameHit.startSec >= hit.startSec - 0.5 && nameHit.startSec <= hit.endSec + 2;
+      const at = onName && nameHit ? nameHit.startSec : hit.startSec;
+      return { ...g, startSec: Number(Math.max(0, at - 0.3).toFixed(2)) };
+    }
     // A stamp lands on the first word; the rest start just before it
     const lead = g.kind === 'stamp' ? 0.12 : g.kind === 'quote_card' ? 0.2 : 0.1;
     if (g.kind !== 'quote_card') return { ...g, startSec: Number(Math.max(0, hit.startSec - lead).toFixed(2)) };
     return {
       ...g,
       startSec: Number(Math.max(0, hit.startSec - 0.2).toFixed(2)),
-      durationSec: Number(Math.min(12, Math.max(5, hit.endSec - hit.startSec + 1.8)).toFixed(1)),
+      durationSec: Number(Math.min(14, Math.max(6, hit.endSec - hit.startSec + 2.5)).toFixed(1)),
     };
   });
+  // Two names said close together: the first tag leaves just before the next one enters
+  const tags = resolved
+    .map((g, i) => ({ g, i }))
+    .filter((x) => x.g.kind === 'name_tag')
+    .sort((x, y) => x.g.startSec - y.g.startSec);
+  for (let k = 0; k + 1 < tags.length; k++) {
+    const cur = tags[k].g;
+    const gapSec = tags[k + 1].g.startSec - cur.startSec;
+    if (gapSec > 0 && cur.durationSec > gapSec - 0.15) {
+      resolved[tags[k].i] = { ...cur, durationSec: Number(Math.max(2, gapSec - 0.15).toFixed(2)) };
+    }
+  }
+  return resolved;
 }
 
 export interface ResearchScreenQuote {
@@ -1250,7 +1289,7 @@ export function sanitizeDocGraphics(raw: unknown): DocGraphic[] {
     const startSec = Number(it.startSec);
     const durationSec = Number(it.durationSec);
     if (!Number.isFinite(startSec) || !Number.isFinite(durationSec) || durationSec <= 0) continue;
-    const base = { id: String(it.id || newDocGraphicId(it.kind)), startSec: Math.max(0, startSec), durationSec: clamp(durationSec, 0.5, 60) };
+    const base = { id: String(it.id || newDocGraphicId(it.kind)), startSec: Math.max(0, startSec), durationSec: clamp(upgradeLegacyGraphicDuration(it.kind, durationSec), 0.5, 60) };
     // Graphics still being written (empty text) are kept: they are simply not drawn (isGraphicDrawable)
     if (it.kind === 'date_card') {
       out.push({
