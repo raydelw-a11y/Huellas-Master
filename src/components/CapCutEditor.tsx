@@ -7211,28 +7211,38 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       const defaultL1Start = docIntroPlacement === 'INTRO_POST_SLOGAN' ? 0 : FIXED_INTRO_SEC;
       const defaultL2Start = docIntroPlacement === 'INTRO_POST_SLOGAN' ? 2 : FIXED_INTRO_SEC + 2;
 
+      // Hook text times are measured on the timeline, so times saved under one Intro placement are
+      // wrong under the other: Opción A times (text from 8s on) would show the text after Clip 1 has
+      // ended in Opción B, and Opción B times (text from 0s) would put it over the Intro in Opción A.
+      // A saved set that does not fit this documentary's placement is ignored as a whole.
+      const hookTimesFitPlacement = (src: Record<string, any> | null | undefined) => {
+        const l1 = src?.hookLine1StartSec;
+        if (typeof l1 !== 'number') return true;
+        return docIntroPlacement === 'INTRO_POST_SLOGAN' ? l1 < defaultOverlayEnd : l1 >= FIXED_INTRO_SEC;
+      };
+      const docHookTimes = hookTimesFitPlacement(savedDocOverlays) ? savedDocOverlays : null;
+      const globalHookTimes =
+        !isIntroPlacementSwitch && hookTimesFitPlacement(savedGlobalStyles) ? savedGlobalStyles : null;
+
       const resolvedL1Start =
-        typeof savedDocOverlays?.hookLine1StartSec === 'number'
-          ? savedDocOverlays.hookLine1StartSec
-          : !isIntroPlacementSwitch && typeof savedGlobalStyles.hookLine1StartSec === 'number'
-          ? savedGlobalStyles.hookLine1StartSec
+        typeof docHookTimes?.hookLine1StartSec === 'number'
+          ? docHookTimes.hookLine1StartSec
+          : typeof globalHookTimes?.hookLine1StartSec === 'number'
+          ? globalHookTimes.hookLine1StartSec
           : defaultL1Start;
 
       const resolvedL2Start =
-        typeof savedDocOverlays?.hookLine2StartSec === 'number'
-          ? savedDocOverlays.hookLine2StartSec
-          : !isIntroPlacementSwitch && typeof savedGlobalStyles.hookLine2StartSec === 'number'
-          ? savedGlobalStyles.hookLine2StartSec
+        typeof docHookTimes?.hookLine2StartSec === 'number'
+          ? docHookTimes.hookLine2StartSec
+          : typeof globalHookTimes?.hookLine2StartSec === 'number'
+          ? globalHookTimes.hookLine2StartSec
           : defaultL2Start;
 
       const resolvedOverlayEnd =
-        typeof savedDocOverlays?.clip1OverlayEndSec === 'number' &&
-        savedDocOverlays.clip1OverlayEndSec > 0
-          ? savedDocOverlays.clip1OverlayEndSec
-          : !isIntroPlacementSwitch &&
-            typeof savedGlobalStyles.clip1OverlayEndSec === 'number' &&
-            savedGlobalStyles.clip1OverlayEndSec > 0
-          ? savedGlobalStyles.clip1OverlayEndSec
+        typeof docHookTimes?.clip1OverlayEndSec === 'number' && docHookTimes.clip1OverlayEndSec > 0
+          ? docHookTimes.clip1OverlayEndSec
+          : typeof globalHookTimes?.clip1OverlayEndSec === 'number' && globalHookTimes.clip1OverlayEndSec > 0
+          ? globalHookTimes.clip1OverlayEndSec
           : defaultOverlayEnd;
 
       setHookLine1StartSec(resolvedL1Start);
@@ -21841,21 +21851,31 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                       <button
                         type="button"
                         onClick={() => {
-                          setHookLine1StartSec(8);
+                          // Opción B has no Intro in front: Clip 1 (and its text) starts at 00:00
+                          const resetIsPostSlogan = introPlacementMode === 'INTRO_POST_SLOGAN';
+                          const { clip1Sec: resetClip1Sec } = getStage1ClipDurations(activeDoc);
+                          const resetL1 = resetIsPostSlogan ? 0 : 8;
+                          const resetL2 = resetL1 + 2;
+                          const resetEnd = resetIsPostSlogan
+                            ? !resetClip1Sec || resetClip1Sec <= 0
+                              ? 6
+                              : resetClip1Sec
+                            : 16;
+                          setHookLine1StartSec(resetL1);
                           setHookLine1AnimIn('fade');
                           setHookLine1AnimInDur(1);
                           setHookLine1AnimOut('fade');
                           setHookLine1AnimOutDur(1);
-                          setHookLine2StartSec(10);
+                          setHookLine2StartSec(resetL2);
                           setHookLine2AnimIn('fade');
                           setHookLine2AnimInDur(1);
                           setHookLine2AnimOut('fade');
                           setHookLine2AnimOutDur(1);
-                          setClip1OverlayEndSec(16);
+                          setClip1OverlayEndSec(resetEnd);
                           persistDocOverlaysPatch({
-                            hookLine1StartSec: 8,
-                            hookLine2StartSec: 10,
-                            clip1OverlayEndSec: 16,
+                            hookLine1StartSec: resetL1,
+                            hookLine2StartSec: resetL2,
+                            clip1OverlayEndSec: resetEnd,
                           });
                         }}
                         className="px-2 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-amber-500/40 text-amber-300 text-[10px] font-bold cursor-pointer shrink-0"
