@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-11-23T02:44:27.074Z",
-    "updatedAt": "2026-11-26T00:43:47.287Z",
+    "updatedAt": "2026-11-26T00:44:21.169Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -4317,7 +4317,45 @@
         "suggestedOverlay": "EMPIRE STATE\nFUEGO SOBRE EL VACÍO"
       }
     ],
-    "thumbnailPsychVariant": "B"
+    "thumbnailPsychVariant": "B",
+    "docGraphics": [
+      {
+        "id": "date_card_mwwty24p_kyogp",
+        "kind": "date_card",
+        "startSec": 420,
+        "durationSec": 3.6,
+        "line1": "1 de mayo de 1931",
+        "line2": "",
+        "position": "center"
+      },
+      {
+        "id": "date_card_mwwty24p_w2uaa",
+        "kind": "date_card",
+        "startSec": 454.35,
+        "durationSec": 3.6,
+        "line1": "24 de octubre de 1929",
+        "line2": "",
+        "position": "center"
+      },
+      {
+        "id": "date_card_mwwty24p_zyjas",
+        "kind": "date_card",
+        "startSec": 941.51,
+        "durationSec": 3.6,
+        "line1": "19 de septiembre de 1930",
+        "line2": "",
+        "position": "center"
+      },
+      {
+        "id": "date_card_mwwty24p_xpt19",
+        "kind": "date_card",
+        "startSec": 1129.58,
+        "durationSec": 3.6,
+        "line1": "1 de mayo de 1931",
+        "line2": "",
+        "position": "center"
+      }
+    ]
   },
   {
     "id": "doc-1795644959273-rmqo",
