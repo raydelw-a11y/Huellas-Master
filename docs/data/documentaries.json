@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-11-25T22:15:59.273Z",
-    "updatedAt": "2026-11-26T16:20:41.644Z",
+    "updatedAt": "2026-11-26T16:22:50.773Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -42,7 +42,7 @@
       "FIELD_CLEARED_AT_clip1OptionsRaw": "0",
       "FIELD_CLEARED_AT_clip1Line1LocationTime": "0",
       "FIELD_CLEARED_AT_clip1Line2Hook": "0",
-      "PROMPTS_RESTORED_AT": "1795710041644",
+      "PROMPTS_RESTORED_AT": "1795710170773",
       "FIELD_CLEARED_AT_rawClipsText": "0",
       "CAPTION_BOTTOM_PCT_16X9": 11,
       "CAPTION_SETTINGS_UPDATED_AT": "1795671143491",
@@ -1494,7 +1494,7 @@
         "pauseNotes": "Contiene [pausa: 1.9s] en la locución",
         "imageReady": true,
         "videoReady": true,
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "auditStatus": "ok",
         "auditReason": "Sincronizado con el tramo de voz narrativa.",
@@ -1503,7 +1503,8 @@
         "videoDiscardOverriddenAt": 1795706447754,
         "videoAuditStatus": "approved",
         "videoAuditReason": "",
-        "videoAuditIssues": []
+        "videoAuditIssues": [],
+        "reviewedUpdatedAt": 1795710170773
       },
       {
         "id": "clip-22-1795649050152-22",
@@ -1637,7 +1638,7 @@
         "auditStatus": "ok",
         "auditReason": "Sincronizado con el tramo de voz narrativa.",
         "videoSavedFileName": "27_create_a_cinematic_8_second_bbab85ac_4K.mp4",
-        "videoSavedAt": 1795707525487,
+        "videoSavedAt": 1795709351110,
         "videoDiscardOverriddenAt": 1795707525487,
         "videoAuditStatus": "approved",
         "videoAuditReason": "",
@@ -1660,7 +1661,7 @@
         "auditStatus": "ok",
         "auditReason": "Sincronizado con el tramo de voz narrativa.",
         "videoSavedFileName": "28_create_a_cinematic_8_second_4317c97d_4K.mp4",
-        "videoSavedAt": 1795707525487,
+        "videoSavedAt": 1795709351110,
         "videoDiscardOverriddenAt": 1795707525487,
         "videoAuditStatus": "approved",
         "videoAuditReason": "",
@@ -1954,12 +1955,14 @@
         "videoPrompt": "Clip 41: Generate a video in 16-9 horizontal aspect ratio across 8 seconds showing first shot, an over-the-shoulder close-up with a slow dolly-in watching the gloved hand of the 36-year-old sixteenth-century Castilian commander press a brass divider firmly onto the single aqueduct causeway line drawn on a parchment table map in May 1521, then a hard cut to a second shot, a low-angle close-up with a static locked-off tripod shot of the bearded Castilian commander in his steel gorget lifting his gaze decisively in warm candlelight. Fixed subject count (no new people appearing out of nowhere, vanishing, or morphing). Solid, non-deforming table and stone wall geometry, all background furniture, architectural fixtures, and tabletop props remain 100% gravity-locked and stationary while any held object moves smoothly under natural hand control, fixed subject count within each shot, exactly two shots joined by one clean hard cut near second 4, each shot one continuous take, with subtle ambient foley of metallic tap of brass on parchment, subtle leather creak, and quiet flickering candle flame. cinematic documentary realism, safe framing composition, 8k resolution, sharp focus, no modern objects, no CGI look, no text, no spoken voice, no human speech, no music. fix the name to Clip_41_generate_a_video_in_16_9",
         "narrationSegment": "proeza técnica, pero concentraba la vida de la ciudad en una sola arteria expuesta. Cortés tomó nota. El 26",
         "pauseNotes": "",
-        "imageReady": false,
-        "videoReady": false,
+        "imageReady": true,
+        "videoReady": true,
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": "Sincronizado con el tramo de voz narrativa."
+        "auditReason": "Sincronizado con el tramo de voz narrativa.",
+        "videoSavedFileName": "41_generate_a_video_in_16_9_63a39348_4K.mp4",
+        "videoSavedAt": 1795710162286
       },
       {
         "id": "clip-42-1795649050153-42",
@@ -2042,12 +2045,14 @@
         "videoPrompt": "Clip 45: Generate a video in 16-9 horizontal aspect ratio across 8 seconds showing first shot, a low-angle wide shot with a slow lateral tracking shot gliding across dark twilight waves as wooden sixteenth-century Spanish brigantines with taut canvas sails patrol Lake Texcoco in July 1521 with no people visible on deck, then a hard cut to a second shot, a high-angle close-up with a slow dolly-in looking down into a freshly dug shallow pit in dark clay inside besieged Tenochtitlan where murky reddish-brown brackish water slowly seeps up through the dirt. Solid, non-deforming wooden hulls and earthen pit geometry. Steady continuous twilight lighting with zero sudden flashes, with no people present and zero human figures, all background furniture, architectural fixtures, and tabletop props remain 100% gravity-locked and stationary, fixed subject count within each shot, exactly two shots joined by one clean hard cut near second 4, each shot one continuous take, with subtle ambient foley of creaking ship timber, snapping canvas sails, and slow hollow trickling of murky groundwater seeping into dirt. cinematic documentary realism, safe framing composition, 8k resolution, sharp focus, no modern objects, no CGI look, no text, no spoken voice, no human speech, no music. fix the name to Clip_45_generate_a_video_in_16_9",
         "narrationSegment": "Durante casi 80 días de sitio, trece bergantines bloquearon las canoas nocturnas. Los sitiados cavaron pozos, pero los Anales",
         "pauseNotes": "",
-        "imageReady": false,
-        "videoReady": false,
+        "imageReady": true,
+        "videoReady": true,
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": "Sincronizado con el tramo de voz narrativa."
+        "auditReason": "Sincronizado con el tramo de voz narrativa.",
+        "videoSavedFileName": "45_generate_a_video_in_16_9_628b0a32_4K.mp4",
+        "videoSavedAt": 1795710162286
       },
       {
         "id": "clip-46-1795649050154-46",
@@ -2082,12 +2087,14 @@
         "videoPrompt": "Clip 47: Generate a video in 16-9 horizontal aspect ratio across 8 seconds showing first shot, an eye-level wide establishing shot with a slow dolly-out reveal pulling back from the silent smoke-stained limestone ruins of Tenochtitlan beside still lake water on August 13, 1521, then a hard cut to a second shot, a low-angle medium shot with a slow pan moving across the 36-year-old sixteenth-century Castilian military commander in a scuffed steel breastplate standing atop a weathered stone fragments-strewn volcanic stone terrace in 1522, pointing toward the island center to order its reconstruction. Fixed subject count in shot two (no new people appearing out of nowhere, vanishing, or morphing). Solid, non-deforming stone ruins geometry, all background furniture, architectural fixtures, and tabletop props remain 100% gravity-locked and stationary while any held object moves smoothly under natural hand control, fixed subject count within each shot, exactly two shots joined by one clean hard cut near second 4, each shot one continuous take, with subtle ambient foley of eerie quiet wind drifting over weathered stone fragments, gentle water lapping empty hulls, and distant stone chisels tapping. cinematic documentary realism, safe framing composition, 8k resolution, sharp focus, no modern objects, no CGI look, no text, no spoken voice, no human speech, no music. fix the name to Clip_47_generate_a_video_in_16_9",
         "narrationSegment": "sed. El 13 de agosto de 1521, la ciudad cayó. Tras vencer, Cortés pudo mudarse a tierra firme, pero reconstruyó sobre la isla",
         "pauseNotes": "",
-        "imageReady": false,
-        "videoReady": false,
+        "imageReady": true,
+        "videoReady": true,
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": "Sincronizado con el tramo de voz narrativa."
+        "auditReason": "Sincronizado con el tramo de voz narrativa.",
+        "videoSavedFileName": "47_generate_a_video_in_16_9_47c9d29b_4K.mp4",
+        "videoSavedAt": 1795710162286
       },
       {
         "id": "clip-48-1795649050154-48",
