@@ -20959,8 +20959,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     </button>
                   </div>
                   <div className="grid grid-cols-3 gap-2">
-                    <div>
-                      <div className="flex items-center justify-between text-[10px] text-slate-300 font-semibold mb-0.5">
+                    <div className="min-w-0">
+                      <div className="flex flex-col items-start gap-0.5 text-[10px] text-slate-300 font-semibold mb-0.5 whitespace-nowrap">
                         <span>🔊 Vol:</span>
                         <div className="flex items-center gap-0.5">
                           <VolumeDbInput
@@ -20971,7 +20971,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                                 customVolumeSet: true,
                               })
                             }
-                            className="w-14 bg-slate-950 border border-emerald-500/40 rounded px-1 py-0.5 text-[10px] text-emerald-200 font-mono text-right"
+                            className="w-12 bg-slate-950 border border-emerald-500/40 rounded px-1 py-0.5 text-[10px] text-emerald-200 font-mono text-right"
                           />
                           <span>dB</span>
                         </div>
@@ -20987,8 +20987,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                         className="w-full accent-emerald-400 cursor-pointer mt-1"
                       />
                     </div>
-                    <div>
-                      <div className="flex items-center justify-between text-[10px] text-slate-300 font-semibold mb-0.5">
+                    <div className="min-w-0">
+                      <div className="flex flex-col items-start gap-0.5 text-[10px] text-slate-300 font-semibold mb-0.5 whitespace-nowrap">
                         <span>📈 In:</span>
                         <div className="flex items-center gap-0.5">
                           <input
@@ -21022,8 +21022,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                         className="w-full accent-emerald-400 cursor-pointer mt-1"
                       />
                     </div>
-                    <div>
-                      <div className="flex items-center justify-between text-[10px] text-slate-300 font-semibold mb-0.5">
+                    <div className="min-w-0">
+                      <div className="flex flex-col items-start gap-0.5 text-[10px] text-slate-300 font-semibold mb-0.5 whitespace-nowrap">
                         <span>📉 Out:</span>
                         <div className="flex items-center gap-0.5">
                           <input
@@ -21284,14 +21284,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     </div>
 
                     <div className="grid grid-cols-3 gap-2.5">
-                      <div>
-                        <div className="flex items-center justify-between text-[10px] text-purple-200 mb-0.5">
+                      <div className="min-w-0">
+                        <div className="flex flex-col items-start gap-0.5 text-[10px] text-purple-200 mb-0.5 whitespace-nowrap">
                           <span>🔊 Volumen:</span>
                           <div className="flex items-center gap-0.5">
                             <VolumeDbInput
                               pct={selectedMusicTrack.volume ?? masterMusicVolume}
                               onChangePct={(pct) => handleUpdateMusicTrack(selectedMusicTrack.id, { volume: pct })}
-                              className="w-14 bg-slate-900 border border-purple-500/40 rounded px-1 py-0.5 text-[10px] text-white font-mono text-right"
+                              className="w-12 bg-slate-900 border border-purple-500/40 rounded px-1 py-0.5 text-[10px] text-white font-mono text-right"
                             />
                             <span>dB</span>
                           </div>
@@ -21303,8 +21303,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                         />
                       </div>
 
-                      <div>
-                        <div className="flex items-center justify-between text-[10px] text-purple-200 mb-0.5">
+                      <div className="min-w-0">
+                        <div className="flex flex-col items-start gap-0.5 text-[10px] text-purple-200 mb-0.5 whitespace-nowrap">
                           <span>📈 Fade In:</span>
                           <div className="flex items-center gap-0.5">
                             <input
@@ -21341,8 +21341,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                         />
                       </div>
 
-                      <div>
-                        <div className="flex items-center justify-between text-[10px] text-purple-200 mb-0.5">
+                      <div className="min-w-0">
+                        <div className="flex flex-col items-start gap-0.5 text-[10px] text-purple-200 mb-0.5 whitespace-nowrap">
                           <span>📉 Fade Out:</span>
                           <div className="flex items-center gap-0.5">
                             <input
