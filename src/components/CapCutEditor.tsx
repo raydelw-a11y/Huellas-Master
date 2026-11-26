@@ -118,6 +118,7 @@ import {
   buildClipFoleyLevelSegments,
   musicSourceSecAtTimeline,
   introMusicGainAtTimeline,
+  INTRO_MUSIC_FADE_SEC,
   type ClipLoudness,
   type FoleyLevelSettings,
 } from '../utils/audioMix';
@@ -747,6 +748,15 @@ export interface TimelineCaptionItem {
 // Volumen por defecto de cada canción (porcentaje lineal guardado; -10 dB). Un volumen que el usuario fijó a mano
 // se respeta siempre.
 const DEFAULT_MUSIC_TRACK_VOLUME_PCT = DEFAULT_MUSIC_VOLUME_PCT;
+/**
+ * Default song fades: 5s in and 5s out, except the first song (no fade-in) and the last one (no fade-out),
+ * whose start and end already carry the fades made when the song was created (user request 2026-11-26).
+ */
+const DEFAULT_SONG_FADE_SEC = 5;
+const defaultSongFades = (trackIdx: number, trackCount: number) => ({
+  fadeInSec: trackIdx === 0 ? 0 : DEFAULT_SONG_FADE_SEC,
+  fadeOutSec: trackIdx >= trackCount - 1 ? 0 : DEFAULT_SONG_FADE_SEC,
+});
 
 // Canción 1 a 50% durante el Clip 1, con rampa suave hacia su volumen normal
 export const CLIP1_SONG_BOOST_PCT = 50;
@@ -4926,7 +4936,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               ...cur,
               volume: item.volume,
               userSetVolumeV10: true,
-              userSetFadesV5: true,
+              userSetFadesV6: true,
               fadeInSec: item.fadeInSec ?? 5,
               fadeOutSec: item.fadeOutSec ?? 5,
             };
@@ -8429,7 +8439,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         {
           volume?: number;
           userSetVolumeV10?: boolean;
-          userSetFadesV5?: boolean;
+          userSetFadesV6?: boolean;
           fadeInSec?: number;
           fadeOutSec?: number;
         }
@@ -8541,13 +8551,13 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           audioUrl: combinedSunoAudioMap[trackNum] || st.audioUrl,
           isLast90Sec: isLast,
           fadeInSec:
-            savedEdit.userSetFadesV5 && typeof savedEdit.fadeInSec === 'number'
+            savedEdit.userSetFadesV6 && typeof savedEdit.fadeInSec === 'number'
               ? savedEdit.fadeInSec
-              : 5,
+              : defaultSongFades(idx, sunoList.length).fadeInSec,
           fadeOutSec:
-            savedEdit.userSetFadesV5 && typeof savedEdit.fadeOutSec === 'number'
+            savedEdit.userSetFadesV6 && typeof savedEdit.fadeOutSec === 'number'
               ? savedEdit.fadeOutSec
-              : 5,
+              : defaultSongFades(idx, sunoList.length).fadeOutSec,
           videoTimeRange: st.videoTimeRange,
         };
       });
@@ -8568,22 +8578,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   !LEGACY_MUSIC_DEFAULT_PCTS.includes(prevMatch.volume)
                 ? prevMatch.volume
                 : DEFAULT_MUSIC_TRACK_VOLUME_PCT,
-            fadeInSec:
-              savedEdit.userSetFadesV5 && typeof savedEdit.fadeInSec === 'number'
-                ? savedEdit.fadeInSec
-                : prevMatch &&
-                  typeof prevMatch.fadeInSec === 'number' &&
-                  prevMatch.fadeInSec !== 2.5
-                ? prevMatch.fadeInSec
-                : 5,
-            fadeOutSec:
-              savedEdit.userSetFadesV5 && typeof savedEdit.fadeOutSec === 'number'
-                ? savedEdit.fadeOutSec
-                : prevMatch &&
-                  typeof prevMatch.fadeOutSec === 'number' &&
-                  prevMatch.fadeOutSec !== 3.0
-                ? prevMatch.fadeOutSec
-                : 5,
+            // Fades: the saved edit (userSetFadesV6) or the defaults already set on bm (defaultSongFades)
+            fadeInSec: bm.fadeInSec,
+            fadeOutSec: bm.fadeOutSec,
           };
         })
       );
@@ -21331,13 +21328,21 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                         onClick={() => {
                           handleUpdateMusicTrack(selectedMusicTrack.id, {
                             volume: DEFAULT_MUSIC_TRACK_VOLUME_PCT,
-                            fadeInSec: 5,
-                            fadeOutSec: 5,
+                            ...defaultSongFades(
+                              Math.max(0, musicTracks.findIndex((m) => m.id === selectedMusicTrack.id)),
+                              musicTracks.length
+                            ),
                           });
                         }}
                         className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 font-semibold text-[10px] cursor-pointer"
                       >
-                        🔄 Restaurar Canción ({formatVolumeDb(DEFAULT_MUSIC_TRACK_VOLUME_PCT)} • 5s / 5s)
+                        🔄 Restaurar Canción ({formatVolumeDb(DEFAULT_MUSIC_TRACK_VOLUME_PCT)} • {(() => {
+                          const d = defaultSongFades(
+                            Math.max(0, musicTracks.findIndex((m) => m.id === selectedMusicTrack.id)),
+                            musicTracks.length
+                          );
+                          return `${d.fadeInSec}s / ${d.fadeOutSec}s`;
+                        })()})
                       </button>
                     </div>
                   </div>
@@ -23984,6 +23989,48 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                                 className="pointer-events-none absolute inset-y-0 right-0 bg-purple-400/25 border-r-2 border-purple-300/60"
                               />
                             )}
+                            {/* Intro Opción B: the song is cut during the Intro (fade out → silence → fade in, utils/audioMix) */}
+                            {musicIntroWindow &&
+                              (() => {
+                                const songDur = Math.max(1, mt.duration);
+                                const cutA = Math.max(0, musicIntroWindow.startSec - mt.start);
+                                const cutB = Math.min(songDur, musicIntroWindow.endSec - mt.start);
+                                if (cutB - cutA <= 0.05) return null;
+                                const pct = (s: number) => `${(Math.max(0, Math.min(songDur, s)) / songDur) * 100}%`;
+                                const fadeOutA = Math.max(0, cutA - INTRO_MUSIC_FADE_SEC);
+                                const fadeInB = Math.min(songDur, cutB + INTRO_MUSIC_FADE_SEC);
+                                return (
+                                  <>
+                                    {cutA - fadeOutA > 0.05 && (
+                                      <div
+                                        style={{
+                                          left: pct(fadeOutA),
+                                          width: `${((cutA - fadeOutA) / songDur) * 100}%`,
+                                          clipPath: 'polygon(0 0, 100% 100%, 0 100%)',
+                                        }}
+                                        className="pointer-events-none absolute inset-y-0 bg-purple-400/25"
+                                      />
+                                    )}
+                                    <div
+                                      style={{ left: pct(cutA), width: `${((cutB - cutA) / songDur) * 100}%` }}
+                                      className="pointer-events-none absolute inset-y-0 z-20 bg-slate-950 border-x-2 border-dashed border-rose-400/80 flex items-center justify-center overflow-hidden"
+                                      title="Intro: la canción se corta aquí y sigue después desde el mismo punto"
+                                    >
+                                      <span className="text-[9px] font-bold text-rose-300 whitespace-nowrap px-0.5">🔇 Intro</span>
+                                    </div>
+                                    {fadeInB - cutB > 0.05 && (
+                                      <div
+                                        style={{
+                                          left: pct(cutB),
+                                          width: `${((fadeInB - cutB) / songDur) * 100}%`,
+                                          clipPath: 'polygon(0 100%, 100% 0, 100% 100%)',
+                                        }}
+                                        className="pointer-events-none absolute inset-y-0 bg-purple-400/25"
+                                      />
+                                    )}
+                                  </>
+                                );
+                              })()}
                             <Music className={`w-3 h-3 ${Boolean(mt.audioUrl) ? 'text-purple-300' : 'text-amber-400'} shrink-0 relative z-10`} />
                             <span className="truncate relative z-10 font-semibold">
                               #{mt.trackNumber} {mt.title}{' '}
