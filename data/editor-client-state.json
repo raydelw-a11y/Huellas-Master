@@ -48,7 +48,7 @@
     "_v10_9x16_captionBottom20": true,
     "_v11_profile_ratio_repair": true
   },
-  "updatedAt": "2026-11-26T21:10:53.061Z",
+  "updatedAt": "2026-11-26T21:14:09.460Z",
   "overlayStyles": {
     "logoScalePct": 5,
     "logoOpacity": 95,
@@ -82,7 +82,7 @@
     "hookLine2AnimInDur": 1,
     "hookLine2AnimOut": "fade",
     "hookLine2AnimOutDur": 1,
-    "clip1OverlayEndSec": 6,
+    "clip1OverlayEndSec": 8,
     "captionFontFamily": "'Cinzel', Georgia, 'Times New Roman', serif",
     "captionFontSize": 25,
     "captionFontSize16x9": 25,
