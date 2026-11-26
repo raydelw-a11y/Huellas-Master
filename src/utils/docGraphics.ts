@@ -26,6 +26,8 @@ export interface DateCardGraphic extends DocGraphicBase {
   /** Small gold line under it (e.g. "DARIÉN, PANAMÁ"). */
   line2?: string;
   position?: 'center' | 'lower_left';
+  /** Words of the narration it was created from: its time follows them (removed when set by hand). */
+  anchorSpoken?: string;
 }
 
 export interface QuoteCardGraphic extends DocGraphicBase {
@@ -37,6 +39,8 @@ export interface QuoteCardGraphic extends DocGraphicBase {
   /** Who wrote it and where: "Bartolomé de las Casas, Historia de las Indias, 1527". */
   source: string;
   side?: 'left' | 'right' | 'center';
+  /** Words of the narration it was created from: its time follows them (removed when set by hand). */
+  anchorSpoken?: string;
 }
 
 export interface RoutePoint {
@@ -56,6 +60,41 @@ export interface RouteMapGraphic extends DocGraphicBase {
   label?: string;
   /** Seconds the line takes to draw (default: from its length). */
   drawSec?: number;
+  /** Places of the journey (from the Stage 8 [Route: ...] tag) and the ROUTE_MAP clip it belongs to. */
+  places?: string[];
+  clipNumber?: number;
+  /** Created by itself: its times follow its map clip on the timeline (false once set by hand). */
+  anchorClip?: boolean;
+}
+
+/**
+ * What the editor already created on its own, so a graphic the user deleted does not come back:
+ * the narration text the dates were taken from, the quotes placed and the route clips handled.
+ */
+export interface DocGraphicsAutoState {
+  datesSig?: string;
+  quoteKeys?: string[];
+  routeClips?: number[];
+  /** Map clips whose route Gemini Web placed, as "clipNumber|video file" (a new video of the map is placed again). */
+  routeFiles?: string[];
+}
+
+/** Short fingerprint of a text (dates are searched again only when the narration text changes). */
+export function textSignature(text: string): string {
+  let h = 5381;
+  const t = String(text || '');
+  for (let i = 0; i < t.length; i++) h = ((h << 5) + h + t.charCodeAt(i)) | 0;
+  return `${t.length}:${(h >>> 0).toString(36)}`;
+}
+
+export function quoteKey(quote: string): string {
+  return String(quote || '')
+    .toLocaleLowerCase('es-ES')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9ñ]+/g, ' ')
+    .trim()
+    .slice(0, 80);
 }
 
 export type DocGraphic = DateCardGraphic | QuoteCardGraphic | RouteMapGraphic;
@@ -732,11 +771,24 @@ export function findQuoteInCaptions(
   quote: string,
   captions: TimedCaptionLike[]
 ): { startSec: number; endSec: number } | null {
-  const qWords = foldForMatch(quote);
-  if (qWords.length < 3) return null;
+  return findSpokenInCaptions(quote, captions, { probeWords: 5, minWords: 3 });
+}
+
+/**
+ * Where the narration says `phrase` (matched on its first `probeWords` words, accents and punctuation ignored).
+ * When it is said more than once, the occurrence nearest to `nearSec` wins (the first one without it).
+ */
+export function findSpokenInCaptions(
+  phrase: string,
+  captions: TimedCaptionLike[],
+  opts: { nearSec?: number; probeWords?: number; minWords?: number } = {}
+): { startSec: number; endSec: number } | null {
+  const qWords = foldForMatch(phrase);
+  if (qWords.length < (opts.minWords ?? 1)) return null;
   const { tokens } = buildTokenStream(captions);
   const tWords = tokens.map((t) => foldForMatch(t.word).join(''));
-  const probe = qWords.slice(0, Math.min(5, qWords.length));
+  const probe = qWords.slice(0, Math.min(opts.probeWords ?? 6, qWords.length));
+  let best: { startSec: number; endSec: number } | null = null;
   for (let i = 0; i + probe.length <= tWords.length; i++) {
     let ok = true;
     for (let j = 0; j < probe.length; j++) {
@@ -747,9 +799,30 @@ export function findQuoteInCaptions(
     }
     if (!ok) continue;
     const lastIdx = Math.min(tokens.length - 1, i + qWords.length - 1);
-    return { startSec: tokens[i].at, endSec: tokens[lastIdx].end };
+    const hit = { startSec: tokens[i].at, endSec: tokens[lastIdx].end };
+    if (!Number.isFinite(Number(opts.nearSec))) return hit;
+    if (!best || Math.abs(hit.startSec - Number(opts.nearSec)) < Math.abs(best.startSec - Number(opts.nearSec))) best = hit;
   }
-  return null;
+  return best;
+}
+
+/**
+ * Cards created from the narration keep the words they were taken from (`anchorSpoken`): their times are
+ * worked out again from the current subtitles, so they stay on the voice when subtitles are re-aligned.
+ */
+export function resolveSpokenAnchors(graphics: DocGraphic[], captions: TimedCaptionLike[]): DocGraphic[] {
+  if (!captions.length) return graphics;
+  return graphics.map((g) => {
+    if ((g.kind !== 'date_card' && g.kind !== 'quote_card') || !g.anchorSpoken) return g;
+    const hit = findSpokenInCaptions(g.anchorSpoken, captions, { nearSec: g.startSec });
+    if (!hit) return g;
+    if (g.kind === 'date_card') return { ...g, startSec: Number(Math.max(0, hit.startSec - 0.1).toFixed(2)) };
+    return {
+      ...g,
+      startSec: Number(Math.max(0, hit.startSec - 0.2).toFixed(2)),
+      durationSec: Number(Math.min(12, Math.max(5, hit.endSec - hit.startSec + 1.8)).toFixed(1)),
+    };
+  });
 }
 
 export interface ResearchScreenQuote {
@@ -800,7 +873,14 @@ export function sanitizeDocGraphics(raw: unknown): DocGraphic[] {
     if (!Number.isFinite(startSec) || !Number.isFinite(durationSec) || durationSec <= 0) continue;
     const base = { id: String(it.id || newDocGraphicId(it.kind)), startSec: Math.max(0, startSec), durationSec: clamp(durationSec, 0.5, 60) };
     if (it.kind === 'date_card' && String(it.line1 || '').trim()) {
-      out.push({ ...base, kind: 'date_card', line1: String(it.line1), line2: String(it.line2 || ''), position: it.position === 'lower_left' ? 'lower_left' : 'center' });
+      out.push({
+        ...base,
+        kind: 'date_card',
+        line1: String(it.line1),
+        line2: String(it.line2 || ''),
+        position: it.position === 'lower_left' ? 'lower_left' : 'center',
+        ...(it.anchorSpoken ? { anchorSpoken: String(it.anchorSpoken) } : {}),
+      });
     } else if (it.kind === 'quote_card' && String(it.quote || '').trim()) {
       out.push({
         ...base,
@@ -809,6 +889,7 @@ export function sanitizeDocGraphics(raw: unknown): DocGraphic[] {
         highlight: String(it.highlight || ''),
         source: String(it.source || ''),
         side: it.side === 'left' || it.side === 'center' ? it.side : 'right',
+        ...(it.anchorSpoken ? { anchorSpoken: String(it.anchorSpoken) } : {}),
       });
     } else if (it.kind === 'route_map' && Array.isArray(it.points)) {
       out.push({
@@ -821,6 +902,9 @@ export function sanitizeDocGraphics(raw: unknown): DocGraphic[] {
         icon: it.icon === 'arrow' || it.icon === 'dot' ? it.icon : 'ship',
         label: String(it.label || ''),
         ...(Number(it.drawSec) > 0 ? { drawSec: Number(it.drawSec) } : {}),
+        ...(Array.isArray(it.places) ? { places: it.places.map((p: any) => String(p || '')).filter(Boolean).slice(0, 4) } : {}),
+        ...(Number(it.clipNumber) > 0 ? { clipNumber: Number(it.clipNumber) } : {}),
+        ...(it.anchorClip === true ? { anchorClip: true } : {}),
       });
     }
   }

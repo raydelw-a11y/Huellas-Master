@@ -70,7 +70,21 @@ import {
 import { useNoticeStack } from '../utils/noticeStack';
 import DocGraphicsLayer from './DocGraphicsLayer';
 import DocGraphicsPanel from './DocGraphicsPanel';
-import { sanitizeDocGraphics, type DocGraphic, type TimedCaptionLike } from '../utils/docGraphics';
+import {
+  DOC_GRAPHIC_DEFAULT_DURATION,
+  detectDateCardSuggestions,
+  findQuoteInCaptions,
+  newDocGraphicId,
+  parseResearchScreenQuotes,
+  quoteKey,
+  resolveSpokenAnchors,
+  sanitizeDocGraphics,
+  textSignature,
+  type DocGraphic,
+  type DocGraphicsAutoState,
+  type RouteMapGraphic,
+  type TimedCaptionLike,
+} from '../utils/docGraphics';
 import {
   VOLUME_DB_FLOOR,
   VOLUME_DB_CEIL,
@@ -4941,12 +4955,25 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
   useEffect(() => {
     if (activeInspectorTab !== 'graphics' && routeCaptureId) setRouteCaptureId(null);
   }, [activeInspectorTab, routeCaptureId]);
-  const commitDocGraphics = (next: DocGraphic[]) => {
+  // Latest graphics and "already created by itself" state, for the automatic passes (async callbacks)
+  const docGraphicsRef = useRef<DocGraphic[]>(docGraphics);
+  docGraphicsRef.current = docGraphics;
+  const docGraphicsAutoRef = useRef<{ docId: string; state: DocGraphicsAutoState }>({
+    docId: activeDoc?.id || '',
+    state: { ...(activeDoc?.docGraphicsAuto || {}) },
+  });
+  if (docGraphicsAutoRef.current.docId !== (activeDoc?.id || '')) {
+    docGraphicsAutoRef.current = { docId: activeDoc?.id || '', state: { ...(activeDoc?.docGraphicsAuto || {}) } };
+  }
+  const commitDocGraphics = (next: DocGraphic[], autoState?: DocGraphicsAutoState) => {
     setDocGraphics(next);
+    docGraphicsRef.current = next;
+    if (autoState) docGraphicsAutoRef.current = { docId: activeDoc?.id || '', state: autoState };
+    const savedAuto = docGraphicsAutoRef.current.state;
     if (docGraphicsSaveTimerRef.current) clearTimeout(docGraphicsSaveTimerRef.current);
     docGraphicsSaveTimerRef.current = setTimeout(() => {
       docGraphicsSaveTimerRef.current = null;
-      updateActiveDoc({ docGraphics: next });
+      updateActiveDoc({ docGraphics: next, docGraphicsAuto: savedAuto });
     }, 350);
   };
   const [voiceAudioError, setVoiceAudioError] = useState<boolean>(false);
@@ -10641,6 +10668,159 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     return isIntroOrOutro && officialLogoUrl ? officialLogoUrl : '';
   };
 
+  // ---- Automatic documentary graphics ----
+  // Date cards from the narration and quote cards from the research ("CITAS PARA PANTALLA") are created by
+  // themselves; each date set / quote / route is handled once, so whatever the user deletes stays deleted.
+  // Locked (finished) documentaries are never touched.
+  const docGraphicsLocked = activeDoc?.promptConfig?.PRODUCTION_LOCKED === 'YES';
+  // Subtitles with the second each word is spoken (the automatic cards are found and kept on these)
+  const timedCaptionsForGraphics: TimedCaptionLike[] = useMemo(
+    () =>
+      captions
+        .filter((c) => String(c.text || '').trim())
+        .map((c) => ({ start: c.start, end: c.end, text: c.text, wordStarts: getCaptionWordStarts(c) })),
+    [captions]
+  );
+  const [docGraphicsAutoTick, setDocGraphicsAutoTick] = useState(0);
+  useEffect(() => {
+    // Wait until the subtitles have stopped changing (they are re-projected and re-aligned while the editor opens)
+    if (!isEditorActive || !activeDoc?.id || docGraphicsLocked || captions.length < 3) return;
+    const t = window.setTimeout(() => setDocGraphicsAutoTick((n) => n + 1), 5000);
+    return () => window.clearTimeout(t);
+  }, [isEditorActive, activeDoc?.id, docGraphicsLocked, captions, activeDoc?.deepResearchResult, voiceStartOffsetSec]);
+  useEffect(() => {
+    if (docGraphicsAutoTick === 0) return;
+    if (!isEditorActive || !activeDoc?.id || docGraphicsLocked) return;
+    if (docGraphicsSaveTimerRef.current) return;
+    const spoken = captions.filter((c) => String(c.text || '').trim());
+    if (spoken.length < 3) return;
+    const auto: DocGraphicsAutoState = { ...docGraphicsAutoRef.current.state };
+    const timed: TimedCaptionLike[] = spoken.map((c) => ({
+      start: c.start,
+      end: c.end,
+      text: c.text,
+      wordStarts: getCaptionWordStarts(c),
+    }));
+    let next = docGraphicsRef.current;
+    let added = 0;
+    const sig = `v2|${textSignature(spoken.map((c) => c.text).join(' '))}`;
+    if (auto.datesSig !== sig) {
+      // The opening sentence ("Año 1930, ...") is already on screen in the Clip 1 text: start after it
+      const found = detectDateCardSuggestions(timed, { skipBeforeSec: voiceStartOffsetSec + 20 });
+      const foldDate = (t: string) => String(t || '').toLocaleLowerCase('es-ES').replace(/\s+/g, ' ').trim();
+      // Cards made before they kept their words: the same date close by is taken over (anchored) instead of doubled
+      for (const f of found) {
+        const old = next.find(
+          (g) =>
+            g.kind === 'date_card' &&
+            !g.anchorSpoken &&
+            foldDate(g.line1) === foldDate(f.line1) &&
+            Math.abs(g.startSec - f.startSec) < 15
+        );
+        if (old) {
+          next = next.map((g) =>
+            g.id === old.id ? ({ ...g, startSec: f.startSec, anchorSpoken: f.spoken } as DocGraphic) : g
+          );
+          added += 1;
+        }
+      }
+      const fresh = found.filter(
+        (f) =>
+          !next.some(
+            (g) =>
+              g.kind === 'date_card' &&
+              (Math.abs(g.startSec - f.startSec) < 3 || (g.anchorSpoken === f.spoken && Math.abs(g.startSec - f.startSec) < 15))
+          )
+      );
+      if (fresh.length) {
+        next = [
+          ...next,
+          ...fresh.map(
+            (f): DocGraphic => ({
+              id: newDocGraphicId('date_card'),
+              kind: 'date_card',
+              startSec: f.startSec,
+              durationSec: DOC_GRAPHIC_DEFAULT_DURATION.date_card,
+              line1: f.line1,
+              line2: f.line2,
+              position: 'center',
+              anchorSpoken: f.spoken,
+            })
+          ),
+        ];
+        added += fresh.length;
+      }
+      auto.datesSig = sig;
+    }
+    const keys = new Set(auto.quoteKeys || []);
+    let quoteSide: 'right' | 'left' = next.filter((g) => g.kind === 'quote_card').length % 2 ? 'left' : 'right';
+    for (const q of parseResearchScreenQuotes(String(activeDoc.deepResearchResult || ''))) {
+      const k = quoteKey(q.quote);
+      if (!k || keys.has(k)) continue;
+      const hit = findQuoteInCaptions(q.quote, timed);
+      if (!hit) continue;
+      keys.add(k);
+      if (next.some((g) => g.kind === 'quote_card' && quoteKey(g.quote) === k)) continue;
+      const start = Math.max(0, hit.startSec - 0.2);
+      next = [
+        ...next,
+        {
+          id: newDocGraphicId('quote_card'),
+          kind: 'quote_card',
+          startSec: Number(start.toFixed(2)),
+          durationSec: Number(Math.min(12, Math.max(5, hit.endSec - hit.startSec + 1.8)).toFixed(1)),
+          quote: q.quote,
+          highlight: '',
+          source: q.source,
+          side: quoteSide,
+          anchorSpoken: q.quote,
+        },
+      ];
+      quoteSide = quoteSide === 'right' ? 'left' : 'right';
+      added += 1;
+    }
+    auto.quoteKeys = Array.from(keys);
+    const prev = docGraphicsAutoRef.current.state;
+    const stateChanged =
+      prev.datesSig !== auto.datesSig || JSON.stringify(prev.quoteKeys || []) !== JSON.stringify(auto.quoteKeys);
+    if (added > 0 || stateChanged) {
+      commitDocGraphics(next, auto);
+      if (added > 0) {
+        setStatusMessage(
+          `🗺️ Gráficos automáticos: ${added} tarjeta${added === 1 ? '' : 's'} de fecha o cita añadida${
+            added === 1 ? '' : 's'
+          } (pestaña Gráf.).`
+        );
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [docGraphicsAutoTick]);
+
+  // Routes created by themselves (Stage 8 ROUTE_MAP + Gemini Web, see App.tsx) are anchored to their map clip:
+  // they follow it wherever it sits on the timeline, until the user sets their times by hand.
+  const resolvedDocGraphics: DocGraphic[] = useMemo(
+    () =>
+      resolveSpokenAnchors(docGraphics, timedCaptionsForGraphics).map((g) => {
+        if (g.kind !== 'route_map' || !g.anchorClip || !g.clipNumber) return g;
+        const clip = clipsWithTimelineBounds.find((c) => c.clipNumber === g.clipNumber);
+        if (!clip) return g;
+        return {
+          ...g,
+          startSec: Number((clip.start + 0.3).toFixed(2)),
+          durationSec: Number(Math.max(3, clip.end - clip.start - 0.5).toFixed(2)),
+        };
+      }),
+    [docGraphics, clipsWithTimelineBounds, timedCaptionsForGraphics]
+  );
+  // "Ubicar con Gemini" in the panel: App.tsx sends the map frame to Gemini Web (free) and saves the points
+  const requestRouteLocate = (route: RouteMapGraphic) => {
+    if (!activeDoc?.id || !route.clipNumber) return;
+    window.dispatchEvent(
+      new CustomEvent('huellas-locate-route', { detail: { docId: activeDoc.id, clipNumber: route.clipNumber } })
+    );
+    setStatusMessage(`🗺️ Pidiendo a Gemini Web que ubique la ruta del clip ${route.clipNumber} en el mapa…`);
+  };
+
   const graphicsCaptions: TimedCaptionLike[] = useMemo(
     () =>
       activeInspectorTab === 'graphics'
@@ -15704,7 +15884,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   line2AnimOutDur: hookLine2AnimOutDur,
                 },
                 // Date cards, source quotes and routes (server/docGraphicsAss.ts)
-                docGraphics,
+                docGraphics: resolvedDocGraphics,
                 burnInCaptions,
                 ...(karaokeCaptions
                   ? {
@@ -18713,7 +18893,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               {docGraphics.length > 0 && (
                 <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 25 }}>
                   <DocGraphicsLayer
-                    graphics={docGraphics}
+                    graphics={resolvedDocGraphics}
                     t={currentTime}
                     aspect={aspectRatio === '9:16' ? '9:16' : '16:9'}
                     stageW={canonicalStageWidth}
@@ -19548,7 +19728,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           {/* TAB 5: DOCUMENTARY GRAPHICS (date cards, source quotes, routes) */}
           {activeInspectorTab === 'graphics' && (
             <DocGraphicsPanel
-              graphics={docGraphics}
+              graphics={resolvedDocGraphics}
               onChange={commitDocGraphics}
               currentTime={currentTime}
               onSeek={(t) => {
@@ -19563,6 +19743,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               onSelect={setSelectedGraphicId}
               routeCaptureId={routeCaptureId}
               onRouteCaptureChange={setRouteCaptureId}
+              onLocateRoute={requestRouteLocate}
             />
           )}
 

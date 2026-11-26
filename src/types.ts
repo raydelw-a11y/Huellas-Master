@@ -392,6 +392,8 @@ export interface DocumentaryProject {
   // Editor: date / place cards, source quote cards and routes over maps (src/utils/docGraphics.ts),
   // in timeline seconds. Burned into the export by server/docGraphicsAss.ts.
   docGraphics?: import('./utils/docGraphics').DocGraphic[];
+  // What the editor already created by itself (so deleted graphics are not created again)
+  docGraphicsAuto?: import('./utils/docGraphics').DocGraphicsAutoState;
 
   // Etapa 7: Prompts de Imágenes Iniciales y Clips
   operationalHeader: string;

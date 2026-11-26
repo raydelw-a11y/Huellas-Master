@@ -5260,6 +5260,65 @@ Return EXCLUSIVELY a valid JSON object with the "audits" array property:
 // ============================================================================
 // AI VISUAL VIDEO AUDITOR: VERIFY GOOGLE FLOW VIDEO FRAMES vs PROMPT & VOICEOVER
 // ============================================================================
+// Documentary graphics: one frame of the ROUTE_MAP support shot made in Flow. The page sends it to Gemini Web
+// (free, through the Chrome extension) so Gemini points at the places of the journey on the map.
+app.get('/api/editor/route-map-frame', async (req, res) => {
+  const tmpFrame = path.join(os.tmpdir(), `huellas_route_frame_${process.pid}_${Date.now()}.jpg`);
+  try {
+    const root = resolveLocalDocumentaryFolder(
+      String(req.query.folderPath || ''),
+      String(req.query.folderName || ''),
+      String(req.query.docTitle || '')
+    );
+    if (!root || !fs.existsSync(root)) {
+      res.status(404).json({ ok: false, error: 'No se encontró la carpeta del documental en este Mac.' });
+      return;
+    }
+    const dirs = [path.join(root, '05_Clips_Video'), root, path.join(root, 'Clips_Aprobados')];
+    const base = path.basename(String(req.query.fileName || ''));
+    let source = '';
+    for (const d of dirs) {
+      if (base && /\.(mp4|mov|webm)$/i.test(base) && fs.existsSync(path.join(d, base))) {
+        source = path.join(d, base);
+        break;
+      }
+    }
+    if (!source) {
+      const num = Number(req.query.clipNumber);
+      if (num > 0) {
+        const prefix = new RegExp(`^(?:(?:clip|video)[_\\-\\s.]*)?0*${num}[_\\-\\s.]`, 'i');
+        for (const d of dirs) {
+          if (!fs.existsSync(d)) continue;
+          const hit = fs.readdirSync(d).find((f) => prefix.test(f) && /\.(mp4|mov|webm)$/i.test(f) && !/broll/i.test(f));
+          if (hit) {
+            source = path.join(d, hit);
+            break;
+          }
+        }
+      }
+    }
+    if (!source) {
+      res.status(404).json({ ok: false, error: 'Todavía no está el video de ese clip en 05_Clips_Video.' });
+      return;
+    }
+    await new Promise<void>((resolve, reject) => {
+      execFile(
+        getFfmpegPath(),
+        ['-hide_banner', '-loglevel', 'error', '-y', '-ss', '0.4', '-i', source, '-frames:v', '1', '-vf', 'scale=1280:-2', '-q:v', '3', tmpFrame],
+        { timeout: 30000 },
+        (err) => (err ? reject(err) : resolve())
+      );
+    });
+    res.json({ ok: true, fileName: path.basename(source), dataUrl: `data:image/jpeg;base64,${fs.readFileSync(tmpFrame).toString('base64')}` });
+  } catch (err: any) {
+    res.status(500).json({ ok: false, error: err?.message || 'No se pudo extraer el fotograma del mapa.' });
+  } finally {
+    try {
+      fs.unlinkSync(tmpFrame);
+    } catch {}
+  }
+});
+
 app.post('/api/ai/audit-clip-video', async (req, res) => {
   try {
     const { documentary, clip, frames, attempt } = req.body;

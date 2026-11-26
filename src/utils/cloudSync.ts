@@ -1731,6 +1731,9 @@ function mergeTwoDocumentaryObjects(
   if (!Array.isArray(baseWinner.docGraphics) && Array.isArray(oNorm.docGraphics)) {
     baseWinner = { ...baseWinner, docGraphics: oNorm.docGraphics };
   }
+  if (!baseWinner.docGraphicsAuto && oNorm.docGraphicsAuto) {
+    baseWinner = { ...baseWinner, docGraphicsAuto: oNorm.docGraphicsAuto };
+  }
 
   // Preserve long text fields (Deep Research, scripts…) when the winner has them blank,
   // unless they were intentionally cleared ("Limpiar Etapa 1" tombstone) after the other copy was saved

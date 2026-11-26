@@ -37,7 +37,8 @@ import {
   X as CloseIcon,
 } from 'lucide-react';
 import PromptGenerator from './components/PromptGenerator';
-import { auditShotPlan } from './utils/shotCatalogue';
+import { auditShotPlan, extractRoutePlans } from './utils/shotCatalogue';
+import { newDocGraphicId, type DocGraphic, type RouteMapGraphic } from './utils/docGraphics';
 import { WebStudioDrawer } from './components/WebStudioDrawer';
 import {
   CapCutEditor,
@@ -226,7 +227,7 @@ import { stampBrandMarksOnThumbnail, HD_BADGE_EMPTY_CORNER_CLAUSE, LOGO_EMPTY_CO
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '07:46 PM - 11/25/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '08:12 PM - 11/25/2026';
 
 // PRODUCTION LOCK: while promptConfig.PRODUCTION_LOCKED === 'YES' these fields never change (the server
 // enforces the same list in protectLockedDocs). Metadata, thumbnails, review marks and reframes stay editable.
@@ -4879,6 +4880,210 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     })();
   };
 
+  // DOCUMENTARY GRAPHICS — ROUTES ON THE MAP (free, Gemini Web through the extension). Stage 8 asks for a plain
+  // ROUTE_MAP support shot with the journey in a [Route: A > B] tag (kept in promptConfig.ROUTE_MAP_PLAN).
+  // Once that clip is made in Flow and saved in the folder, one frame of it goes to Gemini Web in the standalone
+  // chat, Gemini points at each place, and the route is saved in the documentary anchored to its clip (the
+  // editor animates it). Each route is asked once; the Gráf. tab can ask again.
+  const ROUTE_LOCATE_STAGE = 965;
+  const routeLocateRef = useRef<{
+    inFlight: null | { docId: string; clipNumber: number; places: string[]; startedAt: number };
+    attempted: Record<string, number>;
+  }>({ inFlight: null, attempted: {} });
+  const [routeLocateTick, setRouteLocateTick] = useState(0);
+  const readRoutePlans = (doc: DocumentaryProject | null | undefined): Array<{ clipNumber: number; places: string[] }> => {
+    try {
+      const raw = JSON.parse(String(doc?.promptConfig?.ROUTE_MAP_PLAN || '[]'));
+      return Array.isArray(raw)
+        ? raw
+            .map((p: any) => ({
+              clipNumber: Number(p?.clipNumber),
+              places: (Array.isArray(p?.places) ? p.places : []).map((x: any) => String(x || '').trim()).filter(Boolean),
+            }))
+            .filter((p) => p.clipNumber > 0 && p.places.length >= 2)
+        : [];
+    } catch {
+      return [];
+    }
+  };
+  const sendRouteLocateOrder = async (doc: DocumentaryProject, plan: { clipNumber: number; places: string[] }) => {
+    const st = routeLocateRef.current;
+    st.inFlight = { docId: doc.id, clipNumber: plan.clipNumber, places: plan.places, startedAt: Date.now() };
+    try {
+      const clip = (doc.clips || []).find((c) => Number(c.clipNumber) === plan.clipNumber);
+      const origin = getMediaBridgeSnapshot().activeOrigin || getOrderedMediaBridgeBases()[0] || '';
+      const qs = new URLSearchParams({
+        folderPath: doc.downloadFolderPath || '',
+        folderName: doc.downloadFolderName || '',
+        docTitle: doc.title || '',
+        clipNumber: String(plan.clipNumber),
+        fileName: String(clip?.videoSavedFileName || ''),
+      });
+      const r = await fetch(`${origin}/api/editor/route-map-frame?${qs.toString()}`);
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok || !data?.dataUrl) throw new Error(data?.error || 'sin fotograma');
+      const prompt = [
+        `The attached image is one frame of an antique-style map made for a history documentary about "${doc.topic || doc.title || ''}"${doc.historicalTime ? ` (${doc.historicalTime})` : ''}. The map may be stylized and not geographically exact.`,
+        `Locate on this map, as precisely as you can, each place of this journey, in this order: ${plan.places.map((p, i) => `${i + 1}. ${p}`).join('; ')}.`,
+        'For each place give the point where it is (or most plausibly is) drawn, as coordinates from 0 to 1000 where x goes from the left edge to the right edge of the image and y from the top edge to the bottom edge. If a place is not drawn, estimate it from the coastlines, rivers and the other places, and write "found": false.',
+        'Also say whether the journey is mainly by sea or by land.',
+        'Answer ONLY with this JSON and nothing else: {"points":[{"place":"...","x":0,"y":0,"found":true}],"travel":"sea"}',
+      ].join('\n');
+      setFlowStatusLog(`🗺️ Gemini Web está ubicando en el mapa del clip ${plan.clipNumber} la ruta ${plan.places.join(' → ')}…`);
+      sendCommandToWebBridge('GEMINI', {
+        action: 'SEND_PROMPT',
+        docId: doc.id,
+        videoName: '',
+        deepResearchVideoName: '',
+        geminiChatUrl: '',
+        geminiDeepResearchChatUrl: '',
+        notebookName: '',
+        standaloneNewChat: true,
+        noNotebook: true,
+        prompt,
+        logoDataUrl: data.dataUrl,
+        stageNumber: ROUTE_LOCATE_STAGE,
+        taskType: 'ROUTE_LOCATE',
+        enableHighModel: false,
+        enableArgonLow: true,
+        enableCarbonLow: true,
+        preferredModel: 'NEON', // every Gemini order runs on Neon (user decision 2026-11-25)
+        thinkingLevel: 'LOW',
+        enableDeepResearch: false,
+        enableCreateImage: false,
+        autoSubmit: true,
+        focusTab: false,
+      });
+    } catch (e: any) {
+      st.inFlight = null;
+      setFlowStatusLog(`⚠️ No se pudo pedir la ruta del clip ${plan.clipNumber} a Gemini Web: ${e?.message || e}`);
+    }
+  };
+  useEffect(() => {
+    const doc = activeDoc;
+    if (!doc || isCloudMode || !extensionInstalled || aiGenerating || sunoAutoPilotActive) return;
+    if (doc.promptConfig?.PRODUCTION_LOCKED === 'YES') return;
+    const st = routeLocateRef.current;
+    if (st.inFlight) {
+      if (Date.now() - st.inFlight.startedAt < 5 * 60 * 1000) return;
+      st.inFlight = null;
+    }
+    // One side order to Gemini Web at a time
+    if (orphanIdentifyRef.current.inFlight) return;
+    // Placed already for the map video that is in the folder now (a new video of the map is placed again)
+    const doneFiles = new Set(doc.docGraphicsAuto?.routeFiles || []);
+    const fileOf = (n: number) =>
+      String((doc.clips || []).find((c) => Number(c.clipNumber) === n)?.videoSavedFileName || '').trim();
+    const plan = readRoutePlans(doc).find((p) => {
+      const file = fileOf(p.clipNumber);
+      if (!file) return false; // not made in Flow yet
+      return !doneFiles.has(`${p.clipNumber}|${file}`) && !st.attempted[`${doc.id}|${p.clipNumber}|${file}`];
+    });
+    if (!plan) return;
+    st.attempted[`${doc.id}|${plan.clipNumber}|${fileOf(plan.clipNumber)}`] = Date.now();
+    void sendRouteLocateOrder(doc, plan);
+  }, [activeDoc?.id, activeDoc?.promptConfig?.ROUTE_MAP_PLAN, activeDoc?.clips, activeDoc?.docGraphicsAuto, extensionInstalled, aiGenerating, sunoAutoPilotActive, isCloudMode, routeLocateTick]);
+  // "Ubicar con Gemini Web" in the editor's Gráf. tab
+  useEffect(() => {
+    const onAsk = (ev: Event) => {
+      const detail = (ev as CustomEvent).detail || {};
+      const doc = activeDocRef.current;
+      if (!doc || doc.id !== detail.docId) return;
+      const plan = readRoutePlans(doc).find((p) => p.clipNumber === Number(detail.clipNumber));
+      const route = (doc.docGraphics || []).find(
+        (g) => g.kind === 'route_map' && g.clipNumber === Number(detail.clipNumber)
+      ) as RouteMapGraphic | undefined;
+      const places = plan?.places || route?.places || [];
+      if (places.length < 2) return;
+      if (!extensionInstalled) {
+        setFlowStatusLog('⚠️ Para ubicar la ruta hace falta la extensión de Chrome con Gemini Web abierto.');
+        return;
+      }
+      if (routeLocateRef.current.inFlight) {
+        setFlowStatusLog('⏳ Gemini Web ya está ubicando otra ruta; espera a que termine.');
+        return;
+      }
+      void sendRouteLocateOrder(doc, { clipNumber: Number(detail.clipNumber), places });
+    };
+    window.addEventListener('huellas-locate-route', onAsk);
+    return () => window.removeEventListener('huellas-locate-route', onAsk);
+  }, [extensionInstalled]);
+  const handleRouteLocateResponseRef = useRef<(text: string, failed?: boolean) => void>(() => {});
+  handleRouteLocateResponseRef.current = (text: string, failed = false) => {
+    const job = routeLocateRef.current.inFlight;
+    routeLocateRef.current.inFlight = null;
+    setRouteLocateTick((t) => t + 1);
+    if (!job) return;
+    const doc = activeDocRef.current;
+    if (!doc || doc.id !== job.docId) return; // asked again the next time that documentary is open
+    let points: Array<{ xPct: number; yPct: number }> = [];
+    let travel: 'sea' | 'land' = 'sea';
+    if (!failed) {
+      try {
+        const m = String(text || '').match(/\{[\s\S]*\}/);
+        const parsed = m ? JSON.parse(m[0]) : null;
+        points = (Array.isArray(parsed?.points) ? parsed.points : [])
+          .map((p: any) => ({ x: Number(p?.x), y: Number(p?.y) }))
+          .filter((p: any) => Number.isFinite(p.x) && Number.isFinite(p.y))
+          .map((p: any) => ({
+            xPct: Math.max(0, Math.min(100, p.x / 10)),
+            yPct: Math.max(0, Math.min(100, p.y / 10)),
+          }));
+        if (parsed?.travel === 'land') travel = 'land';
+      } catch {
+        points = [];
+      }
+    }
+    const existing = (doc.docGraphics || []).find(
+      (g) => g.kind === 'route_map' && g.clipNumber === job.clipNumber
+    ) as RouteMapGraphic | undefined;
+    const ok = points.length >= 2;
+    let nextGraphics: DocGraphic[];
+    if (existing) {
+      nextGraphics = (doc.docGraphics || []).map((g) =>
+        g.id === existing.id && ok ? ({ ...existing, points, icon: travel === 'land' ? 'arrow' : 'ship' } as DocGraphic) : g
+      );
+    } else {
+      const route: RouteMapGraphic = {
+        id: newDocGraphicId('route_map'),
+        kind: 'route_map',
+        startSec: 0,
+        durationSec: 6,
+        aspect: doc.productionType === 'REEL_9X16' ? '9:16' : '16:9',
+        points: ok ? points : [],
+        icon: travel === 'land' ? 'arrow' : 'ship',
+        label: job.places[job.places.length - 1],
+        places: job.places,
+        clipNumber: job.clipNumber,
+        anchorClip: true,
+      };
+      nextGraphics = [...(doc.docGraphics || []), route];
+    }
+    const auto = doc.docGraphicsAuto || {};
+    const mapFile = String(
+      (doc.clips || []).find((c) => Number(c.clipNumber) === job.clipNumber)?.videoSavedFileName || ''
+    ).trim();
+    // Only a route that got its points counts as done; a failed one is asked again the next time
+    updateActiveDoc(
+      {
+        docGraphics: nextGraphics,
+        docGraphicsAuto: ok
+          ? {
+              ...auto,
+              routeClips: Array.from(new Set([...(auto.routeClips || []), job.clipNumber])),
+              routeFiles: Array.from(new Set([...(auto.routeFiles || []), `${job.clipNumber}|${mapFile}`])),
+            }
+          : auto,
+      },
+      { docId: job.docId }
+    );
+    setFlowStatusLog(
+      ok
+        ? `🗺️ Ruta del clip ${job.clipNumber} (${job.places.join(' → ')}) ubicada por Gemini Web. Revísala en el editor, pestaña Gráf.`
+        : `⚠️ Gemini Web no devolvió los puntos de la ruta del clip ${job.clipNumber}. Se volverá a intentar sola la próxima vez que abras el documental.`
+    );
+  };
+
   // Stage 6 panel: videos without clip number that could not be identified, and recent automatic assignments
   const renderOrphanClipsPanel = () => {
     const autoRecent = orphanClips.recent.filter((r) => r.method !== 'manual' && r.at > Date.now() - 60 * 60 * 1000);
@@ -6220,7 +6425,13 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         rawClipsText: rebuiltRaw,
         clips: syncedClips.length > 0 ? syncedClips : activeDoc.clips,
         confirmedFinalDuration: autoFinalDuration,
-        promptConfig: { ...(activeDoc.promptConfig || {}), SHOT_PLAN_AUDIT: shotPlanSummary },
+        promptConfig: {
+          ...(activeDoc.promptConfig || {}),
+          SHOT_PLAN_AUDIT: shotPlanSummary,
+          // Journeys the editor animates over the ROUTE_MAP support shots (the [Route: ...] tags are
+          // dropped from the stored prompts, so they are kept here)
+          ROUTE_MAP_PLAN: JSON.stringify(extractRoutePlans(text)),
+        },
       });
 
       // Only auto-chain Stage 80 (Flow Music) when Gemini genuinely completed the full clip list
@@ -13591,6 +13802,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         if (Number(msg.stageNumber) === 960 && msg.status === 'ERROR') {
           handleOrphanIdentifyResponseRef.current('', true);
         }
+        if (Number(msg.stageNumber) === 965 && msg.status === 'ERROR') {
+          handleRouteLocateResponseRef.current('', true);
+        }
         if ((msg.service === 'FLOW' || msg.service === 'SUNO') && msg.message) {
           setFlowStatusLog(msg.message);
         }
@@ -13649,6 +13863,10 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       } else if (msg.type === 'GEMINI_RESPONSE_READY' && Number(msg.stageNumber) === 975) {
         // Análisis de un video de Etapa 1 (varios a la vez): la extensión ya lo guardó en la biblioteca. Nunca es una etapa.
         setExtensionInstalled(true);
+      } else if (msg.type === 'GEMINI_RESPONSE_READY' && Number(msg.stageNumber) === 965) {
+        // Answer to a route-on-the-map order (documentary graphics): never a stage result
+        setExtensionInstalled(true);
+        handleRouteLocateResponseRef.current(String(msg.text || ''));
       } else if (msg.type === 'GEMINI_RESPONSE_READY' && Number(msg.stageNumber) === 960) {
         // Answer to a clip-identification order: never a stage result
         setExtensionInstalled(true);

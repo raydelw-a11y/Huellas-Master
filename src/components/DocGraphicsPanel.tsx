@@ -30,6 +30,8 @@ export interface DocGraphicsPanelProps {
   onSelect: (id: string | null) => void;
   routeCaptureId: string | null;
   onRouteCaptureChange: (id: string | null) => void;
+  /** Ask Gemini Web (free, through the extension) to place the route on its map clip. */
+  onLocateRoute?: (route: RouteMapGraphic) => void;
 }
 
 const fmt = (sec: number) => {
@@ -71,11 +73,16 @@ export default function DocGraphicsPanel(props: DocGraphicsPanelProps) {
     onSelect,
     routeCaptureId,
     onRouteCaptureChange,
+    onLocateRoute,
   } = props;
   const [notice, setNotice] = useState('');
   const sorted = useMemo(() => [...graphics].sort((a, b) => a.startSec - b.startSec), [graphics]);
   const selected = graphics.find((g) => g.id === selectedId) || null;
   const researchQuotes = useMemo(() => parseResearchScreenQuotes(researchText), [researchText]);
+
+  // A time set by hand frees the graphic from what it followed (its map clip or the words of the narration)
+  const unanchor = (g: DocGraphic): Partial<DocGraphic> =>
+    g.kind === 'route_map' ? { anchorClip: false } : ({ anchorSpoken: undefined } as Partial<DocGraphic>);
 
   const replace = (id: string, patch: Partial<DocGraphic>) =>
     onChange(graphics.map((g) => (g.id === id ? ({ ...g, ...patch } as DocGraphic) : g)));
@@ -161,8 +168,8 @@ export default function DocGraphicsPanel(props: DocGraphicsPanelProps) {
       <div className="bg-slate-950/90 border border-slate-800 rounded-xl p-3 flex flex-col gap-2">
         <div className="text-[11px] font-bold text-amber-300">🗺️ Gráficos del documental</div>
         <div className="text-[10px] text-slate-400 leading-snug">
-          Tarjetas de fecha y lugar que se escriben letra a letra, citas de fuentes con subrayado y rutas animadas sobre un
-          mapa. Se ven en el visor y se queman en el video exportado.
+          Se crean solas: las fechas que dice el narrador, las citas de la investigación que se narran y la ruta del mapa
+          de la Etapa 8 (en cuanto su clip llega de Flow). Lo que borres no vuelve. También puedes añadirlas a mano.
         </div>
         <div className="grid grid-cols-3 gap-1 whitespace-nowrap">
           <button type="button" className={btnCls} onClick={addDate} title="Tarjeta de fecha y lugar en el cursor">
@@ -273,7 +280,9 @@ export default function DocGraphicsPanel(props: DocGraphicsPanelProps) {
                 min={0}
                 className={inputCls}
                 value={Number(selected.startSec.toFixed(2))}
-                onChange={(e) => replace(selected.id, { startSec: Math.max(0, Number(e.target.value) || 0) })}
+                onChange={(e) =>
+                  replace(selected.id, { startSec: Math.max(0, Number(e.target.value) || 0), ...unanchor(selected) })
+                }
               />
             </label>
             <label className="flex flex-col gap-0.5 text-[10px] text-slate-400">
@@ -286,13 +295,20 @@ export default function DocGraphicsPanel(props: DocGraphicsPanelProps) {
                 className={inputCls}
                 value={Number(selected.durationSec.toFixed(2))}
                 onChange={(e) =>
-                  replace(selected.id, { durationSec: Math.max(1, Math.min(60, Number(e.target.value) || 1)) })
+                  replace(selected.id, {
+                    durationSec: Math.max(1, Math.min(60, Number(e.target.value) || 1)),
+                    ...unanchor(selected),
+                  })
                 }
               />
             </label>
           </div>
           <div className="flex gap-1">
-            <button type="button" className={btnCls} onClick={() => replace(selected.id, { startSec: at })}>
+            <button
+              type="button"
+              className={btnCls}
+              onClick={() => replace(selected.id, { startSec: at, ...unanchor(selected) })}
+            >
               ⏱ Empezar en el cursor ({fmt(at)})
             </button>
             <button type="button" className={btnCls} onClick={() => onSeek(selected.startSec)}>
@@ -393,6 +409,19 @@ export default function DocGraphicsPanel(props: DocGraphicsPanelProps) {
               {selected.aspect !== aspect && (
                 <div className="text-[10px] text-amber-400 leading-snug">
                   Esta ruta se marcó en formato {selected.aspect} y solo aparece en ese formato.
+                </div>
+              )}
+              {selected.places && selected.places.length >= 2 && (
+                <div className="flex flex-col gap-1 border border-slate-800 rounded-lg p-2">
+                  <div className="text-[10px] text-slate-300 leading-snug">
+                    Viaje de la Etapa 8 (clip {selected.clipNumber}): {selected.places.join(' → ')}
+                    {selected.anchorClip ? ' · sigue a su clip del mapa' : ''}
+                  </div>
+                  {onLocateRoute && (
+                    <button type="button" className={btnCls} onClick={() => onLocateRoute(selected)}>
+                      🔁 Volver a ubicar con Gemini Web (gratis)
+                    </button>
+                  )}
                 </div>
               )}
               <div className="text-[10px] text-slate-400 leading-snug">

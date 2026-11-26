@@ -23,7 +23,9 @@ const SUPPORT_SHOT_DESCRIPTIONS: Record<SupportShotType, string> = {
   INK_DRAWING: 'a black-and-white ink, charcoal or engraved drawing on paper',
   DOCUMENT: 'a period letter, decree, ledger or open book on a desk by candlelight',
   MUSEUM_OBJECT: 'one single period artifact (crown, seal, weapon, coin, tool) isolated on a dark background',
-  ROUTE_MAP: 'an antique map with a hand-inked route line drawn across it',
+  // The editor animates the route over this map (src/utils/docGraphics.ts), so the map itself carries no route
+  ROUTE_MAP:
+    'an antique map of the region of a journey with its departure and arrival both inside the frame, coastlines and rivers drawn, plain parchment with no route line, no markers and no lettering (the editor animates the route on top)',
   ARCHITECTURAL_SECTION: 'a hand-drawn cutaway section or construction plan of the building',
   PERIOD_ARTWORK: 'the scene told in an artwork of its own era (tapestry, stained glass, fresco or mosaic)',
   WALL_SHADOWS: 'silhouettes cast by firelight on a stone wall',
@@ -151,7 +153,7 @@ export function buildShotDirectionClause(opts: {
             : ''
         }. Never choose Clip 01, the slogan scene or the final scene. Types: ${SUPPORT_SHOT_TYPES.map(
           (t) => `${t} (${SUPPORT_SHOT_DESCRIPTIONS[t]})`
-        ).join('; ')}. A support shot is a normal Image NN + Clip NN pair with zero people. Its Clip NN is camera movement ONLY: write "a static, locked-off scene in which nothing inside the frame moves" plus ONE slow camera movement (slow dolly-in, slow pan, slow tilt or slow dolly-out), and use [Model: Veo 3.1 - Lite [Lower Priority]]. In BOTH its Image NN and its Clip NN write the tags "[Support: TYPE] [Era: YYYY]" immediately before "[Duration:" (for Image NN, immediately before "fix the name"), where YYYY is the approximate year narrated in that scene (negative for BC). Every map, drawing, document or artwork in a support shot must be of a medium that already existed in that year, with plain unlettered margins.`
+        ).join('; ')}. A support shot is a normal Image NN + Clip NN pair with zero people. Its Clip NN is camera movement ONLY: write "a static, locked-off scene in which nothing inside the frame moves" plus ONE slow camera movement (slow dolly-in, slow pan, slow tilt or slow dolly-out), and use [Model: Veo 3.1 - Lite [Lower Priority]]. In BOTH its Image NN and its Clip NN write the tags "[Support: TYPE] [Era: YYYY]" immediately before "[Duration:" (for Image NN, immediately before "fix the name"), where YYYY is the approximate year narrated in that scene (negative for BC). Every map, drawing, document or artwork in a support shot must be of a medium that already existed in that year, with plain unlettered margins. When the story narrates a journey (a voyage, a march, a migration, a trade route), one of the support shots MUST be the ROUTE_MAP of that journey, placed on the scene whose narration tells it. A ROUTE_MAP is the exception to the camera rule: its Clip NN is "a static locked-off tripod shot, the camera does not move at all and the map does not move", because the editor draws the moving route over the map; in its Image NN write the tag "[Route: Place > Place]" immediately before "[Support:", with 2 to 4 real place names of the journey in English, in the order of travel (departure first, arrival last), each one a place that is drawn inside the map.`
       : '';
 
   const archive = hasBroll
@@ -309,4 +311,27 @@ export function auditShotPlan(
     twoShotCount: twoShotNums.length,
     twoShotClips: twoShotNums,
   };
+}
+
+export interface RouteMapPlan {
+  clipNumber: number;
+  /** Places of the journey in order of travel, as Gemini wrote them in the [Route: ...] tag. */
+  places: string[];
+}
+
+/** ROUTE_MAP support shots with their [Route: A > B] tag, read from Gemini's raw Stage 8 answer. */
+export function extractRoutePlans(rawText: string): RouteMapPlan[] {
+  const out: RouteMapPlan[] = [];
+  for (const [num, txt] of extractShotPlanTextByScene(rawText || '')) {
+    if (!/\[Support:\s*ROUTE_MAP\s*\]/i.test(txt)) continue;
+    const m = txt.match(/\[Route:\s*([^\]]+)\]/i);
+    if (!m) continue;
+    const places = m[1]
+      .split(/\s*(?:>|→|->|–>|\|)\s*/)
+      .map((p) => p.replace(/[*_"]/g, '').trim())
+      .filter(Boolean)
+      .slice(0, 4);
+    if (places.length >= 2) out.push({ clipNumber: num, places });
+  }
+  return out.sort((a, b) => a.clipNumber - b.clipNumber);
 }
