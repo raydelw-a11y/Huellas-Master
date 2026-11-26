@@ -2325,7 +2325,9 @@
         "reframeFocusXEnd": 84,
         "reframeFocusY": 50,
         "reframeConfidence": 0.56,
-        "reframeReason": "Enfoque inteligente IA en tercio derecho (84%)"
+        "reframeReason": "Enfoque inteligente IA en tercio derecho (84%)",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-49-1795649050154-49",
