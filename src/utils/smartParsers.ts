@@ -5481,16 +5481,15 @@ export function balanceCaptionsFor16x9(text: string): string {
 }
 
 /**
- * "Original" caption mode: one complete sentence per caption. A sentence that fits in one line stays in one
- * line; a longer one is shown in two lines; only a sentence too long for two lines is split, at its commas
- * when it has them (user request 2026-11-26).
+ * "Original" caption mode: one line per caption, a complete sentence when it fits in the line. A longer
+ * sentence goes on in the following captions, one line each (user requests 2026-11-26).
  */
-export const SENTENCE_CAPTION_LINE_CHARS = 62;
+export const SENTENCE_CAPTION_LINE_CHARS = 54;
 
 /**
- * Characters that fit in ONE caption line of the "Original" mode. In 16:9 the line may take about 70% of the
- * frame width (62 characters at the default 25px size; a bigger font fits fewer, a smaller one more), so a
- * sentence that fits in one line is never broken in two. 9:16 keeps its narrow 46.
+ * Characters of ONE caption line of the "Original" mode. In 16:9 a line is about as long as "En los próximos
+ * minutos descubrirás cómo una metrópoli" (54 characters at the default 25px size; a bigger font fits fewer,
+ * a smaller one more), the length the user asked for on 2026-11-26. 9:16 keeps its narrow 46.
  */
 export function sentenceCaptionLineChars(aspectRatio: string, fontSize16x9?: number): number {
   if (aspectRatio === '9:16') return 46;
@@ -5532,71 +5531,42 @@ export function groupWordsIntoSentenceCaptions<W>(
     }
   }
 
-  // 2. Best place to break a list of words in two lines (null = it does not fit in two lines)
-  const twoLineSplit = (list: W[]): number | null => {
-    let best: number | null = null;
-    let bestScore = Infinity;
-    for (let i = 1; i < list.length; i++) {
-      const l1 = lenOf(list.slice(0, i));
-      const l2 = lenOf(list.slice(i));
-      if (l1 > maxLine || l2 > maxLine) continue;
-      let score = Math.abs(l1 - l2);
-      if (isClauseEnd(list[i - 1])) score -= maxLine * 0.3;
-      if (list.length >= 4 && (i === 1 || i === list.length - 1)) score += maxLine; // no lone word on a line
-      if (score < bestScore) {
-        bestScore = score;
-        best = i;
+  // 2. One line per caption, never two (user request 2026-11-26). A sentence longer than the line goes on in
+  //    the next caption, each line filled up to the limit. A word is never left alone for the next line just
+  //    because it did not fit: then it stays on this line. A comma close to the end of the line is preferred.
+  const splitInLines = (list: W[]): W[][] => {
+    const lines: W[][] = [];
+    let rest = list;
+    while (rest.length > 0) {
+      if (lenOf(rest) <= maxLine || rest.length <= 2) {
+        lines.push(rest);
+        break;
       }
-    }
-    return best;
-  };
-  const fits = (list: W[]) => lenOf(list) <= maxLine || twoLineSplit(list) !== null;
-
-  // 3. A sentence too long for two lines is cut into even parts, at a comma when one is near the cut
-  const splitLong = (list: W[]): W[][] => {
-    if (list.length <= 1 || fits(list)) return [list];
-    const total = lenOf(list);
-    const parts = Math.max(2, Math.ceil(total / (maxLine * 2)));
-    const target = total / parts;
-    // First try cuts that do not force an extra part later; a comma only attracts the cut when the part
-    // before it is not a tiny one
-    const pickCut = (keepPartCount: boolean): number => {
-      let best = -1;
-      let bestScore = Infinity;
-      for (let i = 1; i < list.length; i++) {
-        const head = list.slice(0, i);
-        if (!fits(head)) break;
-        const headLen = lenOf(head);
-        if (keepPartCount && total - headLen - 1 > (parts - 1) * maxLine * 2 * 0.95) continue;
-        let score = Math.abs(headLen - target);
-        if (isClauseEnd(list[i - 1]) && headLen >= target * 0.5) score -= maxLine * 0.6;
-        if (score < bestScore) {
-          bestScore = score;
-          best = i;
+      // Most words that fit in the line (at least one)
+      let take = 1;
+      while (take < rest.length && lenOf(rest.slice(0, take + 1)) <= maxLine) take++;
+      if (rest.length - take === 1) {
+        // Only one word would be left over: it stays on this line
+        lines.push(rest);
+        break;
+      }
+      // A comma in the last quarter of the line is a better place to cut than the very last word that fits
+      for (let i = take; i >= 2 && lenOf(rest.slice(0, i)) >= maxLine * 0.75; i--) {
+        if (isClauseEnd(rest[i - 1])) {
+          take = i;
+          break;
         }
       }
-      return best;
-    };
-    let best = pickCut(true);
-    if (best <= 0) best = pickCut(false);
-    if (best <= 0) best = 1; // a single word longer than a line
-    return [list.slice(0, best), ...splitLong(list.slice(best))];
+      lines.push(rest.slice(0, take));
+      rest = rest.slice(take);
+    }
+    return lines;
   };
 
   const out: Array<{ words: W[]; text: string }> = [];
   for (const sentence of sentences) {
-    for (const chunk of splitLong(sentence)) {
-      const plain = chunk.map(txt).join(' ');
-      const cut = plain.length > maxLine ? twoLineSplit(chunk) : null;
-      out.push({
-        words: chunk,
-        text:
-          cut === null
-            ? plain
-            : balanceCaptionsFor16x9(
-                `${chunk.slice(0, cut).map(txt).join(' ')}\n${chunk.slice(cut).map(txt).join(' ')}`
-              ),
-      });
+    for (const line of splitInLines(sentence)) {
+      out.push({ words: line, text: line.map(txt).join(' ') });
     }
   }
   return out;
