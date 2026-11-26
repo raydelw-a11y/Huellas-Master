@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-11-25T22:15:59.273Z",
-    "updatedAt": "2026-11-26T16:42:29.977Z",
+    "updatedAt": "2026-11-26T16:42:33.919Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -42,7 +42,7 @@
       "FIELD_CLEARED_AT_clip1OptionsRaw": "0",
       "FIELD_CLEARED_AT_clip1Line1LocationTime": "0",
       "FIELD_CLEARED_AT_clip1Line2Hook": "0",
-      "PROMPTS_RESTORED_AT": "1795711349977",
+      "PROMPTS_RESTORED_AT": "1795711353919",
       "FIELD_CLEARED_AT_rawClipsText": "0",
       "CAPTION_BOTTOM_PCT_16X9": 11,
       "CAPTION_SETTINGS_UPDATED_AT": "1795671143491",
@@ -1928,7 +1928,7 @@
         "pauseNotes": "",
         "imageReady": true,
         "videoReady": true,
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "auditStatus": "ok",
         "auditReason": "Sincronizado con el tramo de voz narrativa.",
@@ -1937,7 +1937,8 @@
         "videoDiscardOverriddenAt": 1795709901710,
         "videoAuditStatus": "approved",
         "videoAuditReason": "",
-        "videoAuditIssues": []
+        "videoAuditIssues": [],
+        "reviewedUpdatedAt": 1795711361779
       },
       {
         "id": "clip-40-1795649050153-40",
@@ -1951,7 +1952,7 @@
         "pauseNotes": "Contiene [pausa: 1.8s] en la locución",
         "imageReady": true,
         "videoReady": true,
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "auditStatus": "ok",
         "auditReason": "Sincronizado con el tramo de voz narrativa.",
@@ -1960,7 +1961,8 @@
         "videoDiscardOverriddenAt": 1795710041224,
         "videoAuditStatus": "approved",
         "videoAuditReason": "",
-        "videoAuditIssues": []
+        "videoAuditIssues": [],
+        "reviewedUpdatedAt": 1795711367501
       },
       {
         "id": "clip-41-1795649050153-41",
@@ -1974,7 +1976,7 @@
         "pauseNotes": "",
         "imageReady": true,
         "videoReady": true,
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "auditStatus": "ok",
         "auditReason": "Sincronizado con el tramo de voz narrativa.",
@@ -1983,7 +1985,8 @@
         "videoAuditStatus": "approved",
         "videoAuditReason": "",
         "videoAuditIssues": [],
-        "videoDiscardOverriddenAt": 1795710073443
+        "videoDiscardOverriddenAt": 1795710073443,
+        "reviewedUpdatedAt": 1795711370216
       },
       {
         "id": "clip-42-1795649050153-42",
@@ -1997,7 +2000,7 @@
         "pauseNotes": "",
         "imageReady": true,
         "videoReady": true,
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "auditStatus": "ok",
         "auditReason": "Sincronizado con el tramo de voz narrativa.",
@@ -2006,7 +2009,8 @@
         "videoDiscardOverriddenAt": 1795710041224,
         "videoAuditStatus": "approved",
         "videoAuditReason": "",
-        "videoAuditIssues": []
+        "videoAuditIssues": [],
+        "reviewedUpdatedAt": 1795711372702
       },
       {
         "id": "clip-43-1795649050153-43",
@@ -2020,7 +2024,7 @@
         "pauseNotes": "",
         "imageReady": true,
         "videoReady": true,
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "auditStatus": "ok",
         "auditReason": "Sincronizado con el tramo de voz narrativa.",
@@ -2029,7 +2033,8 @@
         "videoDiscardOverriddenAt": 1795710041224,
         "videoAuditStatus": "approved",
         "videoAuditReason": "",
-        "videoAuditIssues": []
+        "videoAuditIssues": [],
+        "reviewedUpdatedAt": 1795711375470
       },
       {
         "id": "clip-44-1795649050153-44",
@@ -2043,7 +2048,7 @@
         "pauseNotes": "Contiene [pausa: 1.8s] en la locución",
         "imageReady": true,
         "videoReady": true,
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "auditStatus": "ok",
         "auditReason": "🖼️ Escena B-Roll Solo Imagen (Zoom In) lista — movimiento 4K 60fps local en Editor.",
@@ -2054,7 +2059,8 @@
         "videoDiscardOverriddenAt": 1795710041644,
         "videoAuditStatus": "approved",
         "videoAuditReason": "",
-        "videoAuditIssues": []
+        "videoAuditIssues": [],
+        "reviewedUpdatedAt": 1795711377654
       },
       {
         "id": "clip-45-1795649050154-45",
