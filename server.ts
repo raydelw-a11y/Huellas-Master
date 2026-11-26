@@ -7581,7 +7581,7 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
             fs.existsSync(optFile) &&
             !optFile.includes('.foley_only_cache') &&
             !optFile.includes('_foley_') &&
-            (!optFile.includes('.optical_flow_cache') || optFile.includes('_of3'))
+            (!optFile.includes('.optical_flow_cache') || /_of[34]/.test(optFile))
           ) {
             sourceMp4 = optFile;
           }
@@ -20509,6 +20509,16 @@ Return EXCLUSIVELY a valid JSON object with this structure (write the extracted 
 // ============================================================================
 // CAPCUT-STYLE SMOOTH SLOW MOTION (OPTICAL FLOW / MINTERPOLATE) & CLIP TRIMMER
 // ============================================================================
+// Smooth slow-motion files are computed one at a time (the motion search at 4K takes minutes and every core) and
+// outlive the request that started them: the tunnel cuts any request at 100 s, so a request that is still waiting
+// after OPTICAL_FLOW_WAIT_PER_REQUEST_MS answers "pending" and the editor asks again.
+type OpticalFlowBakeJob = { startedAtMs: number; settled: boolean; error: string; promise: Promise<void> };
+const opticalFlowBakeJobs = new Map<string, OpticalFlowBakeJob>();
+let opticalFlowBakeQueue: Promise<void> = Promise.resolve();
+const OPTICAL_FLOW_WAIT_PER_REQUEST_MS = 70_000;
+const OPTICAL_FLOW_MAX_W = 3840;
+const OPTICAL_FLOW_MAX_H = 2160;
+
 app.post('/api/video/optical-flow', async (req, res) => {
   try {
     const {
@@ -20690,7 +20700,7 @@ app.post('/api/video/optical-flow', async (req, res) => {
       .basename(sourceMp4, path.extname(sourceMp4))
       .replace(/[^a-zA-Z0-9_-]/g, '_')
       .slice(0, 48);
-    const bakedKey = `t${safeTrimStart.toFixed(2)}_${safeTrimEnd.toFixed(2)}_d${effectiveTargetDur.toFixed(2)}_of${useOpticalFlow ? 3 : 0}`;
+    const bakedKey = `t${safeTrimStart.toFixed(2)}_${safeTrimEnd.toFixed(2)}_d${effectiveTargetDur.toFixed(2)}_of${useOpticalFlow ? 4 : 0}`;
     const outFileName = `${baseKey}_${bakedKey}.mp4`;
     const outFullPath = path.join(cacheDir, outFileName);
 
@@ -20717,10 +20727,29 @@ app.post('/api/video/optical-flow', async (req, res) => {
     // Stretch slightly past effectiveTargetDur (+0.12s) and trim at exact effectiveTargetDur so video frames never end before audio
     // Always preserve native 16:9 widescreen frame in Optical Flow cache so 9:16 Auto-Reframe & dynamic pan work edge-to-edge without black bars
     const ptsFactor = ((effectiveTargetDur + 0.12) / realSpan).toFixed(5);
-    const outW = 1920;
-    const outH = 1080;
-    const motionEstW = 854;
-    const motionEstH = 480;
+    // The file keeps the clip's own frame size (4K clips stay 4K; anything larger is brought down to 4K) and the
+    // motion is searched at that same size. It used to be searched at 854x480 and enlarged to 1080p, which lost
+    // most of the detail of a 4K clip.
+    const srcSize = await new Promise<{ w: number; h: number }>((resolve) => {
+      exec(
+        `ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0:s=x "${sourceMp4.replace(/"/g, '\\"')}"`,
+        { timeout: 4000 },
+        (err, stdout) => {
+          const m = String(stdout || '').trim().match(/^(\d+)x(\d+)/);
+          resolve(!err && m ? { w: Number(m[1]), h: Number(m[2]) } : { w: 0, h: 0 });
+        }
+      );
+    });
+    const hasSrcSize = srcSize.w >= 64 && srcSize.h >= 64;
+    const fitScale = hasSrcSize
+      ? Math.min(1, OPTICAL_FLOW_MAX_W / srcSize.w, OPTICAL_FLOW_MAX_H / srcSize.h)
+      : 1;
+    const outW = hasSrcSize ? 2 * Math.round((srcSize.w * fitScale) / 2) : 1920;
+    const outH = hasSrcSize ? 2 * Math.round((srcSize.h * fitScale) / 2) : 1080;
+    const needsFitScale = !hasSrcSize || outW !== srcSize.w || outH !== srcSize.h;
+    // Search radius in pixels grows with the frame: the same camera move covers 4x the pixels at 4K as at 1080p
+    const motionSearchPx = Math.max(8, Math.min(32, Math.round(outW / 120)));
+    const outputLabel = outW >= 3000 ? '4K' : `${outH}p`;
 
     const inputTrimArgs: string[] = [];
     if (safeTrimStart > 0.01) {
@@ -20730,20 +20759,23 @@ app.post('/api/video/optical-flow', async (req, res) => {
       inputTrimArgs.push('-to', safeTrimEnd.toFixed(3));
     }
 
-    const afFilter = await buildSmartNaturalFoleyFilter({
-      ffmpegBin,
-      sourceMp4,
-      trimStartSec: safeTrimStart,
-      sourceSpanSec: realSpan,
-      targetDurSec: effectiveTargetDur,
-      rawSpeed: safeSpeed,
-      foleyVol: 1.0,
-      isIntroOrOutro: false,
-    });
+    // Built when the file is actually computed (it analyses the clip's sound), not on every "is it ready?" request
+    let afFilter = '';
+    const buildAfFilter = () =>
+      buildSmartNaturalFoleyFilter({
+        ffmpegBin,
+        sourceMp4,
+        trimStartSec: safeTrimStart,
+        sourceSpanSec: realSpan,
+        targetDurSec: effectiveTargetDur,
+        rawSpeed: safeSpeed,
+        foleyVol: 1.0,
+        isIntroOrOutro: false,
+      });
 
     // Optical Flow MCI filter chain (CapCut Smooth Slow Motion equivalent) — uses PTS-STARTPTS + trim=duration so trimmed clips stretch across 100% of targetDuration
     const vfMci = useOpticalFlow
-      ? `scale=${motionEstW}:${motionEstH}:force_original_aspect_ratio=decrease,pad=${motionEstW}:${motionEstH}:(ow-iw)/2:(oh-ih)/2,setpts=${ptsFactor}*(PTS-STARTPTS),minterpolate=fps=30:mi_mode=mci:mc_mode=obmc:me_mode=bilat:me=ds:mb_size=16:search_param=8:scd=none,trim=duration=${effectiveTargetDur.toFixed(3)},scale=${outW}:${outH}:flags=bicubic,unsharp=3:3:0.55:3:3:0.0,format=yuv420p`
+      ? `${needsFitScale ? `scale=${outW}:${outH}:force_original_aspect_ratio=decrease:flags=lanczos,pad=${outW}:${outH}:(ow-iw)/2:(oh-ih)/2,` : ''}setpts=${ptsFactor}*(PTS-STARTPTS),minterpolate=fps=30:mi_mode=mci:mc_mode=obmc:me_mode=bilat:me=ds:mb_size=16:search_param=${motionSearchPx}:scd=none,trim=duration=${effectiveTargetDur.toFixed(3)},format=yuv420p`
       : `setpts=${ptsFactor}*(PTS-STARTPTS),trim=duration=${effectiveTargetDur.toFixed(3)},scale=${outW}:${outH}:force_original_aspect_ratio=decrease,pad=${outW}:${outH}:(ow-iw)/2:(oh-ih)/2:black,fps=30,format=yuv420p`;
 
     const vfBlendFallback = useOpticalFlow
@@ -20772,7 +20804,7 @@ app.post('/api/video/optical-flow', async (req, res) => {
           '-c:v',
           'h264_videotoolbox',
           '-b:v',
-          '16M',
+          outW >= 3000 ? '45M' : outW >= 2200 ? '28M' : '16M',
           '-pix_fmt',
           'yuv420p',
           '-movflags',
@@ -20796,26 +20828,79 @@ app.post('/api/video/optical-flow', async (req, res) => {
         });
       });
 
-    try {
+    const runBake = async () => {
       try {
-        await runEncode(vfMci, true);
-      } catch {
+        afFilter = await buildAfFilter();
         try {
-          await runEncode(vfMci, false);
+          await runEncode(vfMci, true);
         } catch {
           try {
-            await runEncode(vfBlendFallback, true);
+            await runEncode(vfMci, false);
           } catch {
-            await runEncode(vfBlendFallback, false);
+            try {
+              await runEncode(vfBlendFallback, true);
+            } catch {
+              await runEncode(vfBlendFallback, false);
+            }
           }
         }
-      }
 
-      fs.renameSync(tmpOutPath, outFullPath);
-    } finally {
-      try {
-        if (fs.existsSync(tmpOutPath)) fs.unlinkSync(tmpOutPath);
-      } catch {}
+        fs.renameSync(tmpOutPath, outFullPath);
+      } finally {
+        try {
+          if (fs.existsSync(tmpOutPath)) fs.unlinkSync(tmpOutPath);
+        } catch {}
+      }
+    };
+
+    let bakeJob = opticalFlowBakeJobs.get(outFullPath);
+    if (!bakeJob) {
+      const queued = opticalFlowBakeQueue.then(runBake);
+      opticalFlowBakeQueue = queued.catch(() => {});
+      const newJob: OpticalFlowBakeJob = {
+        startedAtMs: Date.now(),
+        settled: false,
+        error: '',
+        promise: queued.then(
+          () => {
+            newJob.settled = true;
+          },
+          (bakeErr: any) => {
+            newJob.settled = true;
+            newJob.error = bakeErr?.message || 'ffmpeg no pudo generar el Smooth Slow Motion.';
+          }
+        ),
+      };
+      // Dropped from the map once settled: a finished file is found on disk, a failed one can be asked for again
+      newJob.promise.then(() => {
+        if (opticalFlowBakeJobs.get(outFullPath) === newJob) opticalFlowBakeJobs.delete(outFullPath);
+      });
+      opticalFlowBakeJobs.set(outFullPath, newJob);
+      bakeJob = newJob;
+    }
+    const waitedJob = bakeJob;
+    await Promise.race([
+      waitedJob.promise,
+      new Promise<void>((resolve) => setTimeout(resolve, OPTICAL_FLOW_WAIT_PER_REQUEST_MS)),
+    ]);
+    if (!waitedJob.settled) {
+      const queuedAhead = [...opticalFlowBakeJobs.values()].filter(
+        (j) => !j.settled && j.startedAtMs < waitedJob.startedAtMs
+      ).length;
+      res.json({
+        ok: true,
+        pending: true,
+        clipId,
+        clipNumber,
+        bakedKey,
+        outputLabel,
+        queuedAhead,
+        elapsedSec: Math.round((Date.now() - waitedJob.startedAtMs) / 1000),
+      });
+      return;
+    }
+    if (waitedJob.error || !fs.existsSync(outFullPath)) {
+      throw new Error(waitedJob.error || 'No se generó el archivo de Smooth Slow Motion.');
     }
 
     const st = fs.statSync(outFullPath);

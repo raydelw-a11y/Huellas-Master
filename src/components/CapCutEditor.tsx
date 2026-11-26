@@ -10588,7 +10588,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     if (!clip?.videoUrl) return '';
     if (
       clip.opticalFlowUrl &&
-      (clip.opticalFlowUrl.includes('_of3') || clip.opticalFlowUrl.includes('_of2')) &&
+      /_of[234]/.test(clip.opticalFlowUrl) &&
       clip.smoothSlowMo !== false &&
       Number(clip.speed ?? 1) < 0.99
     ) {
@@ -11836,7 +11836,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     // If playing a pre-baked Optical Flow MP4 (_of2 / _of3), pace it across slotDur so it never freezes before the clip ends
     const usingOpticalFlowVideo = Boolean(
       clip.opticalFlowUrl &&
-        (clip.opticalFlowUrl.includes('_of3') || clip.opticalFlowUrl.includes('_of2')) &&
+        /_of[234]/.test(clip.opticalFlowUrl) &&
         clip.smoothSlowMo !== false &&
         clip.speed < 0.99
     );
@@ -11868,10 +11868,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         : safeVidStreamEnd;
     const playableMediaDur = Math.max(0.2, trimEnd - trimStart);
 
-    // Keep effectiveRate at exact 1.0x for untrimmed clips whose duration matches slotDur within 0.30s (avoids unnecessary WSOLA audio time-stretching)
+    // Keep effectiveRate at exact 1.0x for untrimmed clips whose duration matches slotDur within 0.30s (avoids unnecessary WSOLA audio time-stretching).
+    // Only when the picture is at least as long as the slot: a clip even a few hundredths shorter (7.83s Flow clip in a 7.98s
+    // slot) ran out of frames at 1.0x and held its last frame until the cut. Those are stretched to fill the slot, like the exporter does.
+    const pictureEndsBeforeSlot = hasKnownVidDur && playableMediaDur < slotDur - 0.02;
     const isTrimmedOrSpeedAdjusted =
       trimStart > 0.04 ||
       Math.abs((clip.speed || 1) - 1) > 0.02 ||
+      pictureEndsBeforeSlot ||
       Math.abs(playableMediaDur - slotDur) > 0.3;
 
     let effectiveRate = !isTrimmedOrSpeedAdjusted
@@ -14561,7 +14565,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         : Number(clip.sourceDuration || 8);
     const expectedKey = `t${safeTrimStart.toFixed(2)}_${safeTrimEnd.toFixed(2)}_d${Number(
       clip.duration || 8
-    ).toFixed(2)}_of3`;
+    ).toFixed(2)}_of4`;
 
     if (clip.opticalFlowUrl && clip.opticalFlowBakedKey === expectedKey) {
       if (!silent) {
@@ -14589,26 +14593,49 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       const dTitle = (activeDoc?.title || '').trim();
       const base = getEditorPrimaryServerOrigin();
 
-      const resp = await fetch(`${base}/api/video/optical-flow`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          folderPath: fPath,
-          folderName: fName,
-          docTitle: dTitle,
-          clipId: clip.id,
-          clipNumber: clip.clipNumber,
-          fileName: clip.fileName,
-          videoUrl: clip.videoUrl || '',
-          aspectRatio,
-          trimStart: safeTrimStart,
-          trimEnd: safeTrimEnd,
-          speed: clip.speed,
-          targetDuration: clip.duration,
-          smoothSlowMo: true,
-        }),
+      const requestBody = JSON.stringify({
+        folderPath: fPath,
+        folderName: fName,
+        docTitle: dTitle,
+        clipId: clip.id,
+        clipNumber: clip.clipNumber,
+        fileName: clip.fileName,
+        videoUrl: clip.videoUrl || '',
+        aspectRatio,
+        trimStart: safeTrimStart,
+        trimEnd: safeTrimEnd,
+        speed: clip.speed,
+        targetDuration: clip.duration,
+        smoothSlowMo: true,
       });
-      const data = await resp.json();
+      // The motion is computed at the clip's own resolution (4K), which takes minutes per clip. The server answers
+      // "pending" before the tunnel's 100 s limit and keeps working; the same request is repeated until the file is ready.
+      const bakeStartedMs = Date.now();
+      let resp: Response;
+      let data: any;
+      for (;;) {
+        resp = await fetch(`${base}/api/video/optical-flow`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: requestBody,
+        });
+        data = await resp.json();
+        if (!(resp.ok && data?.ok && data.pending)) break;
+        if (Date.now() - bakeStartedMs > 90 * 60 * 1000) {
+          data = { ok: false, error: 'El cálculo a 4K sigue en marcha en el Mac; vuelve a intentarlo más tarde.' };
+          break;
+        }
+        if (!silent) {
+          const minutes = Math.max(1, Math.round((Number(data.elapsedSec) || 0) / 60));
+          setStatusMessage(
+            `🌊 Calculando Smooth Slow Motion a ${data.outputLabel || '4K'} para Clip ${String(clip.clipNumber).padStart(
+              2,
+              '0'
+            )}: lleva ${minutes} min${Number(data.queuedAhead) > 0 ? ` (${data.queuedAhead} en cola delante)` : ''}. Puede tardar unos 10 min por clip.`
+          );
+        }
+        await new Promise((resolve) => setTimeout(resolve, 4000));
+      }
       if (resp.ok && data?.ok && data.opticalFlowUrl) {
         const finalUrl =
           data.opticalFlowUrl.startsWith('/') && base
@@ -14617,7 +14644,12 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         commitTimelineClipsUpdate(
           (prev) =>
             prev.map((c) =>
-              c.id === clip.id
+              // The 4K file takes minutes: if the clip's speed, length or trim changed meanwhile, this file no
+              // longer fits it (the new values start their own calculation)
+              c.id === clip.id &&
+              Math.abs(Number(c.duration || 0) - Number(clip.duration || 0)) < 0.011 &&
+              Math.abs(Number(c.trimStart || 0) - Number(clip.trimStart || 0)) < 0.011 &&
+              Math.abs(Number(c.speed || 1) - Number(clip.speed || 1)) < 0.011
                 ? {
                     ...c,
                     opticalFlowUrl: finalUrl,
@@ -14660,7 +14692,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     }
   };
 
-  // Automatically upgrade any existing slow-mo clip whose Optical Flow cache was generated with an older key (_of1 / _of2) so it uses _of3 non-dragging natural foley
+  // Automatically upgrade any existing slow-mo clip whose Optical Flow cache was generated with an older key (_of1 / _of2 / _of3) so it uses _of4: motion computed at the clip's own resolution (4K), not 480p enlarged to 1080p
   useEffect(() => {
     const staleClip = timelineClips.find(
       (c) =>
@@ -14669,7 +14701,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         c.speed < 0.99 &&
         c.smoothSlowMo !== false &&
         !opticalFlowProcessingByClipId[c.id] &&
-        (!c.opticalFlowUrl || !String(c.opticalFlowBakedKey || '').endsWith('_of3'))
+        (!c.opticalFlowUrl || !String(c.opticalFlowBakedKey || '').endsWith('_of4'))
     );
     if (staleClip) {
       triggerOpticalFlowForClip(staleClip, true);
