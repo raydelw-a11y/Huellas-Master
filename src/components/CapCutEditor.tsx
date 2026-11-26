@@ -484,6 +484,27 @@ function buildOfficialIntroOutroUrls(version?: number) {
 
 export const FRAME_ZOOM_MIN_PCT = 50;
 const FRAME_ZOOM_MAX_PCT = 300;
+// Default logo / caption values each format goes back to once (migration _v11_profile_ratio_repair)
+const PROFILE_RATIO_REPAIR = {
+  '16:9': {
+    logoScalePct: 5,
+    logoOpacity: 95,
+    logoPosX: 3,
+    logoPosY: 3,
+    captionLineMode: 'original' as const,
+    captionWordsPerLine: 0,
+    captionBottomPct: 10,
+    captionMaxChars: 32,
+  },
+  '9:16': {
+    logoScalePct: 12,
+    logoPosX: 10,
+    logoPosY: 3,
+    captionLineMode: 'subdivide' as const,
+    captionBottomPct: 20,
+    captionMaxChars: 16,
+  },
+};
 
 /** Clip size inside the frame for the given format, percent (100 = normal). */
 function getClipFrameZoomPct(
@@ -1991,6 +2012,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         if (!parsed._v10_9x16_captionBottom20 && parsed?.['9:16']) {
           parsed['9:16'] = { ...parsed['9:16'], captionBottomPct: 20 };
         }
+        // Repair (11/26/2026): opening a 16:9 documentary after a 9:16 one mixed both profiles
+        if (!parsed._v11_profile_ratio_repair) {
+          parsed['16:9'] = { ...(parsed['16:9'] || {}), ...PROFILE_RATIO_REPAIR['16:9'] };
+          parsed['9:16'] = { ...(parsed['9:16'] || {}), ...PROFILE_RATIO_REPAIR['9:16'] };
+        }
         return parsed?.[aspectRatio] || null;
       }
     } catch {}
@@ -3391,6 +3417,10 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         if (!parsed._v10_9x16_captionBottom20) {
           saved9x16.captionBottomPct = 20;
         }
+        if (!parsed._v11_profile_ratio_repair) {
+          Object.assign(saved16x9, PROFILE_RATIO_REPAIR['16:9']);
+          Object.assign(saved9x16, PROFILE_RATIO_REPAIR['9:16']);
+        }
         return {
           '16:9': { ...default16x9, ...saved16x9 },
           '9:16': { ...default9x16, ...saved9x16 },
@@ -3460,6 +3490,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           _v8_9x16_captions16_bottom25: true,
           _v9_9x16_logo_x10_y3: true,
           _v10_9x16_captionBottom20: true,
+          _v11_profile_ratio_repair: true,
         })
       );
       const serverOrigin = getEditorPrimaryServerOrigin();
@@ -4115,6 +4146,59 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     handleUpdateClipFrameTransform(drag.clipId, drag.last, true);
   };
 
+  // Loads the logo / hook / caption values of `ratio` (the documentary's own caption keys win).
+  // Used when switching format AND when opening another documentary: without it, opening a 16:9
+  // documentary after a 9:16 one kept the 9:16 logo and captions and saved them into the 16:9 profile.
+  const applyFormatOverlayProfile = (ratio: EditorAspectRatio, doc: typeof activeDoc) => {
+    const targetProfile = formatProfilesRef.current[ratio];
+    const cfg: any = doc?.promptConfig || {};
+    if (targetProfile) {
+      setLogoScalePct(targetProfile.logoScalePct);
+      if (typeof targetProfile.logoOpacity === 'number') {
+        setLogoOpacity(targetProfile.logoOpacity);
+      }
+      setLogoPosX(targetProfile.logoPosX);
+      setLogoPosY(targetProfile.logoPosY);
+      setHookLine1FontSize(targetProfile.hookLine1FontSize);
+      setHookLine2FontSize(targetProfile.hookLine2FontSize);
+      setHookLeftPct(targetProfile.hookLeftPct);
+      setHookTopPct(targetProfile.hookTopPct);
+      setHookBoxWidthPct(targetProfile.hookBoxWidthPct);
+    }
+    const isMode = (m: any): m is 'subdivide' | 'wrap' | 'original' =>
+      m === 'subdivide' || m === 'wrap' || m === 'original';
+    const docBottom = Number(ratio === '9:16' ? cfg.CAPTION_BOTTOM_PCT_9X16 : cfg.CAPTION_BOTTOM_PCT_16X9);
+    if (Number.isFinite(docBottom) && docBottom >= 2 && docBottom <= 85) {
+      setCaptionBottomPct(docBottom);
+    } else if (typeof targetProfile?.captionBottomPct === 'number') {
+      setCaptionBottomPct(targetProfile.captionBottomPct);
+    } else {
+      setCaptionBottomPct(ratio === '9:16' ? 20 : 10);
+    }
+    if (ratio === '9:16') {
+      const doc916Max = Number(cfg.CAPTION_MAX_CHARS_9X16);
+      setCaptionMaxChars(Number.isFinite(doc916Max) && doc916Max > 0 ? doc916Max : 16);
+      setCaptionLineMode(isMode(cfg.CAPTION_LINE_MODE_9X16) ? cfg.CAPTION_LINE_MODE_9X16 : 'subdivide');
+    } else {
+      setCaptionLineMode(
+        isMode(cfg.CAPTION_LINE_MODE)
+          ? cfg.CAPTION_LINE_MODE
+          : isMode(targetProfile?.captionLineMode)
+          ? targetProfile!.captionLineMode!
+          : 'original'
+      );
+      const docMax = Number(cfg.CAPTION_MAX_CHARS);
+      setCaptionMaxChars(
+        cfg.CAPTION_MAX_CHARS !== undefined && Number.isFinite(docMax) && docMax >= 0
+          ? docMax
+          : typeof targetProfile?.captionMaxChars === 'number'
+          ? targetProfile.captionMaxChars
+          : 32
+      );
+    }
+    setCaptionFontSize(ratio === '9:16' ? captionFontSize9x16 : captionFontSize16x9);
+  };
+
   const handleSwitchAspectRatio = (nextRatio: EditorAspectRatio) => {
     if (nextRatio === aspectRatio) return;
     // Save current format's overlay and quality settings
@@ -4149,44 +4233,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     const nextRes: ExportResolutionPreset =
       targetProfile?.exportResolution || (nextRatio === '9:16' ? '2K_1440P' : '8K_4320P');
     handleSelectExportResolution(nextRes);
-    if (targetProfile) {
-      setLogoScalePct(targetProfile.logoScalePct);
-      if (typeof targetProfile.logoOpacity === 'number') {
-        setLogoOpacity(targetProfile.logoOpacity);
-      }
-      setLogoPosX(targetProfile.logoPosX);
-      setLogoPosY(targetProfile.logoPosY);
-      setHookLine1FontSize(targetProfile.hookLine1FontSize);
-      setHookLine2FontSize(targetProfile.hookLine2FontSize);
-      setHookLeftPct(targetProfile.hookLeftPct);
-      setHookTopPct(targetProfile.hookTopPct);
-      setHookBoxWidthPct(targetProfile.hookBoxWidthPct);
-      const docBottom =
-        nextRatio === '9:16'
-          ? Number(activeDoc?.promptConfig?.CAPTION_BOTTOM_PCT_9X16)
-          : Number(activeDoc?.promptConfig?.CAPTION_BOTTOM_PCT_16X9);
-      if (Number.isFinite(docBottom) && docBottom >= 2 && docBottom <= 85) {
-        setCaptionBottomPct(docBottom);
-      } else if (typeof targetProfile.captionBottomPct === 'number') {
-        setCaptionBottomPct(targetProfile.captionBottomPct);
-      }
-      if (nextRatio === '9:16') {
-        const doc916Max = Number(activeDoc?.promptConfig?.CAPTION_MAX_CHARS_9X16);
-        const doc916Mode = activeDoc?.promptConfig?.CAPTION_LINE_MODE_9X16;
-        setCaptionMaxChars(Number.isFinite(doc916Max) && doc916Max > 0 ? doc916Max : 16);
-        setCaptionLineMode(
-          doc916Mode === 'subdivide' || doc916Mode === 'wrap' || doc916Mode === 'original' ? doc916Mode : 'subdivide'
-        );
-      } else {
-        if (targetProfile.captionLineMode) {
-          setCaptionLineMode(targetProfile.captionLineMode);
-        }
-        if (typeof targetProfile.captionMaxChars === 'number') {
-          setCaptionMaxChars(targetProfile.captionMaxChars);
-        }
-      }
-    }
-    setCaptionFontSize(nextRatio === '9:16' ? captionFontSize9x16 : captionFontSize16x9);
+    applyFormatOverlayProfile(nextRatio, activeDoc);
     if (nextRatio === '9:16') {
       const docKey = activeDoc?.id || activeDoc?.title || 'default';
       if (
@@ -5218,6 +5265,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             ? '9:16'
             : '16:9';
         setAspectRatio(nextRatio);
+        // Same batch as setAspectRatio: logo and captions of THIS format and documentary, never the previous one's
+        applyFormatOverlayProfile(nextRatio, activeDoc);
 
         const nextRes: ExportResolutionPreset =
           savedDoc?.exportResolution === 'HD_1080P' ||
