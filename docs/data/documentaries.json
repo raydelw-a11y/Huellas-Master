@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-11-25T22:15:59.273Z",
-    "updatedAt": "2026-11-26T06:04:19.756Z",
+    "updatedAt": "2026-11-26T06:04:32.160Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -42,7 +42,7 @@
       "FIELD_CLEARED_AT_clip1OptionsRaw": "0",
       "FIELD_CLEARED_AT_clip1Line1LocationTime": "0",
       "FIELD_CLEARED_AT_clip1Line2Hook": "0",
-      "PROMPTS_RESTORED_AT": "1795672454881",
+      "PROMPTS_RESTORED_AT": "1795673072160",
       "FIELD_CLEARED_AT_rawClipsText": "0",
       "CAPTION_BOTTOM_PCT_16X9": 11,
       "CAPTION_SETTINGS_UPDATED_AT": "1795671143491",
@@ -899,8 +899,8 @@
         "videoDiscardOverriddenAt": 1795665682752,
         "videoSavedAt": 1795665682752,
         "reviewedUpdatedAt": 1795667248118,
-        "videoAuditStatus": "approved",
-        "isStaticBroll": false
+        "isStaticBroll": false,
+        "videoAuditStatus": "approved"
       },
       {
         "id": "clip-2-1795649050151-2",
@@ -2563,6 +2563,16 @@
         "anchorSpoken": "A inicios del siglo XIX, Alexander von Humboldt"
       },
       {
+        "id": "name_tag_mwx50l8w_y2esq",
+        "startSec": 114.94,
+        "durationSec": 4,
+        "kind": "name_tag",
+        "name": "Alexander von Humboldt",
+        "role": "Naturalista y geógrafo prusiano",
+        "target": null,
+        "anchorSpoken": "A inicios del siglo XIX, Alexander von Humboldt"
+      },
+      {
         "id": "thesis_card_mwx241zf_4t1ku",
         "startSec": 144.48,
         "durationSec": 5,
@@ -2636,6 +2646,15 @@
       },
       {
         "id": "thesis_card_mwx4iy75_qmasf",
+        "startSec": 144.48,
+        "durationSec": 5,
+        "kind": "thesis_card",
+        "oldText": "Las chinampas eran huertos flotantes",
+        "newText": "Islas artificiales ancladas al fondo del lago",
+        "anchorSpoken": "y aquí va una corrección: nunca flotaron."
+      },
+      {
+        "id": "thesis_card_mwx50l9o_5do5n",
         "startSec": 144.48,
         "durationSec": 5,
         "kind": "thesis_card",
@@ -2744,6 +2763,16 @@
         "anchorSpoken": "Moctezuma Ilhuicamina llamó a su aliado"
       },
       {
+        "id": "name_tag_mwx50l90_x52qs",
+        "startSec": 202.19,
+        "durationSec": 4,
+        "kind": "name_tag",
+        "name": "Moctezuma Ilhuicamina",
+        "role": "Quinto gobernante de Tenochtitlan",
+        "target": null,
+        "anchorSpoken": "Moctezuma Ilhuicamina llamó a su aliado"
+      },
+      {
         "id": "name_tag_mwx241ys_d107r",
         "startSec": 203.34,
         "durationSec": 4,
@@ -2825,6 +2854,16 @@
       },
       {
         "id": "name_tag_mwx4iy6g_uao5w",
+        "startSec": 203.34,
+        "durationSec": 4,
+        "kind": "name_tag",
+        "name": "Nezahualcóyotl",
+        "role": "Gobernante e ingeniero hidráulico de Texcoco",
+        "target": null,
+        "anchorSpoken": "llamó a su aliado de Texcoco, Nezahualcóyotl,"
+      },
+      {
+        "id": "name_tag_mwx50l93_rcnhp",
         "startSec": 203.34,
         "durationSec": 4,
         "kind": "name_tag",
@@ -2944,6 +2983,16 @@
         "anchorSpoken": "Hacia 1499, el gobernante Ahuízotl quiso traer"
       },
       {
+        "id": "name_tag_mwx50l97_mub9u",
+        "startSec": 244.46,
+        "durationSec": 4,
+        "kind": "name_tag",
+        "name": "Ahuízotl",
+        "role": "Octavo gobernante de Tenochtitlan",
+        "target": null,
+        "anchorSpoken": "Hacia 1499, el gobernante Ahuízotl quiso traer"
+      },
+      {
         "id": "name_tag_mwx241yz_2gmtx",
         "startSec": 303.09,
         "durationSec": 4,
@@ -3025,6 +3074,16 @@
       },
       {
         "id": "name_tag_mwx4iy6q_o5wka",
+        "startSec": 303.09,
+        "durationSec": 4,
+        "kind": "name_tag",
+        "name": "Hernán Cortés",
+        "role": "Comandante español de la conquista",
+        "target": null,
+        "anchorSpoken": "Carta de Relación de 1520, Hernán Cortés"
+      },
+      {
+        "id": "name_tag_mwx50l9a_uirs0",
         "startSec": 303.09,
         "durationSec": 4,
         "kind": "name_tag",
@@ -3120,6 +3179,14 @@
       },
       {
         "id": "stamp_mwx4iy7c_s6nnw",
+        "startSec": 341.91,
+        "durationSec": 2.6,
+        "kind": "stamp",
+        "text": "AGUA CORTADA",
+        "anchorSpoken": "marcharon a Chapultepec para quebrar los caños."
+      },
+      {
+        "id": "stamp_mwx50l9w_qv3qf",
         "startSec": 341.91,
         "durationSec": 2.6,
         "kind": "stamp",
@@ -3238,6 +3305,16 @@
         "anchorSpoken": "el cosmógrafo alemán Enrico Martínez inició el"
       },
       {
+        "id": "name_tag_mwx50l9d_wj6wh",
+        "startSec": 411.48,
+        "durationSec": 4,
+        "kind": "name_tag",
+        "name": "Enrico Martínez",
+        "role": "Cosmógrafo del desagüe colonial",
+        "target": null,
+        "anchorSpoken": "el cosmógrafo alemán Enrico Martínez inició el"
+      },
+      {
         "id": "date_card_mwx241yg_30lh1",
         "startSec": 421.95,
         "durationSec": 3.6,
@@ -3338,6 +3415,16 @@
         "anchorSpoken": "contrató al ingeniero holandés Adrian Boot por"
       },
       {
+        "id": "name_tag_mwx50l9h_jm467",
+        "startSec": 425.22,
+        "durationSec": 4,
+        "kind": "name_tag",
+        "name": "Adrian Boot",
+        "role": "Ingeniero hidráulico holandés",
+        "target": null,
+        "anchorSpoken": "contrató al ingeniero holandés Adrian Boot por"
+      },
+      {
         "id": "thesis_card_mwx241zj_x59jc",
         "startSec": 436.44,
         "durationSec": 5,
@@ -3419,6 +3506,15 @@
         "anchorSpoken": "no había que secar el lago, sino regularlo"
       },
       {
+        "id": "thesis_card_mwx50l9s_8w94g",
+        "startSec": 436.44,
+        "durationSec": 5,
+        "kind": "thesis_card",
+        "oldText": "Secar el lago evitaba inundaciones",
+        "newText": "Regularlo con diques era la solución correcta",
+        "anchorSpoken": "no había que secar el lago, sino regularlo"
+      },
+      {
         "id": "stamp_mwx241zq_qcecb",
         "startSec": 456.24,
         "durationSec": 2.6,
@@ -3484,6 +3580,14 @@
       },
       {
         "id": "stamp_mwx4iy7g_fpvz7",
+        "startSec": 456.24,
+        "durationSec": 2.6,
+        "kind": "stamp",
+        "text": "INUNDADA",
+        "anchorSpoken": "quedó hasta dos metros bajo el agua durante"
+      },
+      {
+        "id": "stamp_mwx50l9z_taqkz",
         "startSec": 456.24,
         "durationSec": 2.6,
         "kind": "stamp",
@@ -3591,7 +3695,17 @@
         "anchorSpoken": "y Nabor Carrillo Flores probó la causa:"
       },
       {
-        "id": "name_tag_mwx50l8w_y2esq",
+        "id": "name_tag_mwx50l9l_1l74m",
+        "startSec": 526.71,
+        "durationSec": 4,
+        "kind": "name_tag",
+        "name": "Nabor Carrillo Flores",
+        "role": "Científico mexicano de mecánica de suelos",
+        "target": null,
+        "anchorSpoken": "y Nabor Carrillo Flores probó la causa:"
+      },
+      {
+        "id": "name_tag_mwx5dtjf_32v8j",
         "kind": "name_tag",
         "startSec": 114.94,
         "durationSec": 4,
@@ -3601,7 +3715,7 @@
         "anchorSpoken": "A inicios del siglo XIX, Alexander von Humboldt"
       },
       {
-        "id": "name_tag_mwx50l90_x52qs",
+        "id": "name_tag_mwx5dtjl_fuquw",
         "kind": "name_tag",
         "startSec": 202.19,
         "durationSec": 4,
@@ -3611,7 +3725,7 @@
         "anchorSpoken": "Moctezuma Ilhuicamina llamó a su aliado"
       },
       {
-        "id": "name_tag_mwx50l93_rcnhp",
+        "id": "name_tag_mwx5dtjo_02anq",
         "kind": "name_tag",
         "startSec": 203.34,
         "durationSec": 4,
@@ -3621,7 +3735,7 @@
         "anchorSpoken": "llamó a su aliado de Texcoco, Nezahualcóyotl,"
       },
       {
-        "id": "name_tag_mwx50l97_mub9u",
+        "id": "name_tag_mwx5dtjs_d5f31",
         "kind": "name_tag",
         "startSec": 244.46,
         "durationSec": 4,
@@ -3631,7 +3745,7 @@
         "anchorSpoken": "Hacia 1499, el gobernante Ahuízotl quiso traer"
       },
       {
-        "id": "name_tag_mwx50l9a_uirs0",
+        "id": "name_tag_mwx5dtjw_63auk",
         "kind": "name_tag",
         "startSec": 303.09,
         "durationSec": 4,
@@ -3641,7 +3755,7 @@
         "anchorSpoken": "Carta de Relación de 1520, Hernán Cortés"
       },
       {
-        "id": "name_tag_mwx50l9d_wj6wh",
+        "id": "name_tag_mwx5dtk1_6p0eg",
         "kind": "name_tag",
         "startSec": 411.48,
         "durationSec": 4,
@@ -3651,7 +3765,7 @@
         "anchorSpoken": "el cosmógrafo alemán Enrico Martínez inició el"
       },
       {
-        "id": "name_tag_mwx50l9h_jm467",
+        "id": "name_tag_mwx5dtk5_zs59y",
         "kind": "name_tag",
         "startSec": 425.22,
         "durationSec": 4,
@@ -3661,7 +3775,7 @@
         "anchorSpoken": "contrató al ingeniero holandés Adrian Boot por"
       },
       {
-        "id": "name_tag_mwx50l9l_1l74m",
+        "id": "name_tag_mwx5dtk8_2cbbj",
         "kind": "name_tag",
         "startSec": 526.71,
         "durationSec": 4,
@@ -3671,7 +3785,7 @@
         "anchorSpoken": "y Nabor Carrillo Flores probó la causa:"
       },
       {
-        "id": "thesis_card_mwx50l9o_5do5n",
+        "id": "thesis_card_mwx5dtkc_uneik",
         "kind": "thesis_card",
         "startSec": 144.48,
         "durationSec": 5,
@@ -3680,7 +3794,7 @@
         "anchorSpoken": "y aquí va una corrección: nunca flotaron."
       },
       {
-        "id": "thesis_card_mwx50l9s_8w94g",
+        "id": "thesis_card_mwx5dtkg_d1buz",
         "kind": "thesis_card",
         "startSec": 436.44,
         "durationSec": 5,
@@ -3689,7 +3803,7 @@
         "anchorSpoken": "no había que secar el lago, sino regularlo"
       },
       {
-        "id": "stamp_mwx50l9w_qv3qf",
+        "id": "stamp_mwx5dtkk_7n0w4",
         "kind": "stamp",
         "startSec": 341.91,
         "durationSec": 2.6,
@@ -3697,7 +3811,7 @@
         "anchorSpoken": "marcharon a Chapultepec para quebrar los caños."
       },
       {
-        "id": "stamp_mwx50l9z_taqkz",
+        "id": "stamp_mwx5dtkn_7fnl9",
         "kind": "stamp",
         "startSec": 456.24,
         "durationSec": 2.6,
