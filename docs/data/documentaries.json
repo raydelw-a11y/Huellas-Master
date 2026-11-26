@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-11-25T22:15:59.273Z",
-    "updatedAt": "2026-11-26T18:31:45.696Z",
+    "updatedAt": "2026-11-26T18:32:12.452Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -42,7 +42,7 @@
       "FIELD_CLEARED_AT_clip1OptionsRaw": "0",
       "FIELD_CLEARED_AT_clip1Line1LocationTime": "0",
       "FIELD_CLEARED_AT_clip1Line2Hook": "0",
-      "PROMPTS_RESTORED_AT": "1795717905696",
+      "PROMPTS_RESTORED_AT": "1795717932452",
       "FIELD_CLEARED_AT_rawClipsText": "0",
       "CAPTION_BOTTOM_PCT_16X9": 11,
       "CAPTION_SETTINGS_UPDATED_AT": "1795671143491",
@@ -2732,7 +2732,7 @@
         "pauseNotes": "",
         "imageReady": true,
         "videoReady": true,
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "auditStatus": "ok",
         "auditReason": "Sincronizado con el tramo de voz narrativa.",
@@ -2741,7 +2741,8 @@
         "videoDiscardOverriddenAt": 1795715170112,
         "videoAuditStatus": "approved",
         "videoAuditReason": "",
-        "videoAuditIssues": []
+        "videoAuditIssues": [],
+        "reviewedUpdatedAt": 1795717921925
       },
       {
         "id": "clip-73-1795650989624-73",
@@ -2755,7 +2756,7 @@
         "pauseNotes": "",
         "imageReady": true,
         "videoReady": true,
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "auditStatus": "ok",
         "auditReason": "Sincronizado con el tramo de voz narrativa.",
@@ -2764,7 +2765,8 @@
         "videoDiscardOverriddenAt": 1795715170112,
         "videoAuditStatus": "approved",
         "videoAuditReason": "",
-        "videoAuditIssues": []
+        "videoAuditIssues": [],
+        "reviewedUpdatedAt": 1795717932451
       },
       {
         "id": "clip-74-1795650989624-74",
