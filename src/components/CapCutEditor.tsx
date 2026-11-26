@@ -42,6 +42,7 @@ import {
   normalizeClip1Line1Format,
   splitWordsIntoShortLines,
   reformatCaptionItems,
+  sentenceCaptionLineChars,
   mergeOrphanSingleWordCaptions,
   CaptionTimedWord,
   computeVoiceScriptAlignHash,
@@ -2839,6 +2840,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       ? Number(initialOverlayStyles.captionFontSize) || 25
       : 25;
   });
+  // "Original" captions: characters that fit in one line at the 16:9 size in use (a sentence that fits is never
+  // broken in two lines)
+  const sentenceLineChars = sentenceCaptionLineChars(aspectRatio, captionFontSize16x9);
   const [captionFontSize9x16, setCaptionFontSize9x16] = useState<number>(() => {
     const fromDoc = Number(activeDoc?.promptConfig?.CAPTION_FONT_SIZE_9X16);
     if (Number.isFinite(fromDoc) && fromDoc >= 12) return fromDoc;
@@ -4463,7 +4467,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           maxCharsPerLine: captionMaxChars,
           maxWordsPerLine: activeWordsLimit,
           avoidSingleWordLines: aspectRatio === '16:9',
-          mode: captionLineMode,
+          mode: captionLineMode, sentenceLineChars,
           lineMode: captionLineMode === 'wrap' ? 'wrap' : 'single',
         } as any).map((rc) => ({
           ...rc,
@@ -4485,7 +4489,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           maxCharsPerLine: captionMaxChars,
           maxWordsPerLine: activeWordsLimit,
           avoidSingleWordLines: aspectRatio === '16:9',
-          mode: captionLineMode,
+          mode: captionLineMode, sentenceLineChars,
           lineMode: captionLineMode === 'wrap' ? 'wrap' : 'single',
         } as any);
       }
@@ -4518,6 +4522,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     captionLineMode,
     captionWordsPerLine16x9,
     captionWordsPerLine9x16,
+    sentenceLineChars,
   ]);
 
   const handleSetCaptionFontSizeForFormat = (targetRatio: '16:9' | '9:16', newSize: number) => {
@@ -8311,7 +8316,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         maxCharsPerLine: captionMaxChars,
         maxWordsPerLine: activeWordsLimit,
           avoidSingleWordLines: aspectRatio === '16:9',
-        mode: captionLineMode,
+        mode: captionLineMode, sentenceLineChars,
         lineMode: captionLineMode === 'wrap' ? 'wrap' : 'single',
       } as any);
 
@@ -8851,7 +8856,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       maxWordsPerLine:
         captionLineMode === 'original' ? 9 : activeWordsLimit > 0 ? activeWordsLimit : 6,
       maxCharsPerLine:
-        captionLineMode === 'original' ? 46 : captionMaxChars > 0 ? captionMaxChars : 32,
+        captionLineMode === 'original' ? sentenceLineChars : captionMaxChars > 0 ? captionMaxChars : 32,
       lineMode:
         captionLineMode === 'original' ? 'sentence' : captionLineMode === 'wrap' ? 'wrap' : 'single',
     });
@@ -9138,7 +9143,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     const activeWordsLimit =
       aspectRatio === '9:16' ? captionWordsPerLine9x16 : captionWordsPerLine16x9;
     const maxCharsPerCaption =
-      captionLineMode === 'original' ? 46 : captionMaxChars > 0 ? captionMaxChars : 32;
+      captionLineMode === 'original' ? sentenceLineChars : captionMaxChars > 0 ? captionMaxChars : 32;
 
     const isVideo76 = isVideo76Doc;
     const effectiveMode =
@@ -9161,7 +9166,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           maxCharsPerLine: captionMaxChars,
           maxWordsPerLine: activeWordsLimit,
           avoidSingleWordLines: aspectRatio === '16:9',
-          mode: captionLineMode,
+          mode: captionLineMode, sentenceLineChars,
         }
       );
       if (parsed76.length > 0) {
@@ -9272,7 +9277,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       const final76 = reformatCaptionItems(
         alignCaptionsToIntroPlacement(gen76, effectiveMode, baseHookForCap, 8, sloganSplitAudioSec),
         { maxCharsPerLine: captionMaxChars, maxWordsPerLine: activeWordsLimit,
-          avoidSingleWordLines: aspectRatio === '16:9', mode: captionLineMode }
+          avoidSingleWordLines: aspectRatio === '16:9', mode: captionLineMode, sentenceLineChars }
       );
       setCaptions(final76);
       persistDocOverlaysPatch(
@@ -9874,7 +9879,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             maxCharsPerLine: captionMaxChars,
             maxWordsPerLine: activeWordsLimit,
           avoidSingleWordLines: aspectRatio === '16:9',
-            mode: captionLineMode,
+            mode: captionLineMode, sentenceLineChars,
           }
         );
         persistDocOverlaysPatch({ captions: aligned, captionsSyncV3: true }, docId);
@@ -9904,7 +9909,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         maxCharsPerLine: captionMaxChars,
         maxWordsPerLine: activeWordsLimit,
           avoidSingleWordLines: aspectRatio === '16:9',
-        mode: captionLineMode,
+        mode: captionLineMode, sentenceLineChars,
       });
       setCaptions(merged);
       persistDocOverlaysPatch({ captions: merged, captionsSyncV3: true }, docId);

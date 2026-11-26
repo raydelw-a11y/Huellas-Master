@@ -5485,7 +5485,18 @@ export function balanceCaptionsFor16x9(text: string): string {
  * line; a longer one is shown in two lines; only a sentence too long for two lines is split, at its commas
  * when it has them (user request 2026-11-26).
  */
-export const SENTENCE_CAPTION_LINE_CHARS = 46;
+export const SENTENCE_CAPTION_LINE_CHARS = 62;
+
+/**
+ * Characters that fit in ONE caption line of the "Original" mode. In 16:9 the line may take about 70% of the
+ * frame width (62 characters at the default 25px size; a bigger font fits fewer, a smaller one more), so a
+ * sentence that fits in one line is never broken in two. 9:16 keeps its narrow 46.
+ */
+export function sentenceCaptionLineChars(aspectRatio: string, fontSize16x9?: number): number {
+  if (aspectRatio === '9:16') return 46;
+  const size = Number(fontSize16x9) >= 10 ? Number(fontSize16x9) : 25;
+  return Math.max(30, Math.min(78, Math.round((SENTENCE_CAPTION_LINE_CHARS * 25) / size)));
+}
 
 export function groupWordsIntoSentenceCaptions<W>(
   words: W[],
@@ -5881,6 +5892,8 @@ export function reformatCaptionItems<
     mode?: 'subdivide' | 'wrap' | 'original';
     /** 16:9: no dejar una palabra sola en una línea salvo que sea una oración de una sola palabra */
     avoidSingleWordLines?: boolean;
+    /** "Original" mode: characters that fit in one line (see sentenceCaptionLineChars) */
+    sentenceLineChars?: number;
   }
 ): T[] {
   if (!Array.isArray(rawItems) || rawItems.length === 0) return [];
@@ -5966,12 +5979,16 @@ export function reformatCaptionItems<
   if (lineMode === 'original') {
     // "Original" mode: complete sentences (see groupWordsIntoSentenceCaptions)
     const sentenceTemplate = rawItems[0];
-    const sentenceItems = groupWordsIntoSentenceCaptions(allTimedWords, (w) => ({
-      text: w.word,
-      start: w.start,
-      end: w.end,
-      breakFlag: w.breakFlag,
-    })).map((g, gIdx) => {
+    const sentenceItems = groupWordsIntoSentenceCaptions(
+      allTimedWords,
+      (w) => ({
+        text: w.word,
+        start: w.start,
+        end: w.end,
+        breakFlag: w.breakFlag,
+      }),
+      Number(options?.sentenceLineChars) > 0 ? Number(options?.sentenceLineChars) : SENTENCE_CAPTION_LINE_CHARS
+    ).map((g, gIdx) => {
       const fTw = g.words[0];
       const lTw = g.words[g.words.length - 1];
       const item: any = {};
