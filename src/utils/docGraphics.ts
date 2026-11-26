@@ -120,6 +120,12 @@ export interface NameTagGraphic extends DocGraphicBase {
   target?: RoutePoint | null;
   targetAspect?: '16:9' | '9:16';
   anchorSpoken?: string;
+  /**
+   * Where the tag sits while other name tags are on screen (worked out by assignNameTagSlots, never saved):
+   * the side of the frame, how many tags are stacked under it on that side, and its place when the format
+   * has a single column (9:16).
+   */
+  slot?: { side: 'left' | 'right'; level: number; column: number };
 }
 
 /** The old idea, struck out in red, and what really happened under it. */
@@ -843,8 +849,14 @@ export function layoutNameTag(
     x = clamp(x, stageW * 0.03, stageW * 0.97 - w);
     y = clamp(y, stageH * 0.06, stageH * 0.74 - h);
   } else {
-    x = stageW * (isV ? 0.07 : 0.06);
-    y = stageH * (isV ? 0.7 : 0.74) - h;
+    // Names said close together share the screen: one on each side, further ones stacked above (16:9);
+    // a single stacked column in 9:16, where a tag can take most of the width
+    const side = !isV && g.slot?.side === 'right' ? 'right' : 'left';
+    const level = Math.max(0, Number(isV ? g.slot?.column : g.slot?.level) || 0);
+    const margin = stageW * (isV ? 0.07 : 0.06);
+    x = side === 'right' ? stageW - margin - w : margin;
+    y = stageH * (isV ? 0.7 : 0.74) - h - level * stageH * (isV ? 0.13 : 0.16);
+    y = Math.max(stageH * 0.06, y);
   }
   const t0 = g.startSec + 0.15;
   const nameAppear = typewriterSteps(nameRows.join(' '), t0, 0.05, 0.9);
@@ -1205,7 +1217,7 @@ export function findSpokenInCaptions(
  * worked out again from the current subtitles, so they stay on the voice when subtitles are re-aligned.
  */
 export function resolveSpokenAnchors(graphics: DocGraphic[], captions: TimedCaptionLike[]): DocGraphic[] {
-  if (!captions.length) return graphics;
+  if (!captions.length) return assignNameTagSlots(graphics);
   const resolved = graphics.map((g) => {
     const anchor = g.kind === 'route_map' ? '' : g.anchorSpoken || '';
     if (!anchor) return g;
@@ -1228,19 +1240,40 @@ export function resolveSpokenAnchors(graphics: DocGraphic[], captions: TimedCapt
       durationSec: Number(Math.min(14, Math.max(6, hit.endSec - hit.startSec + 2.5)).toFixed(1)),
     };
   });
-  // Two names said close together: the first tag leaves just before the next one enters
-  const tags = resolved
+  return assignNameTagSlots(resolved);
+}
+
+/**
+ * Name tags that are on screen at the same time never cover each other and each keeps its own duration:
+ * the first sits on the left, the next one on the right, and further ones are stacked above on the side
+ * that has fewer tags. Tags that point at a person (red line) keep their own place.
+ */
+export function assignNameTagSlots(graphics: DocGraphic[]): DocGraphic[] {
+  const out = graphics.slice();
+  const tags = out
     .map((g, i) => ({ g, i }))
-    .filter((x) => x.g.kind === 'name_tag')
-    .sort((x, y) => x.g.startSec - y.g.startSec);
-  for (let k = 0; k + 1 < tags.length; k++) {
-    const cur = tags[k].g;
-    const gapSec = tags[k + 1].g.startSec - cur.startSec;
-    if (gapSec > 0 && cur.durationSec > gapSec - 0.15) {
-      resolved[tags[k].i] = { ...cur, durationSec: Number(Math.max(2, gapSec - 0.15).toFixed(2)) };
-    }
+    .filter((x): x is { g: NameTagGraphic; i: number } => x.g.kind === 'name_tag' && !x.g.target)
+    .sort((a, b) => a.g.startSec - b.g.startSec);
+  const active: Array<{ end: number; side: 'left' | 'right'; level: number; column: number }> = [];
+  const lowestFree = (used: number[]) => {
+    let n = 0;
+    while (used.includes(n)) n += 1;
+    return n;
+  };
+  for (const { g, i } of tags) {
+    for (let k = active.length - 1; k >= 0; k--) if (active[k].end <= g.startSec + 0.05) active.splice(k, 1);
+    const left = active.filter((a) => a.side === 'left');
+    const right = active.filter((a) => a.side === 'right');
+    const side: 'left' | 'right' = right.length < left.length ? 'right' : 'left';
+    const slot = {
+      side,
+      level: lowestFree((side === 'left' ? left : right).map((a) => a.level)),
+      column: lowestFree(active.map((a) => a.column)),
+    };
+    active.push({ end: g.startSec + g.durationSec, ...slot });
+    out[i] = { ...g, slot };
   }
-  return resolved;
+  return out;
 }
 
 export interface ResearchScreenQuote {

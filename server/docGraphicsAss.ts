@@ -28,6 +28,7 @@ import {
   stampPoseTimes,
   routeHeadAt,
   routeIconPolygons,
+  assignNameTagSlots,
   sanitizeDocGraphics,
   type DocGraphic,
   type DocGraphicFontName,
@@ -114,7 +115,8 @@ export interface BuildDocGraphicsInput {
 
 /** Every graphic of the export as absolute-time libass events (computed once per export). */
 export function buildDocGraphicsAssEvents(input: BuildDocGraphicsInput): GraphicAssEvent[] {
-  const graphics = sanitizeDocGraphics(input.graphics).filter(
+  // Same places as the viewer: name tags on screen together go one on each side (assignNameTagSlots)
+  const graphics = assignNameTagSlots(sanitizeDocGraphics(input.graphics)).filter(
     (g) => graphicShowsInAspect(g, input.aspect) && isGraphicDrawable(g)
   );
   if (graphics.length === 0) return [];
