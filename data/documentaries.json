@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-11-25T22:15:59.273Z",
-    "updatedAt": "2026-11-26T04:31:54.754Z",
+    "updatedAt": "2026-11-26T04:32:43.572Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -42,7 +42,7 @@
       "FIELD_CLEARED_AT_clip1OptionsRaw": "0",
       "FIELD_CLEARED_AT_clip1Line1LocationTime": "0",
       "FIELD_CLEARED_AT_clip1Line2Hook": "0",
-      "PROMPTS_RESTORED_AT": "1795667514754",
+      "PROMPTS_RESTORED_AT": "1795667563572",
       "FIELD_CLEARED_AT_rawClipsText": "0"
     },
     "compiledMasterPrompt": "",
@@ -1054,7 +1054,7 @@
         "pauseNotes": "",
         "imageReady": true,
         "videoReady": true,
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "auditStatus": "ok",
         "auditReason": "Sincronizado con el tramo de voz narrativa.",
@@ -1067,7 +1067,8 @@
         "reframeFocusY": 50,
         "reframeConfidence": 0.55,
         "reframeReason": "Encuadre central simétrico IA (50%)",
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "reviewedUpdatedAt": 1795667526896
       },
       {
         "id": "clip-8-1795649050152-8",
@@ -1081,7 +1082,7 @@
         "pauseNotes": "",
         "imageReady": true,
         "videoReady": true,
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "auditStatus": "ok",
         "auditReason": "Sincronizado con el tramo de voz narrativa.",
@@ -1094,7 +1095,8 @@
         "reframeFocusY": 50,
         "reframeConfidence": 0.67,
         "reframeReason": "Enfoque inteligente IA en tercio izquierdo (20%)",
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "reviewedUpdatedAt": 1795667539804
       },
       {
         "id": "clip-9-1795649050152-9",
@@ -1108,7 +1110,7 @@
         "pauseNotes": "Contiene [pausa: 2.1s] en la locución",
         "imageReady": true,
         "videoReady": true,
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "auditStatus": "ok",
         "auditReason": "Sincronizado con el tramo de voz narrativa.",
@@ -1121,7 +1123,8 @@
         "reframeFocusY": 50,
         "reframeConfidence": 0.99,
         "reframeReason": "Enfoque inteligente IA en tercio izquierdo (16%)",
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "reviewedUpdatedAt": 1795667552855
       },
       {
         "id": "clip-10-1795649050152-10",
@@ -1135,7 +1138,7 @@
         "pauseNotes": "",
         "imageReady": true,
         "videoReady": true,
-        "reviewedForEditor": false,
+        "reviewedForEditor": true,
         "recreated": false,
         "auditStatus": "ok",
         "auditReason": "Sincronizado con el tramo de voz narrativa.",
@@ -1148,7 +1151,8 @@
         "reframeFocusY": 50,
         "reframeConfidence": 0.75,
         "reframeReason": "Enfoque inteligente IA en tercio derecho (84%)",
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "reviewedUpdatedAt": 1795667563572
       },
       {
         "id": "clip-11-1795649050152-11",
