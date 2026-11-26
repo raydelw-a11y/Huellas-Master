@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-11-23T02:44:27.074Z",
-    "updatedAt": "2026-11-26T01:13:54.631Z",
+    "updatedAt": "2026-11-26T01:14:11.942Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -4319,15 +4319,6 @@
     ],
     "thumbnailPsychVariant": "B",
     "docGraphics": [
-      {
-        "id": "date_card_mwwuu62x_ovkz7",
-        "startSec": 15.95,
-        "durationSec": 3.6,
-        "kind": "date_card",
-        "line1": "1930",
-        "line2": "",
-        "position": "center"
-      },
       {
         "id": "date_card_mwwuu62x_o6v9i",
         "startSec": 420,
