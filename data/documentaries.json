@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-11-25T22:15:59.273Z",
-    "updatedAt": "2026-11-26T00:37:15.204Z",
+    "updatedAt": "2026-11-26T00:38:04.717Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -65,195 +65,17 @@
         "speed": "medium",
         "language": "es-la",
         "consistencyMode": true,
-        "filename": "tts-restored-1795650960031.mp3",
-        "audioUrl": "tts-files/tts-restored-1795650960031.mp3",
-        "createdAt": "2026-11-25T23:55:50.956Z",
-        "storageMode": "local",
+        "filename": "tts-restored-1795653472222.mp3",
+        "audioUrl": "tts-files/tts-restored-1795653472222.mp3",
+        "duration": 0,
         "wordCount": 1326,
-        "duration": 635.24,
-        "providerUsed": "Gemini 3.8 Flash TTS (13 Pausas)",
+        "pauseCount": 13,
+        "createdAt": "2026-11-26T00:38:04.297Z",
         "label": "Voz Narrativa Video 32",
-        "segmentTimings": [
-          {
-            "type": "text",
-            "text": "Año 1325, Lago de Texcoco, Tenochtitlan, México. Construyeron, en medio de un lago, la que llegaría a ser la ciudad más grande de América. Agua por todas partes. Solo había un problema: el agua era salada. Vivían sobre el agua y perecían de sed.\n\nEn los próximos minutos descubrirás cómo una metrópoli rodeada de agua se quedó sin ella durante siete siglos. Dale like a este video y suscríbete. Cada historia deja una huella. Aquí seguimos sus rastros.",
-            "startSec": 0,
-            "endSec": 35.69,
-            "durationSec": 35.69
-          },
-          {
-            "type": "pause",
-            "startSec": 35.69,
-            "endSec": 37.69,
-            "durationSec": 2
-          },
-          {
-            "type": "text",
-            "text": "La tradición fecha la fundación de Tenochtitlan el 13 de marzo de 1325, tras la profecía del águila. Lo que pocos cuentan es que aquel islote pantanoso era el peor terreno del valle. Ningún señorío vecino lo quería.",
-            "startSec": 37.69,
-            "endSec": 54.73,
-            "durationSec": 17.04
-          },
-          {
-            "type": "pause",
-            "startSec": 54.73,
-            "endSec": 56.23,
-            "durationSec": 1.5
-          },
-          {
-            "type": "text",
-            "text": "La Cuenca de México es una cubeta cerrada hace 600 mil años por volcanes, suspendida a 2 mil 240 metros sobre el nivel del mar y sin salida al océano. Casi el 80 por ciento de la lluvia solo escapa evaporándose, concentrando sales durante milenios. Así se formó una escalera de cinco lagos donde el agua dulce bajaba desde Xochimilco y Chalco hasta el punto más bajo: Texcoco.\n\nTexcoco era el sumidero alcalino del valle, con un pH cercano a 9.8 y costras de tequesquite en temporada seca. A inicios del siglo XIX, Alexander von Humboldt midió el contraste: Xochimilco era clara y bebible; Texcoco era amarillenta, olía a ácido sulfhídrico y sabía a carbonato de sodio.",
-            "startSec": 56.23,
-            "endSec": 113.83,
-            "durationSec": 57.6
-          },
-          {
-            "type": "pause",
-            "startSec": 113.83,
-            "endSec": 115.33,
-            "durationSec": 1.5
-          },
-          {
-            "type": "text",
-            "text": "Vivían sobre el agua y perecían de sed. Si ese lago quemaba las raíces, ¿cómo alimentaron a cientos de miles de personas?\n\nLa respuesta fueron las chinampas, y aquí va una corrección: nunca flotaron. Perdón por quien ya se imaginaba a los mexicas remando su huerto hasta el mercado. Eran islas artificiales ancladas al fondo somero con estacas de madera, rellenas de vegetación acuática y lodo fértil, sujetas por las raíces de sauces ahuejotes.",
-            "startSec": 115.33,
-            "endSec": 149.75,
-            "durationSec": 34.42
-          },
-          {
-            "type": "pause",
-            "startSec": 149.75,
-            "endSec": 151.25,
-            "durationSec": 1.5
-          },
-          {
-            "type": "text",
-            "text": "Producían hasta tres cosechas anuales de maíz, frijol, calabaza, chile y flores. Para 1519 cubrían unas 12 mil 400 hectáreas, frente a apenas 2 mil 215 actuales, alimentando entre 150 mil y 250 mil habitantes. Pero tenían un enemigo químico: cada tormenta empujaba el agua salobre de Texcoco sobre los cultivos.\n\nEntre 1446 y 1449, lluvias torrenciales anegaron Tenochtitlan, asentada apenas dos metros sobre el lago. Moctezuma Ilhuicamina llamó a su aliado de Texcoco, Nezahualcóyotl, célebre por sus poemas pero brillante como ingeniero hidráulico.",
-            "startSec": 151.25,
-            "endSec": 194.45,
-            "durationSec": 43.2
-          },
-          {
-            "type": "pause",
-            "startSec": 194.45,
-            "endSec": 195.95,
-            "durationSec": 1.5
-          },
-          {
-            "type": "text",
-            "text": "En 1449 construyó el Albarradón de Nezahualcóyotl: un muro de piedra volcánica, madera y argamasa de unos 16 kilómetros de largo, casi 8 metros de espesor y hasta 4 de altura, con compuertas regulables. Aquel dique partió el lago en dos químicas distintas. Al oriente quedó la sal; al poniente nació la laguna dulce de México, alimentada por el sur.\n\nPero domar al agua disparó la soberbia. Hacia 1499, el gobernante Ahuízotl quiso traer el manantial de Acuecuexcatl desde Coyoacán. El señor local, Tzutzumatzin, advirtió que el caudal inundaría la capital. Ahuízotl tomó el aviso como desacato, ordenó quitarle la vida y abrió el conducto entre ceremonias.",
-            "startSec": 195.95,
-            "endSec": 249.78,
-            "durationSec": 53.83
-          },
-          {
-            "type": "pause",
-            "startSec": 249.78,
-            "endSec": 251.28,
-            "durationSec": 1.5
-          },
-          {
-            "type": "text",
-            "text": "Cuarenta días después, según fray Diego Durán, el agua inundó Tenochtitlan y el propio Ahuízotl se golpeó la cabeza huyendo de su palacio. Tuvieron que pedir auxilio a Coyoacán para tapar el manantial.\n\nAun con el dique de 1449, el agua potable llegaba desde Chapultepec. El primer caño de barro, de 1418, había cedido en las crecidas, así que Nezahualcóyotl lo rehizo en piedra hacia 1466. En su Segunda Carta de Relación de 1520, Hernán Cortés describió con asombro dos caños paralelos de argamasa: uno llevaba un chorro grueso de agua dulce, mientras el segundo iba vacío de respaldo para limpiar el primero. Luego, aguadores en canoas la vendían por toda la isla.",
-            "startSec": 251.28,
-            "endSec": 307.09,
-            "durationSec": 55.81
-          },
-          {
-            "type": "pause",
-            "startSec": 307.09,
-            "endSec": 308.59,
-            "durationSec": 1.5
-          },
-          {
-            "type": "text",
-            "text": "Era una proeza técnica, pero concentraba la vida de la ciudad en una sola arteria expuesta. Cortés tomó nota.\n\nEl 26 de mayo de 1521 llegó el giro decisivo. Por orden de Cortés, Pedro de Alvarado y Cristóbal de Olid marcharon a Chapultepec para quebrar los caños. El cronista Bernal Díaz del Castillo combatió allí contra los defensores mexicas antes de que la piedra cediera y el agua dulce se perdiera en la tierra.",
-            "startSec": 308.59,
-            "endSec": 339.31,
-            "durationSec": 30.72
-          },
-          {
-            "type": "pause",
-            "startSec": 339.31,
-            "endSec": 340.81,
-            "durationSec": 1.5
-          },
-          {
-            "type": "text",
-            "text": "Durante casi 80 días de sitio, trece bergantines bloquearon las canoas nocturnas. Los sitiados cavaron pozos, pero los Anales de Tlatelolco registran que solo brotaba agua rojiza y salobre llena de salitre. Vivían sobre el agua y perecían de sed. El 13 de agosto de 1521, la ciudad cayó.\n\nTras vencer, Cortés pudo mudarse a tierra firme, pero reconstruyó sobre la isla por simbolismo político. Los europeos introdujeron carretas pesadas, talaron bosques, soltaron ganado que azolvó el fondo y descuidaron el albarradón. Las inundaciones volvieron en 1555, 1579, 1604 y 1607.",
-            "startSec": 340.81,
-            "endSec": 388.79,
-            "durationSec": 47.98
-          },
-          {
-            "type": "pause",
-            "startSec": 388.79,
-            "endSec": 390.29,
-            "durationSec": 1.5
-          },
-          {
-            "type": "text",
-            "text": "El virreinato decidió entonces vaciar el lago. En noviembre de 1607, el cosmógrafo alemán Enrico Martínez inició el Desagüe de Huehuetoca, un túnel de casi 13 kilómetros para expulsar los ríos fuera de la cuenca. Pero el primero de junio de 1613, el rey Felipe III contrató al ingeniero holandés Adrian Boot por cien ducados mensuales. Al llegar en 1614, Boot dio un veredicto incómodo: los mexicas tenían razón, no había que secar el lago, sino regularlo con diques y compuertas.\n\nLas pugnas frenaron las obras hasta el 21 de septiembre de 1629, día de San Mateo. Llovió sin pausa durante 36 horas. Para proteger su túnel inconcluso, Martínez mandó tapar la boca del desagüe. La Ciudad de México quedó hasta dos metros bajo el agua durante cinco años, hasta 1634.",
-            "startSec": 390.29,
-            "endSec": 446.38,
-            "durationSec": 56.09
-          },
-          {
-            "type": "pause",
-            "startSec": 446.38,
-            "endSec": 447.88,
-            "durationSec": 1.5
-          },
-          {
-            "type": "text",
-            "text": "Solo un pequeño tramo elevado junto a la plaza mayor siguió seco, apodado la isla de los perros. De unos 150 mil vecinos, al menos 50 mil emigraron y se calcularon cerca de 30 mil bajas humanas, incluida Inés de la Cueva, hija del virrey. Hoy, una cabeza de león en Madero y Motolinia aún marca la altura del agua. Lejos de rendirse, la urbe prolongó su guerra contra los lagos con tajos, canales y drenajes profundos.\n\nAl fin secaron el lago y pavimentaron su lecho para una metrópoli de 22 millones de personas. Entonces despertó la venganza geológica. El subsuelo capitalino es arcilla lacustre porosa saturada de agua. Sin lagos superficiales, la ciudad perforó pozos de 600 metros de media, y algunos de hasta 3 mil, para extraer el 70 por ciento del agua que bebe. En 1925, el ingeniero Roberto Gayol advirtió que la urbe se hundía, y Nabor Carrillo Flores probó la causa: el sobrebombeo comprime las arcillas como una esponja exprimida.",
-            "startSec": 447.88,
-            "endSec": 517.99,
-            "durationSec": 70.11
-          },
-          {
-            "type": "pause",
-            "startSec": 517.99,
-            "endSec": 519.49,
-            "durationSec": 1.5
-          },
-          {
-            "type": "text",
-            "text": "Desde 1862, zonas del Centro Histórico han descendido entre 10 y 14 metros. El Ángel de la Independencia, inaugurado en 1910 sobre pilotes firmes, quedó tan alto sobre la avenida que hubo que sumarle más de una decena de escalones.\n\nMediciones satelitales de 2021, junto con lecturas del satélite NISAR y reportes de la UNAM en 2026, confirman descensos de 35 a 50 centímetros al año en el oriente y el Centro Histórico, y más de 24 centímetros anuales incluso en el aeropuerto. Para cubrir el déficit, el Sistema Cutzamala trae cerca del 26 por ciento del agua metropolitana por una red de más de 320 kilómetros, bombeándola más de mil 100 metros cuesta arriba y gastando 2 mil 200 millones de kilovatios hora al año.",
-            "startSec": 519.49,
-            "endSec": 572.2,
-            "durationSec": 52.71
-          },
-          {
-            "type": "pause",
-            "startSec": 572.2,
-            "endSec": 573.7,
-            "durationSec": 1.5
-          },
-          {
-            "type": "text",
-            "text": "La ironía final es brutal: casi el 40 por ciento se pierde en fugas porque el hundimiento fractura las tuberías. Aunque las lluvias llevaron las presas del Cutzamala de un crítico 26 por ciento en 2024 a más del 96 por ciento en noviembre de 2026, siete de cada diez vasos siguen saliendo de la esponja subterránea, y aun así sus calles se inundan cada verano.\n\nEn siete siglos, la capital pasó de convivir con el lago a declararle la guerra. Consiguió secarlo, pero no rompió la paradoja: siguen rodeados de tormentas, hundiendo su propio suelo y luchando por agua limpia.",
-            "startSec": 573.7,
-            "endSec": 620.82,
-            "durationSec": 47.12
-          },
-          {
-            "type": "pause",
-            "startSec": 620.82,
-            "endSec": 622.82,
-            "durationSec": 2
-          },
-          {
-            "type": "text",
-            "text": "Déjanos saber en los comentarios: ¿vivirías tú en una ciudad que se hunde mientras se queda sin agua? Cada historia deja una huella. Aquí seguimos sus rastros.",
-            "startSec": 622.82,
-            "endSec": 635.24,
-            "durationSec": 12.42
-          }
-        ]
+        "providerUsed": "Audio Cargado"
       }
     ],
-    "masterAudioUrl": "tts-files/tts-restored-1795650960031.mp3",
+    "masterAudioUrl": "tts-files/tts-restored-1795653472222.mp3",
     "timelineSentences": [
       {
         "text": "[SIN VOZ NARRATIVA — Clip 1: Hook Visual Inicial y Texto en Pantalla (6s) + 2s iniciales del Clip 2 sin voz]",
@@ -261,417 +83,372 @@
         "end": 8
       },
       {
-        "text": "Año 1325, Lago de Texcoco, Tenochtitlan, México. Construyeron, en medio de un lago, la que",
+        "text": "Año 1325, Lago de Texcoco, Tenochtitlan, México. Construyeron, en medio de un lago, la que llegaría",
         "start": 8,
         "end": 15
       },
       {
-        "text": "llegaría a ser la ciudad más grande de América. Agua por todas partes. Solo había un problema: el agua",
+        "text": "a ser la ciudad más grande de América. Agua por todas partes. Solo había un problema:",
         "start": 15,
-        "end": 23
+        "end": 21
       },
       {
-        "text": "era salada. Vivían sobre el agua y perecían de sed. En los próximos minutos descubrirás",
-        "start": 23,
-        "end": 30
+        "text": "el agua era salada. Vivían sobre el agua y perecían de sed. En los próximos minutos descubrirás",
+        "start": 21,
+        "end": 28
       },
       {
-        "text": "cómo una metrópoli rodeada de agua se quedó sin ella durante siete siglos. Dale like a este video y",
-        "start": 30,
-        "end": 38
+        "text": "cómo una metrópoli rodeada de agua se quedó sin ella durante siete siglos. Dale like a este",
+        "start": 28,
+        "end": 34
       },
       {
-        "text": "suscríbete. Cada historia deja una huella. Aquí seguimos sus rastros. [pausa: 2.3s]",
-        "start": 38,
-        "end": 45
+        "text": "video y suscríbete. Cada historia deja una huella. Aquí seguimos sus rastros. [pausa: 2s]",
+        "start": 34,
+        "end": 41
       },
       {
         "text": "[SIN VOZ NARRATIVA — Intro Oficial de Marca (8s)]",
-        "start": 45,
-        "end": 53
+        "start": 41,
+        "end": 49
       },
       {
-        "text": "La tradición fecha la fundación de Tenochtitlan el 13 de marzo de 1325, tras la profecía del águila.",
-        "start": 53,
-        "end": 61
+        "text": "La tradición fecha la fundación de Tenochtitlan el 13 de marzo de 1325, tras la profecía del águila. Lo",
+        "start": 49,
+        "end": 57
       },
       {
-        "text": "Lo que pocos cuentan es que aquel islote pantanoso era el peor terreno del valle. Ningún señorío vecino",
-        "start": 61,
-        "end": 69
+        "text": "que pocos cuentan es que aquel islote pantanoso era el peor terreno del valle. Ningún señorío vecino lo quería.",
+        "start": 57,
+        "end": 65
       },
       {
-        "text": "lo quería. [pausa: 2.1s] La Cuenca de México es una cubeta cerrada hace 600 mil años",
-        "start": 69,
-        "end": 77
+        "text": "[pausa: 1.5s] La Cuenca de México es una cubeta cerrada hace 600 mil años por volcanes, suspendida a 2 mil 240",
+        "start": 65,
+        "end": 73
       },
       {
-        "text": "por volcanes, suspendida a 2 mil 240 metros sobre el nivel del mar y sin salida al océano.",
-        "start": 77,
-        "end": 85
+        "text": "metros sobre el nivel del mar y sin salida al océano. Casi el 80 por ciento de la lluvia solo escapa evaporándose,",
+        "start": 73,
+        "end": 81
       },
       {
-        "text": "Casi el 80 por ciento de la lluvia solo escapa evaporándose, concentrando sales durante milenios.",
-        "start": 85,
-        "end": 93
+        "text": "concentrando sales durante milenios. Así se formó una escalera de cinco lagos donde el agua dulce bajaba desde Xochimilco",
+        "start": 81,
+        "end": 89
       },
       {
-        "text": "Así se formó una escalera de cinco lagos donde el agua dulce bajaba desde Xochimilco y Chalco",
-        "start": 93,
-        "end": 101
+        "text": "y Chalco hasta el punto más bajo: Texcoco. Texcoco era el sumidero alcalino del valle, con un pH cercano a 9.8 y costras",
+        "start": 89,
+        "end": 97
       },
       {
-        "text": "hasta el punto más bajo: Texcoco. Texcoco era el sumidero alcalino del valle, con un pH cercano",
-        "start": 101,
-        "end": 109
+        "text": "de tequesquite en temporada seca. A inicios del siglo XIX, Alexander von Humboldt midió el contraste: Xochimilco",
+        "start": 97,
+        "end": 105
       },
       {
-        "text": "a 9.8 y costras de tequesquite en temporada seca. A inicios del siglo XIX, Alexander von",
-        "start": 109,
-        "end": 117
+        "text": "era clara y bebible; Texcoco era amarillenta, olía a ácido sulfhídrico y sabía a carbonato de sodio.",
+        "start": 105,
+        "end": 113
       },
       {
-        "text": "Humboldt midió el contraste: Xochimilco era clara y bebible; Texcoco era amarillenta, olía",
-        "start": 117,
-        "end": 125
+        "text": "[pausa: 1.5s] Vivían sobre el agua y perecían de sed. Si ese lago quemaba las raíces, ¿cómo alimentaron a cientos de",
+        "start": 113,
+        "end": 121
       },
       {
-        "text": "a ácido sulfhídrico y sabía a carbonato de sodio. [pausa: 1.8s] Vivían sobre el agua y",
-        "start": 125,
-        "end": 133
+        "text": "miles de personas? La respuesta fueron las chinampas, y aquí va una corrección: nunca flotaron. Perdón por quien",
+        "start": 121,
+        "end": 129
       },
       {
-        "text": "perecían de sed. Si ese lago quemaba las raíces, ¿cómo alimentaron a cientos de miles de personas? La",
-        "start": 133,
-        "end": 141
+        "text": "ya se imaginaba a los mexicas remando su huerto hasta el mercado. Eran islas artificiales ancladas al fondo somero",
+        "start": 129,
+        "end": 137
       },
       {
-        "text": "respuesta fueron las chinampas, y aquí va una corrección: nunca flotaron. Perdón por quien ya se imaginaba",
-        "start": 141,
-        "end": 149
+        "text": "con estacas de madera, rellenas de vegetación acuática y lodo fértil, sujetas por las raíces de sauces ahuejotes.",
+        "start": 137,
+        "end": 145
       },
       {
-        "text": "a los mexicas remando su huerto hasta el mercado. Eran islas artificiales ancladas al fondo somero con",
-        "start": 149,
-        "end": 157
+        "text": "[pausa: 1.5s] Producían hasta tres cosechas anuales de maíz, frijol, calabaza, chile y flores. Para 1519",
+        "start": 145,
+        "end": 153
       },
       {
-        "text": "estacas de madera, rellenas de vegetación acuática y lodo fértil, sujetas por las raíces de sauces ahuejotes.",
-        "start": 157,
-        "end": 165
+        "text": "cubrían unas 12 mil 400 hectáreas, frente a apenas 2 mil 215 actuales, alimentando entre 150 mil y 250 mil habitantes.",
+        "start": 153,
+        "end": 161
       },
       {
-        "text": "[pausa: 1.9s] Producían hasta tres cosechas anuales de maíz, frijol, calabaza, chile y",
-        "start": 165,
-        "end": 173
+        "text": "Pero tenían un enemigo químico: cada tormenta empujaba el agua salobre de Texcoco sobre los cultivos. Entre",
+        "start": 161,
+        "end": 169
       },
       {
-        "text": "flores. Para 1519 cubrían unas 12 mil 400 hectáreas, frente a apenas 2 mil 215 actuales, alimentando entre",
-        "start": 173,
-        "end": 181
+        "text": "1446 y 1449, lluvias torrenciales anegaron Tenochtitlan, asentada apenas dos metros sobre el lago. Moctezuma",
+        "start": 169,
+        "end": 177
       },
       {
-        "text": "150 mil y 250 mil habitantes. Pero tenían un enemigo químico: cada tormenta empujaba el agua salobre de",
-        "start": 181,
-        "end": 189
+        "text": "Ilhuicamina llamó a su aliado de Texcoco, Nezahualcóyotl, célebre por sus poemas pero brillante como ingeniero",
+        "start": 177,
+        "end": 185
       },
       {
-        "text": "Texcoco sobre los cultivos. Entre 1446 y 1449, lluvias torrenciales anegaron Tenochtitlan, asentada",
-        "start": 189,
-        "end": 197
+        "text": "hidráulico. [pausa: 1.5s] En 1449 construyó el Albarradón de Nezahualcóyotl: un muro de piedra volcánica, madera",
+        "start": 185,
+        "end": 193
       },
       {
-        "text": "apenas dos metros sobre el lago. Moctezuma Ilhuicamina llamó a su aliado de Texcoco, Nezahualcóyotl,",
-        "start": 197,
-        "end": 205
+        "text": "y argamasa de unos 16 kilómetros de largo, casi 8 metros de espesor y hasta 4 de altura, con compuertas regulables.",
+        "start": 193,
+        "end": 201
       },
       {
-        "text": "célebre por sus poemas pero brillante como ingeniero hidráulico. [pausa: 1.8s] En 1449 construyó",
-        "start": 205,
-        "end": 213
+        "text": "Aquel dique partió el lago en dos químicas distintas. Al oriente quedó la sal; al poniente nació la laguna dulce",
+        "start": 201,
+        "end": 209
       },
       {
-        "text": "el Albarradón de Nezahualcóyotl: un muro de piedra volcánica, madera y argamasa de unos 16",
-        "start": 213,
-        "end": 221
+        "text": "de México, alimentada por el sur. Pero domar al agua disparó la soberbia. Hacia 1499, el gobernante Ahuízotl quiso",
+        "start": 209,
+        "end": 217
       },
       {
-        "text": "kilómetros de largo, casi 8 metros de espesor y hasta 4 de altura, con compuertas regulables. Aquel",
-        "start": 221,
-        "end": 229
+        "text": "traer el manantial de Acuecuexcatl desde Coyoacán. El señor local, Tzutzumatzin, advirtió que el caudal inundaría",
+        "start": 217,
+        "end": 225
       },
       {
-        "text": "dique partió el lago en dos químicas distintas. Al oriente quedó la sal; al poniente nació la laguna",
-        "start": 229,
-        "end": 237
+        "text": "la capital. Ahuízotl tomó el aviso como desacato, ordenó quitarle la vida y abrió el conducto entre ceremonias.",
+        "start": 225,
+        "end": 233
       },
       {
-        "text": "dulce de México, alimentada por el sur. Pero domar al agua disparó la soberbia. Hacia 1499, el",
-        "start": 237,
-        "end": 245
+        "text": "[pausa: 1.5s] Cuarenta días después, según fray Diego Durán, el agua inundó Tenochtitlan y el propio",
+        "start": 233,
+        "end": 241
       },
       {
-        "text": "gobernante Ahuízotl quiso traer el manantial de Acuecuexcatl desde Coyoacán. El señor local, Tzutzumatzin,",
-        "start": 245,
-        "end": 253
+        "text": "Ahuízotl se golpeó la cabeza huyendo de su palacio. Tuvieron que pedir auxilio a Coyoacán para tapar el manantial. Aun",
+        "start": 241,
+        "end": 249
       },
       {
-        "text": "advirtió que el caudal inundaría la capital. Ahuízotl tomó el aviso como desacato, ordenó",
-        "start": 253,
-        "end": 261
+        "text": "con el dique de 1449, el agua potable llegaba desde Chapultepec. El primer caño de barro, de 1418, había cedido en las",
+        "start": 249,
+        "end": 257
       },
       {
-        "text": "quitarle la vida y abrió el conducto entre ceremonias. [pausa: 1.8s] Cuarenta días después,",
-        "start": 261,
-        "end": 269
+        "text": "crecidas, así que Nezahualcóyotl lo rehizo en piedra hacia 1466. En su Segunda Carta de Relación de 1520, Hernán",
+        "start": 257,
+        "end": 265
       },
       {
-        "text": "según fray Diego Durán, el agua inundó Tenochtitlan y el propio Ahuízotl se golpeó la cabeza",
-        "start": 269,
-        "end": 277
+        "text": "Cortés describió con asombro dos caños paralelos de argamasa: uno llevaba un chorro grueso de agua dulce, mientras el",
+        "start": 265,
+        "end": 273
       },
       {
-        "text": "huyendo de su palacio. Tuvieron que pedir auxilio a Coyoacán para tapar el manantial. Aun con",
-        "start": 277,
-        "end": 285
+        "text": "segundo iba vacío de respaldo para limpiar el primero. Luego, aguadores en canoas la vendían por toda la isla.",
+        "start": 273,
+        "end": 281
       },
       {
-        "text": "el dique de 1449, el agua potable llegaba desde Chapultepec. El primer caño de barro, de 1418,",
-        "start": 285,
-        "end": 293
+        "text": "[pausa: 1.5s] Era una proeza técnica, pero concentraba la vida de la ciudad en una sola arteria expuesta. Cortés",
+        "start": 281,
+        "end": 289
       },
       {
-        "text": "había cedido en las crecidas, así que Nezahualcóyotl lo rehizo en piedra hacia 1466. En su Segunda",
-        "start": 293,
-        "end": 301
+        "text": "tomó nota. El 26 de mayo de 1521 llegó el giro decisivo. Por orden de Cortés, Pedro de Alvarado y Cristóbal de Olid",
+        "start": 289,
+        "end": 297
       },
       {
-        "text": "Carta de Relación de 1520, Hernán Cortés describió con asombro dos caños paralelos de argamasa:",
-        "start": 301,
-        "end": 309
+        "text": "marcharon a Chapultepec para quebrar los caños. El cronista Bernal Díaz del Castillo combatió allí contra los defensores",
+        "start": 297,
+        "end": 305
       },
       {
-        "text": "uno llevaba un chorro grueso de agua dulce, mientras el segundo iba vacío de respaldo para limpiar",
-        "start": 309,
-        "end": 317
+        "text": "mexicas antes de que la piedra cediera y el agua dulce se perdiera en la tierra. [pausa: 1.5s] Durante",
+        "start": 305,
+        "end": 313
       },
       {
-        "text": "el primero. Luego, aguadores en canoas la vendían por toda la isla. [pausa: 1.8s] Era una",
-        "start": 317,
-        "end": 325
+        "text": "casi 80 días de sitio, trece bergantines bloquearon las canoas nocturnas. Los sitiados cavaron pozos, pero los Anales",
+        "start": 313,
+        "end": 321
       },
       {
-        "text": "proeza técnica, pero concentraba la vida de la ciudad en una sola arteria expuesta. Cortés tomó nota. El 26",
-        "start": 325,
-        "end": 333
+        "text": "de Tlatelolco registran que solo brotaba agua rojiza y salobre llena de salitre. Vivían sobre el agua y perecían",
+        "start": 321,
+        "end": 329
       },
       {
-        "text": "de mayo de 1521 llegó el giro decisivo. Por orden de Cortés, Pedro de Alvarado y Cristóbal de Olid marcharon",
-        "start": 333,
-        "end": 341
+        "text": "de sed. El 13 de agosto de 1521, la ciudad cayó. Tras vencer, Cortés pudo mudarse a tierra firme, pero reconstruyó",
+        "start": 329,
+        "end": 337
       },
       {
-        "text": "a Chapultepec para quebrar los caños. El cronista Bernal Díaz del Castillo combatió allí contra los defensores",
-        "start": 341,
-        "end": 349
+        "text": "sobre la isla por simbolismo político. Los europeos introdujeron carretas pesadas, talaron bosques, soltaron",
+        "start": 337,
+        "end": 345
       },
       {
-        "text": "mexicas antes de que la piedra cediera y el agua dulce se perdiera en la tierra. [pausa: 1.8s]",
-        "start": 349,
-        "end": 357
+        "text": "ganado que azolvó el fondo y descuidaron el albarradón. Las inundaciones volvieron en 1555, 1579, 1604 y 1607.",
+        "start": 345,
+        "end": 353
       },
       {
-        "text": "Durante casi 80 días de sitio, trece bergantines bloquearon las canoas nocturnas. Los sitiados cavaron pozos, pero los Anales",
-        "start": 357,
-        "end": 365
+        "text": "[pausa: 1.5s] El virreinato decidió entonces vaciar el lago. En noviembre de 1607, el cosmógrafo alemán Enrico",
+        "start": 353,
+        "end": 361
       },
       {
-        "text": "de Tlatelolco registran que solo brotaba agua rojiza y salobre llena de salitre. Vivían sobre el agua y perecían de",
-        "start": 365,
-        "end": 373
+        "text": "Martínez inició el Desagüe de Huehuetoca, un túnel de casi 13 kilómetros para expulsar los ríos fuera de la cuenca.",
+        "start": 361,
+        "end": 369
       },
       {
-        "text": "sed. El 13 de agosto de 1521, la ciudad cayó. Tras vencer, Cortés pudo mudarse a tierra firme, pero reconstruyó sobre la isla",
-        "start": 373,
-        "end": 381
+        "text": "Pero el primero de junio de 1613, el rey Felipe III contrató al ingeniero holandés Adrian Boot por cien ducados",
+        "start": 369,
+        "end": 377
       },
       {
-        "text": "por simbolismo político. Los europeos introdujeron carretas pesadas, talaron bosques, soltaron ganado que azolvó el",
-        "start": 381,
-        "end": 389
+        "text": "mensuales. Al llegar en 1614, Boot dio un veredicto incómodo: los mexicas tenían razón, no había que secar el lago, sino",
+        "start": 377,
+        "end": 385
       },
       {
-        "text": "fondo y descuidaron el albarradón. Las inundaciones volvieron en 1555, 1579, 1604 y 1607. [pausa: 1.2s] El",
-        "start": 389,
-        "end": 397
+        "text": "regularlo con diques y compuertas. Las pugnas frenaron las obras hasta el 21 de septiembre de 1629, día de San Mateo.",
+        "start": 385,
+        "end": 393
       },
       {
-        "text": "virreinato decidió entonces vaciar el lago. En noviembre de 1607, el cosmógrafo alemán Enrico",
-        "start": 397,
-        "end": 405
+        "text": "Llovió sin pausa durante 36 horas. Para proteger su túnel inconcluso, Martínez mandó tapar la boca del desagüe.",
+        "start": 393,
+        "end": 401
       },
       {
-        "text": "Martínez inició el Desagüe de Huehuetoca, un túnel de casi 13 kilómetros para expulsar los ríos",
-        "start": 405,
-        "end": 413
+        "text": "La Ciudad de México quedó hasta dos metros bajo el agua durante cinco años, hasta 1634. [pausa: 1.5s] Solo un",
+        "start": 401,
+        "end": 409
       },
       {
-        "text": "fuera de la cuenca. Pero el primero de junio de 1613, el rey Felipe III contrató al ingeniero",
-        "start": 413,
-        "end": 421
+        "text": "pequeño tramo elevado junto a la plaza mayor siguió seco, apodado la isla de los perros. De unos 150 mil vecinos, al",
+        "start": 409,
+        "end": 417
       },
       {
-        "text": "holandés Adrian Boot por cien ducados mensuales. Al llegar en 1614, Boot dio un veredicto",
-        "start": 421,
-        "end": 429
+        "text": "menos 50 mil emigraron y se calcularon cerca de 30 mil bajas humanas, incluida Inés de la Cueva, hija del virrey. Hoy,",
+        "start": 417,
+        "end": 425
       },
       {
-        "text": "incómodo: los mexicas tenían razón, no había que secar el lago, sino regularlo con diques y",
-        "start": 429,
-        "end": 437
+        "text": "una cabeza de león en Madero y Motolinia aún marca la altura del agua. Lejos de rendirse, la urbe prolongó su guerra",
+        "start": 425,
+        "end": 433
       },
       {
-        "text": "compuertas. Las pugnas frenaron las obras hasta el 21 de septiembre de 1629, día de San Mateo.",
-        "start": 437,
-        "end": 445
+        "text": "contra los lagos con tajos, canales y drenajes profundos. Al fin secaron el lago y pavimentaron su lecho para una",
+        "start": 433,
+        "end": 441
       },
       {
-        "text": "Llovió sin pausa durante 36 horas. Para proteger su túnel inconcluso, Martínez mandó tapar la",
-        "start": 445,
-        "end": 453
+        "text": "metrópoli de 22 millones de personas. Entonces despertó la venganza geológica. El subsuelo capitalino es arcilla",
+        "start": 441,
+        "end": 449
       },
       {
-        "text": "boca del desagüe. La Ciudad de México quedó hasta dos metros bajo el agua durante cinco años,",
-        "start": 453,
-        "end": 461
+        "text": "lacustre porosa saturada de agua. Sin lagos superficiales, la ciudad perforó pozos de 600 metros de media, y algunos",
+        "start": 449,
+        "end": 457
       },
       {
-        "text": "hasta 1634. [pausa: 1.9s] Solo un pequeño tramo elevado junto a la plaza mayor siguió seco, apodado",
-        "start": 461,
-        "end": 469
+        "text": "de hasta 3 mil, para extraer el 70 por ciento del agua que bebe. En 1925, el ingeniero Roberto Gayol advirtió que la",
+        "start": 457,
+        "end": 465
       },
       {
-        "text": "la isla de los perros. De unos 150 mil vecinos, al menos 50 mil emigraron y se calcularon cerca de 30 mil",
-        "start": 469,
-        "end": 477
+        "text": "urbe se hundía, y Nabor Carrillo Flores probó la causa: el sobrebombeo comprime las arcillas como una esponja exprimida.",
+        "start": 465,
+        "end": 473
       },
       {
-        "text": "bajas humanas, incluida Inés de la Cueva, hija del virrey. Hoy, una cabeza de león en Madero y Motolinia aún",
-        "start": 477,
-        "end": 485
+        "text": "[pausa: 1.5s] Desde 1862, zonas del Centro Histórico han descendido entre 10 y 14 metros. El Ángel de",
+        "start": 473,
+        "end": 481
       },
       {
-        "text": "marca la altura del agua. Lejos de rendirse, la urbe prolongó su guerra contra los lagos con tajos, canales y",
-        "start": 485,
-        "end": 493
+        "text": "la Independencia, inaugurado en 1910 sobre pilotes firmes, quedó tan alto sobre la avenida que hubo que sumarle más de",
+        "start": 481,
+        "end": 489
       },
       {
-        "text": "drenajes profundos. Al fin secaron el lago y pavimentaron su lecho para una metrópoli de 22 millones de personas.",
-        "start": 493,
-        "end": 501
+        "text": "una decena de escalones. Mediciones satelitales de 2021, junto con lecturas del satélite NISAR y reportes de la",
+        "start": 489,
+        "end": 497
       },
       {
-        "text": "Entonces despertó la venganza geológica. El subsuelo capitalino es arcilla lacustre porosa saturada",
-        "start": 501,
-        "end": 509
+        "text": "UNAM en 2026, confirman descensos de 35 a 50 centímetros al año en el oriente y el Centro Histórico, y más de 24 centímetros",
+        "start": 497,
+        "end": 505
       },
       {
-        "text": "de agua. Sin lagos superficiales, la ciudad perforó pozos de 600 metros de media, y algunos de hasta 3 mil,",
-        "start": 509,
-        "end": 517
+        "text": "anuales incluso en el aeropuerto. Para cubrir el déficit, el Sistema Cutzamala trae cerca del 26 por ciento del",
+        "start": 505,
+        "end": 513
       },
       {
-        "text": "para extraer el 70 por ciento del agua que bebe. En 1925, el ingeniero Roberto Gayol advirtió que la urbe se",
-        "start": 517,
-        "end": 525
+        "text": "agua metropolitana por una red de más de 320 kilómetros, bombeándola más de mil 100 metros cuesta arriba y gastando 2",
+        "start": 513,
+        "end": 521
       },
       {
-        "text": "hundía, y Nabor Carrillo Flores probó la causa: el sobrebombeo comprime las arcillas como una esponja exprimida.",
-        "start": 525,
-        "end": 533
+        "text": "mil 200 millones de kilovatios hora al año. [pausa: 1.5s] La ironía final es brutal: casi el 40 por ciento se",
+        "start": 521,
+        "end": 529
       },
       {
-        "text": "[pausa: 2.1s] Desde 1862, zonas del Centro Histórico han descendido entre 10 y 14",
-        "start": 533,
-        "end": 541
+        "text": "pierde en fugas porque el hundimiento fractura las tuberías. Aunque las lluvias llevaron las presas del Cutzamala de",
+        "start": 529,
+        "end": 537
       },
       {
-        "text": "metros. El Ángel de la Independencia, inaugurado en 1910 sobre pilotes firmes, quedó tan alto sobre la",
-        "start": 541,
-        "end": 549
+        "text": "un crítico 26 por ciento en 2024 a más del 96 por ciento en noviembre de 2026, siete de cada diez vasos siguen saliendo de",
+        "start": 537,
+        "end": 545
       },
       {
-        "text": "avenida que hubo que sumarle más de una decena de escalones. Mediciones satelitales de 2021, junto",
-        "start": 549,
-        "end": 557
+        "text": "la esponja subterránea, y aun así sus calles se inundan cada verano. En siete siglos, la capital pasó de convivir con",
+        "start": 545,
+        "end": 553
       },
       {
-        "text": "con lecturas del satélite NISAR y reportes de la UNAM en 2026, confirman descensos de 35 a 50 centímetros",
-        "start": 557,
-        "end": 565
+        "text": "el lago a declararle la guerra. Consiguió secarlo, pero no rompió la paradoja: siguen rodeados de tormentas,",
+        "start": 553,
+        "end": 561
       },
       {
-        "text": "al año en el oriente y el Centro Histórico, y más de 24 centímetros anuales incluso en el aeropuerto.",
-        "start": 565,
-        "end": 573
+        "text": "hundiendo su propio suelo y luchando por agua limpia. [pausa: 2s] Déjanos saber en los comentarios:",
+        "start": 561,
+        "end": 569
       },
       {
-        "text": "Para cubrir el déficit, el Sistema Cutzamala trae cerca del 26 por ciento del agua metropolitana",
-        "start": 573,
-        "end": 581
-      },
-      {
-        "text": "por una red de más de 320 kilómetros, bombeándola más de mil 100 metros cuesta arriba y gastando 2 mil",
-        "start": 581,
-        "end": 589
-      },
-      {
-        "text": "200 millones de kilovatios hora al año. [pausa: 0.9s] La ironía final es brutal: casi el 40 por ciento se pierde",
-        "start": 589,
-        "end": 597
-      },
-      {
-        "text": "en fugas porque el hundimiento fractura las tuberías. Aunque las lluvias llevaron las presas del",
-        "start": 597,
-        "end": 605
-      },
-      {
-        "text": "Cutzamala de un crítico 26 por ciento en 2024 a más del 96 por ciento en noviembre de 2026, siete de cada diez vasos",
-        "start": 605,
-        "end": 613
-      },
-      {
-        "text": "siguen saliendo de la esponja subterránea, y aun así sus calles se inundan cada verano. En siete siglos,",
-        "start": 613,
-        "end": 621
-      },
-      {
-        "text": "la capital pasó de convivir con el lago a declararle la guerra. Consiguió secarlo, pero no rompió la",
-        "start": 621,
-        "end": 629
-      },
-      {
-        "text": "paradoja: siguen rodeados de tormentas, hundiendo su propio suelo y luchando por agua limpia.",
-        "start": 629,
-        "end": 637
-      },
-      {
-        "text": "[pausa: 2.3s] Déjanos saber en los comentarios: ¿vivirías tú en una ciudad que se hunde mientras",
-        "start": 637,
-        "end": 645
-      },
-      {
-        "text": "se queda sin agua? Cada historia deja una huella. Aquí seguimos sus rastros.",
-        "start": 645,
-        "end": 651
+        "text": "¿vivirías tú en una ciudad que se hunde mientras se queda sin agua? Cada historia deja una huella. Aquí seguimos sus rastros.",
+        "start": 569,
+        "end": 578
       },
       {
         "text": "[SIN VOZ NARRATIVA — Outro Oficial de Marca (8s)]",
-        "start": 651,
-        "end": 659
+        "start": 578,
+        "end": 586
       }
     ],
-    "timelineFormattedText": "===================================\nCANTIDAD DE PALABRAS: 1326\nPALABRAS POR MINUTO (WPM): 125.3\nDURACIÓN VOZ NARRATIVA: 10:35\nBLOQUES SIN VOZ (Intro + Hook + Outro): +24s\nDURACIÓN VIDEO TOTAL: 10:59\n===================================\n\n1 00:00 - 00:08 [SIN VOZ NARRATIVA — Clip 1: Hook Visual Inicial y Texto en Pantalla (6s) + 2s iniciales del Clip 2 sin voz]\n2 00:08 - 00:15 Año 1325, Lago de Texcoco, Tenochtitlan, México. Construyeron, en medio de un lago, la que\n3 00:15 - 00:23 llegaría a ser la ciudad más grande de América. Agua por todas partes. Solo había un problema: el agua\n4 00:23 - 00:30 era salada. Vivían sobre el agua y perecían de sed. En los próximos minutos descubrirás\n5 00:30 - 00:38 cómo una metrópoli rodeada de agua se quedó sin ella durante siete siglos. Dale like a este video y\n6 00:38 - 00:45 suscríbete. Cada historia deja una huella. Aquí seguimos sus rastros. [pausa: 2.3s]\n7 00:45 - 00:53 [SIN VOZ NARRATIVA — Intro Oficial de Marca (8s)]\n8 00:53 - 01:01 La tradición fecha la fundación de Tenochtitlan el 13 de marzo de 1325, tras la profecía del águila.\n9 01:01 - 01:09 Lo que pocos cuentan es que aquel islote pantanoso era el peor terreno del valle. Ningún señorío vecino\n10 01:09 - 01:17 lo quería. [pausa: 2.1s] La Cuenca de México es una cubeta cerrada hace 600 mil años\n11 01:17 - 01:25 por volcanes, suspendida a 2 mil 240 metros sobre el nivel del mar y sin salida al océano.\n12 01:25 - 01:33 Casi el 80 por ciento de la lluvia solo escapa evaporándose, concentrando sales durante milenios.\n13 01:33 - 01:41 Así se formó una escalera de cinco lagos donde el agua dulce bajaba desde Xochimilco y Chalco\n14 01:41 - 01:49 hasta el punto más bajo: Texcoco. Texcoco era el sumidero alcalino del valle, con un pH cercano\n15 01:49 - 01:57 a 9.8 y costras de tequesquite en temporada seca. A inicios del siglo XIX, Alexander von\n16 01:57 - 02:05 Humboldt midió el contraste: Xochimilco era clara y bebible; Texcoco era amarillenta, olía\n17 02:05 - 02:13 a ácido sulfhídrico y sabía a carbonato de sodio. [pausa: 1.8s] Vivían sobre el agua y\n18 02:13 - 02:21 perecían de sed. Si ese lago quemaba las raíces, ¿cómo alimentaron a cientos de miles de personas? La\n19 02:21 - 02:29 respuesta fueron las chinampas, y aquí va una corrección: nunca flotaron. Perdón por quien ya se imaginaba\n20 02:29 - 02:37 a los mexicas remando su huerto hasta el mercado. Eran islas artificiales ancladas al fondo somero con\n21 02:37 - 02:45 estacas de madera, rellenas de vegetación acuática y lodo fértil, sujetas por las raíces de sauces ahuejotes.\n22 02:45 - 02:53 [pausa: 1.9s] Producían hasta tres cosechas anuales de maíz, frijol, calabaza, chile y\n23 02:53 - 03:01 flores. Para 1519 cubrían unas 12 mil 400 hectáreas, frente a apenas 2 mil 215 actuales, alimentando entre\n24 03:01 - 03:09 150 mil y 250 mil habitantes. Pero tenían un enemigo químico: cada tormenta empujaba el agua salobre de\n25 03:09 - 03:17 Texcoco sobre los cultivos. Entre 1446 y 1449, lluvias torrenciales anegaron Tenochtitlan, asentada\n26 03:17 - 03:25 apenas dos metros sobre el lago. Moctezuma Ilhuicamina llamó a su aliado de Texcoco, Nezahualcóyotl,\n27 03:25 - 03:33 célebre por sus poemas pero brillante como ingeniero hidráulico. [pausa: 1.8s] En 1449 construyó\n28 03:33 - 03:41 el Albarradón de Nezahualcóyotl: un muro de piedra volcánica, madera y argamasa de unos 16\n29 03:41 - 03:49 kilómetros de largo, casi 8 metros de espesor y hasta 4 de altura, con compuertas regulables. Aquel\n30 03:49 - 03:57 dique partió el lago en dos químicas distintas. Al oriente quedó la sal; al poniente nació la laguna\n31 03:57 - 04:05 dulce de México, alimentada por el sur. Pero domar al agua disparó la soberbia. Hacia 1499, el\n32 04:05 - 04:13 gobernante Ahuízotl quiso traer el manantial de Acuecuexcatl desde Coyoacán. El señor local, Tzutzumatzin,\n33 04:13 - 04:21 advirtió que el caudal inundaría la capital. Ahuízotl tomó el aviso como desacato, ordenó\n34 04:21 - 04:29 quitarle la vida y abrió el conducto entre ceremonias. [pausa: 1.8s] Cuarenta días después,\n35 04:29 - 04:37 según fray Diego Durán, el agua inundó Tenochtitlan y el propio Ahuízotl se golpeó la cabeza\n36 04:37 - 04:45 huyendo de su palacio. Tuvieron que pedir auxilio a Coyoacán para tapar el manantial. Aun con\n37 04:45 - 04:53 el dique de 1449, el agua potable llegaba desde Chapultepec. El primer caño de barro, de 1418,\n38 04:53 - 05:01 había cedido en las crecidas, así que Nezahualcóyotl lo rehizo en piedra hacia 1466. En su Segunda\n39 05:01 - 05:09 Carta de Relación de 1520, Hernán Cortés describió con asombro dos caños paralelos de argamasa:\n40 05:09 - 05:17 uno llevaba un chorro grueso de agua dulce, mientras el segundo iba vacío de respaldo para limpiar\n41 05:17 - 05:25 el primero. Luego, aguadores en canoas la vendían por toda la isla. [pausa: 1.8s] Era una\n42 05:25 - 05:33 proeza técnica, pero concentraba la vida de la ciudad en una sola arteria expuesta. Cortés tomó nota. El 26\n43 05:33 - 05:41 de mayo de 1521 llegó el giro decisivo. Por orden de Cortés, Pedro de Alvarado y Cristóbal de Olid marcharon\n44 05:41 - 05:49 a Chapultepec para quebrar los caños. El cronista Bernal Díaz del Castillo combatió allí contra los defensores\n45 05:49 - 05:57 mexicas antes de que la piedra cediera y el agua dulce se perdiera en la tierra. [pausa: 1.8s]\n46 05:57 - 06:05 Durante casi 80 días de sitio, trece bergantines bloquearon las canoas nocturnas. Los sitiados cavaron pozos, pero los Anales\n47 06:05 - 06:13 de Tlatelolco registran que solo brotaba agua rojiza y salobre llena de salitre. Vivían sobre el agua y perecían de\n48 06:13 - 06:21 sed. El 13 de agosto de 1521, la ciudad cayó. Tras vencer, Cortés pudo mudarse a tierra firme, pero reconstruyó sobre la isla\n49 06:21 - 06:29 por simbolismo político. Los europeos introdujeron carretas pesadas, talaron bosques, soltaron ganado que azolvó el\n50 06:29 - 06:37 fondo y descuidaron el albarradón. Las inundaciones volvieron en 1555, 1579, 1604 y 1607. [pausa: 1.2s] El\n51 06:37 - 06:45 virreinato decidió entonces vaciar el lago. En noviembre de 1607, el cosmógrafo alemán Enrico\n52 06:45 - 06:53 Martínez inició el Desagüe de Huehuetoca, un túnel de casi 13 kilómetros para expulsar los ríos\n53 06:53 - 07:01 fuera de la cuenca. Pero el primero de junio de 1613, el rey Felipe III contrató al ingeniero\n54 07:01 - 07:09 holandés Adrian Boot por cien ducados mensuales. Al llegar en 1614, Boot dio un veredicto\n55 07:09 - 07:17 incómodo: los mexicas tenían razón, no había que secar el lago, sino regularlo con diques y\n56 07:17 - 07:25 compuertas. Las pugnas frenaron las obras hasta el 21 de septiembre de 1629, día de San Mateo.\n57 07:25 - 07:33 Llovió sin pausa durante 36 horas. Para proteger su túnel inconcluso, Martínez mandó tapar la\n58 07:33 - 07:41 boca del desagüe. La Ciudad de México quedó hasta dos metros bajo el agua durante cinco años,\n59 07:41 - 07:49 hasta 1634. [pausa: 1.9s] Solo un pequeño tramo elevado junto a la plaza mayor siguió seco, apodado\n60 07:49 - 07:57 la isla de los perros. De unos 150 mil vecinos, al menos 50 mil emigraron y se calcularon cerca de 30 mil\n61 07:57 - 08:05 bajas humanas, incluida Inés de la Cueva, hija del virrey. Hoy, una cabeza de león en Madero y Motolinia aún\n62 08:05 - 08:13 marca la altura del agua. Lejos de rendirse, la urbe prolongó su guerra contra los lagos con tajos, canales y\n63 08:13 - 08:21 drenajes profundos. Al fin secaron el lago y pavimentaron su lecho para una metrópoli de 22 millones de personas.\n64 08:21 - 08:29 Entonces despertó la venganza geológica. El subsuelo capitalino es arcilla lacustre porosa saturada\n65 08:29 - 08:37 de agua. Sin lagos superficiales, la ciudad perforó pozos de 600 metros de media, y algunos de hasta 3 mil,\n66 08:37 - 08:45 para extraer el 70 por ciento del agua que bebe. En 1925, el ingeniero Roberto Gayol advirtió que la urbe se\n67 08:45 - 08:53 hundía, y Nabor Carrillo Flores probó la causa: el sobrebombeo comprime las arcillas como una esponja exprimida.\n68 08:53 - 09:01 [pausa: 2.1s] Desde 1862, zonas del Centro Histórico han descendido entre 10 y 14\n69 09:01 - 09:09 metros. El Ángel de la Independencia, inaugurado en 1910 sobre pilotes firmes, quedó tan alto sobre la\n70 09:09 - 09:17 avenida que hubo que sumarle más de una decena de escalones. Mediciones satelitales de 2021, junto\n71 09:17 - 09:25 con lecturas del satélite NISAR y reportes de la UNAM en 2026, confirman descensos de 35 a 50 centímetros\n72 09:25 - 09:33 al año en el oriente y el Centro Histórico, y más de 24 centímetros anuales incluso en el aeropuerto.\n73 09:33 - 09:41 Para cubrir el déficit, el Sistema Cutzamala trae cerca del 26 por ciento del agua metropolitana\n74 09:41 - 09:49 por una red de más de 320 kilómetros, bombeándola más de mil 100 metros cuesta arriba y gastando 2 mil\n75 09:49 - 09:57 200 millones de kilovatios hora al año. [pausa: 0.9s] La ironía final es brutal: casi el 40 por ciento se pierde\n76 09:57 - 10:05 en fugas porque el hundimiento fractura las tuberías. Aunque las lluvias llevaron las presas del\n77 10:05 - 10:13 Cutzamala de un crítico 26 por ciento en 2024 a más del 96 por ciento en noviembre de 2026, siete de cada diez vasos\n78 10:13 - 10:21 siguen saliendo de la esponja subterránea, y aun así sus calles se inundan cada verano. En siete siglos,\n79 10:21 - 10:29 la capital pasó de convivir con el lago a declararle la guerra. Consiguió secarlo, pero no rompió la\n80 10:29 - 10:37 paradoja: siguen rodeados de tormentas, hundiendo su propio suelo y luchando por agua limpia.\n81 10:37 - 10:45 [pausa: 2.3s] Déjanos saber en los comentarios: ¿vivirías tú en una ciudad que se hunde mientras\n82 10:45 - 10:51 se queda sin agua? Cada historia deja una huella. Aquí seguimos sus rastros.\n83 10:51 - 10:59 [SIN VOZ NARRATIVA — Outro Oficial de Marca (8s)]",
+    "timelineFormattedText": "===================================\nCANTIDAD DE PALABRAS: 1326\nPALABRAS POR MINUTO (WPM): 141.6\nDURACIÓN VOZ NARRATIVA: 09:22\nBLOQUES SIN VOZ (Intro + Hook + Outro): +24s\nDURACIÓN VIDEO TOTAL: 09:46\n===================================\n\n1 00:00 - 00:08 [SIN VOZ NARRATIVA — Clip 1: Hook Visual Inicial y Texto en Pantalla (6s) + 2s iniciales del Clip 2 sin voz]\n2 00:08 - 00:15 Año 1325, Lago de Texcoco, Tenochtitlan, México. Construyeron, en medio de un lago, la que llegaría\n3 00:15 - 00:21 a ser la ciudad más grande de América. Agua por todas partes. Solo había un problema:\n4 00:21 - 00:28 el agua era salada. Vivían sobre el agua y perecían de sed. En los próximos minutos descubrirás\n5 00:28 - 00:34 cómo una metrópoli rodeada de agua se quedó sin ella durante siete siglos. Dale like a este\n6 00:34 - 00:41 video y suscríbete. Cada historia deja una huella. Aquí seguimos sus rastros. [pausa: 2s]\n7 00:41 - 00:49 [SIN VOZ NARRATIVA — Intro Oficial de Marca (8s)]\n8 00:49 - 00:57 La tradición fecha la fundación de Tenochtitlan el 13 de marzo de 1325, tras la profecía del águila. Lo\n9 00:57 - 01:05 que pocos cuentan es que aquel islote pantanoso era el peor terreno del valle. Ningún señorío vecino lo quería.\n10 01:05 - 01:13 [pausa: 1.5s] La Cuenca de México es una cubeta cerrada hace 600 mil años por volcanes, suspendida a 2 mil 240\n11 01:13 - 01:21 metros sobre el nivel del mar y sin salida al océano. Casi el 80 por ciento de la lluvia solo escapa evaporándose,\n12 01:21 - 01:29 concentrando sales durante milenios. Así se formó una escalera de cinco lagos donde el agua dulce bajaba desde Xochimilco\n13 01:29 - 01:37 y Chalco hasta el punto más bajo: Texcoco. Texcoco era el sumidero alcalino del valle, con un pH cercano a 9.8 y costras\n14 01:37 - 01:45 de tequesquite en temporada seca. A inicios del siglo XIX, Alexander von Humboldt midió el contraste: Xochimilco\n15 01:45 - 01:53 era clara y bebible; Texcoco era amarillenta, olía a ácido sulfhídrico y sabía a carbonato de sodio.\n16 01:53 - 02:01 [pausa: 1.5s] Vivían sobre el agua y perecían de sed. Si ese lago quemaba las raíces, ¿cómo alimentaron a cientos de\n17 02:01 - 02:09 miles de personas? La respuesta fueron las chinampas, y aquí va una corrección: nunca flotaron. Perdón por quien\n18 02:09 - 02:17 ya se imaginaba a los mexicas remando su huerto hasta el mercado. Eran islas artificiales ancladas al fondo somero\n19 02:17 - 02:25 con estacas de madera, rellenas de vegetación acuática y lodo fértil, sujetas por las raíces de sauces ahuejotes.\n20 02:25 - 02:33 [pausa: 1.5s] Producían hasta tres cosechas anuales de maíz, frijol, calabaza, chile y flores. Para 1519\n21 02:33 - 02:41 cubrían unas 12 mil 400 hectáreas, frente a apenas 2 mil 215 actuales, alimentando entre 150 mil y 250 mil habitantes.\n22 02:41 - 02:49 Pero tenían un enemigo químico: cada tormenta empujaba el agua salobre de Texcoco sobre los cultivos. Entre\n23 02:49 - 02:57 1446 y 1449, lluvias torrenciales anegaron Tenochtitlan, asentada apenas dos metros sobre el lago. Moctezuma\n24 02:57 - 03:05 Ilhuicamina llamó a su aliado de Texcoco, Nezahualcóyotl, célebre por sus poemas pero brillante como ingeniero\n25 03:05 - 03:13 hidráulico. [pausa: 1.5s] En 1449 construyó el Albarradón de Nezahualcóyotl: un muro de piedra volcánica, madera\n26 03:13 - 03:21 y argamasa de unos 16 kilómetros de largo, casi 8 metros de espesor y hasta 4 de altura, con compuertas regulables.\n27 03:21 - 03:29 Aquel dique partió el lago en dos químicas distintas. Al oriente quedó la sal; al poniente nació la laguna dulce\n28 03:29 - 03:37 de México, alimentada por el sur. Pero domar al agua disparó la soberbia. Hacia 1499, el gobernante Ahuízotl quiso\n29 03:37 - 03:45 traer el manantial de Acuecuexcatl desde Coyoacán. El señor local, Tzutzumatzin, advirtió que el caudal inundaría\n30 03:45 - 03:53 la capital. Ahuízotl tomó el aviso como desacato, ordenó quitarle la vida y abrió el conducto entre ceremonias.\n31 03:53 - 04:01 [pausa: 1.5s] Cuarenta días después, según fray Diego Durán, el agua inundó Tenochtitlan y el propio\n32 04:01 - 04:09 Ahuízotl se golpeó la cabeza huyendo de su palacio. Tuvieron que pedir auxilio a Coyoacán para tapar el manantial. Aun\n33 04:09 - 04:17 con el dique de 1449, el agua potable llegaba desde Chapultepec. El primer caño de barro, de 1418, había cedido en las\n34 04:17 - 04:25 crecidas, así que Nezahualcóyotl lo rehizo en piedra hacia 1466. En su Segunda Carta de Relación de 1520, Hernán\n35 04:25 - 04:33 Cortés describió con asombro dos caños paralelos de argamasa: uno llevaba un chorro grueso de agua dulce, mientras el\n36 04:33 - 04:41 segundo iba vacío de respaldo para limpiar el primero. Luego, aguadores en canoas la vendían por toda la isla.\n37 04:41 - 04:49 [pausa: 1.5s] Era una proeza técnica, pero concentraba la vida de la ciudad en una sola arteria expuesta. Cortés\n38 04:49 - 04:57 tomó nota. El 26 de mayo de 1521 llegó el giro decisivo. Por orden de Cortés, Pedro de Alvarado y Cristóbal de Olid\n39 04:57 - 05:05 marcharon a Chapultepec para quebrar los caños. El cronista Bernal Díaz del Castillo combatió allí contra los defensores\n40 05:05 - 05:13 mexicas antes de que la piedra cediera y el agua dulce se perdiera en la tierra. [pausa: 1.5s] Durante\n41 05:13 - 05:21 casi 80 días de sitio, trece bergantines bloquearon las canoas nocturnas. Los sitiados cavaron pozos, pero los Anales\n42 05:21 - 05:29 de Tlatelolco registran que solo brotaba agua rojiza y salobre llena de salitre. Vivían sobre el agua y perecían\n43 05:29 - 05:37 de sed. El 13 de agosto de 1521, la ciudad cayó. Tras vencer, Cortés pudo mudarse a tierra firme, pero reconstruyó\n44 05:37 - 05:45 sobre la isla por simbolismo político. Los europeos introdujeron carretas pesadas, talaron bosques, soltaron\n45 05:45 - 05:53 ganado que azolvó el fondo y descuidaron el albarradón. Las inundaciones volvieron en 1555, 1579, 1604 y 1607.\n46 05:53 - 06:01 [pausa: 1.5s] El virreinato decidió entonces vaciar el lago. En noviembre de 1607, el cosmógrafo alemán Enrico\n47 06:01 - 06:09 Martínez inició el Desagüe de Huehuetoca, un túnel de casi 13 kilómetros para expulsar los ríos fuera de la cuenca.\n48 06:09 - 06:17 Pero el primero de junio de 1613, el rey Felipe III contrató al ingeniero holandés Adrian Boot por cien ducados\n49 06:17 - 06:25 mensuales. Al llegar en 1614, Boot dio un veredicto incómodo: los mexicas tenían razón, no había que secar el lago, sino\n50 06:25 - 06:33 regularlo con diques y compuertas. Las pugnas frenaron las obras hasta el 21 de septiembre de 1629, día de San Mateo.\n51 06:33 - 06:41 Llovió sin pausa durante 36 horas. Para proteger su túnel inconcluso, Martínez mandó tapar la boca del desagüe.\n52 06:41 - 06:49 La Ciudad de México quedó hasta dos metros bajo el agua durante cinco años, hasta 1634. [pausa: 1.5s] Solo un\n53 06:49 - 06:57 pequeño tramo elevado junto a la plaza mayor siguió seco, apodado la isla de los perros. De unos 150 mil vecinos, al\n54 06:57 - 07:05 menos 50 mil emigraron y se calcularon cerca de 30 mil bajas humanas, incluida Inés de la Cueva, hija del virrey. Hoy,\n55 07:05 - 07:13 una cabeza de león en Madero y Motolinia aún marca la altura del agua. Lejos de rendirse, la urbe prolongó su guerra\n56 07:13 - 07:21 contra los lagos con tajos, canales y drenajes profundos. Al fin secaron el lago y pavimentaron su lecho para una\n57 07:21 - 07:29 metrópoli de 22 millones de personas. Entonces despertó la venganza geológica. El subsuelo capitalino es arcilla\n58 07:29 - 07:37 lacustre porosa saturada de agua. Sin lagos superficiales, la ciudad perforó pozos de 600 metros de media, y algunos\n59 07:37 - 07:45 de hasta 3 mil, para extraer el 70 por ciento del agua que bebe. En 1925, el ingeniero Roberto Gayol advirtió que la\n60 07:45 - 07:53 urbe se hundía, y Nabor Carrillo Flores probó la causa: el sobrebombeo comprime las arcillas como una esponja exprimida.\n61 07:53 - 08:01 [pausa: 1.5s] Desde 1862, zonas del Centro Histórico han descendido entre 10 y 14 metros. El Ángel de\n62 08:01 - 08:09 la Independencia, inaugurado en 1910 sobre pilotes firmes, quedó tan alto sobre la avenida que hubo que sumarle más de\n63 08:09 - 08:17 una decena de escalones. Mediciones satelitales de 2021, junto con lecturas del satélite NISAR y reportes de la\n64 08:17 - 08:25 UNAM en 2026, confirman descensos de 35 a 50 centímetros al año en el oriente y el Centro Histórico, y más de 24 centímetros\n65 08:25 - 08:33 anuales incluso en el aeropuerto. Para cubrir el déficit, el Sistema Cutzamala trae cerca del 26 por ciento del\n66 08:33 - 08:41 agua metropolitana por una red de más de 320 kilómetros, bombeándola más de mil 100 metros cuesta arriba y gastando 2\n67 08:41 - 08:49 mil 200 millones de kilovatios hora al año. [pausa: 1.5s] La ironía final es brutal: casi el 40 por ciento se\n68 08:49 - 08:57 pierde en fugas porque el hundimiento fractura las tuberías. Aunque las lluvias llevaron las presas del Cutzamala de\n69 08:57 - 09:05 un crítico 26 por ciento en 2024 a más del 96 por ciento en noviembre de 2026, siete de cada diez vasos siguen saliendo de\n70 09:05 - 09:13 la esponja subterránea, y aun así sus calles se inundan cada verano. En siete siglos, la capital pasó de convivir con\n71 09:13 - 09:21 el lago a declararle la guerra. Consiguió secarlo, pero no rompió la paradoja: siguen rodeados de tormentas,\n72 09:21 - 09:29 hundiendo su propio suelo y luchando por agua limpia. [pausa: 2s] Déjanos saber en los comentarios:\n73 09:29 - 09:38 ¿vivirías tú en una ciudad que se hunde mientras se queda sin agua? Cada historia deja una huella. Aquí seguimos sus rastros.\n74 09:38 - 09:46 [SIN VOZ NARRATIVA — Outro Oficial de Marca (8s)]",
     "timelineSettings": {
       "language": "es",
       "customLanguage": "",
@@ -720,7 +497,7 @@
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "Año 1325, Lago de Texcoco, Tenochtitlan, México. Construyeron, en medio de un lago, la que",
+        "narrationSegment": "Año 1325, Lago de Texcoco, Tenochtitlan, México. Construyeron, en medio de un lago, la que llegaría",
         "pauseNotes": "",
         "imageReady": false,
         "videoReady": false,
@@ -732,12 +509,12 @@
       {
         "id": "clip-3-1795649050151-3",
         "clipNumber": 3,
-        "timeRange": "00:15 - 00:23",
+        "timeRange": "00:15 - 00:21",
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "llegaría a ser la ciudad más grande de América. Agua por todas partes. Solo había un problema: el agua",
+        "narrationSegment": "a ser la ciudad más grande de América. Agua por todas partes. Solo había un problema:",
         "pauseNotes": "",
         "imageReady": false,
         "videoReady": false,
@@ -749,12 +526,12 @@
       {
         "id": "clip-4-1795649050151-4",
         "clipNumber": 4,
-        "timeRange": "00:23 - 00:30",
+        "timeRange": "00:21 - 00:28",
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "era salada. Vivían sobre el agua y perecían de sed. En los próximos minutos descubrirás",
+        "narrationSegment": "el agua era salada. Vivían sobre el agua y perecían de sed. En los próximos minutos descubrirás",
         "pauseNotes": "",
         "imageReady": false,
         "videoReady": false,
@@ -766,12 +543,12 @@
       {
         "id": "clip-5-1795649050151-5",
         "clipNumber": 5,
-        "timeRange": "00:30 - 00:38",
+        "timeRange": "00:28 - 00:34",
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "cómo una metrópoli rodeada de agua se quedó sin ella durante siete siglos. Dale like a este video y",
+        "narrationSegment": "cómo una metrópoli rodeada de agua se quedó sin ella durante siete siglos. Dale like a este",
         "pauseNotes": "",
         "imageReady": false,
         "videoReady": false,
@@ -783,13 +560,13 @@
       {
         "id": "clip-6-1795649050151-6",
         "clipNumber": 6,
-        "timeRange": "00:38 - 00:45",
+        "timeRange": "00:34 - 00:41",
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "suscríbete. Cada historia deja una huella. Aquí seguimos sus rastros. [pausa: 2.3s]",
-        "pauseNotes": "Contiene [pausa: 2.3s] en la locución",
+        "narrationSegment": "video y suscríbete. Cada historia deja una huella. Aquí seguimos sus rastros. [pausa: 2s]",
+        "pauseNotes": "Contiene [pausa: 2s] en la locución",
         "imageReady": false,
         "videoReady": false,
         "reviewedForEditor": false,
@@ -800,12 +577,12 @@
       {
         "id": "clip-7-1795649050151-7",
         "clipNumber": 7,
-        "timeRange": "00:53 - 01:01",
+        "timeRange": "00:49 - 00:57",
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "La tradición fecha la fundación de Tenochtitlan el 13 de marzo de 1325, tras la profecía del águila.",
+        "narrationSegment": "La tradición fecha la fundación de Tenochtitlan el 13 de marzo de 1325, tras la profecía del águila. Lo",
         "pauseNotes": "",
         "imageReady": false,
         "videoReady": false,
@@ -817,12 +594,12 @@
       {
         "id": "clip-8-1795649050152-8",
         "clipNumber": 8,
-        "timeRange": "01:01 - 01:09",
+        "timeRange": "00:57 - 01:05",
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "Lo que pocos cuentan es que aquel islote pantanoso era el peor terreno del valle. Ningún señorío vecino",
+        "narrationSegment": "que pocos cuentan es que aquel islote pantanoso era el peor terreno del valle. Ningún señorío vecino lo quería.",
         "pauseNotes": "",
         "imageReady": false,
         "videoReady": false,
@@ -834,13 +611,13 @@
       {
         "id": "clip-9-1795649050152-9",
         "clipNumber": 9,
-        "timeRange": "01:09 - 01:17",
+        "timeRange": "01:05 - 01:13",
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "lo quería. [pausa: 2.1s] La Cuenca de México es una cubeta cerrada hace 600 mil años",
-        "pauseNotes": "Contiene [pausa: 2.1s] en la locución",
+        "narrationSegment": "[pausa: 1.5s] La Cuenca de México es una cubeta cerrada hace 600 mil años por volcanes, suspendida a 2 mil 240",
+        "pauseNotes": "Contiene [pausa: 1.5s] en la locución",
         "imageReady": false,
         "videoReady": false,
         "reviewedForEditor": false,
@@ -851,12 +628,12 @@
       {
         "id": "clip-10-1795649050152-10",
         "clipNumber": 10,
-        "timeRange": "01:17 - 01:25",
+        "timeRange": "01:13 - 01:21",
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "por volcanes, suspendida a 2 mil 240 metros sobre el nivel del mar y sin salida al océano.",
+        "narrationSegment": "metros sobre el nivel del mar y sin salida al océano. Casi el 80 por ciento de la lluvia solo escapa evaporándose,",
         "pauseNotes": "",
         "imageReady": false,
         "videoReady": false,
@@ -868,12 +645,12 @@
       {
         "id": "clip-11-1795649050152-11",
         "clipNumber": 11,
-        "timeRange": "01:25 - 01:33",
+        "timeRange": "01:21 - 01:29",
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "Casi el 80 por ciento de la lluvia solo escapa evaporándose, concentrando sales durante milenios.",
+        "narrationSegment": "concentrando sales durante milenios. Así se formó una escalera de cinco lagos donde el agua dulce bajaba desde Xochimilco",
         "pauseNotes": "",
         "imageReady": false,
         "videoReady": false,
@@ -885,12 +662,12 @@
       {
         "id": "clip-12-1795649050152-12",
         "clipNumber": 12,
-        "timeRange": "01:33 - 01:41",
+        "timeRange": "01:29 - 01:37",
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "Así se formó una escalera de cinco lagos donde el agua dulce bajaba desde Xochimilco y Chalco",
+        "narrationSegment": "y Chalco hasta el punto más bajo: Texcoco. Texcoco era el sumidero alcalino del valle, con un pH cercano a 9.8 y costras",
         "pauseNotes": "",
         "imageReady": false,
         "videoReady": false,
@@ -902,12 +679,12 @@
       {
         "id": "clip-13-1795649050152-13",
         "clipNumber": 13,
-        "timeRange": "01:41 - 01:49",
+        "timeRange": "01:37 - 01:45",
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "hasta el punto más bajo: Texcoco. Texcoco era el sumidero alcalino del valle, con un pH cercano",
+        "narrationSegment": "de tequesquite en temporada seca. A inicios del siglo XIX, Alexander von Humboldt midió el contraste: Xochimilco",
         "pauseNotes": "",
         "imageReady": false,
         "videoReady": false,
@@ -919,12 +696,12 @@
       {
         "id": "clip-14-1795649050152-14",
         "clipNumber": 14,
-        "timeRange": "01:49 - 01:57",
+        "timeRange": "01:45 - 01:53",
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "a 9.8 y costras de tequesquite en temporada seca. A inicios del siglo XIX, Alexander von",
+        "narrationSegment": "era clara y bebible; Texcoco era amarillenta, olía a ácido sulfhídrico y sabía a carbonato de sodio.",
         "pauseNotes": "",
         "imageReady": false,
         "videoReady": false,
@@ -936,13 +713,13 @@
       {
         "id": "clip-15-1795649050152-15",
         "clipNumber": 15,
-        "timeRange": "01:57 - 02:05",
+        "timeRange": "01:53 - 02:01",
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "Humboldt midió el contraste: Xochimilco era clara y bebible; Texcoco era amarillenta, olía",
-        "pauseNotes": "",
+        "narrationSegment": "[pausa: 1.5s] Vivían sobre el agua y perecían de sed. Si ese lago quemaba las raíces, ¿cómo alimentaron a cientos de",
+        "pauseNotes": "Contiene [pausa: 1.5s] en la locución",
         "imageReady": false,
         "videoReady": false,
         "reviewedForEditor": false,
@@ -953,13 +730,13 @@
       {
         "id": "clip-16-1795649050152-16",
         "clipNumber": 16,
-        "timeRange": "02:05 - 02:13",
+        "timeRange": "02:01 - 02:09",
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "a ácido sulfhídrico y sabía a carbonato de sodio. [pausa: 1.8s] Vivían sobre el agua y",
-        "pauseNotes": "Contiene [pausa: 1.8s] en la locución",
+        "narrationSegment": "miles de personas? La respuesta fueron las chinampas, y aquí va una corrección: nunca flotaron. Perdón por quien",
+        "pauseNotes": "",
         "imageReady": false,
         "videoReady": false,
         "reviewedForEditor": false,
@@ -970,12 +747,12 @@
       {
         "id": "clip-17-1795649050152-17",
         "clipNumber": 17,
-        "timeRange": "02:13 - 02:21",
+        "timeRange": "02:09 - 02:17",
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "perecían de sed. Si ese lago quemaba las raíces, ¿cómo alimentaron a cientos de miles de personas? La",
+        "narrationSegment": "ya se imaginaba a los mexicas remando su huerto hasta el mercado. Eran islas artificiales ancladas al fondo somero",
         "pauseNotes": "",
         "imageReady": false,
         "videoReady": false,
@@ -987,12 +764,12 @@
       {
         "id": "clip-18-1795649050152-18",
         "clipNumber": 18,
-        "timeRange": "02:21 - 02:29",
+        "timeRange": "02:17 - 02:25",
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "respuesta fueron las chinampas, y aquí va una corrección: nunca flotaron. Perdón por quien ya se imaginaba",
+        "narrationSegment": "con estacas de madera, rellenas de vegetación acuática y lodo fértil, sujetas por las raíces de sauces ahuejotes.",
         "pauseNotes": "",
         "imageReady": false,
         "videoReady": false,
@@ -1004,13 +781,13 @@
       {
         "id": "clip-19-1795649050152-19",
         "clipNumber": 19,
-        "timeRange": "02:29 - 02:37",
+        "timeRange": "02:25 - 02:33",
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "a los mexicas remando su huerto hasta el mercado. Eran islas artificiales ancladas al fondo somero con",
-        "pauseNotes": "",
+        "narrationSegment": "[pausa: 1.5s] Producían hasta tres cosechas anuales de maíz, frijol, calabaza, chile y flores. Para 1519",
+        "pauseNotes": "Contiene [pausa: 1.5s] en la locución",
         "imageReady": false,
         "videoReady": false,
         "reviewedForEditor": false,
@@ -1021,12 +798,12 @@
       {
         "id": "clip-20-1795649050152-20",
         "clipNumber": 20,
-        "timeRange": "02:37 - 02:45",
+        "timeRange": "02:33 - 02:41",
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "estacas de madera, rellenas de vegetación acuática y lodo fértil, sujetas por las raíces de sauces ahuejotes.",
+        "narrationSegment": "cubrían unas 12 mil 400 hectáreas, frente a apenas 2 mil 215 actuales, alimentando entre 150 mil y 250 mil habitantes.",
         "pauseNotes": "",
         "imageReady": false,
         "videoReady": false,
@@ -1038,13 +815,13 @@
       {
         "id": "clip-21-1795649050152-21",
         "clipNumber": 21,
-        "timeRange": "02:45 - 02:53",
+        "timeRange": "02:41 - 02:49",
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "[pausa: 1.9s] Producían hasta tres cosechas anuales de maíz, frijol, calabaza, chile y",
-        "pauseNotes": "Contiene [pausa: 1.9s] en la locución",
+        "narrationSegment": "Pero tenían un enemigo químico: cada tormenta empujaba el agua salobre de Texcoco sobre los cultivos. Entre",
+        "pauseNotes": "",
         "imageReady": false,
         "videoReady": false,
         "reviewedForEditor": false,
@@ -1055,12 +832,12 @@
       {
         "id": "clip-22-1795649050152-22",
         "clipNumber": 22,
-        "timeRange": "02:53 - 03:01",
+        "timeRange": "02:49 - 02:57",
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "flores. Para 1519 cubrían unas 12 mil 400 hectáreas, frente a apenas 2 mil 215 actuales, alimentando entre",
+        "narrationSegment": "1446 y 1449, lluvias torrenciales anegaron Tenochtitlan, asentada apenas dos metros sobre el lago. Moctezuma",
         "pauseNotes": "",
         "imageReady": false,
         "videoReady": false,
@@ -1072,12 +849,12 @@
       {
         "id": "clip-23-1795649050152-23",
         "clipNumber": 23,
-        "timeRange": "03:01 - 03:09",
+        "timeRange": "02:57 - 03:05",
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "150 mil y 250 mil habitantes. Pero tenían un enemigo químico: cada tormenta empujaba el agua salobre de",
+        "narrationSegment": "Ilhuicamina llamó a su aliado de Texcoco, Nezahualcóyotl, célebre por sus poemas pero brillante como ingeniero",
         "pauseNotes": "",
         "imageReady": false,
         "videoReady": false,
@@ -1089,13 +866,13 @@
       {
         "id": "clip-24-1795649050152-24",
         "clipNumber": 24,
-        "timeRange": "03:09 - 03:17",
+        "timeRange": "03:05 - 03:13",
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "Texcoco sobre los cultivos. Entre 1446 y 1449, lluvias torrenciales anegaron Tenochtitlan, asentada",
-        "pauseNotes": "",
+        "narrationSegment": "hidráulico. [pausa: 1.5s] En 1449 construyó el Albarradón de Nezahualcóyotl: un muro de piedra volcánica, madera",
+        "pauseNotes": "Contiene [pausa: 1.5s] en la locución",
         "imageReady": false,
         "videoReady": false,
         "reviewedForEditor": false,
@@ -1106,12 +883,12 @@
       {
         "id": "clip-25-1795649050153-25",
         "clipNumber": 25,
-        "timeRange": "03:17 - 03:25",
+        "timeRange": "03:13 - 03:21",
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "apenas dos metros sobre el lago. Moctezuma Ilhuicamina llamó a su aliado de Texcoco, Nezahualcóyotl,",
+        "narrationSegment": "y argamasa de unos 16 kilómetros de largo, casi 8 metros de espesor y hasta 4 de altura, con compuertas regulables.",
         "pauseNotes": "",
         "imageReady": false,
         "videoReady": false,
@@ -1123,13 +900,13 @@
       {
         "id": "clip-26-1795649050153-26",
         "clipNumber": 26,
-        "timeRange": "03:25 - 03:33",
+        "timeRange": "03:21 - 03:29",
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "célebre por sus poemas pero brillante como ingeniero hidráulico. [pausa: 1.8s] En 1449 construyó",
-        "pauseNotes": "Contiene [pausa: 1.8s] en la locución",
+        "narrationSegment": "Aquel dique partió el lago en dos químicas distintas. Al oriente quedó la sal; al poniente nació la laguna dulce",
+        "pauseNotes": "",
         "imageReady": false,
         "videoReady": false,
         "reviewedForEditor": false,
@@ -1140,12 +917,12 @@
       {
         "id": "clip-27-1795649050153-27",
         "clipNumber": 27,
-        "timeRange": "03:33 - 03:41",
+        "timeRange": "03:29 - 03:37",
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "el Albarradón de Nezahualcóyotl: un muro de piedra volcánica, madera y argamasa de unos 16",
+        "narrationSegment": "de México, alimentada por el sur. Pero domar al agua disparó la soberbia. Hacia 1499, el gobernante Ahuízotl quiso",
         "pauseNotes": "",
         "imageReady": false,
         "videoReady": false,
@@ -1157,12 +934,12 @@
       {
         "id": "clip-28-1795649050153-28",
         "clipNumber": 28,
-        "timeRange": "03:41 - 03:49",
+        "timeRange": "03:37 - 03:45",
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "kilómetros de largo, casi 8 metros de espesor y hasta 4 de altura, con compuertas regulables. Aquel",
+        "narrationSegment": "traer el manantial de Acuecuexcatl desde Coyoacán. El señor local, Tzutzumatzin, advirtió que el caudal inundaría",
         "pauseNotes": "",
         "imageReady": false,
         "videoReady": false,
@@ -1174,12 +951,12 @@
       {
         "id": "clip-29-1795649050153-29",
         "clipNumber": 29,
-        "timeRange": "03:49 - 03:57",
+        "timeRange": "03:45 - 03:53",
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "dique partió el lago en dos químicas distintas. Al oriente quedó la sal; al poniente nació la laguna",
+        "narrationSegment": "la capital. Ahuízotl tomó el aviso como desacato, ordenó quitarle la vida y abrió el conducto entre ceremonias.",
         "pauseNotes": "",
         "imageReady": false,
         "videoReady": false,
@@ -1191,13 +968,13 @@
       {
         "id": "clip-30-1795649050153-30",
         "clipNumber": 30,
-        "timeRange": "03:57 - 04:05",
+        "timeRange": "03:53 - 04:01",
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "dulce de México, alimentada por el sur. Pero domar al agua disparó la soberbia. Hacia 1499, el",
-        "pauseNotes": "",
+        "narrationSegment": "[pausa: 1.5s] Cuarenta días después, según fray Diego Durán, el agua inundó Tenochtitlan y el propio",
+        "pauseNotes": "Contiene [pausa: 1.5s] en la locución",
         "imageReady": false,
         "videoReady": false,
         "reviewedForEditor": false,
@@ -1208,12 +985,12 @@
       {
         "id": "clip-31-1795649050153-31",
         "clipNumber": 31,
-        "timeRange": "04:05 - 04:13",
+        "timeRange": "04:01 - 04:09",
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "gobernante Ahuízotl quiso traer el manantial de Acuecuexcatl desde Coyoacán. El señor local, Tzutzumatzin,",
+        "narrationSegment": "Ahuízotl se golpeó la cabeza huyendo de su palacio. Tuvieron que pedir auxilio a Coyoacán para tapar el manantial. Aun",
         "pauseNotes": "",
         "imageReady": false,
         "videoReady": false,
@@ -1225,12 +1002,12 @@
       {
         "id": "clip-32-1795649050153-32",
         "clipNumber": 32,
-        "timeRange": "04:13 - 04:21",
+        "timeRange": "04:09 - 04:17",
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "advirtió que el caudal inundaría la capital. Ahuízotl tomó el aviso como desacato, ordenó",
+        "narrationSegment": "con el dique de 1449, el agua potable llegaba desde Chapultepec. El primer caño de barro, de 1418, había cedido en las",
         "pauseNotes": "",
         "imageReady": false,
         "videoReady": false,
@@ -1242,13 +1019,13 @@
       {
         "id": "clip-33-1795649050153-33",
         "clipNumber": 33,
-        "timeRange": "04:21 - 04:29",
+        "timeRange": "04:17 - 04:25",
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "quitarle la vida y abrió el conducto entre ceremonias. [pausa: 1.8s] Cuarenta días después,",
-        "pauseNotes": "Contiene [pausa: 1.8s] en la locución",
+        "narrationSegment": "crecidas, así que Nezahualcóyotl lo rehizo en piedra hacia 1466. En su Segunda Carta de Relación de 1520, Hernán",
+        "pauseNotes": "",
         "imageReady": false,
         "videoReady": false,
         "reviewedForEditor": false,
@@ -1259,12 +1036,12 @@
       {
         "id": "clip-34-1795649050153-34",
         "clipNumber": 34,
-        "timeRange": "04:29 - 04:37",
+        "timeRange": "04:25 - 04:33",
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "según fray Diego Durán, el agua inundó Tenochtitlan y el propio Ahuízotl se golpeó la cabeza",
+        "narrationSegment": "Cortés describió con asombro dos caños paralelos de argamasa: uno llevaba un chorro grueso de agua dulce, mientras el",
         "pauseNotes": "",
         "imageReady": false,
         "videoReady": false,
@@ -1276,12 +1053,12 @@
       {
         "id": "clip-35-1795649050153-35",
         "clipNumber": 35,
-        "timeRange": "04:37 - 04:45",
+        "timeRange": "04:33 - 04:41",
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "huyendo de su palacio. Tuvieron que pedir auxilio a Coyoacán para tapar el manantial. Aun con",
+        "narrationSegment": "segundo iba vacío de respaldo para limpiar el primero. Luego, aguadores en canoas la vendían por toda la isla.",
         "pauseNotes": "",
         "imageReady": false,
         "videoReady": false,
@@ -1293,13 +1070,13 @@
       {
         "id": "clip-36-1795649050153-36",
         "clipNumber": 36,
-        "timeRange": "04:45 - 04:53",
+        "timeRange": "04:41 - 04:49",
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "el dique de 1449, el agua potable llegaba desde Chapultepec. El primer caño de barro, de 1418,",
-        "pauseNotes": "",
+        "narrationSegment": "[pausa: 1.5s] Era una proeza técnica, pero concentraba la vida de la ciudad en una sola arteria expuesta. Cortés",
+        "pauseNotes": "Contiene [pausa: 1.5s] en la locución",
         "imageReady": false,
         "videoReady": false,
         "reviewedForEditor": false,
@@ -1310,12 +1087,12 @@
       {
         "id": "clip-37-1795649050153-37",
         "clipNumber": 37,
-        "timeRange": "04:53 - 05:01",
+        "timeRange": "04:49 - 04:57",
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "había cedido en las crecidas, así que Nezahualcóyotl lo rehizo en piedra hacia 1466. En su Segunda",
+        "narrationSegment": "tomó nota. El 26 de mayo de 1521 llegó el giro decisivo. Por orden de Cortés, Pedro de Alvarado y Cristóbal de Olid",
         "pauseNotes": "",
         "imageReady": false,
         "videoReady": false,
@@ -1327,12 +1104,12 @@
       {
         "id": "clip-38-1795649050153-38",
         "clipNumber": 38,
-        "timeRange": "05:01 - 05:09",
+        "timeRange": "04:57 - 05:05",
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "Carta de Relación de 1520, Hernán Cortés describió con asombro dos caños paralelos de argamasa:",
+        "narrationSegment": "marcharon a Chapultepec para quebrar los caños. El cronista Bernal Díaz del Castillo combatió allí contra los defensores",
         "pauseNotes": "",
         "imageReady": false,
         "videoReady": false,
@@ -1344,13 +1121,13 @@
       {
         "id": "clip-39-1795649050153-39",
         "clipNumber": 39,
-        "timeRange": "05:09 - 05:17",
+        "timeRange": "05:05 - 05:13",
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "uno llevaba un chorro grueso de agua dulce, mientras el segundo iba vacío de respaldo para limpiar",
-        "pauseNotes": "",
+        "narrationSegment": "mexicas antes de que la piedra cediera y el agua dulce se perdiera en la tierra. [pausa: 1.5s] Durante",
+        "pauseNotes": "Contiene [pausa: 1.5s] en la locución",
         "imageReady": false,
         "videoReady": false,
         "reviewedForEditor": false,
@@ -1361,13 +1138,13 @@
       {
         "id": "clip-40-1795649050153-40",
         "clipNumber": 40,
-        "timeRange": "05:17 - 05:25",
+        "timeRange": "05:13 - 05:21",
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "el primero. Luego, aguadores en canoas la vendían por toda la isla. [pausa: 1.8s] Era una",
-        "pauseNotes": "Contiene [pausa: 1.8s] en la locución",
+        "narrationSegment": "casi 80 días de sitio, trece bergantines bloquearon las canoas nocturnas. Los sitiados cavaron pozos, pero los Anales",
+        "pauseNotes": "",
         "imageReady": false,
         "videoReady": false,
         "reviewedForEditor": false,
@@ -1378,12 +1155,12 @@
       {
         "id": "clip-41-1795649050153-41",
         "clipNumber": 41,
-        "timeRange": "05:25 - 05:33",
+        "timeRange": "05:21 - 05:29",
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "proeza técnica, pero concentraba la vida de la ciudad en una sola arteria expuesta. Cortés tomó nota. El 26",
+        "narrationSegment": "de Tlatelolco registran que solo brotaba agua rojiza y salobre llena de salitre. Vivían sobre el agua y perecían",
         "pauseNotes": "",
         "imageReady": false,
         "videoReady": false,
@@ -1395,12 +1172,12 @@
       {
         "id": "clip-42-1795649050153-42",
         "clipNumber": 42,
-        "timeRange": "05:33 - 05:41",
+        "timeRange": "05:29 - 05:37",
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "de mayo de 1521 llegó el giro decisivo. Por orden de Cortés, Pedro de Alvarado y Cristóbal de Olid marcharon",
+        "narrationSegment": "de sed. El 13 de agosto de 1521, la ciudad cayó. Tras vencer, Cortés pudo mudarse a tierra firme, pero reconstruyó",
         "pauseNotes": "",
         "imageReady": false,
         "videoReady": false,
@@ -1412,12 +1189,12 @@
       {
         "id": "clip-43-1795649050153-43",
         "clipNumber": 43,
-        "timeRange": "05:41 - 05:49",
+        "timeRange": "05:37 - 05:45",
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "a Chapultepec para quebrar los caños. El cronista Bernal Díaz del Castillo combatió allí contra los defensores",
+        "narrationSegment": "sobre la isla por simbolismo político. Los europeos introdujeron carretas pesadas, talaron bosques, soltaron",
         "pauseNotes": "",
         "imageReady": false,
         "videoReady": false,
@@ -1429,13 +1206,13 @@
       {
         "id": "clip-44-1795649050153-44",
         "clipNumber": 44,
-        "timeRange": "05:49 - 05:57",
+        "timeRange": "05:45 - 05:53",
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "mexicas antes de que la piedra cediera y el agua dulce se perdiera en la tierra. [pausa: 1.8s]",
-        "pauseNotes": "Contiene [pausa: 1.8s] en la locución",
+        "narrationSegment": "ganado que azolvó el fondo y descuidaron el albarradón. Las inundaciones volvieron en 1555, 1579, 1604 y 1607.",
+        "pauseNotes": "",
         "imageReady": false,
         "videoReady": false,
         "reviewedForEditor": false,
@@ -1446,13 +1223,13 @@
       {
         "id": "clip-45-1795649050154-45",
         "clipNumber": 45,
-        "timeRange": "05:57 - 06:05",
+        "timeRange": "05:53 - 06:01",
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "Durante casi 80 días de sitio, trece bergantines bloquearon las canoas nocturnas. Los sitiados cavaron pozos, pero los Anales",
-        "pauseNotes": "",
+        "narrationSegment": "[pausa: 1.5s] El virreinato decidió entonces vaciar el lago. En noviembre de 1607, el cosmógrafo alemán Enrico",
+        "pauseNotes": "Contiene [pausa: 1.5s] en la locución",
         "imageReady": false,
         "videoReady": false,
         "reviewedForEditor": false,
@@ -1463,12 +1240,12 @@
       {
         "id": "clip-46-1795649050154-46",
         "clipNumber": 46,
-        "timeRange": "06:05 - 06:13",
+        "timeRange": "06:01 - 06:09",
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "de Tlatelolco registran que solo brotaba agua rojiza y salobre llena de salitre. Vivían sobre el agua y perecían de",
+        "narrationSegment": "Martínez inició el Desagüe de Huehuetoca, un túnel de casi 13 kilómetros para expulsar los ríos fuera de la cuenca.",
         "pauseNotes": "",
         "imageReady": false,
         "videoReady": false,
@@ -1480,12 +1257,12 @@
       {
         "id": "clip-47-1795649050154-47",
         "clipNumber": 47,
-        "timeRange": "06:13 - 06:21",
+        "timeRange": "06:09 - 06:17",
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "sed. El 13 de agosto de 1521, la ciudad cayó. Tras vencer, Cortés pudo mudarse a tierra firme, pero reconstruyó sobre la isla",
+        "narrationSegment": "Pero el primero de junio de 1613, el rey Felipe III contrató al ingeniero holandés Adrian Boot por cien ducados",
         "pauseNotes": "",
         "imageReady": false,
         "videoReady": false,
@@ -1497,12 +1274,12 @@
       {
         "id": "clip-48-1795649050154-48",
         "clipNumber": 48,
-        "timeRange": "06:21 - 06:29",
+        "timeRange": "06:17 - 06:25",
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "por simbolismo político. Los europeos introdujeron carretas pesadas, talaron bosques, soltaron ganado que azolvó el",
+        "narrationSegment": "mensuales. Al llegar en 1614, Boot dio un veredicto incómodo: los mexicas tenían razón, no había que secar el lago, sino",
         "pauseNotes": "",
         "imageReady": false,
         "videoReady": false,
@@ -1514,13 +1291,13 @@
       {
         "id": "clip-49-1795649050154-49",
         "clipNumber": 49,
-        "timeRange": "06:29 - 06:37",
+        "timeRange": "06:25 - 06:33",
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "fondo y descuidaron el albarradón. Las inundaciones volvieron en 1555, 1579, 1604 y 1607. [pausa: 1.2s] El",
-        "pauseNotes": "Contiene [pausa: 1.2s] en la locución",
+        "narrationSegment": "regularlo con diques y compuertas. Las pugnas frenaron las obras hasta el 21 de septiembre de 1629, día de San Mateo.",
+        "pauseNotes": "",
         "imageReady": false,
         "videoReady": false,
         "reviewedForEditor": false,
@@ -1531,12 +1308,12 @@
       {
         "id": "clip-50-1795649050154-50",
         "clipNumber": 50,
-        "timeRange": "06:37 - 06:45",
+        "timeRange": "06:33 - 06:41",
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "virreinato decidió entonces vaciar el lago. En noviembre de 1607, el cosmógrafo alemán Enrico",
+        "narrationSegment": "Llovió sin pausa durante 36 horas. Para proteger su túnel inconcluso, Martínez mandó tapar la boca del desagüe.",
         "pauseNotes": "",
         "imageReady": false,
         "videoReady": false,
@@ -1548,13 +1325,13 @@
       {
         "id": "clip-51-1795649050154-51",
         "clipNumber": 51,
-        "timeRange": "06:45 - 06:53",
+        "timeRange": "06:41 - 06:49",
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "Martínez inició el Desagüe de Huehuetoca, un túnel de casi 13 kilómetros para expulsar los ríos",
-        "pauseNotes": "",
+        "narrationSegment": "La Ciudad de México quedó hasta dos metros bajo el agua durante cinco años, hasta 1634. [pausa: 1.5s] Solo un",
+        "pauseNotes": "Contiene [pausa: 1.5s] en la locución",
         "imageReady": false,
         "videoReady": false,
         "reviewedForEditor": false,
@@ -1565,12 +1342,12 @@
       {
         "id": "clip-52-1795649050154-52",
         "clipNumber": 52,
-        "timeRange": "06:53 - 07:01",
+        "timeRange": "06:49 - 06:57",
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "fuera de la cuenca. Pero el primero de junio de 1613, el rey Felipe III contrató al ingeniero",
+        "narrationSegment": "pequeño tramo elevado junto a la plaza mayor siguió seco, apodado la isla de los perros. De unos 150 mil vecinos, al",
         "pauseNotes": "",
         "imageReady": false,
         "videoReady": false,
@@ -1582,12 +1359,12 @@
       {
         "id": "clip-53-1795649050154-53",
         "clipNumber": 53,
-        "timeRange": "07:01 - 07:09",
+        "timeRange": "06:57 - 07:05",
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "holandés Adrian Boot por cien ducados mensuales. Al llegar en 1614, Boot dio un veredicto",
+        "narrationSegment": "menos 50 mil emigraron y se calcularon cerca de 30 mil bajas humanas, incluida Inés de la Cueva, hija del virrey. Hoy,",
         "pauseNotes": "",
         "imageReady": false,
         "videoReady": false,
@@ -1599,12 +1376,12 @@
       {
         "id": "clip-54-1795649050154-54",
         "clipNumber": 54,
-        "timeRange": "07:09 - 07:17",
+        "timeRange": "07:05 - 07:13",
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "incómodo: los mexicas tenían razón, no había que secar el lago, sino regularlo con diques y",
+        "narrationSegment": "una cabeza de león en Madero y Motolinia aún marca la altura del agua. Lejos de rendirse, la urbe prolongó su guerra",
         "pauseNotes": "",
         "imageReady": false,
         "videoReady": false,
@@ -1616,12 +1393,12 @@
       {
         "id": "clip-55-1795649050154-55",
         "clipNumber": 55,
-        "timeRange": "07:17 - 07:25",
+        "timeRange": "07:13 - 07:21",
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "compuertas. Las pugnas frenaron las obras hasta el 21 de septiembre de 1629, día de San Mateo.",
+        "narrationSegment": "contra los lagos con tajos, canales y drenajes profundos. Al fin secaron el lago y pavimentaron su lecho para una",
         "pauseNotes": "",
         "imageReady": false,
         "videoReady": false,
@@ -1633,12 +1410,12 @@
       {
         "id": "clip-56-1795649050154-56",
         "clipNumber": 56,
-        "timeRange": "07:25 - 07:33",
+        "timeRange": "07:21 - 07:29",
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "Llovió sin pausa durante 36 horas. Para proteger su túnel inconcluso, Martínez mandó tapar la",
+        "narrationSegment": "metrópoli de 22 millones de personas. Entonces despertó la venganza geológica. El subsuelo capitalino es arcilla",
         "pauseNotes": "",
         "imageReady": false,
         "videoReady": false,
@@ -1650,12 +1427,12 @@
       {
         "id": "clip-57-1795649050154-57",
         "clipNumber": 57,
-        "timeRange": "07:33 - 07:41",
+        "timeRange": "07:29 - 07:37",
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "boca del desagüe. La Ciudad de México quedó hasta dos metros bajo el agua durante cinco años,",
+        "narrationSegment": "lacustre porosa saturada de agua. Sin lagos superficiales, la ciudad perforó pozos de 600 metros de media, y algunos",
         "pauseNotes": "",
         "imageReady": false,
         "videoReady": false,
@@ -1667,13 +1444,13 @@
       {
         "id": "clip-58-1795649050154-58",
         "clipNumber": 58,
-        "timeRange": "07:41 - 07:49",
+        "timeRange": "07:37 - 07:45",
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "hasta 1634. [pausa: 1.9s] Solo un pequeño tramo elevado junto a la plaza mayor siguió seco, apodado",
-        "pauseNotes": "Contiene [pausa: 1.9s] en la locución",
+        "narrationSegment": "de hasta 3 mil, para extraer el 70 por ciento del agua que bebe. En 1925, el ingeniero Roberto Gayol advirtió que la",
+        "pauseNotes": "",
         "imageReady": false,
         "videoReady": false,
         "reviewedForEditor": false,
@@ -1684,12 +1461,12 @@
       {
         "id": "clip-59-1795649050155-59",
         "clipNumber": 59,
-        "timeRange": "07:49 - 07:57",
+        "timeRange": "07:45 - 07:53",
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "la isla de los perros. De unos 150 mil vecinos, al menos 50 mil emigraron y se calcularon cerca de 30 mil",
+        "narrationSegment": "urbe se hundía, y Nabor Carrillo Flores probó la causa: el sobrebombeo comprime las arcillas como una esponja exprimida.",
         "pauseNotes": "",
         "imageReady": false,
         "videoReady": false,
@@ -1701,13 +1478,13 @@
       {
         "id": "clip-60-1795649050155-60",
         "clipNumber": 60,
-        "timeRange": "07:57 - 08:05",
+        "timeRange": "07:53 - 08:01",
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "bajas humanas, incluida Inés de la Cueva, hija del virrey. Hoy, una cabeza de león en Madero y Motolinia aún",
-        "pauseNotes": "",
+        "narrationSegment": "[pausa: 1.5s] Desde 1862, zonas del Centro Histórico han descendido entre 10 y 14 metros. El Ángel de",
+        "pauseNotes": "Contiene [pausa: 1.5s] en la locución",
         "imageReady": false,
         "videoReady": false,
         "reviewedForEditor": false,
@@ -1718,12 +1495,12 @@
       {
         "id": "clip-61-1795649050155-61",
         "clipNumber": 61,
-        "timeRange": "08:05 - 08:13",
+        "timeRange": "08:01 - 08:09",
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "marca la altura del agua. Lejos de rendirse, la urbe prolongó su guerra contra los lagos con tajos, canales y",
+        "narrationSegment": "la Independencia, inaugurado en 1910 sobre pilotes firmes, quedó tan alto sobre la avenida que hubo que sumarle más de",
         "pauseNotes": "",
         "imageReady": false,
         "videoReady": false,
@@ -1735,12 +1512,12 @@
       {
         "id": "clip-62-1795649050155-62",
         "clipNumber": 62,
-        "timeRange": "08:13 - 08:21",
+        "timeRange": "08:09 - 08:17",
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "drenajes profundos. Al fin secaron el lago y pavimentaron su lecho para una metrópoli de 22 millones de personas.",
+        "narrationSegment": "una decena de escalones. Mediciones satelitales de 2021, junto con lecturas del satélite NISAR y reportes de la",
         "pauseNotes": "",
         "imageReady": false,
         "videoReady": false,
@@ -1752,12 +1529,12 @@
       {
         "id": "clip-63-1795649050155-63",
         "clipNumber": 63,
-        "timeRange": "08:21 - 08:29",
+        "timeRange": "08:17 - 08:25",
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "Entonces despertó la venganza geológica. El subsuelo capitalino es arcilla lacustre porosa saturada",
+        "narrationSegment": "UNAM en 2026, confirman descensos de 35 a 50 centímetros al año en el oriente y el Centro Histórico, y más de 24 centímetros",
         "pauseNotes": "",
         "imageReady": false,
         "videoReady": false,
@@ -1769,12 +1546,12 @@
       {
         "id": "clip-64-1795649050155-64",
         "clipNumber": 64,
-        "timeRange": "08:29 - 08:37",
+        "timeRange": "08:25 - 08:33",
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "de agua. Sin lagos superficiales, la ciudad perforó pozos de 600 metros de media, y algunos de hasta 3 mil,",
+        "narrationSegment": "anuales incluso en el aeropuerto. Para cubrir el déficit, el Sistema Cutzamala trae cerca del 26 por ciento del",
         "pauseNotes": "",
         "imageReady": false,
         "videoReady": false,
@@ -1786,12 +1563,12 @@
       {
         "id": "clip-65-1795649050155-65",
         "clipNumber": 65,
-        "timeRange": "08:37 - 08:45",
+        "timeRange": "08:33 - 08:41",
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "para extraer el 70 por ciento del agua que bebe. En 1925, el ingeniero Roberto Gayol advirtió que la urbe se",
+        "narrationSegment": "agua metropolitana por una red de más de 320 kilómetros, bombeándola más de mil 100 metros cuesta arriba y gastando 2",
         "pauseNotes": "",
         "imageReady": false,
         "videoReady": false,
@@ -1803,13 +1580,13 @@
       {
         "id": "clip-66-1795649050155-66",
         "clipNumber": 66,
-        "timeRange": "08:45 - 08:53",
+        "timeRange": "08:41 - 08:49",
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "hundía, y Nabor Carrillo Flores probó la causa: el sobrebombeo comprime las arcillas como una esponja exprimida.",
-        "pauseNotes": "",
+        "narrationSegment": "mil 200 millones de kilovatios hora al año. [pausa: 1.5s] La ironía final es brutal: casi el 40 por ciento se",
+        "pauseNotes": "Contiene [pausa: 1.5s] en la locución",
         "imageReady": false,
         "videoReady": false,
         "reviewedForEditor": false,
@@ -1820,13 +1597,13 @@
       {
         "id": "clip-67-1795649050155-67",
         "clipNumber": 67,
-        "timeRange": "08:53 - 09:01",
+        "timeRange": "08:49 - 08:57",
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "[pausa: 2.1s] Desde 1862, zonas del Centro Histórico han descendido entre 10 y 14",
-        "pauseNotes": "Contiene [pausa: 2.1s] en la locución",
+        "narrationSegment": "pierde en fugas porque el hundimiento fractura las tuberías. Aunque las lluvias llevaron las presas del Cutzamala de",
+        "pauseNotes": "",
         "imageReady": false,
         "videoReady": false,
         "reviewedForEditor": false,
@@ -1837,12 +1614,12 @@
       {
         "id": "clip-68-1795649050155-68",
         "clipNumber": 68,
-        "timeRange": "09:01 - 09:09",
+        "timeRange": "08:57 - 09:05",
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "metros. El Ángel de la Independencia, inaugurado en 1910 sobre pilotes firmes, quedó tan alto sobre la",
+        "narrationSegment": "un crítico 26 por ciento en 2024 a más del 96 por ciento en noviembre de 2026, siete de cada diez vasos siguen saliendo de",
         "pauseNotes": "",
         "imageReady": false,
         "videoReady": false,
@@ -1854,12 +1631,12 @@
       {
         "id": "clip-69-1795649050155-69",
         "clipNumber": 69,
-        "timeRange": "09:09 - 09:17",
+        "timeRange": "09:05 - 09:13",
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "avenida que hubo que sumarle más de una decena de escalones. Mediciones satelitales de 2021, junto",
+        "narrationSegment": "la esponja subterránea, y aun así sus calles se inundan cada verano. En siete siglos, la capital pasó de convivir con",
         "pauseNotes": "",
         "imageReady": false,
         "videoReady": false,
@@ -1871,12 +1648,12 @@
       {
         "id": "clip-70-1795649050155-70",
         "clipNumber": 70,
-        "timeRange": "09:17 - 09:25",
+        "timeRange": "09:13 - 09:21",
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "con lecturas del satélite NISAR y reportes de la UNAM en 2026, confirman descensos de 35 a 50 centímetros",
+        "narrationSegment": "el lago a declararle la guerra. Consiguió secarlo, pero no rompió la paradoja: siguen rodeados de tormentas,",
         "pauseNotes": "",
         "imageReady": false,
         "videoReady": false,
@@ -1888,13 +1665,13 @@
       {
         "id": "clip-71-1795650989624-71",
         "clipNumber": 71,
-        "timeRange": "09:25 - 09:33",
+        "timeRange": "09:21 - 09:29",
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "al año en el oriente y el Centro Histórico, y más de 24 centímetros anuales incluso en el aeropuerto.",
-        "pauseNotes": "",
+        "narrationSegment": "hundiendo su propio suelo y luchando por agua limpia. [pausa: 2s] Déjanos saber en los comentarios:",
+        "pauseNotes": "Contiene [pausa: 2s] en la locución",
         "imageReady": false,
         "videoReady": false,
         "reviewedForEditor": false,
@@ -1905,12 +1682,12 @@
       {
         "id": "clip-72-1795650989624-72",
         "clipNumber": 72,
-        "timeRange": "09:33 - 09:41",
+        "timeRange": "09:29 - 09:38",
         "cameraSelection": "",
         "visualExplanation": "",
         "imagePrompt": "",
         "videoPrompt": "",
-        "narrationSegment": "Para cubrir el déficit, el Sistema Cutzamala trae cerca del 26 por ciento del agua metropolitana",
+        "narrationSegment": "¿vivirías tú en una ciudad que se hunde mientras se queda sin agua? Cada historia deja una huella. Aquí seguimos sus rastros.",
         "pauseNotes": "",
         "imageReady": false,
         "videoReady": false,
@@ -2074,7 +1851,7 @@
       }
     ],
     "capcutRawSrt": "",
-    "correctedSrt": "1\n00:00:08,000 --> 00:00:10,130\nAño 1325, Lago de Texcoco,\n\n2\n00:00:10,130 --> 00:00:12,945\nTenochtitlan, México. Construyeron,\n\n3\n00:00:12,945 --> 00:00:15,000\nen medio de un lago, la que\n\n4\n00:00:15,109 --> 00:00:16,847\nllegaría a ser la ciudad\n\n5\n00:00:16,847 --> 00:00:18,801\nmás grande de América.\n\n6\n00:00:18,801 --> 00:00:20,756\nAgua por todas partes.\n\n7\n00:00:20,756 --> 00:00:23,000\nSolo había un problema: el agua\n\n8\n00:00:23,050 --> 00:00:25,658\nera salada. Vivían sobre el agua\n\n9\n00:00:25,658 --> 00:00:27,697\ny perecían de sed. En los\n\n10\n00:00:27,697 --> 00:00:29,980\npróximos minutos descubrirás\n\n11\n00:00:30,000 --> 00:00:31,940\ncómo una metrópoli rodeada\n\n12\n00:00:31,940 --> 00:00:33,807\nde agua se quedó sin ella\n\n13\n00:00:33,807 --> 00:00:35,748\ndurante siete siglos.\n\n14\n00:00:35,748 --> 00:00:37,539\nDale like a este video y\n\n15\n00:00:38,000 --> 00:00:38,644\nsuscríbete. Cada\n\n16\n00:00:38,644 --> 00:00:39,851\nhistoria deja una huella.\n\n17\n00:00:39,851 --> 00:00:41,100\nAquí seguimos sus rastros.\n\n18\n00:00:53,679 --> 00:00:54,946\nLa tradición fecha\n\n19\n00:00:54,946 --> 00:00:56,917\nla fundación de Tenochtitlan\n\n20\n00:00:56,917 --> 00:00:58,677\nel 13 de marzo de 1325,\n\n21\n00:00:58,677 --> 00:01:01,000\ntras la profecía del águila.\n\n22\n00:01:01,289 --> 00:01:02,978\nLo que pocos cuentan es\n\n23\n00:01:02,978 --> 00:01:04,888\nque aquel islote pantanoso\n\n24\n00:01:04,888 --> 00:01:07,457\nera el peor terreno del valle.\n\n25\n00:01:07,457 --> 00:01:09,000\nNingún señorío vecino\n\n26\n00:01:09,140 --> 00:01:09,974\nlo quería.\n\n27\n00:01:12,074 --> 00:01:14,877\nLa Cuenca de México es una cubeta\n\n28\n00:01:14,877 --> 00:01:16,999\ncerrada hace 600 mil años\n\n29\n00:01:17,000 --> 00:01:19,683\npor volcanes, suspendida a 2 mil\n\n30\n00:01:19,683 --> 00:01:21,780\n240 metros sobre el nivel\n\n31\n00:01:21,780 --> 00:01:24,799\ndel mar y sin salida al océano.\n\n32\n00:01:25,000 --> 00:01:26,696\nCasi el 80 por ciento\n\n33\n00:01:26,696 --> 00:01:28,636\nde la lluvia solo escapa\n\n34\n00:01:28,636 --> 00:01:30,737\nevaporándose, concentrando\n\n35\n00:01:30,737 --> 00:01:33,000\nsales durante milenios.\n\n36\n00:01:33,299 --> 00:01:36,176\nAsí se formó una escalera de cinco\n\n37\n00:01:36,176 --> 00:01:38,884\nlagos donde el agua dulce bajaba\n\n38\n00:01:38,884 --> 00:01:41,000\ndesde Xochimilco y Chalco\n\n39\n00:01:41,069 --> 00:01:44,144\nhasta el punto más bajo: Texcoco.\n\n40\n00:01:44,144 --> 00:01:46,734\nTexcoco era el sumidero alcalino\n\n41\n00:01:46,734 --> 00:01:49,000\ndel valle, con un pH cercano\n\n42\n00:01:49,209 --> 00:01:51,899\na 9.8 y costras de tequesquite\n\n43\n00:01:51,899 --> 00:01:54,409\nen temporada seca. A inicios\n\n44\n00:01:54,409 --> 00:01:56,920\ndel siglo XIX, Alexander von\n\n45\n00:01:57,000 --> 00:01:59,660\nHumboldt midió el contraste:\n\n46\n00:01:59,660 --> 00:02:02,562\nXochimilco era clara y bebible;\n\n47\n00:02:02,562 --> 00:02:04,900\nTexcoco era amarillenta, olía\n\n48\n00:02:05,000 --> 00:02:07,176\na ácido sulfhídrico y sabía\n\n49\n00:02:07,176 --> 00:02:09,271\na carbonato de sodio.\n\n50\n00:02:11,071 --> 00:02:12,990\nVivían sobre el agua y\n\n51\n00:02:13,000 --> 00:02:14,787\nperecían de sed. Si ese\n\n52\n00:02:14,787 --> 00:02:16,807\nlago quemaba las raíces,\n\n53\n00:02:16,807 --> 00:02:18,905\n¿cómo alimentaron a cientos\n\n54\n00:02:18,905 --> 00:02:20,770\nde miles de personas? La\n\n55\n00:02:21,000 --> 00:02:23,400\nrespuesta fueron las chinampas,\n\n56\n00:02:23,400 --> 00:02:25,581\ny aquí va una corrección:\n\n57\n00:02:25,581 --> 00:02:27,181\nnunca flotaron. Perdón\n\n58\n00:02:27,181 --> 00:02:29,000\npor quien ya se imaginaba\n\n59\n00:02:29,030 --> 00:02:30,611\na los mexicas remando\n\n60\n00:02:30,611 --> 00:02:33,020\nsu huerto hasta el mercado.\n\n61\n00:02:33,020 --> 00:02:34,751\nEran islas artificiales\n\n62\n00:02:34,751 --> 00:02:36,860\nancladas al fondo somero con\n\n63\n00:02:37,000 --> 00:02:38,945\nestacas de madera, rellenas\n\n64\n00:02:38,945 --> 00:02:41,036\nde vegetación acuática y lodo\n\n65\n00:02:41,036 --> 00:02:43,198\nfértil, sujetas por las raíces\n\n66\n00:02:43,198 --> 00:02:45,000\nde sauces ahuejotes.\n\n67\n00:02:49,140 --> 00:02:50,187\nProducían hasta tres\n\n68\n00:02:50,187 --> 00:02:51,600\ncosechas anuales de maíz,\n\n69\n00:02:51,600 --> 00:02:52,909\nfrijol, calabaza, chile y\n\n70\n00:02:53,000 --> 00:02:54,904\nflores. Para 1519 cubrían\n\n71\n00:02:54,904 --> 00:02:57,038\nunas 12 mil 400 hectáreas,\n\n72\n00:02:57,038 --> 00:02:58,638\nfrente a apenas 2 mil\n\n73\n00:02:58,638 --> 00:03:01,000\n215 actuales, alimentando entre\n\n74\n00:03:01,189 --> 00:03:03,603\n150 mil y 250 mil habitantes.\n\n75\n00:03:03,603 --> 00:03:06,159\nPero tenían un enemigo químico:\n\n76\n00:03:06,159 --> 00:03:07,722\ncada tormenta empujaba\n\n77\n00:03:07,722 --> 00:03:09,000\nel agua salobre de\n\n78\n00:03:09,080 --> 00:03:11,540\nTexcoco sobre los cultivos.\n\n79\n00:03:11,540 --> 00:03:13,078\nEntre 1446 y 1449,\n\n80\n00:03:13,078 --> 00:03:15,308\nlluvias torrenciales anegaron\n\n81\n00:03:15,308 --> 00:03:17,000\nTenochtitlan, asentada\n\n82\n00:03:17,090 --> 00:03:19,851\napenas dos metros sobre el lago.\n\n83\n00:03:19,851 --> 00:03:21,865\nMoctezuma Ilhuicamina llamó\n\n84\n00:03:21,865 --> 00:03:23,731\na su aliado de Texcoco,\n\n85\n00:03:23,731 --> 00:03:25,000\nNezahualcóyotl,\n\n86\n00:03:25,020 --> 00:03:26,958\ncélebre por sus poemas pero\n\n87\n00:03:26,958 --> 00:03:29,902\nbrillante como ingeniero hidráulico.\n\n88\n00:03:31,702 --> 00:03:33,000\nEn 1449 construyó\n\n89\n00:03:33,340 --> 00:03:36,167\nel Albarradón de Nezahualcóyotl:\n\n90\n00:03:36,167 --> 00:03:38,460\nun muro de piedra volcánica,\n\n91\n00:03:38,460 --> 00:03:40,599\nmadera y argamasa de unos 16\n\n92\n00:03:41,000 --> 00:03:42,737\nkilómetros de largo,\n\n93\n00:03:42,737 --> 00:03:44,634\ncasi 8 metros de espesor\n\n94\n00:03:44,634 --> 00:03:46,372\ny hasta 4 de altura,\n\n95\n00:03:46,372 --> 00:03:48,900\ncon compuertas regulables. Aquel\n\n96\n00:03:49,000 --> 00:03:50,471\ndique partió el lago\n\n97\n00:03:50,471 --> 00:03:52,751\nen dos químicas distintas.\n\n98\n00:03:52,751 --> 00:03:54,884\nAl oriente quedó la sal;\n\n99\n00:03:54,884 --> 00:03:56,870\nal poniente nació la laguna\n\n100\n00:03:57,000 --> 00:03:59,230\ndulce de México, alimentada\n\n101\n00:03:59,230 --> 00:04:01,708\npor el sur. Pero domar al agua\n\n102\n00:04:01,708 --> 00:04:04,599\ndisparó la soberbia. Hacia 1499, el\n\n103\n00:04:05,000 --> 00:04:06,381\ngobernante Ahuízotl\n\n104\n00:04:06,381 --> 00:04:08,127\nquiso traer el manantial\n\n105\n00:04:08,127 --> 00:04:10,745\nde Acuecuexcatl desde Coyoacán.\n\n106\n00:04:10,745 --> 00:04:13,000\nEl señor local, Tzutzumatzin,\n\n107\n00:04:13,539 --> 00:04:16,232\nadvirtió que el caudal inundaría\n\n108\n00:04:16,232 --> 00:04:18,335\nla capital. Ahuízotl tomó\n\n109\n00:04:18,335 --> 00:04:20,860\nel aviso como desacato, ordenó\n\n110\n00:04:21,000 --> 00:04:22,822\nquitarle la vida y abrió\n\n111\n00:04:22,822 --> 00:04:25,405\nel conducto entre ceremonias.\n\n112\n00:04:27,205 --> 00:04:29,000\nCuarenta días después,\n\n113\n00:04:29,259 --> 00:04:31,881\nsegún fray Diego Durán, el agua\n\n114\n00:04:31,881 --> 00:04:34,502\ninundó Tenochtitlan y el propio\n\n115\n00:04:34,502 --> 00:04:36,870\nAhuízotl se golpeó la cabeza\n\n116\n00:04:37,000 --> 00:04:39,698\nhuyendo de su palacio. Tuvieron\n\n117\n00:04:39,698 --> 00:04:42,134\nque pedir auxilio a Coyoacán\n\n118\n00:04:42,134 --> 00:04:44,920\npara tapar el manantial. Aun con\n\n119\n00:04:45,000 --> 00:04:47,600\nel dique de 1449, el agua potable\n\n120\n00:04:47,600 --> 00:04:50,042\nllegaba desde Chapultepec.\n\n121\n00:04:50,042 --> 00:04:52,800\nEl primer caño de barro, de 1418,\n\n122\n00:04:53,000 --> 00:04:55,553\nhabía cedido en las crecidas,\n\n123\n00:04:55,553 --> 00:04:57,365\nasí que Nezahualcóyotl\n\n124\n00:04:57,365 --> 00:04:58,930\nlo rehizo en piedra\n\n125\n00:04:58,930 --> 00:05:00,990\nhacia 1466. En su Segunda\n\n126\n00:05:01,000 --> 00:05:03,666\nCarta de Relación de 1520, Hernán\n\n127\n00:05:03,666 --> 00:05:05,929\nCortés describió con asombro\n\n128\n00:05:05,929 --> 00:05:08,920\ndos caños paralelos de argamasa:\n\n129\n00:05:09,000 --> 00:05:10,714\nuno llevaba un chorro\n\n130\n00:05:10,714 --> 00:05:12,592\ngrueso de agua dulce,\n\n131\n00:05:12,592 --> 00:05:14,960\nmientras el segundo iba vacío\n\n132\n00:05:14,960 --> 00:05:16,920\nde respaldo para limpiar\n\n133\n00:05:17,000 --> 00:05:18,559\nel primero. Luego,\n\n134\n00:05:18,559 --> 00:05:20,040\naguadores en canoas\n\n135\n00:05:20,040 --> 00:05:22,613\nla vendían por toda la isla.\n\n136\n00:05:24,413 --> 00:05:25,000\nEra una\n\n137\n00:05:25,089 --> 00:05:26,541\nproeza técnica, pero\n\n138\n00:05:26,541 --> 00:05:28,863\nconcentraba la vida de la ciudad\n\n139\n00:05:28,863 --> 00:05:31,330\nen una sola arteria expuesta.\n\n140\n00:05:31,330 --> 00:05:33,000\nCortés tomó nota. El 26\n\n141\n00:05:33,050 --> 00:05:34,626\nde mayo de 1521 llegó\n\n142\n00:05:34,626 --> 00:05:36,652\nel giro decisivo. Por orden\n\n143\n00:05:36,652 --> 00:05:38,753\nde Cortés, Pedro de Alvarado\n\n144\n00:05:38,753 --> 00:05:40,930\ny Cristóbal de Olid marcharon\n\n145\n00:05:41,000 --> 00:05:42,943\na Chapultepec para quebrar\n\n146\n00:05:42,943 --> 00:05:45,112\nlos caños. El cronista Bernal\n\n147\n00:05:45,112 --> 00:05:47,056\nDíaz del Castillo combatió\n\n148\n00:05:47,056 --> 00:05:49,000\nallí contra los defensores\n\n149\n00:05:49,199 --> 00:05:50,645\nmexicas antes de que la piedra\n\n150\n00:05:50,645 --> 00:05:51,754\ncediera y el agua dulce\n\n151\n00:05:51,754 --> 00:05:53,199\nse perdiera en la tierra.\n\n152\n00:05:57,000 --> 00:05:59,064\nDurante casi 80 días de sitio,\n\n153\n00:05:59,064 --> 00:06:00,870\ntrece bergantines bloquearon\n\n154\n00:06:00,870 --> 00:06:03,064\nlas canoas nocturnas. Los sitiados\n\n155\n00:06:03,064 --> 00:06:05,000\ncavaron pozos, pero los Anales\n\n156\n00:06:05,180 --> 00:06:06,679\nde Tlatelolco registran\n\n157\n00:06:06,679 --> 00:06:08,505\nque solo brotaba agua rojiza\n\n158\n00:06:08,505 --> 00:06:10,592\ny salobre llena de salitre.\n\n159\n00:06:10,592 --> 00:06:12,810\nVivían sobre el agua y perecían de\n\n160\n00:06:13,000 --> 00:06:14,937\nsed. El 13 de agosto de 1521,\n\n161\n00:06:14,937 --> 00:06:16,812\nla ciudad cayó. Tras vencer,\n\n162\n00:06:16,812 --> 00:06:19,125\nCortés pudo mudarse a tierra firme,\n\n163\n00:06:19,125 --> 00:06:21,000\npero reconstruyó sobre la isla\n\n164\n00:06:21,139 --> 00:06:23,055\npor simbolismo político.\n\n165\n00:06:23,055 --> 00:06:24,706\nLos europeos introdujeron\n\n166\n00:06:24,706 --> 00:06:27,084\ncarretas pesadas, talaron bosques,\n\n167\n00:06:27,084 --> 00:06:29,000\nsoltaron ganado que azolvó el\n\n168\n00:06:29,060 --> 00:06:31,615\nfondo y descuidaron el albarradón.\n\n169\n00:06:31,615 --> 00:06:33,319\nLas inundaciones volvieron\n\n170\n00:06:33,319 --> 00:06:35,417\nen 1555, 1579, 1604 y 1607.\n\n171\n00:06:36,617 --> 00:06:36,759\nEl\n\n172\n00:06:37,000 --> 00:06:39,924\nvirreinato decidió entonces vaciar\n\n173\n00:06:39,924 --> 00:06:42,677\nel lago. En noviembre de 1607,\n\n174\n00:06:42,677 --> 00:06:45,000\nel cosmógrafo alemán Enrico\n\n175\n00:06:45,009 --> 00:06:47,243\nMartínez inició el Desagüe\n\n176\n00:06:47,243 --> 00:06:50,164\nde Huehuetoca, un túnel de casi 13\n\n177\n00:06:50,164 --> 00:06:53,000\nkilómetros para expulsar los ríos\n\n178\n00:06:53,060 --> 00:06:55,389\nfuera de la cuenca. Pero el\n\n179\n00:06:55,389 --> 00:06:58,149\nprimero de junio de 1613, el rey\n\n180\n00:06:58,149 --> 00:07:00,910\nFelipe III contrató al ingeniero\n\n181\n00:07:01,000 --> 00:07:03,553\nholandés Adrian Boot por cien\n\n182\n00:07:03,553 --> 00:07:06,018\nducados mensuales. Al llegar\n\n183\n00:07:06,018 --> 00:07:08,660\nen 1614, Boot dio un veredicto\n\n184\n00:07:09,000 --> 00:07:11,304\nincómodo: los mexicas tenían\n\n185\n00:07:11,304 --> 00:07:14,267\nrazón, no había que secar el lago,\n\n186\n00:07:14,267 --> 00:07:16,490\nsino regularlo con diques y\n\n187\n00:07:17,000 --> 00:07:19,473\ncompuertas. Las pugnas frenaron\n\n188\n00:07:19,473 --> 00:07:22,266\nlas obras hasta el 21 de septiembre\n\n189\n00:07:22,266 --> 00:07:24,740\nde 1629, día de San Mateo.\n\n190\n00:07:25,000 --> 00:07:28,139\nLlovió sin pausa durante 36 horas.\n\n191\n00:07:28,139 --> 00:07:31,038\nPara proteger su túnel inconcluso,\n\n192\n00:07:31,038 --> 00:07:32,889\nMartínez mandó tapar la\n\n193\n00:07:33,000 --> 00:07:35,276\nboca del desagüe. La Ciudad\n\n194\n00:07:35,276 --> 00:07:37,973\nde México quedó hasta dos metros\n\n195\n00:07:37,973 --> 00:07:40,839\nbajo el agua durante cinco años,\n\n196\n00:07:41,000 --> 00:07:41,798\nhasta 1634.\n\n197\n00:07:43,698 --> 00:07:45,266\nSolo un pequeño tramo\n\n198\n00:07:45,266 --> 00:07:47,058\nelevado junto a la plaza\n\n199\n00:07:47,058 --> 00:07:48,999\nmayor siguió seco, apodado\n\n200\n00:07:49,279 --> 00:07:51,140\nla isla de los perros.\n\n201\n00:07:51,140 --> 00:07:52,931\nDe unos 150 mil vecinos,\n\n202\n00:07:52,931 --> 00:07:54,654\nal menos 50 mil emigraron\n\n203\n00:07:54,654 --> 00:07:56,790\ny se calcularon cerca de 30 mil\n\n204\n00:07:57,000 --> 00:07:58,985\nbajas humanas, incluida Inés\n\n205\n00:07:58,985 --> 00:08:01,396\nde la Cueva, hija del virrey.\n\n206\n00:08:01,396 --> 00:08:03,027\nHoy, una cabeza de león\n\n207\n00:08:03,027 --> 00:08:04,800\nen Madero y Motolinia aún\n\n208\n00:08:05,000 --> 00:08:07,124\nmarca la altura del agua.\n\n209\n00:08:07,124 --> 00:08:08,965\nLejos de rendirse, la urbe\n\n210\n00:08:08,965 --> 00:08:11,018\nprolongó su guerra contra los\n\n211\n00:08:11,018 --> 00:08:12,860\nlagos con tajos, canales y\n\n212\n00:08:13,000 --> 00:08:14,808\ndrenajes profundos. Al fin\n\n213\n00:08:14,808 --> 00:08:16,895\nsecaron el lago y pavimentaron\n\n214\n00:08:16,895 --> 00:08:18,773\nsu lecho para una metrópoli\n\n215\n00:08:18,773 --> 00:08:21,000\nde 22 millones de personas.\n\n216\n00:08:21,459 --> 00:08:22,729\nEntonces despertó\n\n217\n00:08:22,729 --> 00:08:24,744\nla venganza geológica.\n\n218\n00:08:24,744 --> 00:08:26,611\nEl subsuelo capitalino es\n\n219\n00:08:26,611 --> 00:08:29,000\narcilla lacustre porosa saturada\n\n220\n00:08:29,110 --> 00:08:31,620\nde agua. Sin lagos superficiales,\n\n221\n00:08:31,620 --> 00:08:33,270\nla ciudad perforó pozos\n\n222\n00:08:33,270 --> 00:08:35,063\nde 600 metros de media,\n\n223\n00:08:35,063 --> 00:08:37,000\ny algunos de hasta 3 mil,\n\n224\n00:08:37,110 --> 00:08:39,215\npara extraer el 70 por ciento\n\n225\n00:08:39,215 --> 00:08:41,321\ndel agua que bebe. En 1925,\n\n226\n00:08:41,321 --> 00:08:43,209\nel ingeniero Roberto Gayol\n\n227\n00:08:43,209 --> 00:08:44,879\nadvirtió que la urbe se\n\n228\n00:08:45,000 --> 00:08:47,175\nhundía, y Nabor Carrillo Flores\n\n229\n00:08:47,175 --> 00:08:49,280\nprobó la causa: el sobrebombeo\n\n230\n00:08:49,280 --> 00:08:50,754\ncomprime las arcillas\n\n231\n00:08:50,754 --> 00:08:53,000\ncomo una esponja exprimida.\n\n232\n00:08:57,620 --> 00:08:58,464\nDesde 1862, zonas\n\n233\n00:08:58,464 --> 00:08:59,657\ndel Centro Histórico han\n\n234\n00:08:59,657 --> 00:09:00,850\ndescendido entre 10 y 14\n\n235\n00:09:01,000 --> 00:09:02,267\nmetros. El Ángel\n\n236\n00:09:02,267 --> 00:09:04,722\nde la Independencia, inaugurado\n\n237\n00:09:04,722 --> 00:09:07,178\nen 1910 sobre pilotes firmes,\n\n238\n00:09:07,178 --> 00:09:09,000\nquedó tan alto sobre la\n\n239\n00:09:09,090 --> 00:09:10,422\navenida que hubo\n\n240\n00:09:10,422 --> 00:09:12,836\nque sumarle más de una decena\n\n241\n00:09:12,836 --> 00:09:14,835\nde escalones. Mediciones\n\n242\n00:09:14,835 --> 00:09:17,000\nsatelitales de 2021, junto\n\n243\n00:09:17,009 --> 00:09:18,968\ncon lecturas del satélite\n\n244\n00:09:18,968 --> 00:09:21,083\nNISAR y reportes de la UNAM\n\n245\n00:09:21,083 --> 00:09:23,276\nen 2026, confirman descensos\n\n246\n00:09:23,276 --> 00:09:25,000\nde 35 a 50 centímetros\n\n247\n00:09:25,309 --> 00:09:26,774\nal año en el oriente\n\n248\n00:09:26,774 --> 00:09:28,532\ny el Centro Histórico,\n\n249\n00:09:28,532 --> 00:09:30,802\ny más de 24 centímetros anuales\n\n250\n00:09:30,802 --> 00:09:33,000\nincluso en el aeropuerto.\n\n251\n00:09:33,419 --> 00:09:36,150\nPara cubrir el déficit, el Sistema\n\n252\n00:09:36,150 --> 00:09:38,319\nCutzamala trae cerca del 26\n\n253\n00:09:38,319 --> 00:09:40,970\npor ciento del agua metropolitana\n\n254\n00:09:41,000 --> 00:09:42,992\npor una red de más de 320\n\n255\n00:09:42,992 --> 00:09:44,825\nkilómetros, bombeándola\n\n256\n00:09:44,825 --> 00:09:47,056\nmás de mil 100 metros cuesta\n\n257\n00:09:47,056 --> 00:09:48,889\narriba y gastando 2 mil\n\n258\n00:09:49,000 --> 00:09:49,796\n200 millones\n\n259\n00:09:49,796 --> 00:09:51,854\nde kilovatios hora al año.\n\n260\n00:09:52,754 --> 00:09:54,877\nLa ironía final es brutal:\n\n261\n00:09:54,877 --> 00:09:57,000\ncasi el 40 por ciento se pierde\n\n262\n00:09:57,240 --> 00:09:59,633\nen fugas porque el hundimiento\n\n263\n00:09:59,633 --> 00:10:01,947\nfractura las tuberías. Aunque\n\n264\n00:10:01,947 --> 00:10:04,740\nlas lluvias llevaron las presas del\n\n265\n00:10:05,000 --> 00:10:06,808\nCutzamala de un crítico 26\n\n266\n00:10:06,808 --> 00:10:08,965\npor ciento en 2024 a más del 96\n\n267\n00:10:08,965 --> 00:10:11,330\npor ciento en noviembre de 2026,\n\n268\n00:10:11,330 --> 00:10:13,000\nsiete de cada diez vasos\n\n269\n00:10:13,179 --> 00:10:15,381\nsiguen saliendo de la esponja\n\n270\n00:10:15,381 --> 00:10:17,052\nsubterránea, y aun así\n\n271\n00:10:17,052 --> 00:10:19,026\nsus calles se inundan cada\n\n272\n00:10:19,026 --> 00:10:21,000\nverano. En siete siglos,\n\n273\n00:10:21,289 --> 00:10:23,436\nla capital pasó de convivir\n\n274\n00:10:23,436 --> 00:10:25,343\ncon el lago a declararle\n\n275\n00:10:25,343 --> 00:10:26,933\nla guerra. Consiguió\n\n276\n00:10:26,933 --> 00:10:29,000\nsecarlo, pero no rompió la\n\n277\n00:10:29,009 --> 00:10:30,960\nparadoja: siguen rodeados\n\n278\n00:10:30,960 --> 00:10:33,535\nde tormentas, hundiendo su propio\n\n279\n00:10:33,535 --> 00:10:36,500\nsuelo y luchando por agua limpia.\n\n280\n00:10:41,120 --> 00:10:42,836\nDéjanos saber en los comentarios:\n\n281\n00:10:42,836 --> 00:10:44,011\n¿vivirías tú en una ciudad\n\n282\n00:10:44,011 --> 00:10:44,960\nque se hunde mientras\n\n283\n00:10:45,000 --> 00:10:46,550\nse queda sin agua?\n\n284\n00:10:46,550 --> 00:10:48,910\nCada historia deja una huella.\n\n285\n00:10:48,910 --> 00:10:51,000\nAquí seguimos sus rastros.",
+    "correctedSrt": "1\n00:00:08,000 --> 00:00:09,902\nAño 1325, Lago de Texcoco,\n\n2\n00:00:09,902 --> 00:00:11,669\nTenochtitlan, México.\n\n3\n00:00:11,669 --> 00:00:13,165\nConstruyeron, en medio\n\n4\n00:00:13,165 --> 00:00:15,000\nde un lago, la que llegaría\n\n5\n00:00:15,070 --> 00:00:16,822\na ser la ciudad más grande\n\n6\n00:00:16,822 --> 00:00:18,574\nde América. Agua por todas\n\n7\n00:00:18,574 --> 00:00:21,000\npartes. Solo había un problema:\n\n8\n00:00:21,129 --> 00:00:22,920\nel agua era salada. Vivían\n\n9\n00:00:22,920 --> 00:00:25,469\nsobre el agua y perecían de sed.\n\n10\n00:00:25,469 --> 00:00:27,879\nEn los próximos minutos descubrirás\n\n11\n00:00:28,000 --> 00:00:29,752\ncómo una metrópoli rodeada\n\n12\n00:00:29,752 --> 00:00:31,977\nde agua se quedó sin ella durante\n\n13\n00:00:31,977 --> 00:00:34,000\nsiete siglos. Dale like a este\n\n14\n00:00:34,140 --> 00:00:35,171\nvideo y suscríbete.\n\n15\n00:00:35,171 --> 00:00:36,676\nCada historia deja una huella.\n\n16\n00:00:36,676 --> 00:00:38,009\nAquí seguimos sus rastros.\n\n17\n00:00:50,009 --> 00:00:51,243\nLa tradición fecha\n\n18\n00:00:51,243 --> 00:00:53,162\nla fundación de Tenochtitlan\n\n19\n00:00:53,162 --> 00:00:54,875\nel 13 de marzo de 1325,\n\n20\n00:00:54,875 --> 00:00:57,000\ntras la profecía del águila. Lo\n\n21\n00:00:57,030 --> 00:00:58,350\nque pocos cuentan es\n\n22\n00:00:58,350 --> 00:01:00,066\nque aquel islote pantanoso\n\n23\n00:01:00,066 --> 00:01:02,377\nera el peor terreno del valle.\n\n24\n00:01:02,377 --> 00:01:04,819\nNingún señorío vecino lo quería.\n\n25\n00:01:07,819 --> 00:01:09,561\nLa Cuenca de México es una cubeta\n\n26\n00:01:09,561 --> 00:01:11,091\ncerrada hace 600 mil años por\n\n27\n00:01:11,091 --> 00:01:12,780\nvolcanes, suspendida a 2 mil 240\n\n28\n00:01:13,000 --> 00:01:14,929\nmetros sobre el nivel del mar\n\n29\n00:01:14,929 --> 00:01:16,793\ny sin salida al océano. Casi\n\n30\n00:01:16,793 --> 00:01:18,723\nel 80 por ciento de la lluvia\n\n31\n00:01:18,723 --> 00:01:20,519\nsolo escapa evaporándose,\n\n32\n00:01:21,000 --> 00:01:22,753\nconcentrando sales durante\n\n33\n00:01:22,753 --> 00:01:25,114\nmilenios. Así se formó una escalera\n\n34\n00:01:25,114 --> 00:01:27,003\nde cinco lagos donde el agua\n\n35\n00:01:27,003 --> 00:01:28,959\ndulce bajaba desde Xochimilco\n\n36\n00:01:29,000 --> 00:01:31,491\ny Chalco hasta el punto más bajo:\n\n37\n00:01:31,491 --> 00:01:33,590\nTexcoco. Texcoco era el sumidero\n\n38\n00:01:33,590 --> 00:01:35,491\nalcalino del valle, con un pH\n\n39\n00:01:35,491 --> 00:01:37,000\ncercano a 9.8 y costras\n\n40\n00:01:37,219 --> 00:01:39,768\nde tequesquite en temporada seca.\n\n41\n00:01:39,768 --> 00:01:41,512\nA inicios del siglo XIX,\n\n42\n00:01:41,512 --> 00:01:43,390\nAlexander von Humboldt midió\n\n43\n00:01:43,390 --> 00:01:45,000\nel contraste: Xochimilco\n\n44\n00:01:45,230 --> 00:01:46,904\nera clara y bebible;\n\n45\n00:01:46,904 --> 00:01:48,645\nTexcoco era amarillenta,\n\n46\n00:01:48,645 --> 00:01:50,252\nolía a ácido sulfhídrico\n\n47\n00:01:50,252 --> 00:01:52,530\ny sabía a carbonato de sodio.\n\n48\n00:01:55,530 --> 00:01:56,562\nVivían sobre el agua\n\n49\n00:01:56,562 --> 00:01:57,748\ny perecían de sed.\n\n50\n00:01:57,748 --> 00:01:59,451\nSi ese lago quemaba las raíces,\n\n51\n00:01:59,451 --> 00:02:01,000\n¿cómo alimentaron a cientos de\n\n52\n00:02:01,049 --> 00:02:03,174\nmiles de personas? La respuesta\n\n53\n00:02:03,174 --> 00:02:04,750\nfueron las chinampas,\n\n54\n00:02:04,750 --> 00:02:06,806\ny aquí va una corrección:\n\n55\n00:02:06,806 --> 00:02:09,000\nnunca flotaron. Perdón por quien\n\n56\n00:02:09,150 --> 00:02:11,112\nya se imaginaba a los mexicas\n\n57\n00:02:11,112 --> 00:02:13,819\nremando su huerto hasta el mercado.\n\n58\n00:02:13,819 --> 00:02:15,375\nEran islas artificiales\n\n59\n00:02:15,375 --> 00:02:17,000\nancladas al fondo somero\n\n60\n00:02:17,099 --> 00:02:19,229\ncon estacas de madera, rellenas\n\n61\n00:02:19,229 --> 00:02:21,221\nde vegetación acuática y lodo\n\n62\n00:02:21,221 --> 00:02:23,282\nfértil, sujetas por las raíces\n\n63\n00:02:23,282 --> 00:02:25,000\nde sauces ahuejotes.\n\n64\n00:02:28,120 --> 00:02:29,692\nProducían hasta tres cosechas\n\n65\n00:02:29,692 --> 00:02:31,644\nanuales de maíz, frijol, calabaza,\n\n66\n00:02:31,644 --> 00:02:33,000\nchile y flores. Para 1519\n\n67\n00:02:33,139 --> 00:02:35,421\ncubrían unas 12 mil 400 hectáreas,\n\n68\n00:02:35,421 --> 00:02:37,767\nfrente a apenas 2 mil 215 actuales,\n\n69\n00:02:37,767 --> 00:02:39,351\nalimentando entre 150 mil\n\n70\n00:02:39,351 --> 00:02:41,000\ny 250 mil habitantes.\n\n71\n00:02:41,479 --> 00:02:43,957\nPero tenían un enemigo químico:\n\n72\n00:02:43,957 --> 00:02:45,470\ncada tormenta empujaba\n\n73\n00:02:45,470 --> 00:02:47,259\nel agua salobre de Texcoco\n\n74\n00:02:47,259 --> 00:02:48,979\nsobre los cultivos. Entre\n\n75\n00:02:49,000 --> 00:02:51,417\n1446 y 1449, lluvias torrenciales\n\n76\n00:02:51,417 --> 00:02:53,176\nanegaron Tenochtitlan,\n\n77\n00:02:53,176 --> 00:02:55,081\nasentada apenas dos metros\n\n78\n00:02:55,081 --> 00:02:56,840\nsobre el lago. Moctezuma\n\n79\n00:02:57,000 --> 00:02:59,027\nIlhuicamina llamó a su aliado\n\n80\n00:02:59,027 --> 00:03:01,054\nde Texcoco, Nezahualcóyotl,\n\n81\n00:03:01,054 --> 00:03:02,592\ncélebre por sus poemas\n\n82\n00:03:02,592 --> 00:03:04,620\npero brillante como ingeniero\n\n83\n00:03:05,000 --> 00:03:05,737\nhidráulico.\n\n84\n00:03:07,237 --> 00:03:09,363\nEn 1449 construyó el Albarradón\n\n85\n00:03:09,363 --> 00:03:11,147\nde Nezahualcóyotl: un muro\n\n86\n00:03:11,147 --> 00:03:13,000\nde piedra volcánica, madera\n\n87\n00:03:13,169 --> 00:03:15,275\ny argamasa de unos 16 kilómetros\n\n88\n00:03:15,275 --> 00:03:16,788\nde largo, casi 8 metros\n\n89\n00:03:16,788 --> 00:03:18,960\nde espesor y hasta 4 de altura,\n\n90\n00:03:18,960 --> 00:03:21,000\ncon compuertas regulables.\n\n91\n00:03:21,349 --> 00:03:23,021\nAquel dique partió el lago\n\n92\n00:03:23,021 --> 00:03:25,014\nen dos químicas distintas.\n\n93\n00:03:25,014 --> 00:03:26,878\nAl oriente quedó la sal;\n\n94\n00:03:26,878 --> 00:03:29,000\nal poniente nació la laguna dulce\n\n95\n00:03:29,009 --> 00:03:31,583\nde México, alimentada por el sur.\n\n96\n00:03:31,583 --> 00:03:33,343\nPero domar al agua disparó\n\n97\n00:03:33,343 --> 00:03:35,104\nla soberbia. Hacia 1499,\n\n98\n00:03:35,104 --> 00:03:37,000\nel gobernante Ahuízotl quiso\n\n99\n00:03:37,110 --> 00:03:38,323\ntraer el manantial\n\n100\n00:03:38,323 --> 00:03:40,751\nde Acuecuexcatl desde Coyoacán.\n\n101\n00:03:40,751 --> 00:03:42,842\nEl señor local, Tzutzumatzin,\n\n102\n00:03:42,842 --> 00:03:45,000\nadvirtió que el caudal inundaría\n\n103\n00:03:45,210 --> 00:03:46,903\nla capital. Ahuízotl tomó\n\n104\n00:03:46,903 --> 00:03:48,596\nel aviso como desacato,\n\n105\n00:03:48,596 --> 00:03:50,696\nordenó quitarle la vida y abrió\n\n106\n00:03:50,696 --> 00:03:53,000\nel conducto entre ceremonias.\n\n107\n00:03:56,199 --> 00:03:57,455\nCuarenta días después,\n\n108\n00:03:57,455 --> 00:03:59,077\nsegún fray Diego Durán, el agua\n\n109\n00:03:59,077 --> 00:04:00,699\ninundó Tenochtitlan y el propio\n\n110\n00:04:01,000 --> 00:04:02,947\nAhuízotl se golpeó la cabeza\n\n111\n00:04:02,947 --> 00:04:05,104\nhuyendo de su palacio. Tuvieron\n\n112\n00:04:05,104 --> 00:04:07,052\nque pedir auxilio a Coyoacán\n\n113\n00:04:07,052 --> 00:04:09,000\npara tapar el manantial. Aun\n\n114\n00:04:09,060 --> 00:04:10,947\ncon el dique de 1449, el agua\n\n115\n00:04:10,947 --> 00:04:13,485\npotable llegaba desde Chapultepec.\n\n116\n00:04:13,485 --> 00:04:15,177\nEl primer caño de barro,\n\n117\n00:04:15,177 --> 00:04:17,000\nde 1418, había cedido en las\n\n118\n00:04:17,110 --> 00:04:19,293\ncrecidas, así que Nezahualcóyotl\n\n119\n00:04:19,293 --> 00:04:21,750\nlo rehizo en piedra hacia 1466.\n\n120\n00:04:21,750 --> 00:04:23,047\nEn su Segunda Carta\n\n121\n00:04:23,047 --> 00:04:24,889\nde Relación de 1520, Hernán\n\n122\n00:04:25,000 --> 00:04:26,858\nCortés describió con asombro\n\n123\n00:04:26,858 --> 00:04:29,315\ndos caños paralelos de argamasa:\n\n124\n00:04:29,315 --> 00:04:31,173\nuno llevaba un chorro grueso\n\n125\n00:04:31,173 --> 00:04:32,899\nde agua dulce, mientras el\n\n126\n00:04:33,000 --> 00:04:34,896\nsegundo iba vacío de respaldo\n\n127\n00:04:34,896 --> 00:04:36,792\npara limpiar el primero.\n\n128\n00:04:36,792 --> 00:04:38,492\nLuego, aguadores en canoas\n\n129\n00:04:38,492 --> 00:04:40,649\nla vendían por toda la isla.\n\n130\n00:04:43,649 --> 00:04:45,010\nEra una proeza técnica,\n\n131\n00:04:45,010 --> 00:04:46,317\npero concentraba la vida\n\n132\n00:04:46,317 --> 00:04:47,623\nde la ciudad en una sola\n\n133\n00:04:47,623 --> 00:04:48,930\narteria expuesta. Cortés\n\n134\n00:04:49,000 --> 00:04:50,606\ntomó nota. El 26 de mayo\n\n135\n00:04:50,606 --> 00:04:53,015\nde 1521 llegó el giro decisivo.\n\n136\n00:04:53,015 --> 00:04:54,755\nPor orden de Cortés, Pedro\n\n137\n00:04:54,755 --> 00:04:56,829\nde Alvarado y Cristóbal de Olid\n\n138\n00:04:57,000 --> 00:04:58,520\nmarcharon a Chapultepec\n\n139\n00:04:58,520 --> 00:05:00,371\npara quebrar los caños.\n\n140\n00:05:00,371 --> 00:05:01,892\nEl cronista Bernal Díaz\n\n141\n00:05:01,892 --> 00:05:03,611\ndel Castillo combatió allí\n\n142\n00:05:03,611 --> 00:05:05,000\ncontra los defensores\n\n143\n00:05:05,350 --> 00:05:07,350\nmexicas antes de que la piedra\n\n144\n00:05:07,350 --> 00:05:08,884\ncediera y el agua dulce\n\n145\n00:05:08,884 --> 00:05:10,885\nse perdiera en la tierra.\n\n146\n00:05:12,385 --> 00:05:12,870\nDurante\n\n147\n00:05:13,000 --> 00:05:14,964\ncasi 80 días de sitio, trece\n\n148\n00:05:14,964 --> 00:05:17,280\nbergantines bloquearon las canoas\n\n149\n00:05:17,280 --> 00:05:18,894\nnocturnas. Los sitiados\n\n150\n00:05:18,894 --> 00:05:21,000\ncavaron pozos, pero los Anales\n\n151\n00:05:21,129 --> 00:05:22,717\nde Tlatelolco registran\n\n152\n00:05:22,717 --> 00:05:24,650\nque solo brotaba agua rojiza\n\n153\n00:05:24,650 --> 00:05:26,859\ny salobre llena de salitre.\n\n154\n00:05:26,859 --> 00:05:29,000\nVivían sobre el agua y perecían\n\n155\n00:05:29,009 --> 00:05:31,372\nde sed. El 13 de agosto de 1521,\n\n156\n00:05:31,372 --> 00:05:33,456\nla ciudad cayó. Tras vencer,\n\n157\n00:05:33,456 --> 00:05:35,401\nCortés pudo mudarse a tierra\n\n158\n00:05:35,401 --> 00:05:37,000\nfirme, pero reconstruyó\n\n159\n00:05:37,050 --> 00:05:39,106\nsobre la isla por simbolismo\n\n160\n00:05:39,106 --> 00:05:40,722\npolítico. Los europeos\n\n161\n00:05:40,722 --> 00:05:43,073\nintrodujeron carretas pesadas,\n\n162\n00:05:43,073 --> 00:05:44,910\ntalaron bosques, soltaron\n\n163\n00:05:45,000 --> 00:05:46,762\nganado que azolvó el fondo\n\n164\n00:05:46,762 --> 00:05:48,998\ny descuidaron el albarradón.\n\n165\n00:05:48,998 --> 00:05:50,761\nLas inundaciones volvieron\n\n166\n00:05:50,761 --> 00:05:52,930\nen 1555, 1579, 1604 y 1607.\n\n167\n00:05:55,930 --> 00:05:57,548\nEl virreinato decidió entonces\n\n168\n00:05:57,548 --> 00:05:59,220\nvaciar el lago. En noviembre de\n\n169\n00:05:59,220 --> 00:06:01,000\n1607, el cosmógrafo alemán Enrico\n\n170\n00:06:01,209 --> 00:06:02,941\nMartínez inició el Desagüe\n\n171\n00:06:02,941 --> 00:06:05,005\nde Huehuetoca, un túnel de casi\n\n172\n00:06:05,005 --> 00:06:06,802\n13 kilómetros para expulsar\n\n173\n00:06:06,802 --> 00:06:09,000\nlos ríos fuera de la cuenca.\n\n174\n00:06:09,110 --> 00:06:10,761\nPero el primero de junio\n\n175\n00:06:10,761 --> 00:06:12,549\nde 1613, el rey Felipe III\n\n176\n00:06:12,549 --> 00:06:14,613\ncontrató al ingeniero holandés\n\n177\n00:06:14,613 --> 00:06:16,540\nAdrian Boot por cien ducados\n\n178\n00:06:17,000 --> 00:06:18,933\nmensuales. Al llegar en 1614,\n\n179\n00:06:18,933 --> 00:06:21,179\nBoot dio un veredicto incómodo:\n\n180\n00:06:21,179 --> 00:06:22,863\nlos mexicas tenían razón,\n\n181\n00:06:22,863 --> 00:06:24,860\nno había que secar el lago, sino\n\n182\n00:06:25,000 --> 00:06:27,516\nregularlo con diques y compuertas.\n\n183\n00:06:27,516 --> 00:06:29,387\nLas pugnas frenaron las obras\n\n184\n00:06:29,387 --> 00:06:31,000\nhasta el 21 de septiembre\n\n185\n00:06:31,000 --> 00:06:33,000\nde 1629, día de San Mateo.\n\n186\n00:06:33,089 --> 00:06:34,767\nLlovió sin pausa durante\n\n187\n00:06:34,767 --> 00:06:37,005\n36 horas. Para proteger su túnel\n\n188\n00:06:37,005 --> 00:06:38,822\ninconcluso, Martínez mandó\n\n189\n00:06:38,822 --> 00:06:40,990\ntapar la boca del desagüe.\n\n190\n00:06:41,000 --> 00:06:42,658\nLa Ciudad de México quedó\n\n191\n00:06:42,658 --> 00:06:44,581\nhasta dos metros bajo el agua\n\n192\n00:06:44,581 --> 00:06:46,969\ndurante cinco años, hasta 1634.\n\n193\n00:06:48,469 --> 00:06:48,949\nSolo un\n\n194\n00:06:49,000 --> 00:06:50,775\npequeño tramo elevado junto\n\n195\n00:06:50,775 --> 00:06:52,813\na la plaza mayor siguió seco,\n\n196\n00:06:52,813 --> 00:06:55,114\napodado la isla de los perros.\n\n197\n00:06:55,114 --> 00:06:56,889\nDe unos 150 mil vecinos, al\n\n198\n00:06:57,000 --> 00:06:58,504\nmenos 50 mil emigraron\n\n199\n00:06:58,504 --> 00:07:00,623\ny se calcularon cerca de 30 mil\n\n200\n00:07:00,623 --> 00:07:02,538\nbajas humanas, incluida Inés\n\n201\n00:07:02,538 --> 00:07:05,000\nde la Cueva, hija del virrey. Hoy,\n\n202\n00:07:05,019 --> 00:07:06,943\nuna cabeza de león en Madero\n\n203\n00:07:06,943 --> 00:07:09,073\ny Motolinia aún marca la altura\n\n204\n00:07:09,073 --> 00:07:11,133\ndel agua. Lejos de rendirse,\n\n205\n00:07:11,133 --> 00:07:12,920\nla urbe prolongó su guerra\n\n206\n00:07:13,000 --> 00:07:14,940\ncontra los lagos con tajos,\n\n207\n00:07:14,940 --> 00:07:17,216\ncanales y drenajes profundos.\n\n208\n00:07:17,216 --> 00:07:18,688\nAl fin secaron el lago\n\n209\n00:07:18,688 --> 00:07:20,829\ny pavimentaron su lecho para una\n\n210\n00:07:21,000 --> 00:07:22,671\nmetrópoli de 22 millones\n\n211\n00:07:22,671 --> 00:07:24,761\nde personas. Entonces despertó\n\n212\n00:07:24,761 --> 00:07:26,641\nla venganza geológica.\n\n213\n00:07:26,641 --> 00:07:28,939\nEl subsuelo capitalino es arcilla\n\n214\n00:07:29,000 --> 00:07:31,533\nlacustre porosa saturada de agua.\n\n215\n00:07:31,533 --> 00:07:33,266\nSin lagos superficiales,\n\n216\n00:07:33,266 --> 00:07:34,800\nla ciudad perforó pozos\n\n217\n00:07:34,800 --> 00:07:37,000\nde 600 metros de media, y algunos\n\n218\n00:07:37,120 --> 00:07:39,067\nde hasta 3 mil, para extraer\n\n219\n00:07:39,067 --> 00:07:40,806\nel 70 por ciento del agua\n\n220\n00:07:40,806 --> 00:07:42,962\nque bebe. En 1925, el ingeniero\n\n221\n00:07:42,962 --> 00:07:44,980\nRoberto Gayol advirtió que la\n\n222\n00:07:45,000 --> 00:07:47,098\nurbe se hundía, y Nabor Carrillo\n\n223\n00:07:47,098 --> 00:07:48,737\nFlores probó la causa: el\n\n224\n00:07:48,737 --> 00:07:50,901\nsobrebombeo comprime las arcillas\n\n225\n00:07:50,901 --> 00:07:53,000\ncomo una esponja exprimida.\n\n226\n00:07:56,480 --> 00:07:57,968\nDesde 1862, zonas del Centro\n\n227\n00:07:57,968 --> 00:07:59,245\nHistórico han descendido\n\n228\n00:07:59,245 --> 00:08:01,000\nentre 10 y 14 metros. El Ángel de\n\n229\n00:08:01,029 --> 00:08:02,937\nla Independencia, inaugurado\n\n230\n00:08:02,937 --> 00:08:05,049\nen 1910 sobre pilotes firmes,\n\n231\n00:08:05,049 --> 00:08:07,160\nquedó tan alto sobre la avenida\n\n232\n00:08:07,160 --> 00:08:09,000\nque hubo que sumarle más de\n\n233\n00:08:09,050 --> 00:08:11,024\nuna decena de escalones.\n\n234\n00:08:11,024 --> 00:08:13,271\nMediciones satelitales de 2021,\n\n235\n00:08:13,271 --> 00:08:15,382\njunto con lecturas del satélite\n\n236\n00:08:15,382 --> 00:08:16,879\nNISAR y reportes de la\n\n237\n00:08:17,000 --> 00:08:18,520\nUNAM en 2026, confirman\n\n238\n00:08:18,520 --> 00:08:20,636\ndescensos de 35 a 50 centímetros\n\n239\n00:08:20,636 --> 00:08:22,752\nal año en el oriente y el Centro\n\n240\n00:08:22,752 --> 00:08:25,000\nHistórico, y más de 24 centímetros\n\n241\n00:08:25,300 --> 00:08:27,831\nanuales incluso en el aeropuerto.\n\n242\n00:08:27,831 --> 00:08:29,496\nPara cubrir el déficit,\n\n243\n00:08:29,496 --> 00:08:31,161\nel Sistema Cutzamala trae\n\n244\n00:08:31,161 --> 00:08:32,960\ncerca del 26 por ciento del\n\n245\n00:08:33,000 --> 00:08:35,056\nagua metropolitana por una red\n\n246\n00:08:35,056 --> 00:08:36,906\nde más de 320 kilómetros,\n\n247\n00:08:36,906 --> 00:08:39,168\nbombeándola más de mil 100 metros\n\n248\n00:08:39,168 --> 00:08:40,950\ncuesta arriba y gastando 2\n\n249\n00:08:41,000 --> 00:08:41,984\nmil 200 millones\n\n250\n00:08:41,984 --> 00:08:43,891\nde kilovatios hora al año.\n\n251\n00:08:45,391 --> 00:08:47,323\nLa ironía final es brutal:\n\n252\n00:08:47,323 --> 00:08:48,820\ncasi el 40 por ciento se\n\n253\n00:08:49,000 --> 00:08:50,682\npierde en fugas porque el\n\n254\n00:08:50,682 --> 00:08:53,306\nhundimiento fractura las tuberías.\n\n255\n00:08:53,306 --> 00:08:55,123\nAunque las lluvias llevaron\n\n256\n00:08:55,123 --> 00:08:56,940\nlas presas del Cutzamala de\n\n257\n00:08:57,000 --> 00:08:58,597\nun crítico 26 por ciento\n\n258\n00:08:58,597 --> 00:09:00,660\nen 2024 a más del 96 por ciento\n\n259\n00:09:00,660 --> 00:09:02,989\nen noviembre de 2026, siete de cada\n\n260\n00:09:02,989 --> 00:09:04,919\ndiez vasos siguen saliendo de\n\n261\n00:09:05,000 --> 00:09:06,694\nla esponja subterránea,\n\n262\n00:09:06,694 --> 00:09:08,796\ny aun así sus calles se inundan\n\n263\n00:09:08,796 --> 00:09:10,898\ncada verano. En siete siglos,\n\n264\n00:09:10,898 --> 00:09:13,000\nla capital pasó de convivir con\n\n265\n00:09:13,019 --> 00:09:15,358\nel lago a declararle la guerra.\n\n266\n00:09:15,358 --> 00:09:16,657\nConsiguió secarlo,\n\n267\n00:09:16,657 --> 00:09:18,736\npero no rompió la paradoja:\n\n268\n00:09:18,736 --> 00:09:20,750\nsiguen rodeados de tormentas,\n\n269\n00:09:21,000 --> 00:09:22,613\nhundiendo su propio suelo\n\n270\n00:09:22,613 --> 00:09:24,679\ny luchando por agua limpia.\n\n271\n00:09:26,679 --> 00:09:27,484\nDéjanos saber\n\n272\n00:09:27,484 --> 00:09:28,970\nen los comentarios:\n\n273\n00:09:29,000 --> 00:09:31,100\n¿vivirías tú en una ciudad que se\n\n274\n00:09:31,100 --> 00:09:33,519\nhunde mientras se queda sin agua?\n\n275\n00:09:33,519 --> 00:09:35,746\nCada historia deja una huella.\n\n276\n00:09:35,746 --> 00:09:37,720\nAquí seguimos sus rastros.",
     "srtFileName": "captions_corregidos",
     "confirmedFinalDuration": "10:51",
     "rawSunoText": "",
