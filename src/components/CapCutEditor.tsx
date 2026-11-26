@@ -10804,7 +10804,17 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     if (docGraphicsSaveTimerRef.current) return;
     const spoken = captions.filter((c) => String(c.text || '').trim());
     if (spoken.length < 3) return;
-    const auto: DocGraphicsAutoState = { ...docGraphicsAutoRef.current.state };
+    // What another window or device already created by itself counts here too (this window's memory alone made
+    // every open window add the same Stage 8 cards again)
+    const savedAuto: DocGraphicsAutoState = activeDoc.docGraphicsAuto || {};
+    const localAuto = docGraphicsAutoRef.current.state;
+    const unionKeys = (x?: string[], y?: string[]) => Array.from(new Set([...(x || []), ...(y || [])]));
+    const auto: DocGraphicsAutoState = {
+      ...localAuto,
+      ...savedAuto,
+      quoteKeys: unionKeys(savedAuto.quoteKeys, localAuto.quoteKeys),
+      screenKeys: unionKeys(savedAuto.screenKeys, localAuto.screenKeys),
+    };
     const timed: TimedCaptionLike[] = spoken.map((c) => ({
       start: c.start,
       end: c.end,
@@ -10910,6 +10920,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       const hit = findSpokenInCaptions(it.spoken, timed, { minWords: 2 });
       if (!hit) continue;
       screenKeys.add(key);
+      // The card of these words is already there (made in another window): never a second one
+      const madeKind = it.kind === 'name' ? 'name_tag' : it.kind === 'thesis' ? 'thesis_card' : 'stamp';
+      if (next.some((g) => g.kind === madeKind && quoteKey(g.anchorSpoken || '') === quoteKey(it.spoken))) continue;
       const startSec = Number(Math.max(0, hit.startSec - 0.1).toFixed(2));
       if (it.kind === 'name') {
         next = [
@@ -10961,7 +10974,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       prev.datesSig !== auto.datesSig ||
       JSON.stringify(prev.quoteKeys || []) !== JSON.stringify(auto.quoteKeys) ||
       JSON.stringify(prev.screenKeys || []) !== JSON.stringify(auto.screenKeys);
-    if (added > 0 || stateChanged) {
+    // Saved copies of the same card (cleaned when the graphics were read) are also removed from the documentary
+    const savedHadCopies = Array.isArray(activeDoc.docGraphics) && activeDoc.docGraphics.length > next.length && added === 0;
+    if (added > 0 || stateChanged || savedHadCopies) {
       commitDocGraphics(next, auto);
       if (added > 0) {
         setStatusMessage(

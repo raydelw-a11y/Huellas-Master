@@ -1329,7 +1329,17 @@ export function sanitizeDocGraphics(raw: unknown): DocGraphic[] {
       });
     }
   }
-  return out.sort((a, b) => a.startSec - b.startSec);
+  // Exact copies (same card, same second, same text: only the id differs) are one card. Two windows open on the
+  // same documentary once created the Stage 8 cards twelve times over.
+  const seenCopies = new Set<string>();
+  const unique = out.filter((g) => {
+    const { id: _id, ...rest } = g as any;
+    const sig = JSON.stringify(rest);
+    if (seenCopies.has(sig)) return false;
+    seenCopies.add(sig);
+    return true;
+  });
+  return unique.sort((a, b) => a.startSec - b.startSec);
 }
 
 // ---------------------------------------------------------------------------------------------------
