@@ -4978,13 +4978,15 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         for (const item of updated) {
           if (applyToAll || item.id === trackId) {
             const cur = prevEdits[String(item.trackNumber)] || {};
+            // Only what was changed is saved as chosen by hand: a volume applied to every song leaves each
+            // song's own fades (and their defaults: no fade-in on the first, no fade-out on the last) alone
+            const patchHasFades = patch.fadeInSec !== undefined || patch.fadeOutSec !== undefined;
             prevEdits[String(item.trackNumber)] = {
               ...cur,
-              volume: item.volume,
-              userSetVolumeV10: true,
-              userSetFadesV6: true,
-              fadeInSec: item.fadeInSec ?? 5,
-              fadeOutSec: item.fadeOutSec ?? 5,
+              ...(patch.volume !== undefined ? { volume: item.volume, userSetVolumeV10: true } : {}),
+              ...(patchHasFades
+                ? { userSetFadesV6: true, fadeInSec: item.fadeInSec ?? 5, fadeOutSec: item.fadeOutSec ?? 5 }
+                : {}),
             };
           }
         }
@@ -21384,20 +21386,16 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                         onClick={() => {
                           handleUpdateMusicTrack(
                             selectedMusicTrack.id,
-                            {
-                              volume: selectedMusicTrack.volume ?? masterMusicVolume,
-                              fadeInSec: selectedMusicTrack.fadeInSec ?? 5,
-                              fadeOutSec: selectedMusicTrack.fadeOutSec ?? 5,
-                            },
+                            { volume: selectedMusicTrack.volume ?? masterMusicVolume },
                             true
                           );
                           setStatusMessage(
-                            `🎵 Volumen (${formatVolumeDb(selectedMusicTrack.volume ?? masterMusicVolume)}), Fade-In (${selectedMusicTrack.fadeInSec ?? 5}s) y Fade-Out (${selectedMusicTrack.fadeOutSec ?? 5}s) aplicados a las ${musicTracks.length} canciones.`
+                            `🎵 Volumen (${formatVolumeDb(selectedMusicTrack.volume ?? masterMusicVolume)}) aplicado a las ${musicTracks.length} canciones. Los fades de cada canción no cambian.`
                           );
                         }}
                         className="px-2.5 py-1 rounded-lg bg-purple-500 hover:bg-purple-400 text-slate-950 font-black text-[10px] cursor-pointer"
                       >
-                        ✨ Aplicar Volumen y Fades a Todas las Canciones ({musicTracks.length})
+                        ✨ Aplicar Volumen a Todas las Canciones ({musicTracks.length})
                       </button>
                       <button
                         type="button"
