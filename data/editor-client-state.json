@@ -48,7 +48,7 @@
     "_v10_9x16_captionBottom20": true,
     "_v11_profile_ratio_repair": true
   },
-  "updatedAt": "2026-11-26T21:50:51.968Z",
+  "updatedAt": "2026-11-26T22:06:57.626Z",
   "overlayStyles": {
     "logoScalePct": 5,
     "logoOpacity": 95,
@@ -122,6 +122,24 @@
       "foleyVolume": 19.953,
       "audioMuted": false,
       "customVolumeSet": true
+    },
+    "clip-6-1795649050151-6": {
+      "foleyVolume": 20,
+      "audioMuted": false,
+      "customVolumeSet": false,
+      "audioFadeOutSec": 0
+    },
+    "num_6_full": {
+      "foleyVolume": 20,
+      "audioMuted": false,
+      "customVolumeSet": false,
+      "audioFadeOutSec": 0
+    },
+    "num_6": {
+      "foleyVolume": 20,
+      "audioMuted": false,
+      "customVolumeSet": false,
+      "audioFadeOutSec": 0
     }
   },
   "timelineClips": [
