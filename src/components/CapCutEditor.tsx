@@ -72,6 +72,7 @@ import DocGraphicsLayer, { browserGraphicMeasure } from './DocGraphicsLayer';
 import DocGraphicsPanel from './DocGraphicsPanel';
 import {
   DOC_GRAPHIC_DEFAULT_DURATION,
+  DOC_GRAPHIC_KIND_LABEL,
   DEFAULT_GRAPHICS_SFX_VOLUME_PCT,
   detectDateCardSuggestions,
   docGraphicSfxEvents,
@@ -23144,6 +23145,94 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                       );
                     })}
                   </>
+                )}
+              </div>
+            </div>
+
+            {/* TRACK 2B: DOCUMENTARY GRAPHICS (date cards, quotes, routes, stamps...) — click = select + Gráficos tab */}
+            <div className={`flex items-center gap-2 ${isFitEntireProject ? 'w-full' : 'min-w-max'}`}>
+              <div className="w-24 sm:w-36 shrink-0 sticky left-0 z-[35] self-stretch shadow-[0_0_0_4px_#0e0c09,-8px_0_0_4px_#0e0c09,4px_0_6px_-2px_rgba(0,0,0,0.7)] px-1.5 sm:px-2 py-1 rounded bg-slate-900 border border-slate-800 text-[9px] sm:text-[10px] font-bold text-rose-300 truncate flex items-center">
+                2B. 🗺️ Gráficos ({resolvedDocGraphics.length})
+              </div>
+              <div
+                style={
+                  isFitEntireProject
+                    ? undefined
+                    : { width: `${Math.max(300, totalDurationSec * timelineZoom)}px`, marginLeft: tlShiftPx > 0 ? -tlShiftPx : undefined }
+                }
+                className={`relative h-6 bg-slate-950/80 border border-slate-800/80 rounded overflow-hidden ${
+                  isFitEntireProject ? 'flex-1 min-w-0' : 'shrink-0'
+                }`}
+              >
+                {resolvedDocGraphics.length === 0 ? (
+                  <span className="text-[10px] text-slate-500 px-2 leading-6">
+                    Sin gráficos. Créalos en la pestaña 🗺️ Gráf. del panel derecho.
+                  </span>
+                ) : (
+                  [...resolvedDocGraphics]
+                    .sort((a, b) => a.startSec - b.startSec)
+                    .map((g) => {
+                      const gStart = Math.max(0, Number(g.startSec) || 0);
+                      const gDur = Math.max(0.4, Number(g.durationSec) || 0.4);
+                      const isSel = selectedGraphicId === g.id;
+                      const isLive = currentTime >= gStart && currentTime < gStart + gDur;
+                      const otherFormat =
+                        g.kind === 'circle_mark' && g.aspect !== (aspectRatio === '9:16' ? '9:16' : '16:9');
+                      const gText =
+                        g.kind === 'date_card'
+                          ? [g.line1, g.line2].filter(Boolean).join(' · ')
+                          : g.kind === 'quote_card'
+                          ? `“${g.quote}” — ${g.source}`
+                          : g.kind === 'route_map'
+                          ? g.label || (g.places || []).join(' → ')
+                          : g.kind === 'name_tag'
+                          ? [g.name, g.role].filter(Boolean).join(' · ')
+                          : g.kind === 'thesis_card'
+                          ? `${g.oldText} → ${g.newText}`
+                          : g.kind === 'stamp'
+                          ? g.text
+                          : '';
+                      const kindLabel = DOC_GRAPHIC_KIND_LABEL[g.kind] || g.kind;
+                      return (
+                        <button
+                          key={g.id}
+                          type="button"
+                          onClick={() => {
+                            keepGraphicsTabUntilRef.current = Date.now() + 600;
+                            seekToTime(gStart);
+                            setSelectedGraphicId(g.id);
+                            setActiveInspectorTab('graphics');
+                            if (typeof window === 'undefined' || window.innerWidth >= 1024) {
+                              setIsRightPanelCollapsed(false);
+                            }
+                          }}
+                          style={
+                            isFitEntireProject
+                              ? {
+                                  left: `${(gStart / Math.max(1, totalDurationSec)) * 100}%`,
+                                  width: `${(gDur / Math.max(1, totalDurationSec)) * 100}%`,
+                                }
+                              : {
+                                  left: `${gStart * timelineZoom}px`,
+                                  width: `${Math.max(18, gDur * timelineZoom)}px`,
+                                }
+                          }
+                          className={`absolute top-0.5 bottom-0.5 rounded border truncate cursor-pointer transition text-left ${
+                            isSel
+                              ? 'bg-rose-500/40 border-amber-300 text-white font-bold z-10'
+                              : isLive
+                              ? 'bg-rose-600/35 border-rose-300/70 text-white z-[5]'
+                              : 'bg-rose-950/60 hover:bg-rose-900/70 border-rose-500/30 text-rose-200'
+                          } ${otherFormat ? 'opacity-40' : ''} ${isFitEntireProject ? 'px-0.5 text-[8px]' : 'px-1 text-[9px]'}`}
+                          title={`${formatTimeMMSS(gStart)} - ${formatTimeMMSS(gStart + gDur)} · ${kindLabel}${
+                            gText ? `: ${gText}` : ''
+                          }${otherFormat ? ' (solo se ve en el otro formato)' : ''}`}
+                        >
+                          <span className="font-semibold">{kindLabel}</span>
+                          {gText ? <span className="opacity-80"> · {gText}</span> : null}
+                        </button>
+                      );
+                    })
                 )}
               </div>
             </div>
