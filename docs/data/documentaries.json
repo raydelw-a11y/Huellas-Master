@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-11-25T22:15:59.273Z",
-    "updatedAt": "2026-11-26T04:27:28.118Z",
+    "updatedAt": "2026-11-26T04:27:31.392Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -42,7 +42,7 @@
       "FIELD_CLEARED_AT_clip1OptionsRaw": "0",
       "FIELD_CLEARED_AT_clip1Line1LocationTime": "0",
       "FIELD_CLEARED_AT_clip1Line2Hook": "0",
-      "PROMPTS_RESTORED_AT": "1795667248118",
+      "PROMPTS_RESTORED_AT": "1795667251392",
       "FIELD_CLEARED_AT_rawClipsText": "0"
     },
     "compiledMasterPrompt": "",
@@ -927,8 +927,8 @@
         "reframeFocusY": 50,
         "reframeConfidence": 0.55,
         "reframeReason": "Encuadre central simétrico IA (50%)",
-        "videoAuditStatus": "approved",
-        "reviewedUpdatedAt": 1795667251391
+        "reviewedUpdatedAt": 1795667251391,
+        "videoAuditStatus": "approved"
       },
       {
         "id": "clip-3-1795649050151-3",
