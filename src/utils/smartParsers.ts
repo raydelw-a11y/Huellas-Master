@@ -778,23 +778,50 @@ export function resolveLocationDescriptorFromTag(
   }
   const rawVisual = String(ref?.prompt || (ref as any)?.visualPrompt || '').trim();
   if (rawVisual) {
-    const firstClause = rawVisual
+    // 6-view reference sheets ("...reference sheet (6 distinct views ... of the exact same historical location ...),
+    // depicting X, ...") describe the place only after "depicting": never take the sheet template as the place
+    const depictingIdx = rawVisual.search(/\),\s*depicting\s+/i);
+    const visualBody =
+      depictingIdx >= 0 ? rawVisual.slice(depictingIdx).replace(/^\),\s*depicting\s+/i, '') : rawVisual;
+    const firstClause = visualBody
       .replace(/@[A-Za-z0-9_ÁÉÍÓÚáéíóúÜüÑñ-]+/g, '')
       .replace(/^(?:Create\s+an\s+image[^,]*?(?:of|showing|depicting)\s+)/i, '')
-      .split(/[.;]/)[0]
+      .split(depictingIdx >= 0 ? /[.;,:]/ : /[.;]/)[0]
       .replace(/\bhistorian(?:'s|s)?\b/gi, 'archival')
       .replace(/\bhospital\b/gi, 'vintage stone')
       .replace(/\bfermentation\b/gi, 'botanical processing')
       .replace(/\bbacteriolog(?:y|ical)\b/gi, 'botanical')
       .replace(/\s{2,}/g, ' ')
       .trim();
-    if (firstClause.length >= 8 && firstClause.length <= 120) {
+    if (
+      firstClause.length >= 8 &&
+      firstClause.length <= 120 &&
+      !/reference\s+sheet|exact\s+same|distinct\s+views|\d+%/i.test(firstClause)
+    ) {
       return /^(?:a|an|the)\b/i.test(firstClause) ? firstClause : `a ${firstClause}`;
     }
   }
-  // No curated description: the tag's own words are the place name ("@Gran_Salon_del_Louvre" → "the Gran Salon del Louvre")
-  const placeWords = atTag.slice(1).replace(/_/g, ' ').replace(/\s+/g, ' ').trim();
+  // No curated description: the tag's own words are the place name ("@Gran_Salon_del_Louvre" → "the Gran Salon del
+  // Louvre"); a trailing year ("@Alkaline_Lake_Texcoco_1325") is dropped because the prompt already dates the scene
+  const placeWords = atTag
+    .slice(1)
+    .replace(/_/g, ' ')
+    .replace(/(?:\s+\d{3,4}){1,2}\s*$/, '')
+    .replace(/\s+/g, ' ')
+    .trim();
   return placeWords ? `the ${placeWords}` : 'the historical period setting';
+}
+
+// English/Spanish nouns that make a reference tag a PLACE ("@Alkaline_Lake_Texcoco_1325", "@Cutzamala_Pumping_Station_2026")
+// unless the tag also names a person's role ("@Mexica_Lake_Warrior_1325")
+const AT_TAG_EXTRA_PLACE_WORD_RE =
+  /(?:^@|_)(?:Lake|Lakes|Lagoon|Canal|Canals|Chinampas?|Dike|Dyke|Dam|Aqueduct|Tunnel|Drainage|City|Center|Centre|Downtown|Station|Valley|Basin|Causeway|Temple|Pyramid|Island|Islet|Swamp|Marsh|Reservoir|Desert|Forest|Jungle|Mountain|Mountains|Volcano|Coast|Beach|Bay|Port|Mine|Market|Field|Fields|Village|Town|Ruins|Road|Avenue|Canyon|Cave|Spring|Springs|Lago|Laguna|Canales|Dique|Acueducto|T[uú]nel|Desag[uü]e|Centro|Valle|Cuenca|Calzada|Templo|Pir[aá]mide|Isla|Islote|Pantano|Presa|Bosque|Selva|Monta[nñ]a|Volc[aá]n|Costa|Playa|Bah[ií]a|Mina|Pueblo|Ruinas|Camino|Avenida|Cueva|Manantial)(?:_|$)/i;
+const AT_TAG_PERSON_ROLE_WORD_RE =
+  /(?:^@|_)(?:Warrior|Farmer|Architect|Ruler|Emperor|King|Queen|Prince|Princess|Lord|Lady|Noble|Commander|Soldier|Captain|General|Officer|Guard|Sailor|Cosmographer|Engineer|Explorer|Naturalist|Scientist|Hydrologist|Geologist|Scout|Priest|Priestess|Monk|Nun|Merchant|Vendor|Trader|Worker|Laborer|Builder|Fisherman|Chronicler|Scribe|Doctor|Physician|Healer|Man|Woman|Boy|Girl|Child|Elder|Mother|Father|Guerrero|Campesino|Arquitecto|Gobernante|Emperador|Rey|Reina|Soldado|Capit[aá]n|Ingeniero|Explorador|Sacerdote|Comerciante|Vendedor|Obrero|Pescador|Cronista|M[eé]dico|Hombre|Mujer|Ni[nñ]o|Ni[nñ]a|Anciano|Anciana)(?:_|$)/i;
+
+function isPlaceLikeAtTag(atTag: string): boolean {
+  if (AT_TAG_PLACE_WORD_RE.test(atTag)) return true;
+  return AT_TAG_EXTRA_PLACE_WORD_RE.test(atTag) && !AT_TAG_PERSON_ROLE_WORD_RE.test(atTag);
 }
 
 // A tag that contains a place noun anywhere ("@Gran_Salon_del_Louvre", "@Fortaleza_Real") names a location, not a person
@@ -1639,7 +1666,9 @@ export function sanitizePromptRemovePersonNames(
       profileByAtTag.set(lowerAt, prof);
 
       const humanName = atTag.slice(1).replace(/_/g, ' ').trim();
-      if (humanName && !isAnonymousRoleReferenceTag(atTag, ref)) {
+      // A descriptive role tag ("@Mexica_Lake_Warrior_1325", "@Spanish_Siege_Soldier_1521") is not a person's name:
+      // its words ("Lake", "Mexica", "Spanish") are ordinary prompt words and must never be replaced
+      if (humanName && !isAnonymousRoleReferenceTag(atTag, ref) && !AT_TAG_PERSON_ROLE_WORD_RE.test(atTag)) {
         nameTokensToReplace.push({ term: humanName, profile: prof });
         const parts = humanName.split(/\s+/).filter(Boolean);
         for (const part of parts) {
@@ -1700,7 +1729,7 @@ export function sanitizePromptRemovePersonNames(
     if (
       locationTagsLower.has(lowerAt) ||
       KNOWN_LOCATION_AT_TAG_PREFIX_RE.test(atTag) ||
-      (matchedRef?.category !== 'persona' && AT_TAG_PLACE_WORD_RE.test(atTag)) ||
+      (matchedRef?.category !== 'persona' && isPlaceLikeAtTag(atTag)) ||
       matchedRef?.category === 'lugar' ||
       (matchedRef as any)?.type === 'Lugar'
     ) {
@@ -1727,7 +1756,7 @@ export function sanitizePromptRemovePersonNames(
   // Universal anti-'@' fallback: ensure ZERO '@' tokens remain in either image or video mode
   p = p
     .replace(/@[A-Za-z0-9_ÁÉÍÓÚáéíóúÜüÑñ-]+/g, (residualTag) =>
-      KNOWN_LOCATION_AT_TAG_PREFIX_RE.test(residualTag) || AT_TAG_PLACE_WORD_RE.test(residualTag)
+      KNOWN_LOCATION_AT_TAG_PREFIX_RE.test(residualTag) || isPlaceLikeAtTag(residualTag)
         ? resolveLocationDescriptorFromTag(residualTag)
         : 'the adult historical figure in authentic period attire'
     )
@@ -1857,7 +1886,8 @@ export function sanitizeCbrnAndWarKeywordsForFlow(rawText: string): string {
       'white pressed mineral discs'
     )
     .replace(
-      /(?<!\b(?:stone|clay|bronze|wax|marble|memorial|wooden)\s)\btablets?\b/gi,
+      // A rugged field / digital tablet is a device, never a pill
+      /(?<!\b(?:stone|clay|bronze|wax|marble|memorial|wooden|rugged|field|digital|electronic|touchscreen|android)\s)\btablets?\b(?!\s+(?:computers?|screens?|devices?|cases?))/gi,
       'white pressed mineral discs'
     )
     .replace(/\bantibiotic\s+crystals?\b/gi, 'golden-amber grains')
@@ -1871,7 +1901,12 @@ export function sanitizeCbrnAndWarKeywordsForFlow(rawText: string): string {
     .replace(/\bamber(?:\s+glass)?\s+vial\b/gi, 'amber glass vessel')
     .replace(/\bamber\s+doses\b/gi, 'amber glass vessels')
     .replace(/\bamber\s+dose\b/gi, 'amber glass vessel')
-    .replace(/\bcrystals?(?!\s*[- ]\s*clear\b|\s+chandeliers?\b|\s+glassware\b)/gi, 'golden-amber grains')
+    // Whole word only ("crystalline" and "crystallizing" were becoming "golden-amber grainsline"); salt or mineral
+    // crystals are geology, not a drug
+    .replace(
+      /(?<!\b(?:salt|mineral|ice|quartz|sugar|snow)\s)\bcrystals?\b(?!\s*[- ]\s*clear\b|\s+chandeliers?\b|\s+glassware\b)/gi,
+      'golden-amber grains'
+    )
     .replace(/\bbacterial\s+agar\s+plates?\b/gi, 'clear glass specimen plates')
     .replace(/\bagar\s+plates?\b/gi, 'clear glass specimen plates')
     .replace(/\bbacteri(?:a|al|um)\b/gi, 'microscopic specimens')
@@ -1954,7 +1989,7 @@ export function sanitizeCbrnAndWarKeywordsForFlow(rawText: string): string {
     .replace(/\bair-raid\s+(?:curtains?|cloths?|drapes?|shades?)\b/gi, 'shaded night ambient curtains with amber lamps')
     .replace(/\bair-raid\b/gi, 'shaded night')
     .replace(/\banti-blast\b/gi, 'crisscrossed paper-taped')
-    .replace(/\brubble\b/gi, 'weathered stone fragments')
+    .replace(/\b(?:stone\s+)?rubble\b/gi, 'weathered stone fragments')
     .replace(/\bblood(?:y|stained)?\b|\bbleeding\b/gi, 'deep crimson stain')
     .replace(/\b(?:agony|deaths?|dying|deadly|lethal(?:ly)?|fatal(?:ly)?)\b/gi, 'solemn silence and quiet restraint')
     .replace(/\bwounds?\b|\bwounded\b/gi, 'bandaged limb')
@@ -2051,7 +2086,8 @@ export function stripZeroPeopleBoilerplatePhrases(rawText: string): string {
       ' '
     )
     .replace(/,?\s*no\s+people\s+present\s+and\s+zero\s+human\s+figures\b/gi, ' ')
-    .replace(/,?\s*(?:with\s+)?no\s+people\s+present\b/gi, ' ')
+    // "...drifting across the peaks and no people present." must not leave a dangling "and"
+    .replace(/,?\s*(?:(?:with|and)\s+)?no\s+people\s+present\b/gi, ' ')
     .replace(/,?\s*(?:with\s+)?zero\s+people\b/gi, ' ')
     .replace(/,?\s*(?:and\s+)?zero\s+human\s+figures\b/gi, ' ')
     .replace(/\s{2,}/g, ' ')
