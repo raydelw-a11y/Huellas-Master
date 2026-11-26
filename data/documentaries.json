@@ -1970,7 +1970,11 @@
         "auditStatus": "ok",
         "auditReason": "Sincronizado con el tramo de voz narrativa.",
         "videoSavedFileName": "41_generate_a_video_in_16_9_63a39348_4K.mp4",
-        "videoSavedAt": 1795710162286
+        "videoSavedAt": 1795710162286,
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": [],
+        "videoDiscardOverriddenAt": 1795710073443
       },
       {
         "id": "clip-42-1795649050153-42",
@@ -2060,7 +2064,11 @@
         "auditStatus": "ok",
         "auditReason": "Sincronizado con el tramo de voz narrativa.",
         "videoSavedFileName": "45_generate_a_video_in_16_9_628b0a32_4K.mp4",
-        "videoSavedAt": 1795710162286
+        "videoSavedAt": 1795710162286,
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": [],
+        "videoDiscardOverriddenAt": 1795710073443
       },
       {
         "id": "clip-46-1795649050154-46",
@@ -2102,7 +2110,11 @@
         "auditStatus": "ok",
         "auditReason": "Sincronizado con el tramo de voz narrativa.",
         "videoSavedFileName": "47_generate_a_video_in_16_9_47c9d29b_4K.mp4",
-        "videoSavedAt": 1795710162286
+        "videoSavedAt": 1795710162286,
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": [],
+        "videoDiscardOverriddenAt": 1795710073443
       },
       {
         "id": "clip-48-1795649050154-48",
