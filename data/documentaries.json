@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-11-25T22:15:59.273Z",
-    "updatedAt": "2026-11-26T04:41:52.977Z",
+    "updatedAt": "2026-11-26T04:49:17.888Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -42,7 +42,7 @@
       "FIELD_CLEARED_AT_clip1OptionsRaw": "0",
       "FIELD_CLEARED_AT_clip1Line1LocationTime": "0",
       "FIELD_CLEARED_AT_clip1Line2Hook": "0",
-      "PROMPTS_RESTORED_AT": "1795667804627",
+      "PROMPTS_RESTORED_AT": "1795668557888",
       "FIELD_CLEARED_AT_rawClipsText": "0"
     },
     "compiledMasterPrompt": "",
@@ -894,7 +894,9 @@
         "videoSavedAt": 1795665682752,
         "reviewedUpdatedAt": 1795667248118,
         "videoAuditStatus": "approved",
-        "isStaticBroll": false
+        "isStaticBroll": false,
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-2-1795649050151-2",
@@ -913,10 +915,12 @@
         "auditStatus": "ok",
         "auditReason": "Sincronizado con el tramo de voz narrativa.",
         "videoSavedFileName": "02_generate_a_video_in_16_9_f3253d3c_4K.mp4",
-        "videoDiscardOverriddenAt": 1795666621864,
+        "videoDiscardOverriddenAt": 1795667129477,
         "videoSavedAt": 1795667243543,
         "reviewedUpdatedAt": 1795667251391,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-3-1795649050151-3",
@@ -938,7 +942,9 @@
         "videoDiscardOverriddenAt": 1795665747862,
         "videoSavedAt": 1795665747862,
         "reviewedUpdatedAt": 1795667472431,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-4-1795649050151-4",
@@ -960,7 +966,9 @@
         "videoDiscardOverriddenAt": 1795665726769,
         "videoSavedAt": 1795665726769,
         "reviewedUpdatedAt": 1795667487366,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-5-1795649050151-5",
@@ -982,7 +990,9 @@
         "videoDiscardOverriddenAt": 1795665726769,
         "videoSavedAt": 1795665726769,
         "reviewedUpdatedAt": 1795667503148,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-6-1795649050151-6",
@@ -1004,7 +1014,9 @@
         "videoDiscardOverriddenAt": 1795665726769,
         "videoSavedAt": 1795665726769,
         "reviewedUpdatedAt": 1795667514754,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-7-1795649050151-7",
@@ -1026,7 +1038,9 @@
         "videoDiscardOverriddenAt": 1795665726769,
         "videoSavedAt": 1795665726769,
         "reviewedUpdatedAt": 1795667526896,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-8-1795649050152-8",
@@ -1048,7 +1062,9 @@
         "videoDiscardOverriddenAt": 1795665682752,
         "videoSavedAt": 1795665682752,
         "reviewedUpdatedAt": 1795667539804,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-9-1795649050152-9",
@@ -1070,7 +1086,9 @@
         "videoDiscardOverriddenAt": 1795666653820,
         "videoSavedAt": 1795666653820,
         "reviewedUpdatedAt": 1795667552855,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-10-1795649050152-10",
@@ -1092,7 +1110,9 @@
         "videoDiscardOverriddenAt": 1795666653820,
         "videoSavedAt": 1795666653820,
         "reviewedUpdatedAt": 1795667563572,
-        "videoAuditStatus": "approved"
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-11-1795649050152-11",
@@ -1155,12 +1175,18 @@
         "videoPrompt": "Clip 14: Generate a video in 16-9 horizontal aspect ratio across 8 seconds showing a three-quarter cowboy shot with a slow lateral tracking shot gliding past the 34-year-old early nineteenth-century European naturalist in a dark navy wool tailcoat kneeling on the white salt-crusted shore of Lake Texcoco in 1803, steadily lifting a clear glass vial of yellowish mineral water toward the bright highland sky to inspect its cloudiness. Solid, non-deforming terrain geometry. All field instruments and leather satchels remain 100% gravity-locked and stationary, all background furniture, architectural fixtures, and tabletop props remain 100% gravity-locked and stationary while any held object moves smoothly under natural hand control, fixed subject count from 0s to 8s, single continuous shot, strictly no shot changes, with subtle ambient foley of soft clink of glass, gentle breeze over salt flats, and quiet lapping water. cinematic documentary realism, safe framing composition, 8k resolution, sharp focus, no modern objects, no CGI look, no text, no spoken voice, no human speech, no music. fix the name to Clip_14_generate_a_video_in_16_9",
         "narrationSegment": "a 9.8 y costras de tequesquite en temporada seca. A inicios del siglo XIX, Alexander von",
         "pauseNotes": "",
-        "imageReady": false,
-        "videoReady": false,
+        "imageReady": true,
+        "videoReady": true,
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": "Sincronizado con el tramo de voz narrativa."
+        "auditReason": "Sincronizado con el tramo de voz narrativa.",
+        "videoSavedFileName": "14_generate_a_video_in_16_9_98663a6d_4K.mp4",
+        "videoSavedAt": 1795668557264,
+        "videoDiscardOverriddenAt": 1795668557264,
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-15-1795649050152-15",
@@ -1172,12 +1198,18 @@
         "videoPrompt": "Clip 15: Generate a video in 16-9 horizontal aspect ratio across 8 seconds showing an eye-level extreme close-up with a slow pan shifting from the left glass flask of sparkling crystal-clear freshwater to the right glass flask of cloudy yellowish alkaline lake water with fine mineral sediment on a wooden field table in 1803. Solid, non-deforming glass and wood geometry with steady continuous lighting and zero sudden flashes, with no people present and zero human figures, all background furniture, architectural fixtures, and tabletop props remain 100% gravity-locked and stationary, fixed subject count from 0s to 8s, single continuous shot, strictly no shot changes, with subtle ambient foley of gentle breeze brushing over glass necks and faint distant valley birds. cinematic documentary realism, safe framing composition, 8k resolution, sharp focus, no modern objects, no CGI look, no text, no spoken voice, no human speech, no music. fix the name to Clip_15_generate_a_video_in_16_9",
         "narrationSegment": "Humboldt midió el contraste: Xochimilco era clara y bebible; Texcoco era amarillenta, olía",
         "pauseNotes": "",
-        "imageReady": false,
-        "videoReady": false,
+        "imageReady": true,
+        "videoReady": true,
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": "Sincronizado con el tramo de voz narrativa."
+        "auditReason": "Sincronizado con el tramo de voz narrativa.",
+        "videoSavedFileName": "15_generate_a_video_in_16_9_21d6a324_4K.mp4",
+        "videoSavedAt": 1795668557264,
+        "videoDiscardOverriddenAt": 1795668557264,
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-16-1795649050152-16",
@@ -1189,14 +1221,20 @@
         "videoPrompt": "",
         "narrationSegment": "a ácido sulfhídrico y sabía a carbonato de sodio. [pausa: 1.8s] Vivían sobre el agua y",
         "pauseNotes": "Contiene [pausa: 1.8s] en la locución",
-        "imageReady": false,
-        "videoReady": false,
+        "imageReady": true,
+        "videoReady": true,
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
         "auditReason": "🖼️ Escena B-Roll Solo Imagen lista — movimiento 4K 60fps local en Editor.",
         "isStaticBroll": true,
-        "brollCameraMotion": "zoom_in"
+        "brollCameraMotion": "zoom_in",
+        "videoSavedFileName": "16_Create_an_image_in_16_Broll_4K.mp4",
+        "videoSavedAt": 1795668557887,
+        "videoDiscardOverriddenAt": 1795668557887,
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-17-1795649050152-17",
@@ -1208,12 +1246,18 @@
         "videoPrompt": "Clip 17: Generate a video in 16-9 horizontal aspect ratio across 8 seconds showing a high-angle wide establishing shot with a crane down descending gently over the lush geometric grid of green chinampa agricultural plots and straight reflecting canals in Tenochtitlan around 1500, revealing dense rows of maize and slender willow trees. Solid, non-deforming agricultural plot geometry. Steady continuous lighting with zero sudden flashes, with no people present and zero human figures, all background furniture, architectural fixtures, and tabletop props remain 100% gravity-locked and stationary, fixed subject count from 0s to 8s, single continuous shot, strictly no shot changes, with subtle ambient foley of soft highland breeze rustling tall maize leaves and gentle canal water lapping against woven banks. cinematic documentary realism, safe framing composition, 8k resolution, sharp focus, no modern objects, no CGI look, no text, no spoken voice, no human speech, no music. fix the name to Clip_17_generate_a_video_in_16_9",
         "narrationSegment": "perecían de sed. Si ese lago quemaba las raíces, ¿cómo alimentaron a cientos de miles de personas? La",
         "pauseNotes": "",
-        "imageReady": false,
-        "videoReady": false,
+        "imageReady": true,
+        "videoReady": true,
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": "Sincronizado con el tramo de voz narrativa."
+        "auditReason": "Sincronizado con el tramo de voz narrativa.",
+        "videoSavedFileName": "17_generate_a_video_in_16_9_4ac281ac_4K.mp4",
+        "videoSavedAt": 1795668557264,
+        "videoDiscardOverriddenAt": 1795668557264,
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-18-1795649050152-18",
@@ -1259,12 +1303,18 @@
         "videoPrompt": "Clip 20: Generate a video in 16-9 horizontal aspect ratio across 8 seconds showing an insert shot of hands at work with a slow tilt following the weathered calloused hands of the 38-year-old Indigenous Mexica agricultural laborer spreading rich dark wet canal silt evenly onto a fertile chinampa bed beside dense vertical willow roots in Tenochtitlan around 1480, all background furniture, architectural fixtures, and tabletop props remain 100% gravity-locked and stationary while any held object moves smoothly under natural hand control, fixed subject count from 0s to 8s, single continuous shot, strictly no shot changes, with subtle ambient foley of wet heavy mud splattering softly onto soil, dripping water, and breeze through willow leaves. cinematic documentary realism, safe framing composition, 8k resolution, sharp focus, no modern objects, no CGI look, no text, no spoken voice, no human speech, no music. fix the name to Clip_20_generate_a_video_in_16_9",
         "narrationSegment": "estacas de madera, rellenas de vegetación acuática y lodo fértil, sujetas por las raíces de sauces ahuejotes.",
         "pauseNotes": "",
-        "imageReady": false,
-        "videoReady": false,
+        "imageReady": true,
+        "videoReady": true,
         "reviewedForEditor": false,
         "recreated": false,
         "auditStatus": "ok",
-        "auditReason": "Sincronizado con el tramo de voz narrativa."
+        "auditReason": "Sincronizado con el tramo de voz narrativa.",
+        "videoSavedFileName": "20_generate_a_video_in_16_9_7ff9c1e9_4K.mp4",
+        "videoSavedAt": 1795668557264,
+        "videoDiscardOverriddenAt": 1795668557264,
+        "videoAuditStatus": "approved",
+        "videoAuditReason": "",
+        "videoAuditIssues": []
       },
       {
         "id": "clip-21-1795649050152-21",
