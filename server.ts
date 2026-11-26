@@ -5906,6 +5906,25 @@ function matchBrollSourceEntryClipNumber(entry: string): number {
   return m ? parseInt(m[1], 10) : 0;
 }
 
+// A regenerated clip arrives with a new hash in its name: once its new initial frame is published, the previous
+// "NN_Imagen_Inicial_<old hash>.jpg" of the same clip is removed (the older video files are already removed)
+function removeSupersededInitialFrames(clipsDir: string, clipNumber: number, keepFileName: string): void {
+  if (!(clipNumber > 0) || !keepFileName) return;
+  const re = new RegExp(`^(?:\\._)?0*${clipNumber}_Imagen_Inicial_.*\\.(?:png|jpe?g|webp)$`, 'i');
+  let entries: string[] = [];
+  try {
+    entries = fs.readdirSync(clipsDir);
+  } catch {
+    return;
+  }
+  for (const entry of entries) {
+    if (entry === keepFileName || entry === `._${keepFileName}` || !re.test(entry)) continue;
+    try {
+      fs.unlinkSync(path.join(clipsDir, entry));
+    } catch {}
+  }
+}
+
 function purgeDiscardedFilesForClip(
   clipsDir: string,
   clipNumber: number,
@@ -15125,6 +15144,7 @@ async function runClips4kPipelineCore(params: Clips4kPipelineParams): Promise<an
             });
             if (fs.existsSync(tmpPosterJpg) && fs.statSync(tmpPosterJpg).size > 1000) {
               publishTempFileAtomicallyToDir(tmpPosterJpg, clipsDir, frameFileName);
+              removeSupersededInitialFrames(clipsDir, clipNum, frameFileName);
             }
           } catch {}
           purgeDiscardedFilesForClip(clipsDir, clipNum);
@@ -15413,6 +15433,7 @@ async function runClips4kPipelineCore(params: Clips4kPipelineParams): Promise<an
                   });
                   if (fs.existsSync(tmpPosterJpg) && fs.statSync(tmpPosterJpg).size > 1000) {
                     publishTempFileAtomicallyToDir(tmpPosterJpg, clipsDir, frameFileName);
+                    if (clipNum > 0) removeSupersededInitialFrames(clipsDir, clipNum, frameFileName);
                   }
                 } catch {}
                 activeClipsPipelineStatus.upscaled4kCount++;
