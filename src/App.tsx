@@ -253,7 +253,7 @@ import { stampBrandMarksOnThumbnail, HD_BADGE_EMPTY_CORNER_CLAUSE, LOGO_EMPTY_CO
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '02:33 AM - 11/26/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '02:39 AM - 11/26/2026';
 
 // PRODUCTION LOCK: while promptConfig.PRODUCTION_LOCKED === 'YES' these fields never change (the server
 // enforces the same list in protectLockedDocs). Metadata, thumbnails, review marks and reframes stay editable.
@@ -19798,7 +19798,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                       </div>
                     </div>
 
-                    {/* SUGERENCIA INTELIGENTE DE DURACIÓN TOTAL TRAS EL PASO 1 (SEGÚN TEMA, PARTES, DESENLACE, TRAMA E HISTORIA) */}
+                    {/* DURATION SUGGESTION: an estimate after Paso 1, adjusted by Paso 3 from the research material */}
                     {(() => {
                       const hasStep1Completed = Boolean(
                         (activeDoc.deepResearchPrompt || '').trim() ||
@@ -19808,9 +19808,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                       if (!hasStep1Completed) {
                         return (
                           <div className="bg-slate-950/70 border border-slate-800/90 rounded-xl p-3 text-[11px] text-slate-400">
-                            💡 <strong>Sugerencia de Duración Total tras el Paso 1:</strong> En cuanto ejecutes el{' '}
-                            <strong className="text-amber-300">Paso 1</strong>, la app analizará el{' '}
-                            <strong>tema, partes/actos, trama, desenlace e historia</strong> y te sugerirá aquí la duración total óptima del documental.
+                            💡 <strong>Sugerencia de Duración Total:</strong> tras el{' '}
+                            <strong className="text-amber-300">Paso 1</strong> verás aquí una estimación según el tema, y el{' '}
+                            <strong className="text-amber-300">Paso 3 (Diseño narrativo)</strong> la ajusta con el material que encontró la investigación.
                           </div>
                         );
                       }
@@ -19831,7 +19831,11 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             <div className="space-y-1">
                               <div className="flex items-center gap-2 flex-wrap">
                                 <span className="px-2.5 py-0.5 rounded-full bg-amber-500 text-slate-950 text-[10px] font-black uppercase tracking-wider">
-                                  ⏱️ Duración Sugerida tras Paso 1
+                                  {/RECOMENDACI[OÓ]N_DURACI[OÓ]N_TOTAL|DURACI[OÓ]N\s+TOTAL\s+SUGERIDA/i.test(
+                                    String(activeDoc.promptConfig?.[STAGE1_PASO3_RESULT_KEY] || '')
+                                  )
+                                    ? '⏱️ Duración Sugerida por el Paso 3'
+                                    : '⏱️ Duración Estimada (el Paso 3 la ajusta)'}
                                 </span>
                                 <span className="px-2.5 py-0.5 rounded-md bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-black">
                                   Recomendado: {durRec.recommendedLabel}
