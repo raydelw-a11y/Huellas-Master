@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-11-25T22:15:59.273Z",
-    "updatedAt": "2026-11-26T16:57:55.509Z",
+    "updatedAt": "2026-11-26T17:04:08.755Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -42,7 +42,7 @@
       "FIELD_CLEARED_AT_clip1OptionsRaw": "0",
       "FIELD_CLEARED_AT_clip1Line1LocationTime": "0",
       "FIELD_CLEARED_AT_clip1Line2Hook": "0",
-      "PROMPTS_RESTORED_AT": "1795712275509",
+      "PROMPTS_RESTORED_AT": "1795712648755",
       "FIELD_CLEARED_AT_rawClipsText": "0",
       "CAPTION_BOTTOM_PCT_16X9": 11,
       "CAPTION_SETTINGS_UPDATED_AT": "1795671143491",
@@ -2210,9 +2210,9 @@
         "videoAuditReason": "",
         "videoAuditIssues": [],
         "reviewedUpdatedAt": 1795711784115,
-        "videoSavedFileName": "50_Create_an_image_in_16_Broll_4K.mp4",
-        "videoSavedAt": 1795711784115,
-        "videoDiscardOverriddenAt": 1795711784115
+        "videoSavedFileName": "50_create_a_cinematic_8_second_19f63741_4K.mp4",
+        "videoSavedAt": 1795712648327,
+        "videoDiscardOverriddenAt": 1795712648327
       },
       {
         "id": "clip-51-1795649050154-51",
@@ -2276,9 +2276,9 @@
         "recreated": false,
         "auditStatus": "ok",
         "auditReason": "Sincronizado con el tramo de voz narrativa.",
-        "videoSavedFileName": "53_generate_a_video_in_16_9_1a602c18_4K.mp4",
-        "videoSavedAt": 1795711683842,
-        "videoDiscardOverriddenAt": 1795711683842,
+        "videoSavedFileName": "53_create_a_cinematic_8_second_6a7d2c6c_4K.mp4",
+        "videoSavedAt": 1795712648327,
+        "videoDiscardOverriddenAt": 1795712648327,
         "videoAuditStatus": "approved",
         "videoAuditReason": "",
         "videoAuditIssues": []
@@ -2322,9 +2322,9 @@
         "recreated": false,
         "auditStatus": "ok",
         "auditReason": "Sincronizado con el tramo de voz narrativa.",
-        "videoSavedFileName": "55_generate_a_video_in_16_9_9189c96e_4K.mp4",
-        "videoSavedAt": 1795711825021,
-        "videoDiscardOverriddenAt": 1795711825021,
+        "videoSavedFileName": "55_create_a_cinematic_8_second_07f3f9dd_4K.mp4",
+        "videoSavedAt": 1795712648327,
+        "videoDiscardOverriddenAt": 1795712648327,
         "videoAuditStatus": "approved",
         "videoAuditReason": "",
         "videoAuditIssues": []
