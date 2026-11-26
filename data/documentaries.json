@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-11-25T22:15:59.273Z",
-    "updatedAt": "2026-11-26T05:12:26.745Z",
+    "updatedAt": "2026-11-26T05:13:36.214Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -42,10 +42,14 @@
       "FIELD_CLEARED_AT_clip1OptionsRaw": "0",
       "FIELD_CLEARED_AT_clip1Line1LocationTime": "0",
       "FIELD_CLEARED_AT_clip1Line2Hook": "0",
-      "PROMPTS_RESTORED_AT": "1795669946745",
+      "PROMPTS_RESTORED_AT": "1795670016214",
       "FIELD_CLEARED_AT_rawClipsText": "0",
       "CAPTION_BOTTOM_PCT_16X9": 20,
-      "CAPTION_SETTINGS_UPDATED_AT": "1795669946745"
+      "CAPTION_SETTINGS_UPDATED_AT": "1795669954029",
+      "CAPTION_MAX_CHARS": 16,
+      "CAPTION_LINE_MODE": "original",
+      "CAPTION_WORDS_PER_LINE_16X9": 0,
+      "CAPTION_WORDS_PER_LINE_9X16": 0
     },
     "compiledMasterPrompt": "",
     "topic": "Tenochtitlan: la ciudad construida sobre un lago que se quedó sin agua. Paradoja central: vivían rodeados de agua, pero el agua del lago de Texcoco era salada y no se podía beber.\n\nTÍTULO: \"Cómo una ciudad construida sobre un lago se quedó sin agua (Tenochtitlan)\". Alternativa: \"La ciudad rodeada de agua que no podía beber ni una gota\".\n\nMINIATURA: ilustración estilo caricatura, SIN TEXTO: un guerrero mexica escupiendo agua salada del lago, la ciudad brillante detrás y un ajolote con cara de asco.\n\nGANCHO (primeros 12 s, con chiste): \"Construyeron la ciudad más grande de América en medio de un lago. Agua por todas partes. Solo había un problema: el agua era salada.\"\n\nMETÁFORA CENTRAL (repetir a lo largo del video): \"Vivían sobre el agua y morían de sed.\"\n\nESTRUCTURA (un giro cada 30-45 s, sin relleno):\n1) La profecía del águila: los mexicas fundan la ciudad en el peor sitio posible, un islote en el lago salado de Texcoco.\n2) Las chinampas: huertos flotantes que alimentan a cientos de miles de personas.\n3) El albarradón de Nezahualcóyotl (~16 km, hacia 1449): un dique que separa el agua dulce de la salada.\n4) El acueducto de Chapultepec: agua de manantial llevada por encima del lago hasta la ciudad.\n5) GIRO: en el asedio de 1521 Cortés corta el acueducto y la ciudad cae por sed.\n6) Los españoles deciden desaguar el lago (desagüe de Huehuetoca, Enrico Martínez, 1607) y llega la inundación de 1629, que dura unos 5 años.\n7) Ironía actual: la Ciudad de México se hunde por bombear su acuífero y sube agua del sistema Cutzamala más de mil metros cuesta arriba.\n8) PREGUNTA FINAL polémica para comentarios: \"¿Viviría usted en una ciudad que se hunde mientras se queda sin agua?\"\n\nTONO: divulgativo, ágil y con humor seco, estilo explicador ilustrado; ritmo sin relleno. PÚBLICO: hispanohablante, sobre todo México. DURACIÓN OBJETIVO: ~9-10 minutos.\n\nVERIFICAR en la investigación (cifras de memoria): hundimiento anual de la Ciudad de México, altura y distancia de bombeo del Cutzamala, longitud y fecha del albarradón, fechas del acueducto de Chapultepec, del corte en 1521, del desagüe de Huehuetoca y de la inundación de 1629, población de Tenochtitlan y salinidad real del lago de Texcoco frente a Xochimilco/Chalco.",
