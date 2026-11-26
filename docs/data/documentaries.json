@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-11-25T22:15:59.273Z",
-    "updatedAt": "2026-11-26T05:31:59.676Z",
+    "updatedAt": "2026-11-26T05:32:09.648Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -42,11 +42,11 @@
       "FIELD_CLEARED_AT_clip1OptionsRaw": "0",
       "FIELD_CLEARED_AT_clip1Line1LocationTime": "0",
       "FIELD_CLEARED_AT_clip1Line2Hook": "0",
-      "PROMPTS_RESTORED_AT": "1795671119676",
+      "PROMPTS_RESTORED_AT": "1795671129648",
       "FIELD_CLEARED_AT_rawClipsText": "0",
       "CAPTION_BOTTOM_PCT_16X9": 11,
-      "CAPTION_SETTINGS_UPDATED_AT": "1795671119676",
-      "CAPTION_MAX_CHARS": 16,
+      "CAPTION_SETTINGS_UPDATED_AT": "1795671129648",
+      "CAPTION_MAX_CHARS": 39,
       "CAPTION_LINE_MODE": "subdivide",
       "CAPTION_WORDS_PER_LINE_16X9": 8,
       "CAPTION_WORDS_PER_LINE_9X16": 0
