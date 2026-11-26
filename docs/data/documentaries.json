@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-11-25T22:15:59.273Z",
-    "updatedAt": "2026-11-26T21:10:48.691Z",
+    "updatedAt": "2026-11-26T21:10:59.782Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -42,7 +42,7 @@
       "FIELD_CLEARED_AT_clip1OptionsRaw": "0",
       "FIELD_CLEARED_AT_clip1Line1LocationTime": "0",
       "FIELD_CLEARED_AT_clip1Line2Hook": "0",
-      "PROMPTS_RESTORED_AT": "1795727448691",
+      "PROMPTS_RESTORED_AT": "1795727459782",
       "FIELD_CLEARED_AT_rawClipsText": "0",
       "CAPTION_BOTTOM_PCT_16X9": 11,
       "CAPTION_SETTINGS_UPDATED_AT": "1795721953008",
@@ -3638,7 +3638,7 @@
       }
     ],
     "docGraphicsAuto": {
-      "datesSig": "v2|7804:121g9tb",
+      "datesSig": "v2|7804:pa91vj",
       "quoteKeys": [],
       "screenKeys": [
         "name|a inicios del siglo xix alexander von humboldt",
