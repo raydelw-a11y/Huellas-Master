@@ -48,7 +48,7 @@ Antes de dar por terminado cualquier cambio de código o subir a GitHub/Render, 
 
 ## 6. Turno de Publicación entre Sesiones (una sola sesión cambia la página a la vez)
 Varias sesiones trabajan sobre esta misma carpeta, y un `npm run build` o un `git push` publica todo lo que haya en disco, también lo que otra sesión dejó a medias. Por eso:
-1. **Antes de editar código de la página** (`src/`, `server.ts`, `extension/`, `scripts/`, `vite.config.ts`) **y antes de `npm run build`, `git commit`, `git push` o reiniciar el servidor**, comprueba si otra sesión tiene el turno:
+1. **Antes de editar código de la página** (`src/`, `server.ts`, `chrome-extension/`, `scripts/`, `vite.config.ts`) **y antes de `npm run build`, `git commit`, `git push` o reiniciar el servidor**, comprueba si otra sesión tiene el turno:
    - Archivo de turno: `"$(git rev-parse --git-common-dir)/claude-publish.lock"` (dentro de `.git`, nunca se sube).
    - `git status --short`: si hay archivos de código modificados que tú no tocaste, otra sesión está a mitad de un cambio aunque no exista el archivo de turno.
 2. **Si otra sesión tiene el turno, espera**: no edites código, no compiles, no hagas commit ni push. Vuelve a comprobar cada minuto aproximadamente hasta que el archivo desaparezca y no queden cambios ajenos de código sin subir. Mientras tanto puedes leer, investigar y preparar el cambio. Avisa al usuario en una línea de que estás esperando y a qué sesión.
