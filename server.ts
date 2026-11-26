@@ -24032,7 +24032,20 @@ async function renderViralClipMp4Internal(params: {
               : '';
           coverGraph += `;${sized}[cv${k}]${sized ? `[cw${k}]` : `[${k + 1}:v]`}overlay=${wx}:${wy}:format=auto[cv${k + 1}]`;
         });
-        coverArgs.push('-filter_complex', coverGraph, '-map', `[cv${titleWordsArt.words.length}]`, '-frames:v', '1', coverPath);
+        // Gold "HD" badge top-right, as on the 9:16 thumbnails: same width share (430/3072), mirrored on the
+        // official logo's left margin and a touch lower than the logo's top
+        let coverOutLabel = `cv${titleWordsArt.words.length}`;
+        const hdBadgeFile = THUMB_BADGE_FILES.vertical;
+        if (fs.existsSync(hdBadgeFile)) {
+          const badgeIdx = titleWordsArt.words.length + 1;
+          const badgeW = Math.max(24, 2 * Math.round((outW * 430) / 3072 / 2));
+          const badgeX = Math.max(0, outW - Math.round((outW * look916.logoXPct) / 100) - badgeW);
+          const badgeY = Math.round((outH * (look916.logoYPct + 1)) / 100);
+          coverArgs.push('-i', hdBadgeFile);
+          coverGraph += `;[${badgeIdx}:v]scale=${badgeW}:-1:flags=lanczos[chd];[${coverOutLabel}][chd]overlay=${badgeX}:${badgeY}:format=auto[cvhd]`;
+          coverOutLabel = 'cvhd';
+        }
+        coverArgs.push('-filter_complex', coverGraph, '-map', `[${coverOutLabel}]`, '-frames:v', '1', coverPath);
         const coverOk = await new Promise<boolean>((resolve) => {
           execFile(ffmpegBin, coverArgs, { timeout: 120000 }, (err) => resolve(!err && fs.existsSync(coverPath)));
         });
