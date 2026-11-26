@@ -81,3 +81,8 @@ Varias sesiones y conversaciones (Antigravity y Claude Code) trabajan sobre esta
 3. **Al tomar el turno**, crea el archivo con una línea: nombre de tu sesión o conversación, hora de Nueva York y qué vas a cambiar. **Bórralo en cuanto termines** (después del push y del reinicio del servidor) o si abandonas el cambio.
 4. **Turno viejo**: si el archivo tiene más de 30 minutos y no cambia, no lo borres por tu cuenta; pregunta al usuario si esa sesión sigue trabajando.
 5. Los archivos de datos que la propia app reescribe (`data/*.json`, `docs/data/*.json`, `docs/index.html`, `docs/tts-files/`) no cuentan como trabajo de otra sesión.
+
+# Hora de Actualización al Final del Mensaje
+- Cuando una sesión o conversación publique un cambio en la página (build + push), debe **terminar su mensaje con la hora de actualización** que el usuario verá en la esquina, en una línea propia y con el mismo formato: `Actualizado: [hora] - [MM/DD/YYYY]` (hora de Nueva York).
+- Esa hora es la del build realmente publicado: léela de `docs/index.html` después de compilar y comprueba que `git show origin/main:docs/index.html` lleva la misma; no la escribas de memoria ni uses la hora del reloj.
+- Si el mensaje no publicó nada (solo datos, reglas o respuestas), no hace falta; si se compiló pero no se pudo subir, dilo junto a la hora.
