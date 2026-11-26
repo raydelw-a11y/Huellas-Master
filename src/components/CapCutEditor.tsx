@@ -12215,6 +12215,33 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       const vo = voiceAudioRef.current;
       const { voiceStartOffsetSec: vStart, postSloganIntroBounds: psBounds } =
         voiceClockBoundsRef.current;
+      // Start the narration on the very frame the playhead reaches it. Waiting for the next React commit
+      // (up to 180 ms later) made the render effect seek the voice forward and cut its first word when the
+      // file has no lead-in silence (Video 32: "Año" starts at 0.004 s).
+      if (
+        vo &&
+        vo.paused &&
+        !vo.ended &&
+        !vo.seeking &&
+        vo.readyState >= 2 &&
+        vo.currentTime < 0.05 &&
+        currentTimeRef.current < vStart &&
+        next >= vStart &&
+        next < vStart + 0.25 &&
+        appliedVoiceSeekVersionRef.current === lastSeekVersionRef.current
+      ) {
+        const startClip = clipsWithTimelineBoundsRef.current.find((c) => next >= c.start && next < c.end);
+        const startsOnIntroOrOutro =
+          startClip?.id === 'fixed-doc-intro' ||
+          startClip?.id === 'fixed-doc-outro' ||
+          startClip?.clipNumber === 0 ||
+          startClip?.clipNumber === 999;
+        if (!startsOnIntroOrOutro) {
+          vo.muted = false;
+          voPlayStartedAtMsRef.current = nowMs;
+          vo.play().catch(() => {});
+        }
+      }
       if (
         vo &&
         !vo.paused &&
@@ -12944,12 +12971,17 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         const withinPlayableVoiceMedia =
           !(mediaDur > 1) || voTime < Math.max(0.1, mediaDur - 0.08);
         const isManualVoSeek = appliedVoiceSeekVersionRef.current !== lastSeekVersionRef.current;
+        // Narration just reached during playback, still parked at its start: play it from there instead of
+        // seeking forward by the commit lag (that skipped the first word). The rAF phase-lock holds the
+        // timeline the few ms the voice is behind.
+        const isVoiceJustStarting =
+          isPlaying && !isManualVoSeek && vo.paused && !vo.ended && vo.currentTime < 0.05 && voTime < 0.6;
         if (
           isManualVoSeek ||
           (!isPlaying && withinPlayableVoiceMedia) ||
           (!vo.ended &&
             withinPlayableVoiceMedia &&
-            ((vo.paused && Math.abs(vo.currentTime - voTime) > 0.12) ||
+            ((vo.paused && !isVoiceJustStarting && Math.abs(vo.currentTime - voTime) > 0.12) ||
               // During playback the rAF clock phase-locks to the voice; only re-seek on gross desync
               // (> 1.5 s). The old 0.38 s threshold fired on mobile latency and replayed words.
               (!vo.seeking && Math.abs(vo.currentTime - voTime) > 1.5)))
