@@ -68,11 +68,17 @@ import {
   toCanonicalMediaBridgePath,
 } from '../utils/mediaBridge';
 import { useNoticeStack } from '../utils/noticeStack';
-import DocGraphicsLayer from './DocGraphicsLayer';
+import DocGraphicsLayer, { browserGraphicMeasure } from './DocGraphicsLayer';
 import DocGraphicsPanel from './DocGraphicsPanel';
 import {
   DOC_GRAPHIC_DEFAULT_DURATION,
+  DEFAULT_GRAPHICS_SFX_VOLUME_PCT,
   detectDateCardSuggestions,
+  docGraphicSfxEvents,
+  findSpokenInCaptions,
+  screenPlanKey,
+  synthGraphicSfx,
+  type ScreenGraphicPlanItem,
   findQuoteInCaptions,
   newDocGraphicId,
   parseResearchScreenQuotes,
@@ -10687,7 +10693,15 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     if (!isEditorActive || !activeDoc?.id || docGraphicsLocked || captions.length < 3) return;
     const t = window.setTimeout(() => setDocGraphicsAutoTick((n) => n + 1), 5000);
     return () => window.clearTimeout(t);
-  }, [isEditorActive, activeDoc?.id, docGraphicsLocked, captions, activeDoc?.deepResearchResult, voiceStartOffsetSec]);
+  }, [
+    isEditorActive,
+    activeDoc?.id,
+    docGraphicsLocked,
+    captions,
+    activeDoc?.deepResearchResult,
+    activeDoc?.promptConfig?.SCREEN_GRAPHICS_PLAN,
+    voiceStartOffsetSec,
+  ]);
   useEffect(() => {
     if (docGraphicsAutoTick === 0) return;
     if (!isEditorActive || !activeDoc?.id || docGraphicsLocked) return;
@@ -10780,14 +10794,77 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       added += 1;
     }
     auto.quoteKeys = Array.from(keys);
+    // Names, theses and stamps that Stage 8 tied to exact words of the narration ("ON-SCREEN GRAPHICS")
+    const screenKeys = new Set(auto.screenKeys || []);
+    let screenPlan: ScreenGraphicPlanItem[] = [];
+    try {
+      screenPlan = JSON.parse(String(activeDoc.promptConfig?.SCREEN_GRAPHICS_PLAN || '[]'));
+    } catch {
+      screenPlan = [];
+    }
+    for (const it of Array.isArray(screenPlan) ? screenPlan : []) {
+      if (!it || !it.spoken || !it.a) continue;
+      const key = screenPlanKey(it);
+      if (screenKeys.has(key)) continue;
+      const hit = findSpokenInCaptions(it.spoken, timed, { minWords: 2 });
+      if (!hit) continue;
+      screenKeys.add(key);
+      const startSec = Number(Math.max(0, hit.startSec - 0.1).toFixed(2));
+      if (it.kind === 'name') {
+        next = [
+          ...next,
+          {
+            id: newDocGraphicId('name_tag'),
+            kind: 'name_tag',
+            startSec,
+            durationSec: DOC_GRAPHIC_DEFAULT_DURATION.name_tag,
+            name: it.a,
+            role: it.b || '',
+            target: null,
+            anchorSpoken: it.spoken,
+          },
+        ];
+      } else if (it.kind === 'thesis') {
+        next = [
+          ...next,
+          {
+            id: newDocGraphicId('thesis_card'),
+            kind: 'thesis_card',
+            startSec,
+            durationSec: DOC_GRAPHIC_DEFAULT_DURATION.thesis_card,
+            oldText: it.a,
+            newText: it.b || '',
+            anchorSpoken: it.spoken,
+          },
+        ];
+      } else if (it.kind === 'stamp') {
+        next = [
+          ...next,
+          {
+            id: newDocGraphicId('stamp'),
+            kind: 'stamp',
+            startSec,
+            durationSec: DOC_GRAPHIC_DEFAULT_DURATION.stamp,
+            text: it.a,
+            anchorSpoken: it.spoken,
+          },
+        ];
+      } else {
+        continue;
+      }
+      added += 1;
+    }
+    auto.screenKeys = Array.from(screenKeys);
     const prev = docGraphicsAutoRef.current.state;
     const stateChanged =
-      prev.datesSig !== auto.datesSig || JSON.stringify(prev.quoteKeys || []) !== JSON.stringify(auto.quoteKeys);
+      prev.datesSig !== auto.datesSig ||
+      JSON.stringify(prev.quoteKeys || []) !== JSON.stringify(auto.quoteKeys) ||
+      JSON.stringify(prev.screenKeys || []) !== JSON.stringify(auto.screenKeys);
     if (added > 0 || stateChanged) {
       commitDocGraphics(next, auto);
       if (added > 0) {
         setStatusMessage(
-          `🗺️ Gráficos automáticos: ${added} tarjeta${added === 1 ? '' : 's'} de fecha o cita añadida${
+          `🗺️ Gráficos automáticos: ${added} tarjeta${added === 1 ? '' : 's'} nueva${
             added === 1 ? '' : 's'
           } (pestaña Gráf.).`
         );
@@ -10812,6 +10889,56 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       }),
     [docGraphics, clipsWithTimelineBounds, timedCaptionsForGraphics]
   );
+  // Sound effects of the graphics (typing, thuds, whooshes, pen strokes, stamps): the same synthesized samples
+  // the export mixes in (server/docGraphicsAss.ts), played here while the timeline plays.
+  const graphicsSfxVolumePct = Number.isFinite(Number(activeDoc?.promptConfig?.GRAPHICS_SFX_VOLUME))
+    ? Math.max(0, Math.min(100, Number(activeDoc?.promptConfig?.GRAPHICS_SFX_VOLUME)))
+    : DEFAULT_GRAPHICS_SFX_VOLUME_PCT;
+  const setGraphicsSfxVolume = (pct: number) =>
+    updateActiveDoc({
+      promptConfig: { ...(activeDoc?.promptConfig || {}), GRAPHICS_SFX_VOLUME: String(Math.round(pct)) } as any,
+    });
+  const graphicsSfxEvents = useMemo(
+    () => docGraphicSfxEvents(resolvedDocGraphics, aspectRatio === '9:16' ? '9:16' : '16:9', browserGraphicMeasure),
+    [resolvedDocGraphics, aspectRatio]
+  );
+  const graphicsSfxCtxRef = useRef<AudioContext | null>(null);
+  const graphicsSfxBuffersRef = useRef<Map<string, AudioBuffer>>(new Map());
+  const graphicsSfxLastTimeRef = useRef<number>(0);
+  useEffect(() => {
+    const prevT = graphicsSfxLastTimeRef.current;
+    graphicsSfxLastTimeRef.current = currentTime;
+    if (!isPlaying || graphicsSfxVolumePct <= 0 || graphicsSfxEvents.length === 0) return;
+    // A jump (seek) is not playback: nothing is triggered for the skipped stretch
+    if (currentTime <= prevT || currentTime - prevT > 0.5) return;
+    const due = graphicsSfxEvents.filter((e) => e.t > prevT && e.t <= currentTime);
+    if (due.length === 0) return;
+    try {
+      const Ctx: typeof AudioContext = (window as any).AudioContext || (window as any).webkitAudioContext;
+      if (!Ctx) return;
+      if (!graphicsSfxCtxRef.current) graphicsSfxCtxRef.current = new Ctx();
+      const ctx = graphicsSfxCtxRef.current;
+      if (ctx.state === 'suspended') void ctx.resume();
+      for (const e of due) {
+        const key = `${e.kind}|${e.variant}|${ctx.sampleRate}`;
+        let buf = graphicsSfxBuffersRef.current.get(key);
+        if (!buf) {
+          const smp = synthGraphicSfx(e.kind, e.variant, ctx.sampleRate);
+          buf = ctx.createBuffer(1, smp.length, ctx.sampleRate);
+          buf.getChannelData(0).set(smp);
+          graphicsSfxBuffersRef.current.set(key, buf);
+        }
+        const src = ctx.createBufferSource();
+        src.buffer = buf;
+        const gain = ctx.createGain();
+        gain.gain.value = (graphicsSfxVolumePct / 100) * e.gain;
+        src.connect(gain).connect(ctx.destination);
+        src.start();
+      }
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentTime]);
+
   // "Ubicar con Gemini" in the panel: App.tsx sends the map frame to Gemini Web (free) and saves the points
   const requestRouteLocate = (route: RouteMapGraphic) => {
     if (!activeDoc?.id || !route.clipNumber) return;
@@ -15885,6 +16012,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 },
                 // Date cards, source quotes and routes (server/docGraphicsAss.ts)
                 docGraphics: resolvedDocGraphics,
+                docGraphicsSfxVolume: graphicsSfxVolumePct,
                 burnInCaptions,
                 ...(karaokeCaptions
                   ? {
@@ -18907,7 +19035,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                 <div
                   className="absolute inset-0 pointer-events-auto cursor-crosshair"
                   style={{ zIndex: 60, outline: '2px dashed rgba(245,158,11,0.85)', outlineOffset: -2 }}
-                  title="Haz clic para añadir el siguiente punto de la ruta"
+                  title="Haz clic en el visor para colocar el gráfico (en una ruta, cada clic añade el siguiente punto)"
                   onMouseDown={(e) => e.stopPropagation()}
                   onClick={(e) => {
                     e.stopPropagation();
@@ -18915,12 +19043,18 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     if (!(r.width > 0 && r.height > 0)) return;
                     const xPct = Math.max(0, Math.min(100, ((e.clientX - r.left) / r.width) * 100));
                     const yPct = Math.max(0, Math.min(100, ((e.clientY - r.top) / r.height) * 100));
+                    const pt = { xPct: Number(xPct.toFixed(2)), yPct: Number(yPct.toFixed(2)) };
+                    const curAspect: '16:9' | '9:16' = aspectRatio === '9:16' ? '9:16' : '16:9';
                     commitDocGraphics(
-                      docGraphics.map((g) =>
-                        g.id === routeCaptureId && g.kind === 'route_map'
-                          ? { ...g, points: [...g.points, { xPct: Number(xPct.toFixed(2)), yPct: Number(yPct.toFixed(2)) }] }
-                          : g
-                      )
+                      docGraphics.map((g): DocGraphic => {
+                        if (g.id !== routeCaptureId) return g;
+                        // Route: next point · circle: its centre · name tag: the person · stamp: where it lands
+                        if (g.kind === 'route_map') return { ...g, points: [...g.points, pt] };
+                        if (g.kind === 'circle_mark') return { ...g, ...pt, aspect: curAspect };
+                        if (g.kind === 'name_tag') return { ...g, target: pt, targetAspect: curAspect };
+                        if (g.kind === 'stamp') return { ...g, ...pt };
+                        return g;
+                      })
                     );
                   }}
                 />
@@ -19744,6 +19878,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               routeCaptureId={routeCaptureId}
               onRouteCaptureChange={setRouteCaptureId}
               onLocateRoute={requestRouteLocate}
+              sfxVolumePct={graphicsSfxVolumePct}
+              onSfxVolumeChange={setGraphicsSfxVolume}
             />
           )}
 

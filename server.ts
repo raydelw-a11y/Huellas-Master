@@ -53,7 +53,7 @@ import {
   trimDuplicatedTakeInPcm,
 } from './src/utils/geminiTtsAudioClean';
 import { buildSegmentAss, resolveExportFont, type ExportHookConfig } from './server/exportOverlayAss';
-import { buildDocGraphicsAssEvents, sliceDocGraphicsForSegment } from './server/docGraphicsAss';
+import { buildDocGraphicsAssEvents, sliceDocGraphicsForSegment, writeGraphicSfxWav } from './server/docGraphicsAss';
 import {
   renderViralTitleArt,
   renderViralTitleWords,
@@ -6818,6 +6818,70 @@ app.post('/api/editor/update-clip-reframe-9x16', (req, res) => {
 
 let intelHevc8KHardwareOk: boolean | null = null;
 
+/** Target loudness of every export (YouTube plays everything at about -14 LUFS). */
+const EXPORT_TARGET_LUFS = -14;
+const EXPORT_PEAK_LIMIT = 0.841; // -1.5 dBFS
+
+/**
+ * Brings a finished export to EXPORT_TARGET_LUFS in place: loudnorm only measures, then one fixed gain and a
+ * peak limiter are applied (the mix balance is kept). The video stream is copied, never re-encoded.
+ */
+async function normalizeExportLoudness(
+  filePath: string,
+  workDir: string,
+  ffmpegBin: string
+): Promise<{ applied: boolean; message: string }> {
+  const runFf = (args: string[]) =>
+    new Promise<{ code: number; stderr: string }>((resolve) => {
+      const p = spawn(ffmpegBin, args, { stdio: ['ignore', 'ignore', 'pipe'] });
+      renderChildProcs.add(p as any);
+      let err = '';
+      p.stderr?.on('data', (d) => {
+        err = (err + d.toString()).slice(-20000);
+      });
+      p.on('close', (code) => {
+        renderChildProcs.delete(p as any);
+        resolve({ code: code ?? 1, stderr: err });
+      });
+      p.on('error', () => {
+        renderChildProcs.delete(p as any);
+        resolve({ code: 1, stderr: err });
+      });
+    });
+  const measure = await runFf(['-hide_banner', '-nostats', '-i', filePath, '-vn', '-af', `loudnorm=I=${EXPORT_TARGET_LUFS}:TP=-1.5:LRA=11:print_format=json`, '-f', 'null', '-']);
+  const jsonMatch = measure.stderr.match(/\{[^{}]*"input_i"[^{}]*\}/);
+  if (measure.code !== 0 || !jsonMatch) return { applied: false, message: 'sin pista de audio que medir' };
+  const stats = JSON.parse(jsonMatch[0]);
+  const inputI = Number(stats.input_i);
+  if (!Number.isFinite(inputI) || inputI < -60) return { applied: false, message: 'audio en silencio, sin cambios' };
+  const gainDb = Math.max(-12, Math.min(12, EXPORT_TARGET_LUFS - inputI));
+  if (Math.abs(gainDb) < 0.3) return { applied: false, message: `ya estaba en ${inputI.toFixed(1)} LUFS` };
+  let freeBytes = Infinity;
+  try {
+    const st = (fs as any).statfsSync(workDir);
+    freeBytes = Number(st.bavail) * Number(st.bsize);
+  } catch {}
+  const size = fs.statSync(filePath).size;
+  if (freeBytes < size * 1.15 + 5 * 1024 ** 3) {
+    return { applied: false, message: `sin espacio para ajustar (${inputI.toFixed(1)} LUFS, se deja igual)` };
+  }
+  const outPath = path.join(workDir, `loudnorm_${Date.now()}.mp4`);
+  const apply = await runFf([
+    '-hide_banner', '-y', '-i', filePath, '-map', '0:v:0', '-map', '0:a:0', '-c:v', 'copy',
+    '-af', `volume=${gainDb.toFixed(2)}dB,alimiter=limit=${EXPORT_PEAK_LIMIT}:attack=3:release=100:level=disabled:latency=1`,
+    '-c:a', 'aac', '-b:a', '256k', '-movflags', '+faststart', outPath,
+  ]);
+  if (apply.code !== 0 || !fs.existsSync(outPath)) {
+    try {
+      fs.unlinkSync(outPath);
+    } catch {}
+    return { applied: false, message: `falló el ajuste (${inputI.toFixed(1)} LUFS, se deja igual)` };
+  }
+  fs.unlinkSync(filePath);
+  fs.renameSync(outPath, filePath);
+  return { applied: true, message: `${inputI.toFixed(1)} LUFS → ${EXPORT_TARGET_LUFS} LUFS (${gainDb >= 0 ? '+' : ''}${gainDb.toFixed(1)} dB)` };
+}
+
 app.post('/api/editor/render-ffmpeg', async (req, res) => {
   const startedAt = Date.now();
   let render8KRequested = false;
@@ -7265,6 +7329,26 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       } catch (gErr: any) {
         console.warn('[render-ffmpeg] Gráficos documentales omitidos:', gErr?.message || gErr);
         docGraphicEvents = [];
+      }
+    }
+    // Their sound effects (typing, thuds, whooshes, pen strokes, stamps) as one extra track of the final mix
+    let docGraphicsSfxPath = '';
+    if (exportParityV2 && overlays?.burnInDocGraphics !== false && Array.isArray(overlays?.docGraphics)) {
+      try {
+        const sfxPath = path.join(workDir, 'graphics_sfx.wav');
+        if (
+          writeGraphicSfxWav({
+            graphics: overlays.docGraphics,
+            aspect: aspectRatio === '9:16' ? '9:16' : '16:9',
+            fontsDir: path.join(process.cwd(), 'data', 'fonts'),
+            volumePct: overlays?.docGraphicsSfxVolume,
+            outPath: sfxPath,
+          })
+        ) {
+          docGraphicsSfxPath = sfxPath;
+        }
+      } catch (sErr: any) {
+        console.warn('[render-ffmpeg] Sonidos de los gráficos omitidos:', sErr?.message || sErr);
       }
     }
     const parityClipAnim = (overlays?.clipAnim || {}) as {
@@ -8863,6 +8947,16 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         nextInputIdx++;
       }
 
+      // Sound effects of the documentary graphics (the WAV starts at timeline 0, like the mix)
+      if (docGraphicsSfxPath && fs.existsSync(docGraphicsSfxPath)) {
+        muxerArgs.push('-i', docGraphicsSfxPath);
+        filterParts.push(
+          `[${nextInputIdx}:a]aresample=44100,aformat=sample_fmts=fltp:channel_layouts=stereo,asetpts=N/SR/TB[gsfx]`
+        );
+        mixLabels.push('[gsfx]');
+        nextInputIdx++;
+      }
+
       // Master safety limiter: voice + music + clip audio are summed without scaling, so loud moments together
       // could pass 0 dBFS and clip in the AAC encoder. It only acts on those peaks (-1 dBFS ceiling).
       filterParts.push(
@@ -9025,6 +9119,24 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
     };
 
     await muxerDonePromise;
+
+    // YouTube loudness: measure the finished mix (audio only, a few seconds) and bring it to -14 LUFS with one
+    // fixed gain plus a -1.5 dBFS peak limiter. The voice / music / foley balance is not touched, and the video
+    // stream is copied as is. Needs room for a second copy of the file for a moment; without it, it is skipped.
+    if (fs.existsSync(tempMuxOutputPath) && !renderCancelRequested) {
+      activeRenderJobState = {
+        ...activeRenderJobState,
+        progressPct: 99,
+        stageLabel: 'Ajustando el volumen a -14 LUFS (YouTube)...',
+      };
+      try {
+        const loud = await normalizeExportLoudness(tempMuxOutputPath, workDir, ffmpegBin);
+        console.log(`[render-ffmpeg] Volumen: ${loud.message}`);
+      } catch (loudErr: any) {
+        console.warn('[render-ffmpeg] No se pudo ajustar el volumen a -14 LUFS:', loudErr?.message || loudErr);
+      }
+      if (renderCancelRequested) throw new Error(RENDER_CANCELLED_MESSAGE);
+    }
 
     if (fs.existsSync(tempMuxOutputPath)) {
       if (process.platform === 'darwin') {

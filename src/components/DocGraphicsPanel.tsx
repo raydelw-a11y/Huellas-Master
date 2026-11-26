@@ -7,8 +7,13 @@ import {
   graphicEndSec,
   newDocGraphicId,
   parseResearchScreenQuotes,
+  DEFAULT_GRAPHICS_SFX_VOLUME_PCT,
+  type CircleMarkGraphic,
   type DateCardGraphic,
   type DocGraphic,
+  type NameTagGraphic,
+  type StampGraphic,
+  type ThesisCardGraphic,
   type QuoteCardGraphic,
   type RouteMapGraphic,
   type TimedCaptionLike,
@@ -32,6 +37,9 @@ export interface DocGraphicsPanelProps {
   onRouteCaptureChange: (id: string | null) => void;
   /** Ask Gemini Web (free, through the extension) to place the route on its map clip. */
   onLocateRoute?: (route: RouteMapGraphic) => void;
+  /** Level of the graphics' sound effects (0 = off). */
+  sfxVolumePct?: number;
+  onSfxVolumeChange?: (pct: number) => void;
 }
 
 const fmt = (sec: number) => {
@@ -45,14 +53,30 @@ const KIND_ICON: Record<DocGraphic['kind'], string> = {
   date_card: '📅',
   quote_card: '📜',
   route_map: '🗺️',
+  circle_mark: '⭕',
+  name_tag: '🏷️',
+  thesis_card: '✖️',
+  stamp: '🟥',
 };
 
-const summaryOf = (g: DocGraphic) =>
-  g.kind === 'date_card'
-    ? [g.line1, g.line2].filter(Boolean).join(' · ')
-    : g.kind === 'quote_card'
-    ? `«${g.quote.slice(0, 60)}${g.quote.length > 60 ? '…' : ''}»`
-    : `${g.points.length} punto${g.points.length === 1 ? '' : 's'}${g.label ? ` → ${g.label}` : ''} (solo ${g.aspect})`;
+const summaryOf = (g: DocGraphic): string => {
+  switch (g.kind) {
+    case 'date_card':
+      return [g.line1, g.line2].filter(Boolean).join(' · ');
+    case 'quote_card':
+      return `«${g.quote.slice(0, 60)}${g.quote.length > 60 ? '…' : ''}»`;
+    case 'route_map':
+      return `${g.points.length} punto${g.points.length === 1 ? '' : 's'}${g.label ? ` → ${g.label}` : ''} (solo ${g.aspect})`;
+    case 'circle_mark':
+      return `Círculo (solo ${g.aspect})${g.anchorSpoken ? ` · «${g.anchorSpoken}»` : ''}`;
+    case 'name_tag':
+      return [g.name, g.role].filter(Boolean).join(' · ');
+    case 'thesis_card':
+      return `${g.oldText} → ${g.newText}`;
+    case 'stamp':
+      return g.text;
+  }
+};
 
 const inputCls =
   'w-full bg-slate-950 border border-slate-700 rounded-md px-2 py-1 text-[11px] text-slate-100 focus:outline-none focus:border-amber-500';
@@ -74,6 +98,8 @@ export default function DocGraphicsPanel(props: DocGraphicsPanelProps) {
     routeCaptureId,
     onRouteCaptureChange,
     onLocateRoute,
+    sfxVolumePct,
+    onSfxVolumeChange,
   } = props;
   const [notice, setNotice] = useState('');
   const sorted = useMemo(() => [...graphics].sort((a, b) => a.startSec - b.startSec), [graphics]);
@@ -129,6 +155,48 @@ export default function DocGraphicsPanel(props: DocGraphicsPanelProps) {
     add(g);
     onRouteCaptureChange(g.id);
   };
+
+  const addCircle = () => {
+    const g: CircleMarkGraphic = {
+      id: newDocGraphicId('circle_mark'),
+      kind: 'circle_mark',
+      startSec: at,
+      durationSec: DOC_GRAPHIC_DEFAULT_DURATION.circle_mark,
+      aspect,
+      xPct: 50,
+      yPct: 45,
+      rPct: 9,
+    };
+    add(g);
+    onRouteCaptureChange(g.id);
+  };
+  const addNameTag = () =>
+    add({
+      id: newDocGraphicId('name_tag'),
+      kind: 'name_tag',
+      startSec: at,
+      durationSec: DOC_GRAPHIC_DEFAULT_DURATION.name_tag,
+      name: '',
+      role: '',
+      target: null,
+    } as NameTagGraphic);
+  const addThesis = () =>
+    add({
+      id: newDocGraphicId('thesis_card'),
+      kind: 'thesis_card',
+      startSec: at,
+      durationSec: DOC_GRAPHIC_DEFAULT_DURATION.thesis_card,
+      oldText: '',
+      newText: '',
+    } as ThesisCardGraphic);
+  const addStamp = () =>
+    add({
+      id: newDocGraphicId('stamp'),
+      kind: 'stamp',
+      startSec: at,
+      durationSec: DOC_GRAPHIC_DEFAULT_DURATION.stamp,
+      text: '',
+    } as StampGraphic);
 
   const detectDates = () => {
     const found = detectDateCardSuggestions(captions, { skipBeforeSec });
@@ -187,6 +255,35 @@ export default function DocGraphicsPanel(props: DocGraphicsPanelProps) {
             ＋ Ruta
           </button>
         </div>
+        <div className="grid grid-cols-4 gap-1 whitespace-nowrap">
+          <button type="button" className={btnCls} onClick={addCircle} title="Círculo rojo a mano: luego haz clic en el visor sobre lo que quieres rodear">
+            ＋ Círculo
+          </button>
+          <button type="button" className={btnCls} onClick={addNameTag} title="Etiqueta de nombre a máquina en el cursor">
+            ＋ Nombre
+          </button>
+          <button type="button" className={btnCls} onClick={addThesis} title="La idea vieja tachada en rojo y la respuesta debajo">
+            ＋ Tesis
+          </button>
+          <button type="button" className={btnCls} onClick={addStamp} title="Sello rojo que cae con rebote">
+            ＋ Sello
+          </button>
+        </div>
+        {onSfxVolumeChange && (
+          <label className="flex items-center gap-2 text-[10px] text-slate-400">
+            🔊 Sonidos de los gráficos
+            <input
+              type="range"
+              min={0}
+              max={100}
+              step={5}
+              className="flex-1 accent-amber-500"
+              value={sfxVolumePct ?? DEFAULT_GRAPHICS_SFX_VOLUME_PCT}
+              onChange={(e) => onSfxVolumeChange(Number(e.target.value))}
+            />
+            <span className="w-8 text-right font-mono">{(sfxVolumePct ?? DEFAULT_GRAPHICS_SFX_VOLUME_PCT) === 0 ? 'off' : `${sfxVolumePct ?? DEFAULT_GRAPHICS_SFX_VOLUME_PCT}%`}</span>
+          </label>
+        )}
         <button type="button" className={btnCls} onClick={detectDates} title="Busca en los subtítulos fechas y años dichos por el narrador">
           🔎 Buscar fechas en la narración
         </button>
@@ -493,6 +590,139 @@ export default function DocGraphicsPanel(props: DocGraphicsPanelProps) {
                   onChange={(e) => replace(selected.id, { label: e.target.value })}
                 />
               </label>
+            </>
+          )}
+
+          {selected.kind !== 'route_map' && (
+            <label className="flex flex-col gap-0.5 text-[10px] text-slate-400">
+              Aparece cuando el narrador dice (opcional)
+              <input
+                className={inputCls}
+                value={selected.anchorSpoken || ''}
+                placeholder="palabras exactas de la narración"
+                onChange={(e) => replace(selected.id, { anchorSpoken: e.target.value || undefined } as Partial<DocGraphic>)}
+              />
+            </label>
+          )}
+
+          {selected.kind === 'circle_mark' && (
+            <>
+              {selected.aspect !== aspect && (
+                <div className="text-[10px] text-amber-400 leading-snug">Este círculo se marcó en {selected.aspect} y solo aparece en ese formato.</div>
+              )}
+              <button
+                type="button"
+                className={`${btnCls} ${routeCaptureId === selected.id ? '!bg-amber-500 !text-slate-950 !border-amber-400' : ''}`}
+                onClick={() => onRouteCaptureChange(routeCaptureId === selected.id ? null : selected.id)}
+              >
+                {routeCaptureId === selected.id ? '✅ Terminar' : '📍 Marcar el centro en el visor'}
+              </button>
+              <label className="flex items-center gap-2 text-[10px] text-slate-400">
+                Tamaño
+                <input
+                  type="range"
+                  min={3}
+                  max={30}
+                  step={0.5}
+                  className="flex-1 accent-amber-500"
+                  value={selected.rPct}
+                  onChange={(e) => replace(selected.id, { rPct: Number(e.target.value) } as Partial<DocGraphic>)}
+                />
+              </label>
+            </>
+          )}
+
+          {selected.kind === 'name_tag' && (
+            <>
+              <label className="flex flex-col gap-0.5 text-[10px] text-slate-400">
+                Nombre
+                <input
+                  className={inputCls}
+                  value={selected.name}
+                  placeholder="Al Smith"
+                  onChange={(e) => replace(selected.id, { name: e.target.value } as Partial<DocGraphic>)}
+                />
+              </label>
+              <label className="flex flex-col gap-0.5 text-[10px] text-slate-400">
+                Quién es (opcional)
+                <input
+                  className={inputCls}
+                  value={selected.role || ''}
+                  placeholder="Exgobernador de Nueva York"
+                  onChange={(e) => replace(selected.id, { role: e.target.value } as Partial<DocGraphic>)}
+                />
+              </label>
+              <div className="flex flex-wrap gap-1">
+                <button
+                type="button"
+                className={`${btnCls} ${routeCaptureId === selected.id ? '!bg-amber-500 !text-slate-950 !border-amber-400' : ''}`}
+                onClick={() => onRouteCaptureChange(routeCaptureId === selected.id ? null : selected.id)}
+              >
+                {routeCaptureId === selected.id ? '✅ Terminar' : '📍 Señalar a la persona en el visor'}
+              </button>
+                <button
+                  type="button"
+                  className={btnCls}
+                  disabled={!selected.target}
+                  onClick={() => replace(selected.id, { target: null } as Partial<DocGraphic>)}
+                >
+                  Sin línea
+                </button>
+              </div>
+            </>
+          )}
+
+          {selected.kind === 'thesis_card' && (
+            <>
+              <label className="flex flex-col gap-0.5 text-[10px] text-slate-400">
+                Lo que se creía (se tacha)
+                <input
+                  className={inputCls}
+                  value={selected.oldText}
+                  placeholder="El incendio fue un accidente"
+                  onChange={(e) => replace(selected.id, { oldText: e.target.value } as Partial<DocGraphic>)}
+                />
+              </label>
+              <label className="flex flex-col gap-0.5 text-[10px] text-slate-400">
+                Lo que pasó de verdad
+                <input
+                  className={inputCls}
+                  value={selected.newText}
+                  placeholder="Fue provocado"
+                  onChange={(e) => replace(selected.id, { newText: e.target.value } as Partial<DocGraphic>)}
+                />
+              </label>
+            </>
+          )}
+
+          {selected.kind === 'stamp' && (
+            <>
+              <label className="flex flex-col gap-0.5 text-[10px] text-slate-400">
+                Texto del sello (1 o 2 palabras)
+                <input
+                  className={inputCls}
+                  value={selected.text}
+                  placeholder="DENEGADO"
+                  onChange={(e) => replace(selected.id, { text: e.target.value } as Partial<DocGraphic>)}
+                />
+              </label>
+              <div className="flex flex-wrap gap-1">
+                <button
+                type="button"
+                className={`${btnCls} ${routeCaptureId === selected.id ? '!bg-amber-500 !text-slate-950 !border-amber-400' : ''}`}
+                onClick={() => onRouteCaptureChange(routeCaptureId === selected.id ? null : selected.id)}
+              >
+                {routeCaptureId === selected.id ? '✅ Terminar' : '📍 Colocar en el visor'}
+              </button>
+                <button
+                  type="button"
+                  className={btnCls}
+                  disabled={selected.xPct === undefined}
+                  onClick={() => replace(selected.id, { xPct: undefined, yPct: undefined } as Partial<DocGraphic>)}
+                >
+                  Sitio por defecto
+                </button>
+              </div>
             </>
           )}
         </div>

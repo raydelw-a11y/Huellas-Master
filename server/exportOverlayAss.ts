@@ -129,7 +129,8 @@ const FONT_TABLE: Array<{ match: RegExp; assName: string; file: string | null }>
   // Captions 9:16 (karaoke): gruesa sin remates, medida con el archivo real del sistema.
   { match: /^arial black$/i, assName: 'Arial Black', file: '/System/Library/Fonts/Supplemental/Arial Black.ttf' },
   { match: /^(oswald|impact)$/i, assName: 'Impact', file: null },
-  { match: /^(courier new|courier|monospace)$/i, assName: 'Courier New', file: null },
+  // Typewriter name tags of the documentary graphics: measured with the real macOS file
+  { match: /^(courier new|courier|monospace)$/i, assName: 'Courier New', file: '/System/Library/Fonts/Supplemental/Courier New Bold.ttf' },
 ];
 
 const fontCache = new Map<string, FontInfo>();

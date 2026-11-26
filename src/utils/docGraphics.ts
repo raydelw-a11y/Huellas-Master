@@ -9,7 +9,7 @@
 
 export const DOC_GRAPHICS_STAGE_HEIGHT = 520;
 
-export type DocGraphicKind = 'date_card' | 'quote_card' | 'route_map';
+export type DocGraphicKind = 'date_card' | 'quote_card' | 'route_map' | 'circle_mark' | 'name_tag' | 'thesis_card' | 'stamp';
 
 export interface DocGraphicBase {
   id: string;
@@ -77,6 +77,8 @@ export interface DocGraphicsAutoState {
   routeClips?: number[];
   /** Map clips whose route Gemini Web placed, as "clipNumber|video file" (a new video of the map is placed again). */
   routeFiles?: string[];
+  /** Name / thesis / stamp moments from Stage 8 already placed (key: kind|spoken words). */
+  screenKeys?: string[];
 }
 
 /** Short fingerprint of a text (dates are searched again only when the narration text changes). */
@@ -97,7 +99,54 @@ export function quoteKey(quote: string): string {
     .slice(0, 80);
 }
 
-export type DocGraphic = DateCardGraphic | QuoteCardGraphic | RouteMapGraphic;
+/** Red circle drawn by hand around something in the picture. */
+export interface CircleMarkGraphic extends DocGraphicBase {
+  kind: 'circle_mark';
+  /** Format the position was marked in (the circle only shows there). */
+  aspect: '16:9' | '9:16';
+  xPct: number;
+  yPct: number;
+  /** Radius as a percentage of the frame height. */
+  rPct: number;
+  anchorSpoken?: string;
+}
+
+/** Black tape label with a typewritten name (and role); optional red line to the person. */
+export interface NameTagGraphic extends DocGraphicBase {
+  kind: 'name_tag';
+  name: string;
+  role?: string;
+  /** Point the red line goes to, marked in `targetAspect` (no line in the other format). */
+  target?: RoutePoint | null;
+  targetAspect?: '16:9' | '9:16';
+  anchorSpoken?: string;
+}
+
+/** The old idea, struck out in red, and what really happened under it. */
+export interface ThesisCardGraphic extends DocGraphicBase {
+  kind: 'thesis_card';
+  oldText: string;
+  newText: string;
+  anchorSpoken?: string;
+}
+
+/** Red rubber stamp ("DENEGADO") that lands with a bounce and a shake. */
+export interface StampGraphic extends DocGraphicBase {
+  kind: 'stamp';
+  text: string;
+  xPct?: number;
+  yPct?: number;
+  anchorSpoken?: string;
+}
+
+export type DocGraphic =
+  | DateCardGraphic
+  | QuoteCardGraphic
+  | RouteMapGraphic
+  | CircleMarkGraphic
+  | NameTagGraphic
+  | ThesisCardGraphic
+  | StampGraphic;
 
 export const DOC_GRAPHIC_FADE_IN_SEC = 0.35;
 export const DOC_GRAPHIC_FADE_OUT_SEC = 0.45;
@@ -106,18 +155,27 @@ export const DOC_GRAPHIC_DEFAULT_DURATION: Record<DocGraphicKind, number> = {
   date_card: 3.6,
   quote_card: 7,
   route_map: 6,
+  circle_mark: 3,
+  name_tag: 4,
+  thesis_card: 5,
+  stamp: 2.6,
 };
 
 export const DOC_GRAPHIC_KIND_LABEL: Record<DocGraphicKind, string> = {
   date_card: 'Fecha y lugar',
   quote_card: 'Cita de fuente',
   route_map: 'Ruta en el mapa',
+  circle_mark: 'Círculo rojo',
+  name_tag: 'Etiqueta de nombre',
+  thesis_card: 'Tesis tachada',
+  stamp: 'Sello',
 };
 
 /** Fonts used by the layer (CSS family name = libass font name). */
 export const DOC_GRAPHIC_FONTS = {
   poster: 'League Gothic',
   serif: 'Georgia',
+  typewriter: 'Courier New',
 } as const;
 
 export type DocGraphicFontName = (typeof DOC_GRAPHIC_FONTS)[keyof typeof DOC_GRAPHIC_FONTS];
@@ -129,6 +187,8 @@ export type DocGraphicFontName = (typeof DOC_GRAPHIC_FONTS)[keyof typeof DOC_GRA
 export const DOC_GRAPHIC_FONT_METRICS: Record<DocGraphicFontName, { heightRatio: number; ascentRatio: number; bold: boolean }> = {
   'League Gothic': { heightRatio: 1.3015, ascentRatio: 1.0515, bold: false },
   Georgia: { heightRatio: 1.1362, ascentRatio: 0.917, bold: true },
+  // Courier New Bold (macOS /System/Library/Fonts/Supplemental; also on iPhone)
+  'Courier New': { heightRatio: 1.1328, ascentRatio: 0.8325, bold: true },
 };
 
 /** Width in stage px of `text` set in `font` at `fontPx` (letter spacing excluded). */
@@ -152,6 +212,13 @@ export const DOC_GRAPHIC_COLORS = {
   routeOutline: '#1a1208',
   routeDot: '#fcd34d',
   labelText: '#ffffff',
+  redInk: '#d62828',
+  tape: '#111111',
+  tapeText: '#f4ecd8',
+  tapeRole: '#c9c2b4',
+  thesisPanel: '#0b0b0b',
+  thesisOld: '#e8e2d6',
+  stampInk: '#c1121f',
 };
 
 export function stageWidthFor(aspect: '16:9' | '9:16'): number {
@@ -182,9 +249,43 @@ export function graphicAlpha(g: DocGraphic, t: number): number {
   return 1;
 }
 
+/** Whether a graphic has something to draw yet (one added by hand starts with empty text). */
+export function isGraphicDrawable(g: DocGraphic): boolean {
+  switch (g.kind) {
+    case 'date_card':
+      return Boolean(String(g.line1 || '').trim());
+    case 'quote_card':
+      return Boolean(String(g.quote || '').trim());
+    case 'name_tag':
+      return Boolean(String(g.name || '').trim());
+    case 'thesis_card':
+      return Boolean(String(g.oldText || '').trim() || String(g.newText || '').trim());
+    case 'stamp':
+      return Boolean(String(g.text || '').trim());
+    case 'route_map':
+      return Array.isArray(g.points) && g.points.length >= 2;
+    default:
+      return true;
+  }
+}
+
 /** Whether a graphic is drawn in this export / viewer format. */
 export function graphicShowsInAspect(g: DocGraphic, aspect: '16:9' | '9:16'): boolean {
-  return g.kind !== 'route_map' || g.aspect === aspect;
+  if (g.kind === 'route_map' || g.kind === 'circle_mark') return g.aspect === aspect;
+  return true;
+}
+
+/** Typewriter timing shared by every typed text (layout and sound): one step per visible character. */
+export function typewriterSteps(text: string, t0: number, maxStep: number, maxTotal: number): number[] {
+  const chars = Array.from(String(text || ''));
+  const visible = chars.filter((c) => !/\s/.test(c)).length || 1;
+  const step = Math.min(maxStep, maxTotal / visible);
+  let k = 0;
+  return chars.map((ch) => {
+    const at = t0 + k * step;
+    if (!/\s/.test(ch)) k += 1;
+    return Number(at.toFixed(3));
+  });
 }
 
 /** Greedy word wrap with a measure function. */
@@ -632,6 +733,281 @@ export function routeIconPolygons(
 }
 
 // ---------------------------------------------------------------------------------------------------
+// Red circle drawn by hand
+// ---------------------------------------------------------------------------------------------------
+
+/** Small deterministic hash of a graphic id (the same wobble in the viewer and in the export). */
+function idSeed(id: string): number {
+  let h = 2166136261;
+  for (const ch of String(id || '')) h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
+  return (h >>> 0) / 4294967296;
+}
+
+export interface CircleLayout {
+  /** Points of the hand-drawn loop, in drawing order. */
+  pts: Array<{ x: number; y: number }>;
+  width: number;
+  t0: number;
+  t1: number;
+}
+
+export function layoutCircleMark(g: CircleMarkGraphic, stageW: number, stageH: number): CircleLayout {
+  const cx = (clamp(Number(g.xPct), 0, 100) / 100) * stageW;
+  const cy = (clamp(Number(g.yPct), 0, 100) / 100) * stageH;
+  const r = (clamp(Number(g.rPct) || 9, 2, 45) / 100) * stageH;
+  const seed = idSeed(g.id) * Math.PI * 2;
+  const n = 72;
+  const turns = 1.15;
+  const pts: Array<{ x: number; y: number }> = [];
+  for (let i = 0; i <= n; i++) {
+    const f = i / n;
+    const th = -Math.PI * 0.55 + f * turns * Math.PI * 2;
+    const wob = 1 + 0.06 * Math.sin(3 * th + seed) + 0.03 * Math.sin(7 * th + seed * 1.7) + 0.06 * f;
+    pts.push({ x: cx + Math.cos(th) * r * 1.25 * wob, y: cy + Math.sin(th) * r * 0.9 * wob });
+  }
+  const t0 = g.startSec + 0.05;
+  return { pts, width: 3.6, t0, t1: t0 + 0.45 };
+}
+
+/** How much of the circle is drawn at `t` (0..1, quick ease-out like a pen stroke). */
+export function circleProgress(c: CircleLayout, t: number): number {
+  const p = clamp((t - c.t0) / Math.max(0.01, c.t1 - c.t0), 0, 1);
+  return 1 - (1 - p) * (1 - p);
+}
+
+// ---------------------------------------------------------------------------------------------------
+// Name tag (black tape, typewritten)
+// ---------------------------------------------------------------------------------------------------
+
+export interface NameTagLayout {
+  box: { x: number; y: number; w: number; h: number; angle: number };
+  rows: GraphicTextRow[];
+  line: { x1: number; y1: number; x2: number; y2: number; t0: number; t1: number } | null;
+}
+
+export function layoutNameTag(
+  g: NameTagGraphic,
+  stageW: number,
+  stageH: number,
+  measure: DocGraphicMeasure,
+  aspect: '16:9' | '9:16'
+): NameTagLayout {
+  const isV = stageW < stageH;
+  const namePx = isV ? 12.5 : 14.5;
+  const rolePx = isV ? 9 : 10;
+  const padX = 10;
+  const padY = 7;
+  const name = upperEs(g.name);
+  const role = String(g.role || '').trim();
+  const maxTextW = stageW * (isV ? 0.8 : 0.42);
+  const nameRows = wrapWords(name, maxTextW, (s) => measure(s, 'Courier New', namePx));
+  const roleRows = role ? wrapWords(role, maxTextW, (s) => measure(s, 'Courier New', rolePx)) : [];
+  const textW = Math.max(
+    ...nameRows.map((r) => measure(r, 'Courier New', namePx)),
+    ...roleRows.map((r) => measure(r, 'Courier New', rolePx)),
+    40
+  );
+  const w = textW + 2 * padX;
+  const nameLh = namePx * 1.3;
+  const roleLh = rolePx * 1.35;
+  const h = padY * 2 + nameRows.length * nameLh + (roleRows.length ? 3 + roleRows.length * roleLh : 0);
+  const hasTarget = Boolean(g.target) && (g.targetAspect || '16:9') === aspect;
+  let x: number;
+  let y: number;
+  let tx = 0;
+  let ty = 0;
+  if (hasTarget) {
+    tx = (clamp(Number(g.target!.xPct), 0, 100) / 100) * stageW;
+    ty = (clamp(Number(g.target!.yPct), 0, 100) / 100) * stageH;
+    const toRight = tx < stageW * 0.55;
+    x = toRight ? tx + stageW * 0.06 : tx - stageW * 0.06 - w;
+    y = ty - stageH * 0.16 - h / 2;
+    x = clamp(x, stageW * 0.03, stageW * 0.97 - w);
+    y = clamp(y, stageH * 0.06, stageH * 0.74 - h);
+  } else {
+    x = stageW * (isV ? 0.07 : 0.06);
+    y = stageH * (isV ? 0.7 : 0.74) - h;
+  }
+  const t0 = g.startSec + 0.15;
+  const nameAppear = typewriterSteps(nameRows.join(' '), t0, 0.05, 0.9);
+  let ci = 0;
+  const rows: GraphicTextRow[] = [];
+  nameRows.forEach((r, i) => {
+    const appear = Array.from(r).map(() => nameAppear[ci++] ?? t0);
+    ci += 1; // the joining space
+    rows.push({
+      text: r,
+      font: 'Courier New',
+      fontPx: namePx,
+      letterSpacingEm: 0,
+      color: DOC_GRAPHIC_COLORS.tapeText,
+      anchor: 'start',
+      x: x + padX,
+      yCenter: y + padY + (i + 0.5) * nameLh,
+      charAppear: appear,
+    });
+  });
+  const typedEnd = nameAppear.length ? nameAppear[nameAppear.length - 1] : t0;
+  roleRows.forEach((r, i) => {
+    rows.push({
+      text: r,
+      font: 'Courier New',
+      fontPx: rolePx,
+      letterSpacingEm: 0,
+      color: DOC_GRAPHIC_COLORS.tapeRole,
+      anchor: 'start',
+      x: x + padX,
+      yCenter: y + padY + nameRows.length * nameLh + 3 + (i + 0.5) * roleLh,
+      appearSec: Number((typedEnd + 0.1).toFixed(3)),
+      appearFadeSec: 0.3,
+    });
+  });
+  let line: NameTagLayout['line'] = null;
+  if (hasTarget) {
+    const fromRight = tx > x + w;
+    const lx = fromRight ? x + w : tx < x ? x : x + w / 2;
+    const ly = fromRight || tx < x ? y + h / 2 : y + h;
+    line = { x1: lx, y1: ly, x2: tx, y2: ty, t0: Number((t0 + 0.1).toFixed(3)), t1: Number((t0 + 0.45).toFixed(3)) };
+  }
+  return { box: { x, y, w, h, angle: -1.5 }, rows, line };
+}
+
+// ---------------------------------------------------------------------------------------------------
+// Thesis card (old idea struck out, the answer typed under it)
+// ---------------------------------------------------------------------------------------------------
+
+export interface ThesisLayout {
+  panel: { x: number; y: number; w: number; h: number };
+  oldRows: GraphicTextRow[];
+  newRows: GraphicTextRow[];
+  /** Red strike lines over the old rows, drawn one after the other over [t0, t1]. */
+  strikes: Array<{ x: number; y: number; w: number; t0: number; t1: number }>;
+}
+
+export function layoutThesisCard(
+  g: ThesisCardGraphic,
+  stageW: number,
+  stageH: number,
+  measure: DocGraphicMeasure
+): ThesisLayout {
+  const isV = stageW < stageH;
+  const w = stageW * (isV ? 0.88 : 0.56);
+  const pad = isV ? 14 : 18;
+  const oldPx = isV ? 14 : 17;
+  const newPx = isV ? 26 : 32;
+  const textW = w - 2 * pad;
+  const oldRowsTxt = wrapWords(String(g.oldText || '').trim(), textW, (s) => measure(s, 'Georgia', oldPx));
+  const sp = 0.03;
+  const newText = upperEs(g.newText);
+  const newRowsTxt = wrapWords(newText, textW, (s) => measure(s, 'League Gothic', newPx) + s.length * sp * newPx);
+  const oldLh = oldPx * 1.4;
+  const newLh = newPx * 1.05;
+  const gap = oldRowsTxt.length && newRowsTxt.length ? 12 : 0;
+  const h = pad * 2 + oldRowsTxt.length * oldLh + gap + newRowsTxt.length * newLh;
+  const x = (stageW - w) / 2;
+  const y = stageH * (isV ? 0.42 : 0.45) - h / 2;
+  const oldRows: GraphicTextRow[] = oldRowsTxt.map((r, i) => ({
+    text: r,
+    font: 'Georgia',
+    fontPx: oldPx,
+    letterSpacingEm: 0,
+    color: DOC_GRAPHIC_COLORS.thesisOld,
+    anchor: 'middle',
+    x: stageW / 2,
+    yCenter: y + pad + (i + 0.5) * oldLh,
+  }));
+  const s0 = g.startSec + 0.9;
+  const widths = oldRowsTxt.map((r) => measure(r, 'Georgia', oldPx) + 8);
+  const totalW = widths.reduce((a, b) => a + b, 0) || 1;
+  const sDur = 0.45 * clamp(totalW / 300, 0.7, 2);
+  let acc = 0;
+  const strikes = oldRowsTxt.map((_r, i) => {
+    const t0 = s0 + (acc / totalW) * sDur;
+    acc += widths[i];
+    const t1 = s0 + (acc / totalW) * sDur;
+    return { x: stageW / 2 - widths[i] / 2, y: oldRows[i].yCenter + oldPx * 0.05, w: widths[i], t0: Number(t0.toFixed(3)), t1: Number(t1.toFixed(3)) };
+  });
+  const typeStart = s0 + sDur + 0.15;
+  const appearAll = typewriterSteps(newRowsTxt.join(' '), typeStart, 0.05, 0.9);
+  let ci = 0;
+  const newRows: GraphicTextRow[] = newRowsTxt.map((r, i) => {
+    const appear = Array.from(r).map(() => appearAll[ci++] ?? typeStart);
+    ci += 1;
+    return {
+      text: r,
+      font: 'League Gothic',
+      fontPx: newPx,
+      letterSpacingEm: sp,
+      color: DOC_GRAPHIC_COLORS.dateGold,
+      anchor: 'middle',
+      x: stageW / 2,
+      yCenter: y + pad + oldRowsTxt.length * oldLh + gap + (i + 0.5) * newLh,
+      charAppear: appear,
+    };
+  });
+  return { panel: { x, y, w, h }, oldRows, newRows, strikes };
+}
+
+// ---------------------------------------------------------------------------------------------------
+// Rubber stamp
+// ---------------------------------------------------------------------------------------------------
+
+export interface StampLayout {
+  cx: number;
+  cy: number;
+  /** Unscaled box and text size (stage px). */
+  w: number;
+  h: number;
+  fontPx: number;
+  text: string;
+  angle: number;
+  impactSec: number;
+}
+
+export function layoutStamp(g: StampGraphic, stageW: number, stageH: number, measure: DocGraphicMeasure): StampLayout {
+  const isV = stageW < stageH;
+  const text = upperEs(g.text);
+  let fontPx = isV ? 36 : 46;
+  const sp = 0.06;
+  const maxW = stageW * (isV ? 0.78 : 0.5);
+  const textW = (px: number) => measure(text, 'League Gothic', px) + text.length * sp * px;
+  if (textW(fontPx) > maxW) fontPx = Math.max(18, (fontPx * maxW) / textW(fontPx));
+  const w = textW(fontPx) + 30;
+  const h = fontPx * 1.2 + 16;
+  const cx = (clamp(Number(g.xPct ?? (isV ? 50 : 64)), 0, 100) / 100) * stageW;
+  const cy = (clamp(Number(g.yPct ?? (isV ? 40 : 38)), 0, 100) / 100) * stageH;
+  return { cx, cy, w, h, fontPx, text, angle: -9, impactSec: g.startSec + 0.22 };
+}
+
+/** Scale, offset and opacity of the stamp at `t`: it drops from 1.9x, lands, shakes and settles. */
+export function stampPose(s: StampLayout, t: number): { scale: number; dx: number; dy: number; alpha: number } {
+  const start = s.impactSec - 0.22;
+  if (t < start) return { scale: 1.9, dx: 0, dy: 0, alpha: 0 };
+  if (t < s.impactSec) {
+    const p = (t - start) / 0.22;
+    return { scale: 1.9 - 0.95 * p * p, dx: 0, dy: 0, alpha: 0.35 + 0.53 * p };
+  }
+  const SHAKE = [
+    [3, -2],
+    [-2, 2],
+    [2, 1],
+    [-1, -1],
+  ];
+  const k = Math.floor((t - s.impactSec) / 0.045);
+  if (k < SHAKE.length) return { scale: k === 0 ? 0.97 : 1, dx: SHAKE[k][0], dy: SHAKE[k][1], alpha: 0.88 };
+  return { scale: 1, dx: 0, dy: 0, alpha: 0.88 };
+}
+
+/** Moments the stamp changes pose (the export writes one static event per moment). */
+export function stampPoseTimes(s: StampLayout): number[] {
+  const start = s.impactSec - 0.22;
+  const out: number[] = [];
+  for (let i = 0; i < 7; i++) out.push(start + (0.22 * i) / 7);
+  for (let k = 0; k <= 4; k++) out.push(s.impactSec + k * 0.045);
+  return out.map((n) => Number(n.toFixed(3)));
+}
+
+// ---------------------------------------------------------------------------------------------------
 // Finding graphics in the narration and the research
 // ---------------------------------------------------------------------------------------------------
 
@@ -813,10 +1189,13 @@ export function findSpokenInCaptions(
 export function resolveSpokenAnchors(graphics: DocGraphic[], captions: TimedCaptionLike[]): DocGraphic[] {
   if (!captions.length) return graphics;
   return graphics.map((g) => {
-    if ((g.kind !== 'date_card' && g.kind !== 'quote_card') || !g.anchorSpoken) return g;
-    const hit = findSpokenInCaptions(g.anchorSpoken, captions, { nearSec: g.startSec });
+    const anchor = g.kind === 'route_map' ? '' : g.anchorSpoken || '';
+    if (!anchor) return g;
+    const hit = findSpokenInCaptions(anchor, captions, { nearSec: g.startSec });
     if (!hit) return g;
-    if (g.kind === 'date_card') return { ...g, startSec: Number(Math.max(0, hit.startSec - 0.1).toFixed(2)) };
+    // A stamp lands on the first word; the rest start just before it
+    const lead = g.kind === 'stamp' ? 0.12 : g.kind === 'quote_card' ? 0.2 : 0.1;
+    if (g.kind !== 'quote_card') return { ...g, startSec: Number(Math.max(0, hit.startSec - lead).toFixed(2)) };
     return {
       ...g,
       startSec: Number(Math.max(0, hit.startSec - 0.2).toFixed(2)),
@@ -872,20 +1251,21 @@ export function sanitizeDocGraphics(raw: unknown): DocGraphic[] {
     const durationSec = Number(it.durationSec);
     if (!Number.isFinite(startSec) || !Number.isFinite(durationSec) || durationSec <= 0) continue;
     const base = { id: String(it.id || newDocGraphicId(it.kind)), startSec: Math.max(0, startSec), durationSec: clamp(durationSec, 0.5, 60) };
-    if (it.kind === 'date_card' && String(it.line1 || '').trim()) {
+    // Graphics still being written (empty text) are kept: they are simply not drawn (isGraphicDrawable)
+    if (it.kind === 'date_card') {
       out.push({
         ...base,
         kind: 'date_card',
-        line1: String(it.line1),
+        line1: String(it.line1 || ''),
         line2: String(it.line2 || ''),
         position: it.position === 'lower_left' ? 'lower_left' : 'center',
         ...(it.anchorSpoken ? { anchorSpoken: String(it.anchorSpoken) } : {}),
       });
-    } else if (it.kind === 'quote_card' && String(it.quote || '').trim()) {
+    } else if (it.kind === 'quote_card') {
       out.push({
         ...base,
         kind: 'quote_card',
-        quote: String(it.quote),
+        quote: String(it.quote || ''),
         highlight: String(it.highlight || ''),
         source: String(it.source || ''),
         side: it.side === 'left' || it.side === 'center' ? it.side : 'right',
@@ -906,7 +1286,271 @@ export function sanitizeDocGraphics(raw: unknown): DocGraphic[] {
         ...(Number(it.clipNumber) > 0 ? { clipNumber: Number(it.clipNumber) } : {}),
         ...(it.anchorClip === true ? { anchorClip: true } : {}),
       });
+    } else if (it.kind === 'circle_mark' && Number.isFinite(Number(it.xPct)) && Number.isFinite(Number(it.yPct))) {
+      out.push({
+        ...base,
+        kind: 'circle_mark',
+        aspect: it.aspect === '9:16' ? '9:16' : '16:9',
+        xPct: clamp(Number(it.xPct), 0, 100),
+        yPct: clamp(Number(it.yPct), 0, 100),
+        rPct: clamp(Number(it.rPct) || 9, 2, 45),
+        ...(it.anchorSpoken ? { anchorSpoken: String(it.anchorSpoken) } : {}),
+      });
+    } else if (it.kind === 'name_tag') {
+      const tgt =
+        it.target && Number.isFinite(Number(it.target.xPct)) && Number.isFinite(Number(it.target.yPct))
+          ? { xPct: clamp(Number(it.target.xPct), 0, 100), yPct: clamp(Number(it.target.yPct), 0, 100) }
+          : null;
+      out.push({
+        ...base,
+        kind: 'name_tag',
+        name: String(it.name || ''),
+        role: String(it.role || ''),
+        target: tgt,
+        ...(tgt ? { targetAspect: it.targetAspect === '9:16' ? '9:16' : '16:9' } : {}),
+        ...(it.anchorSpoken ? { anchorSpoken: String(it.anchorSpoken) } : {}),
+      });
+    } else if (it.kind === 'thesis_card') {
+      out.push({
+        ...base,
+        kind: 'thesis_card',
+        oldText: String(it.oldText || ''),
+        newText: String(it.newText || ''),
+        ...(it.anchorSpoken ? { anchorSpoken: String(it.anchorSpoken) } : {}),
+      });
+    } else if (it.kind === 'stamp') {
+      out.push({
+        ...base,
+        kind: 'stamp',
+        text: String(it.text || ''),
+        ...(Number.isFinite(Number(it.xPct)) ? { xPct: clamp(Number(it.xPct), 0, 100) } : {}),
+        ...(Number.isFinite(Number(it.yPct)) ? { yPct: clamp(Number(it.yPct), 0, 100) } : {}),
+        ...(it.anchorSpoken ? { anchorSpoken: String(it.anchorSpoken) } : {}),
+      });
     }
   }
   return out.sort((a, b) => a.startSec - b.startSec);
+}
+
+// ---------------------------------------------------------------------------------------------------
+// Stage 8 "ON-SCREEN GRAPHICS" block: names, theses and stamps tied to exact words of the narration
+// ---------------------------------------------------------------------------------------------------
+
+export const SCREEN_GRAPHICS_BLOCK_START = '=== ON-SCREEN GRAPHICS ===';
+export const SCREEN_GRAPHICS_BLOCK_END = '=== END ON-SCREEN GRAPHICS ===';
+
+export interface ScreenGraphicPlanItem {
+  kind: 'name' | 'thesis' | 'stamp';
+  /** Exact words of the Spanish narration the graphic lands on. */
+  spoken: string;
+  /** name: the name · thesis: the old idea · stamp: its text */
+  a: string;
+  /** name: the role · thesis: what really happened */
+  b?: string;
+}
+
+export function screenPlanKey(it: ScreenGraphicPlanItem): string {
+  return `${it.kind}|${quoteKey(it.spoken)}`;
+}
+
+/**
+ * Splits Gemini's Stage 8 answer into the clip prompts (`body`, what the prompt parser reads) and the
+ * on-screen graphics block that follows the last clip (`items`).
+ */
+export function splitScreenGraphicsBlock(raw: string): { body: string; items: ScreenGraphicPlanItem[] } {
+  const text = String(raw || '');
+  const startRe = /^[ \t>*#_]*={2,}\s*ON-SCREEN GRAPHICS\s*={2,}[ \t*_]*$/im;
+  const sm = startRe.exec(text);
+  if (!sm) return { body: text, items: [] };
+  const after = text.slice(sm.index + sm[0].length);
+  const endRe = /^[ \t>*#_]*={2,}\s*END ON-SCREEN GRAPHICS\s*={2,}[ \t*_]*$/im;
+  const em = endRe.exec(after);
+  const block = em ? after.slice(0, em.index) : after;
+  const rest = em ? after.slice(em.index + em[0].length) : '';
+  const items: ScreenGraphicPlanItem[] = [];
+  const clean = (v: string) => String(v || '').replace(/[*_`]/g, '').replace(/^["«“]+|["»”]+$/g, '').trim();
+  for (const rawLine of block.split(/\r?\n/)) {
+    const line = rawLine.replace(/^\s*[-*•]\s*/, '').trim();
+    const parts = line.split('|').map((p) => clean(p));
+    const tag = (parts[0] || '').toUpperCase();
+    if (tag === 'NAME' && parts.length >= 3 && parts[1] && parts[2]) {
+      items.push({ kind: 'name', spoken: parts[1], a: parts[2], b: parts[3] || '' });
+    } else if (tag === 'THESIS' && parts.length >= 4 && parts[1] && (parts[2] || parts[3])) {
+      items.push({ kind: 'thesis', spoken: parts[1], a: parts[2], b: parts[3] });
+    } else if (tag === 'STAMP' && parts.length >= 3 && parts[1] && parts[2]) {
+      items.push({ kind: 'stamp', spoken: parts[1], a: parts[2] });
+    }
+  }
+  return { body: `${text.slice(0, sm.index).trimEnd()}${rest ? `\n${rest}` : ''}`, items: items.slice(0, 24) };
+}
+
+/** Keeps every moment of earlier answers (Stage 8 may come in batches) and adds the new ones. */
+export function mergeScreenPlans(prev: ScreenGraphicPlanItem[], next: ScreenGraphicPlanItem[]): ScreenGraphicPlanItem[] {
+  const seen = new Set<string>();
+  const out: ScreenGraphicPlanItem[] = [];
+  for (const it of [...(Array.isArray(prev) ? prev : []), ...(Array.isArray(next) ? next : [])]) {
+    if (!it || !it.spoken) continue;
+    const k = screenPlanKey(it);
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(it);
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------------------------------
+// Sound effects of the graphics (synthesized: the same samples in the viewer and in the export)
+// ---------------------------------------------------------------------------------------------------
+
+export type GraphicSfxKind = 'type' | 'thud' | 'whoosh' | 'scribble' | 'stamp';
+
+export interface GraphicSfxEvent {
+  t: number;
+  kind: GraphicSfxKind;
+  variant: number;
+  gain: number;
+}
+
+/** Default level of the graphics' sounds (percentage of the synthesized level). */
+export const DEFAULT_GRAPHICS_SFX_VOLUME_PCT = 45;
+
+/** Every sound the graphics make, in timeline seconds. */
+export function docGraphicSfxEvents(
+  graphics: DocGraphic[],
+  aspect: '16:9' | '9:16',
+  measure: DocGraphicMeasure
+): GraphicSfxEvent[] {
+  const stageW = stageWidthFor(aspect);
+  const stageH = DOC_GRAPHICS_STAGE_HEIGHT;
+  const out: GraphicSfxEvent[] = [];
+  const ticks = (rows: GraphicTextRow[], end: number) => {
+    let n = 0;
+    for (const r of rows) {
+      if (!r.charAppear) continue;
+      Array.from(r.text).forEach((ch, i) => {
+        const at = r.charAppear![i];
+        if (/\s/.test(ch) || !(at < end)) return;
+        out.push({ t: at, kind: 'type', variant: n++ % 3, gain: 0.9 });
+      });
+    }
+  };
+  for (const g of graphics) {
+    if (!graphicShowsInAspect(g, aspect) || !isGraphicDrawable(g)) continue;
+    const end = graphicEndSec(g);
+    if (g.kind === 'date_card') {
+      ticks(layoutDateCard(g, stageW, stageH, measure).rows, end);
+    } else if (g.kind === 'quote_card') {
+      out.push({ t: g.startSec + 0.02, kind: 'thud', variant: 0, gain: 0.6 });
+      const hl = layoutQuoteCard(g, stageW, stageH, measure).highlights;
+      if (hl.length && hl[0].t0 < end) out.push({ t: hl[0].t0, kind: 'scribble', variant: 0, gain: 0.45 });
+    } else if (g.kind === 'route_map') {
+      const r = layoutRoute(g, stageW, stageH);
+      if (r) out.push({ t: Math.max(g.startSec, r.drawStart - 0.1), kind: 'whoosh', variant: 0, gain: 0.8 });
+    } else if (g.kind === 'circle_mark') {
+      out.push({ t: layoutCircleMark(g, stageW, stageH).t0, kind: 'scribble', variant: 1, gain: 0.7 });
+    } else if (g.kind === 'name_tag') {
+      out.push({ t: g.startSec + 0.02, kind: 'thud', variant: 1, gain: 0.55 });
+      ticks(layoutNameTag(g, stageW, stageH, measure, aspect).rows, end);
+    } else if (g.kind === 'thesis_card') {
+      const L = layoutThesisCard(g, stageW, stageH, measure);
+      out.push({ t: g.startSec + 0.02, kind: 'thud', variant: 0, gain: 0.55 });
+      if (L.strikes.length && L.strikes[0].t0 < end) out.push({ t: L.strikes[0].t0, kind: 'scribble', variant: 2, gain: 0.65 });
+      ticks(L.newRows, end);
+    } else if (g.kind === 'stamp') {
+      out.push({ t: layoutStamp(g, stageW, stageH, measure).impactSec, kind: 'stamp', variant: 0, gain: 1 });
+    }
+  }
+  return out.filter((e) => Number.isFinite(e.t) && e.t >= 0).sort((a, b) => a.t - b.t);
+}
+
+function mulberry32(seed: number) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/** One sound effect as mono samples (-1..1). Deterministic: same samples everywhere. */
+export function synthGraphicSfx(kind: GraphicSfxKind, variant: number, sampleRate: number): Float32Array {
+  const sr = Math.max(8000, Math.round(sampleRate));
+  const dur = kind === 'type' ? 0.045 : kind === 'thud' ? 0.26 : kind === 'whoosh' ? 0.9 : kind === 'scribble' ? 0.45 : 0.34;
+  const n = Math.max(1, Math.round(dur * sr));
+  const out = new Float32Array(n);
+  const rnd = mulberry32(1000 + variant * 77 + kind.length * 13);
+  const noise = () => rnd() * 2 - 1;
+  const lpCoef = (fc: number) => 1 - Math.exp((-2 * Math.PI * fc) / sr);
+  let lp1 = 0;
+  let lp2 = 0;
+  let phase = 0;
+  for (let i = 0; i < n; i++) {
+    const t = i / sr;
+    let v = 0;
+    if (kind === 'type') {
+      const x = noise();
+      lp1 += lpCoef(3000) * (x - lp1);
+      const hp = x - lp1;
+      const ping = [2300, 2650, 2050][variant % 3];
+      v = hp * Math.exp(-t / 0.004) * 0.9 + Math.sin(2 * Math.PI * ping * t) * Math.exp(-t / 0.008) * 0.25;
+      phase += (2 * Math.PI * 180) / sr;
+      v += Math.sin(phase) * Math.exp(-t / 0.012) * 0.35;
+    } else if (kind === 'thud' || kind === 'stamp') {
+      const f0 = kind === 'stamp' ? 115 : 95 + variant * 8;
+      const f1 = kind === 'stamp' ? 45 : 55;
+      const f = f1 + (f0 - f1) * Math.exp(-t / 0.05);
+      phase += (2 * Math.PI * f) / sr;
+      v = Math.sin(phase) * Math.exp(-t / (kind === 'stamp' ? 0.08 : 0.07));
+      const x = noise();
+      lp1 += lpCoef(kind === 'stamp' ? 4000 : 1200) * (x - lp1);
+      const crack = kind === 'stamp' ? (x - lp1) * Math.exp(-t / 0.006) * 0.9 : lp1 * Math.exp(-t / 0.02) * 0.6;
+      v += crack;
+    } else if (kind === 'whoosh') {
+      const p = t / dur;
+      const fc = 400 + 2200 * Math.sin(Math.PI * p);
+      const x = noise();
+      lp1 += lpCoef(fc) * (x - lp1);
+      lp2 += lpCoef(fc * 0.35) * (lp1 - lp2);
+      v = (lp1 - lp2) * Math.pow(Math.sin(Math.PI * p), 1.5) * 2.2;
+    } else {
+      // scribble: pen strokes (bandpassed noise pulsing ~14 times a second)
+      const p = t / dur;
+      const x = noise();
+      lp1 += lpCoef(4500) * (x - lp1);
+      lp2 += lpCoef(1800) * (lp1 - lp2);
+      const strokes = Math.pow(0.5 + 0.5 * Math.sin(2 * Math.PI * (12 + variant * 2) * t), 2);
+      v = (lp1 - lp2) * strokes * Math.min(1, p * 12) * Math.min(1, (1 - p) * 6) * 2.5;
+    }
+    out[i] = v;
+  }
+  let peak = 0;
+  for (let i = 0; i < n; i++) peak = Math.max(peak, Math.abs(out[i]));
+  const target = kind === 'type' ? 0.5 : kind === 'thud' ? 0.7 : kind === 'whoosh' ? 0.45 : kind === 'scribble' ? 0.32 : 0.7;
+  const k = peak > 0 ? target / peak : 0;
+  for (let i = 0; i < n; i++) out[i] *= k;
+  return out;
+}
+
+/** All the graphics' sounds laid on one mono track starting at timeline 0 (used by the export). */
+export function renderGraphicSfxTrack(events: GraphicSfxEvent[], sampleRate: number, volumePct: number): Float32Array {
+  const sr = Math.max(8000, Math.round(sampleRate));
+  const vol = Math.max(0, Math.min(100, Number(volumePct))) / 100;
+  const lastT = events.length ? events[events.length - 1].t + 1.2 : 0;
+  const out = new Float32Array(Math.max(1, Math.ceil(lastT * sr)));
+  const cache = new Map<string, Float32Array>();
+  for (const ev of events) {
+    const key = `${ev.kind}|${ev.variant}`;
+    let smp = cache.get(key);
+    if (!smp) {
+      smp = synthGraphicSfx(ev.kind, ev.variant, sr);
+      cache.set(key, smp);
+    }
+    const at = Math.round(ev.t * sr);
+    const g = vol * ev.gain;
+    for (let i = 0; i < smp.length && at + i < out.length; i++) out[at + i] += smp[i] * g;
+  }
+  for (let i = 0; i < out.length; i++) out[i] = Math.max(-1, Math.min(1, out[i]));
+  return out;
 }

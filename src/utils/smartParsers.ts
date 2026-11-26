@@ -1,3 +1,4 @@
+import { splitScreenGraphicsBlock } from './docGraphics';
 import {
   BrollCameraMotion,
   DocumentaryClip,
@@ -2617,6 +2618,8 @@ export function parseClipsFromRawText(
   standardClipDuration: number = 10
 ): DocumentaryClip[] {
   if (!rawText || !rawText.trim()) return existingClips;
+  // The on-screen graphics block Stage 8 writes after the last clip is never part of a prompt
+  rawText = splitScreenGraphicsBlock(rawText).body;
 
   // Normalize pipe-separated blocks if AI returned multiple prompts on a single line
   const normalizedText = rawText

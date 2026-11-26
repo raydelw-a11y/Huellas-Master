@@ -7,9 +7,16 @@ import {
   graphicAlpha,
   graphicEndSec,
   graphicShowsInAspect,
+  isGraphicDrawable,
   layoutDateCard,
   layoutQuoteCard,
   layoutRoute,
+  layoutCircleMark,
+  circleProgress,
+  layoutNameTag,
+  layoutThesisCard,
+  layoutStamp,
+  stampPose,
   routeHeadAt,
   routeIconPolygons,
   type DocGraphic,
@@ -105,7 +112,8 @@ function TextRow({
   const common = {
     x: row.x,
     textAnchor: row.anchor,
-    fontFamily: row.font === 'League Gothic' ? '"League Gothic"' : 'Georgia, serif',
+    fontFamily:
+      row.font === 'League Gothic' ? '"League Gothic"' : row.font === 'Courier New' ? '"Courier New", Courier, monospace' : 'Georgia, serif',
     fontWeight: DOC_GRAPHIC_FONT_METRICS[row.font].bold ? 700 : 400,
     fontSize: row.fontPx,
     letterSpacing: `${row.letterSpacingEm}em`,
@@ -154,7 +162,10 @@ export interface DocGraphicsLayerProps {
 export default function DocGraphicsLayer({ graphics, t, aspect, stageW, stageH, editingRouteId }: DocGraphicsLayerProps) {
   const fontsReady = useDocGraphicFontsReady();
   const shown = useMemo(
-    () => (Array.isArray(graphics) ? graphics : []).filter((g) => graphicShowsInAspect(g, aspect)),
+    () =>
+      (Array.isArray(graphics) ? graphics : []).filter(
+        (g) => graphicShowsInAspect(g, aspect) && (isGraphicDrawable(g) || g.kind === 'route_map')
+      ),
     [graphics, aspect]
   );
   const layouts = useMemo(() => {
@@ -162,14 +173,18 @@ export default function DocGraphicsLayer({ graphics, t, aspect, stageW, stageH, 
     for (const g of shown) {
       if (g.kind === 'date_card') m.set(g.id, layoutDateCard(g, stageW, stageH, browserGraphicMeasure));
       else if (g.kind === 'quote_card') m.set(g.id, layoutQuoteCard(g, stageW, stageH, browserGraphicMeasure));
-      else m.set(g.id, layoutRoute(g, stageW, stageH));
+      else if (g.kind === 'route_map') m.set(g.id, layoutRoute(g, stageW, stageH));
+      else if (g.kind === 'circle_mark') m.set(g.id, layoutCircleMark(g, stageW, stageH));
+      else if (g.kind === 'name_tag') m.set(g.id, layoutNameTag(g, stageW, stageH, browserGraphicMeasure, aspect));
+      else if (g.kind === 'thesis_card') m.set(g.id, layoutThesisCard(g, stageW, stageH, browserGraphicMeasure));
+      else if (g.kind === 'stamp') m.set(g.id, layoutStamp(g, stageW, stageH, browserGraphicMeasure));
     }
     return m;
     // fontsReady: re-measure once League Gothic has loaded
-  }, [shown, stageW, stageH, fontsReady]);
+  }, [shown, stageW, stageH, fontsReady, aspect]);
 
   const live = shown.filter(
-    (g) => (t >= g.startSec && t <= graphicEndSec(g)) || (g.kind === 'route_map' && g.id === editingRouteId)
+    (g) => (t >= g.startSec && t <= graphicEndSec(g)) || g.id === editingRouteId
   );
   if (live.length === 0) return null;
 
@@ -182,7 +197,9 @@ export default function DocGraphicsLayer({ graphics, t, aspect, stageW, stageH, 
       style={{ overflow: 'visible' }}
     >
       {live.map((g) => {
-        const editing = g.kind === 'route_map' && g.id === editingRouteId;
+        const editing = g.id === editingRouteId;
+        // While being placed, a graphic is shown complete (as it looks once all its animation has run)
+        const tv = editing && g.kind !== 'route_map' ? graphicEndSec(g) - 0.5 : t;
         const alpha = editing ? 1 : graphicAlpha(g, t);
         const lay = layouts.get(g.id);
         if (g.kind === 'date_card' && lay) {
@@ -361,6 +378,125 @@ export default function DocGraphicsLayer({ graphics, t, aspect, stageW, stageH, 
                     </text>
                   </g>
                 ))}
+            </g>
+          );
+        }
+        if (g.kind === 'circle_mark' && lay) {
+          const C = lay as ReturnType<typeof layoutCircleMark>;
+          const prog = editing ? 1 : circleProgress(C, tv);
+          if (prog <= 0 && !editing) return null;
+          const count = Math.max(2, Math.ceil(prog * (C.pts.length - 1)) + 1);
+          return (
+            <g key={g.id} opacity={editing ? 1 : alpha}>
+              <polyline
+                points={C.pts
+                  .slice(0, count)
+                  .map((p) => `${p.x},${p.y}`)
+                  .join(' ')}
+                fill="none"
+                stroke={DOC_GRAPHIC_COLORS.redInk}
+                strokeOpacity={0.97}
+                strokeWidth={C.width}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </g>
+          );
+        }
+        if (g.kind === 'name_tag' && lay) {
+          const N = lay as ReturnType<typeof layoutNameTag>;
+          const b = N.box;
+          const lineP = N.line ? clamp01((tv - N.line.t0) / Math.max(0.01, N.line.t1 - N.line.t0)) : 0;
+          return (
+            <g key={g.id} opacity={alpha}>
+              {N.line && lineP > 0 && (
+                <>
+                  <line
+                    x1={N.line.x1}
+                    y1={N.line.y1}
+                    x2={N.line.x1 + (N.line.x2 - N.line.x1) * lineP}
+                    y2={N.line.y1 + (N.line.y2 - N.line.y1) * lineP}
+                    stroke={DOC_GRAPHIC_COLORS.redInk}
+                    strokeWidth={2.2}
+                  />
+                  {lineP >= 1 && <circle cx={N.line.x2} cy={N.line.y2} r={3.5} fill={DOC_GRAPHIC_COLORS.redInk} />}
+                </>
+              )}
+              <g transform={`rotate(${b.angle} ${b.x + b.w / 2} ${b.y + b.h / 2})`}>
+                <rect x={b.x} y={b.y + 3} width={b.w} height={b.h} fill="#000" fillOpacity={0.45} style={{ filter: 'blur(2.5px)' }} />
+                <rect x={b.x} y={b.y} width={b.w} height={b.h} fill={DOC_GRAPHIC_COLORS.tape} fillOpacity={0.92} />
+                {N.rows.map((row, i) => (
+                  <TextRow key={i} row={row} t={tv} withShadow={false} />
+                ))}
+              </g>
+            </g>
+          );
+        }
+        if (g.kind === 'thesis_card' && lay) {
+          const T = lay as ReturnType<typeof layoutThesisCard>;
+          const P = T.panel;
+          return (
+            <g key={g.id} opacity={alpha}>
+              <rect x={P.x} y={P.y} width={P.w} height={P.h} fill={DOC_GRAPHIC_COLORS.thesisPanel} fillOpacity={0.72} />
+              <rect
+                x={P.x + 4}
+                y={P.y + 4}
+                width={P.w - 8}
+                height={P.h - 8}
+                fill="none"
+                stroke={DOC_GRAPHIC_COLORS.dateGold}
+                strokeOpacity={0.6}
+                strokeWidth={1.6}
+              />
+              {T.oldRows.map((row, i) => (
+                <TextRow key={`o${i}`} row={row} t={tv} withShadow={false} />
+              ))}
+              {T.strikes.map((sk, i) => {
+                const p = clamp01((tv - sk.t0) / Math.max(0.01, sk.t1 - sk.t0));
+                return p > 0 ? (
+                  <rect key={`s${i}`} x={sk.x} y={sk.y - 1.5} width={sk.w * p} height={3} fill={DOC_GRAPHIC_COLORS.redInk} />
+                ) : null;
+              })}
+              {T.newRows.map((row, i) => (
+                <TextRow key={`n${i}`} row={row} t={tv} withShadow={false} />
+              ))}
+            </g>
+          );
+        }
+        if (g.kind === 'stamp' && lay) {
+          const S = lay as ReturnType<typeof layoutStamp>;
+          const pose = stampPose(S, tv);
+          if (pose.alpha <= 0) return null;
+          const cx = S.cx + pose.dx;
+          const cy = S.cy + pose.dy;
+          const w = S.w * pose.scale;
+          const h = S.h * pose.scale;
+          const m = DOC_GRAPHIC_FONT_METRICS['League Gothic'];
+          const px = S.fontPx * pose.scale;
+          return (
+            <g key={g.id} opacity={alpha * pose.alpha} transform={`rotate(${S.angle} ${cx} ${cy})`}>
+              <rect x={cx - w / 2} y={cy - h / 2} width={w} height={h} fill="none" stroke={DOC_GRAPHIC_COLORS.stampInk} strokeWidth={6 * pose.scale} />
+              <rect
+                x={cx - w / 2 + 6 * pose.scale}
+                y={cy - h / 2 + 6 * pose.scale}
+                width={w - 12 * pose.scale}
+                height={h - 12 * pose.scale}
+                fill="none"
+                stroke={DOC_GRAPHIC_COLORS.stampInk}
+                strokeWidth={2.8 * pose.scale}
+              />
+              <text
+                x={cx}
+                y={cy - (m.heightRatio * px) / 2 + m.ascentRatio * px}
+                textAnchor="middle"
+                fontFamily='"League Gothic"'
+                fontSize={px}
+                letterSpacing="0.06em"
+                fill={DOC_GRAPHIC_COLORS.stampInk}
+                style={{ whiteSpace: 'pre' }}
+              >
+                {S.text}
+              </text>
             </g>
           );
         }

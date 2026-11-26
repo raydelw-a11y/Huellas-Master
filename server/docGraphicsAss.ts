@@ -15,9 +15,17 @@ import {
   DOC_GRAPHICS_STAGE_HEIGHT,
   graphicEndSec,
   graphicShowsInAspect,
+  isGraphicDrawable,
   layoutDateCard,
   layoutQuoteCard,
   layoutRoute,
+  layoutCircleMark,
+  circleProgress,
+  layoutNameTag,
+  layoutThesisCard,
+  layoutStamp,
+  stampPose,
+  stampPoseTimes,
   routeHeadAt,
   routeIconPolygons,
   sanitizeDocGraphics,
@@ -26,6 +34,13 @@ import {
   type GraphicTextRow,
 } from '../src/utils/docGraphics';
 import { escapeAssText, formatAssTime, measureTextEm, resolveExportFont } from './exportOverlayAss';
+import fs from 'fs';
+import {
+  DEFAULT_GRAPHICS_SFX_VOLUME_PCT,
+  docGraphicSfxEvents,
+  renderGraphicSfxTrack,
+  type DocGraphicMeasure,
+} from '../src/utils/docGraphics';
 
 export interface GraphicAssEvent {
   /** Timeline seconds. */
@@ -99,7 +114,9 @@ export interface BuildDocGraphicsInput {
 
 /** Every graphic of the export as absolute-time libass events (computed once per export). */
 export function buildDocGraphicsAssEvents(input: BuildDocGraphicsInput): GraphicAssEvent[] {
-  const graphics = sanitizeDocGraphics(input.graphics).filter((g) => graphicShowsInAspect(g, input.aspect));
+  const graphics = sanitizeDocGraphics(input.graphics).filter(
+    (g) => graphicShowsInAspect(g, input.aspect) && isGraphicDrawable(g)
+  );
   if (graphics.length === 0) return [];
   const { outW, outH, fontsDir } = input;
   const k = outH / DOC_GRAPHICS_STAGE_HEIGHT;
@@ -108,6 +125,7 @@ export function buildDocGraphicsAssEvents(input: BuildDocGraphicsInput): Graphic
   const fonts = {
     'League Gothic': resolveExportFont('League Gothic', fontsDir),
     Georgia: resolveExportFont('Georgia', fontsDir),
+    'Courier New': resolveExportFont('Courier New', fontsDir),
   } as const;
   const measure = (text: string, font: DocGraphicFontName, px: number) => measureTextEm(text, fonts[font]) * px;
   const events: GraphicAssEvent[] = [];
@@ -134,19 +152,19 @@ export function buildDocGraphicsAssEvents(input: BuildDocGraphicsInput): Graphic
     };
 
     /** A text row with its shadow layers; `hiddenFrom` hides the characters from that index on (typewriter). */
-    const textRowEvents = (row: GraphicTextRow, s: number, e: number, lay: number, opts: { hiddenFrom?: number; fadeIn?: number; rot?: { cx: number; cy: number; angle: number } } = {}) => {
+    const textRowEvents = (row: GraphicTextRow, s: number, e: number, lay: number, opts: { hiddenFrom?: number; fadeIn?: number; rot?: { cx: number; cy: number; angle: number }; noShadow?: boolean } = {}) => {
       const font = fonts[row.font];
       const fsAss = Math.max(4, Math.round(row.fontPx * k * font.heightRatio * 10) / 10);
       const spacing = (row.letterSpacingEm * row.fontPx * k).toFixed(2);
       const an = row.anchor === 'middle' ? 5 : 4;
-      const bold = row.font === 'Georgia' ? 1 : 0;
+      const bold = row.font === 'League Gothic' ? 0 : 1;
       const rot = opts.rot ? `\\org(${r1(opts.rot.cx * k)},${r1(opts.rot.cy * k)})\\frz${(-opts.rot.angle).toFixed(2)}` : '';
       const chars = Array.from(row.text);
       const cut = opts.hiddenFrom ?? chars.length;
       const visible = escapeAssText(chars.slice(0, cut).join(''));
       const hidden = cut < chars.length ? `{\\alpha&HFF&}${escapeAssText(chars.slice(cut).join(''))}` : '';
       const base = `\\an${an}\\fn${font.assName}\\fs${fsAss}\\b${bold}\\fsp${spacing}\\bord0\\shad0${rot}`;
-      const isPaper = row.color === DOC_GRAPHIC_COLORS.ink || row.color === DOC_GRAPHIC_COLORS.inkSoft;
+      const isPaper = opts.noShadow || row.color === DOC_GRAPHIC_COLORS.ink || row.color === DOC_GRAPHIC_COLORS.inkSoft;
       if (!isPaper) {
         DOC_GRAPHIC_TEXT_SHADOW.forEach((sh, si) => {
           push(
@@ -165,6 +183,37 @@ export function buildDocGraphicsAssEvents(input: BuildDocGraphicsInput): Graphic
         `{${base}\\pos(${(row.x * k).toFixed(1)},${(row.yCenter * k).toFixed(1)})\\blur${(0.35 * Math.max(1, k)).toFixed(2)}\\1c${assHex(row.color)}\\1a&H00&}${visible}${hidden}`,
         opts.fadeIn
       );
+    };
+
+    /** A row that is typed letter by letter (charAppear) or fades in whole (appearSec). */
+    const rowEvents = (row: GraphicTextRow, lay: number, opts: { rot?: { cx: number; cy: number; angle: number }; noShadow?: boolean } = {}) => {
+      if (row.charAppear && row.charAppear.length) {
+        const chars = Array.from(row.text);
+        const steps: number[] = [];
+        chars.forEach((ch, i) => {
+          if (!/\s/.test(ch)) steps.push(i);
+        });
+        steps.forEach((ci, si) => {
+          const st = row.charAppear![ci];
+          const next = si + 1 < steps.length ? row.charAppear![steps[si + 1]] : gEnd;
+          textRowEvents(row, st, next, lay, { ...opts, hiddenFrom: ci + 1 });
+        });
+      } else {
+        textRowEvents(row, row.appearSec ?? gStart, gEnd, lay, { ...opts, fadeIn: Math.round((row.appearFadeSec ?? 0) * 1000) });
+      }
+    };
+    /** Thick polyline as one drawing of slightly overlapping quads (output px). */
+    const polylineDrawing = (pts: Array<{ x: number; y: number }>, w: number) => {
+      const parts: string[] = [];
+      for (let i = 1; i < pts.length; i++) {
+        const a = pts[i - 1];
+        const b = pts[i];
+        const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+        const ex = ((b.x - a.x) / len) * (w / 2);
+        const ey = ((b.y - a.y) / len) * (w / 2);
+        parts.push(polygonDrawing(segmentQuad((a.x - ex) * k, (a.y - ey) * k, (b.x + ex) * k, (b.y + ey) * k, w * k)));
+      }
+      return parts.join(' ');
     };
 
     if (g.kind === 'date_card') {
@@ -269,6 +318,70 @@ export function buildDocGraphicsAssEvents(input: BuildDocGraphicsInput): Graphic
           { fadeIn: 400 }
         );
       }
+    } else if (g.kind === 'circle_mark') {
+      const C = layoutCircleMark(g, stageW, stageH);
+      const steps = 14;
+      for (let i = 1; i <= steps; i++) {
+        const st = C.t0 + ((C.t1 - C.t0) * (i - 1)) / steps;
+        const en = i === steps ? gEnd : C.t0 + ((C.t1 - C.t0) * i) / steps;
+        const prog = circleProgress(C, C.t0 + ((C.t1 - C.t0) * i) / steps);
+        const count = Math.max(2, Math.ceil(prog * (C.pts.length - 1)) + 1);
+        const d = polylineDrawing(C.pts.slice(0, count), C.width);
+        push(st, en, layer, `{\\an7\\pos(0,0)\\bord0\\shad0\\blur${(0.6 * k).toFixed(1)}\\1c${assHex(DOC_GRAPHIC_COLORS.redInk)}\\1a&H08&\\p1}${d}{\\p0}`);
+      }
+    } else if (g.kind === 'name_tag') {
+      const N = layoutNameTag(g, stageW, stageH, measure, input.aspect);
+      const bx = N.box;
+      const rot = { cx: bx.x + bx.w / 2, cy: bx.y + bx.h / 2, angle: bx.angle };
+      const rotTags = `\\org(${r1(rot.cx * k)},${r1(rot.cy * k)})\\frz${(-bx.angle).toFixed(2)}`;
+      if (N.line) {
+        const Ln = N.line;
+        const steps = 8;
+        for (let i = 1; i <= steps; i++) {
+          const st = Ln.t0 + ((Ln.t1 - Ln.t0) * (i - 1)) / steps;
+          const en = i === steps ? gEnd : Ln.t0 + ((Ln.t1 - Ln.t0) * i) / steps;
+          const f = i / steps;
+          const d = polygonDrawing(segmentQuad(Ln.x1 * k, Ln.y1 * k, (Ln.x1 + (Ln.x2 - Ln.x1) * f) * k, (Ln.y1 + (Ln.y2 - Ln.y1) * f) * k, 2.2 * k));
+          push(st, en, layer, `{\\an7\\pos(0,0)\\bord0\\shad0\\blur${(0.4 * k).toFixed(1)}\\1c${assHex(DOC_GRAPHIC_COLORS.redInk)}\\1a&H00&\\p1}${d}{\\p0}`);
+        }
+        push(Ln.t1, gEnd, layer, `{\\an7\\pos(0,0)\\bord0\\shad0\\1c${assHex(DOC_GRAPHIC_COLORS.redInk)}\\1a&H00&\\p1}${circleDrawing(Ln.x2 * k, Ln.y2 * k, 3.5 * k)}{\\p0}`);
+      }
+      push(gStart, gEnd, layer, `{\\an7\\pos(0,0)${rotTags}\\bord0\\shad0\\blur${(5 * k).toFixed(1)}\\1c&H000000&\\1a${assAlpha(0.45)}\\p1}${rectDrawing(bx.x * k, (bx.y + 3) * k, bx.w * k, bx.h * k)}{\\p0}`);
+      push(gStart, gEnd, layer + 1, `{\\an7\\pos(0,0)${rotTags}\\bord0\\shad0\\blur${(0.5 * k).toFixed(1)}\\1c${assHex(DOC_GRAPHIC_COLORS.tape)}\\1a${assAlpha(0.92)}\\p1}${rectDrawing(bx.x * k, bx.y * k, bx.w * k, bx.h * k)}{\\p0}`);
+      for (const row of N.rows) rowEvents(row, layer + 1, { rot, noShadow: true });
+    } else if (g.kind === 'thesis_card') {
+      const T = layoutThesisCard(g, stageW, stageH, measure);
+      const P = T.panel;
+      push(gStart, gEnd, layer, `{\\an7\\pos(0,0)\\bord0\\shad0\\blur${(0.6 * k).toFixed(1)}\\1c${assHex(DOC_GRAPHIC_COLORS.thesisPanel)}\\1a${assAlpha(0.72)}\\p1}${rectDrawing(P.x * k, P.y * k, P.w * k, P.h * k)}{\\p0}`);
+      push(gStart, gEnd, layer, `{\\an7\\pos(0,0)\\bord${(0.8 * k).toFixed(1)}\\3c${assHex(DOC_GRAPHIC_COLORS.dateGold)}\\3a${assAlpha(0.6)}\\shad0\\1a&HFF&\\p1}${rectDrawing((P.x + 4) * k, (P.y + 4) * k, (P.w - 8) * k, (P.h - 8) * k)}{\\p0}`);
+      for (const row of T.oldRows) rowEvents(row, layer + 1, { noShadow: true });
+      for (const sk of T.strikes) {
+        const steps = 8;
+        for (let i = 1; i <= steps; i++) {
+          const st = sk.t0 + ((sk.t1 - sk.t0) * (i - 1)) / steps;
+          const en = i === steps ? gEnd : sk.t0 + ((sk.t1 - sk.t0) * i) / steps;
+          push(st, en, layer + 3, `{\\an7\\pos(0,0)\\bord0\\shad0\\blur${(0.4 * k).toFixed(1)}\\1c${assHex(DOC_GRAPHIC_COLORS.redInk)}\\1a&H00&\\p1}${rectDrawing(sk.x * k, (sk.y - 1.5) * k, ((sk.w * i) / steps) * k, 3 * k)}{\\p0}`);
+        }
+      }
+      for (const row of T.newRows) rowEvents(row, layer + 1, { noShadow: true });
+    } else if (g.kind === 'stamp') {
+      const S = layoutStamp(g, stageW, stageH, measure);
+      const times = stampPoseTimes(S);
+      const font = fonts['League Gothic'];
+      times.forEach((tt, i) => {
+        const en = i + 1 < times.length ? times[i + 1] : gEnd;
+        const pose = stampPose(S, tt + 0.001);
+        const cx = S.cx + pose.dx;
+        const cy = S.cy + pose.dy;
+        const w = S.w * pose.scale;
+        const h = S.h * pose.scale;
+        const rot = `\\org(${r1(cx * k)},${r1(cy * k)})\\frz${(-S.angle).toFixed(2)}`;
+        const a = assAlpha(pose.alpha);
+        push(tt, en, layer, `{\\an7\\pos(0,0)${rot}\\bord${(3 * pose.scale * k).toFixed(1)}\\3c${assHex(DOC_GRAPHIC_COLORS.stampInk)}\\3a${a}\\shad0\\blur${(0.6 * k).toFixed(1)}\\1a&HFF&\\p1}${rectDrawing((cx - w / 2) * k, (cy - h / 2) * k, w * k, h * k)}{\\p0}`);
+        push(tt, en, layer, `{\\an7\\pos(0,0)${rot}\\bord${(1.4 * pose.scale * k).toFixed(1)}\\3c${assHex(DOC_GRAPHIC_COLORS.stampInk)}\\3a${a}\\shad0\\blur${(0.5 * k).toFixed(1)}\\1a&HFF&\\p1}${rectDrawing((cx - w / 2 + 6 * pose.scale) * k, (cy - h / 2 + 6 * pose.scale) * k, (w - 12 * pose.scale) * k, (h - 12 * pose.scale) * k)}{\\p0}`);
+        const fsAss = Math.max(4, Math.round(S.fontPx * pose.scale * k * font.heightRatio * 10) / 10);
+        push(tt, en, layer + 1, `{\\an5\\pos(${(cx * k).toFixed(1)},${(cy * k).toFixed(1)})${rot}\\fn${font.assName}\\fs${fsAss}\\b0\\fsp${(0.06 * S.fontPx * pose.scale * k).toFixed(2)}\\bord0\\shad0\\blur${(0.6 * k).toFixed(1)}\\1c${assHex(DOC_GRAPHIC_COLORS.stampInk)}\\1a${a}}${escapeAssText(S.text)}`);
+      });
     }
   });
   return events;
@@ -290,4 +403,53 @@ export function sliceDocGraphicsForSegment(events: GraphicAssEvent[], segStartSe
     out.push(`Dialogue: ${ev.layer},${formatAssTime(ls)},${formatAssTime(le)},Overlay,,0,0,0,,${text}`);
   }
   return out;
+}
+
+/** Text widths from the real TTF files (the same ones libass draws with). */
+export function makeServerGraphicMeasure(fontsDir: string): DocGraphicMeasure {
+  const fonts = {
+    'League Gothic': resolveExportFont('League Gothic', fontsDir),
+    Georgia: resolveExportFont('Georgia', fontsDir),
+    'Courier New': resolveExportFont('Courier New', fontsDir),
+  } as const;
+  return (text, font, px) => measureTextEm(text, fonts[font]) * px;
+}
+
+/**
+ * Writes the graphics' sound effects (typing, thuds, whooshes, pen strokes, stamps) as one mono 16-bit WAV that
+ * starts at timeline 0, or returns false when there is nothing to play.
+ */
+export function writeGraphicSfxWav(input: {
+  graphics: unknown;
+  aspect: '16:9' | '9:16';
+  fontsDir: string;
+  volumePct?: number;
+  outPath: string;
+  sampleRate?: number;
+}): boolean {
+  const vol = Number.isFinite(Number(input.volumePct)) ? Number(input.volumePct) : DEFAULT_GRAPHICS_SFX_VOLUME_PCT;
+  if (!(vol > 0)) return false;
+  const graphics = sanitizeDocGraphics(input.graphics);
+  if (!graphics.length) return false;
+  const events = docGraphicSfxEvents(graphics, input.aspect, makeServerGraphicMeasure(input.fontsDir));
+  if (!events.length) return false;
+  const sr = input.sampleRate || 32000;
+  const pcm = renderGraphicSfxTrack(events, sr, vol);
+  const buf = Buffer.alloc(44 + pcm.length * 2);
+  buf.write('RIFF', 0);
+  buf.writeUInt32LE(36 + pcm.length * 2, 4);
+  buf.write('WAVE', 8);
+  buf.write('fmt ', 12);
+  buf.writeUInt32LE(16, 16);
+  buf.writeUInt16LE(1, 20);
+  buf.writeUInt16LE(1, 22);
+  buf.writeUInt32LE(sr, 24);
+  buf.writeUInt32LE(sr * 2, 28);
+  buf.writeUInt16LE(2, 32);
+  buf.writeUInt16LE(16, 34);
+  buf.write('data', 36);
+  buf.writeUInt32LE(pcm.length * 2, 40);
+  for (let i = 0; i < pcm.length; i++) buf.writeInt16LE(Math.round(pcm[i] * 32767), 44 + i * 2);
+  fs.writeFileSync(input.outPath, buf);
+  return true;
 }

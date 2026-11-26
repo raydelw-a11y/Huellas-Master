@@ -38,7 +38,14 @@ import {
 } from 'lucide-react';
 import PromptGenerator from './components/PromptGenerator';
 import { auditShotPlan, extractRoutePlans } from './utils/shotCatalogue';
-import { newDocGraphicId, type DocGraphic, type RouteMapGraphic } from './utils/docGraphics';
+import {
+  mergeScreenPlans,
+  newDocGraphicId,
+  splitScreenGraphicsBlock,
+  type DocGraphic,
+  type RouteMapGraphic,
+  type ScreenGraphicPlanItem,
+} from './utils/docGraphics';
 import { WebStudioDrawer } from './components/WebStudioDrawer';
 import {
   CapCutEditor,
@@ -227,7 +234,7 @@ import { stampBrandMarksOnThumbnail, HD_BADGE_EMPTY_CORNER_CLAUSE, LOGO_EMPTY_CO
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '08:12 PM - 11/25/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '08:41 PM - 11/25/2026';
 
 // PRODUCTION LOCK: while promptConfig.PRODUCTION_LOCKED === 'YES' these fields never change (the server
 // enforces the same list in protectLockedDocs). Metadata, thumbnails, review marks and reframes stay editable.
@@ -6293,16 +6300,43 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           : {}),
       });
     } else if (stageNum === 8) {
+      // The names / theses / stamps block Gemini writes after the last clip is not a prompt: it is split off
+      // here (the prompt parser and Flow never see it) and kept in SCREEN_GRAPHICS_PLAN for the editor.
+      const { body: stage8Text, items: screenItems } = splitScreenGraphicsBlock(text);
+      let prevScreenPlan: ScreenGraphicPlanItem[] = [];
+      try {
+        prevScreenPlan = JSON.parse(String(activeDoc.promptConfig?.SCREEN_GRAPHICS_PLAN || '[]'));
+      } catch {
+        prevScreenPlan = [];
+      }
+      const screenPlan = mergeScreenPlans(prevScreenPlan, screenItems);
+      // Stage 8 may arrive in batches of 10: keep the journeys of clips this answer does not cover
+      let prevRoutePlans: Array<{ clipNumber: number; places: string[] }> = [];
+      try {
+        prevRoutePlans = JSON.parse(String(activeDoc.promptConfig?.ROUTE_MAP_PLAN || '[]'));
+      } catch {
+        prevRoutePlans = [];
+      }
+      const newRoutePlans = extractRoutePlans(stage8Text);
+      const coveredClipNums = new Set(
+        Array.from(stage8Text.matchAll(/^\s*(?:\*\*)?(?:Image|Clip)\s+0*(\d{1,3})\b/gim)).map((m) => Number(m[1]))
+      );
+      const stage8RoutePlans = [
+        ...(Array.isArray(prevRoutePlans) ? prevRoutePlans : []).filter(
+          (p) => Number(p?.clipNumber) > 0 && !coveredClipNums.has(Number(p.clipNumber))
+        ),
+        ...newRoutePlans,
+      ].sort((x, y) => x.clipNumber - y.clipNumber);
       const cleanOpHeader = sanitizeOperationalHeader(
         activeDoc.operationalHeader,
         activeDoc.flowVideoEngine || 'HYBRID_PEOPLE_OMNI_REST_LOWER'
       );
-      const textWithHeader = ensureOperationalHeaderInRawClips(text, cleanOpHeader);
+      const textWithHeader = ensureOperationalHeaderInRawClips(stage8Text, cleanOpHeader);
       const { clip1Sec, standardClipSec } = getStage1ClipDurations(activeDoc);
       const parsedDirectly = parseClipsFromRawText(textWithHeader, [], clip1Sec, standardClipSec);
       // Gemini sometimes answers with a blank response (it does when the prompt goes out doubled). That is
       // a failure, not a result: say so and leave the documentary untouched.
-      if (!/\b(?:Image|Imagen)\s+\[?0*\d+/i.test(text || '')) {
+      if (!/\b(?:Image|Imagen)\s+\[?0*\d+/i.test(stage8Text || '')) {
         setBridgeStatusType('ERROR');
         setBridgeStatusMsg(
           '⛔ Gemini devolvió una respuesta vacía en la Etapa 6 (sin ningún prompt). Vuelve a pulsar Generar Prompts en Gemini.'
@@ -6316,7 +6350,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       // mark is dropped. Otherwise the new clip prompt was silently discarded and the row stayed image-only.
       const freshClipNums = new Set<number>();
       const freshImageOnlyNums = new Set<number>();
-      for (const line of String(text || '').split(/\r?\n/)) {
+      for (const line of String(stage8Text || '').split(/\r?\n/)) {
         const mClip = line.match(/^\s*(?:\*\*)?Clip\s+\[?0*(\d{1,3})\b/i);
         if (mClip) freshClipNums.add(Number(mClip[1]));
         const mImg = line.match(/^\s*(?:\*\*)?(?:Image|Imagen)\s+\[?0*(\d{1,3})\b/i);
@@ -6395,7 +6429,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
       // image, eras). The tags are read from Gemini's raw answer because the parser drops them.
       const shotPlanAudit = auditShotPlan(syncedClips, {
         totalDocSec: syncedClips.length * standardClipSec,
-        rawText: text,
+        rawText: stage8Text,
       });
       if (staleBrollNums.length > 0) {
         shotPlanAudit.warnings.push(
@@ -6430,7 +6464,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           SHOT_PLAN_AUDIT: shotPlanSummary,
           // Journeys the editor animates over the ROUTE_MAP support shots (the [Route: ...] tags are
           // dropped from the stored prompts, so they are kept here)
-          ROUTE_MAP_PLAN: JSON.stringify(extractRoutePlans(text)),
+          ROUTE_MAP_PLAN: JSON.stringify(stage8RoutePlans),
+          SCREEN_GRAPHICS_PLAN: JSON.stringify(screenPlan),
         },
       });
 
