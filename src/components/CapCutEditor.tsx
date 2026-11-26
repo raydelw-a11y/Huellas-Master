@@ -727,6 +727,24 @@ export const CAPTIONS_ALIGN_VERSION = 4;
  * by hand in THAT documentary (CAPTION_LENGTH_16X9_USER_SET). Values saved before the flag existed are ignored
  * because 9:16 controls used to overwrite the 16:9 keys; a locked (finished) documentary keeps what it has.
  */
+/**
+ * Second of the timeline where the hook text of Clip 1 leaves: when the voice enters (8s after the text starts
+ * in a normal documentary), not when Clip 1 ends (6s). Opción A has the 8s Intro in front.
+ */
+export function defaultHookEndSec(doc: any, isPostSlogan: boolean): number {
+  const { voiceEntrySec } = getStage1ClipDurations(doc);
+  const hookDur = Number.isFinite(voiceEntrySec) && voiceEntrySec > 0 ? voiceEntrySec : 8;
+  return isPostSlogan ? hookDur : 8 + hookDur;
+}
+
+/** A saved end that is just the old default (the end of Clip 1) becomes the current default. */
+export function upgradeOldHookEndSec(savedEndSec: number, doc: any, isPostSlogan: boolean): number {
+  const { clip1Sec } = getStage1ClipDurations(doc);
+  const clip1Dur = !clip1Sec || clip1Sec <= 0 ? 6 : clip1Sec;
+  const oldDefault = isPostSlogan ? clip1Dur : 8 + clip1Dur;
+  return Math.abs(Number(savedEndSec) - oldDefault) < 0.01 ? defaultHookEndSec(doc, isPostSlogan) : savedEndSec;
+}
+
 export function resolveDocCaptionLength16x9(cfg: Record<string, any> | null | undefined): {
   mode: 'subdivide' | 'wrap' | 'original';
   maxChars: number;
@@ -2146,15 +2164,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     return activeDoc?.clip1Line2Hook || '';
   });
   const [clip1OverlayEndSec, setClip1OverlayEndSec] = useState<number>(() => {
+    const initIsPostSlogan = activeDoc?.promptConfig?.UBICACION_INTRO_MARCA === 'INTRO_POST_SLOGAN';
     if (initialDocOverlays && typeof initialDocOverlays.clip1OverlayEndSec === 'number' && initialDocOverlays.clip1OverlayEndSec > 0) {
-      return Number(initialDocOverlays.clip1OverlayEndSec);
+      return upgradeOldHookEndSec(Number(initialDocOverlays.clip1OverlayEndSec), activeDoc, initIsPostSlogan);
     }
     if (typeof initialOverlayStyles.clip1OverlayEndSec === 'number' && initialOverlayStyles.clip1OverlayEndSec > 0) {
-      return Number(initialOverlayStyles.clip1OverlayEndSec);
+      return upgradeOldHookEndSec(Number(initialOverlayStyles.clip1OverlayEndSec), activeDoc, initIsPostSlogan);
     }
-    const { clip1Sec } = getStage1ClipDurations(activeDoc);
-    const clip1VisualDur = !clip1Sec || clip1Sec <= 0 ? 6 : clip1Sec;
-    return 8 + clip1VisualDur;
+    return defaultHookEndSec(activeDoc, initIsPostSlogan);
   });
   // Default Hook Text animations for ALL documentaries (after 8s Intro at 00:00 - 00:08):
   // Line 1: starts at 8s (Clip 1), Fade In 1s (8s->9s), Fade Out 1s toward 16s (15s->16s)
@@ -7144,14 +7161,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     if (mode === 'INTRO_INICIO_00') {
       setHookLine1StartSec(8);
       setHookLine2StartSec(10);
-      setClip1OverlayEndSec(clip1VisualDur + 8);
+      setClip1OverlayEndSec(defaultHookEndSec(activeDoc, false));
       setStatusMessage(
         '✅ Intro Oficial (8s — Intro.mp4) ubicado en 00:00 - 00:08 (Opción A) y subtítulos sincronizados al 100% desde 00:16.'
       );
     } else {
       setHookLine1StartSec(0);
       setHookLine2StartSec(2);
-      setClip1OverlayEndSec(clip1VisualDur);
+      setClip1OverlayEndSec(defaultHookEndSec(activeDoc, true));
       setStatusMessage(
         '✅ Intro Oficial (8s — Intro.mp4) ubicado exactamente después del Slogan Completo ("Aquí seguimos sus rastros.") sin cortar ningún clip.'
       );
@@ -7206,8 +7223,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     // Opción B (INTRO_POST_SLOGAN): Clip 1 Hook (00:00 - 00:08) -> Voiceover at 8s, and 8s Intro enters Post-Slogan right after "Aquí seguimos sus rastros."
     const entrySec =
       docIntroPlacement === 'INTRO_POST_SLOGAN' ? clip1HookDur : FIXED_INTRO_SEC + clip1HookDur;
-    const defaultOverlayEnd =
-      docIntroPlacement === 'INTRO_POST_SLOGAN' ? clip1VisualDur : FIXED_INTRO_SEC + clip1VisualDur;
+    // The hook text stays until the voice enters (8s after it starts), not only while Clip 1 lasts (6s)
+    const defaultOverlayEnd = defaultHookEndSec(activeDoc, docIntroPlacement === 'INTRO_POST_SLOGAN');
 
     if (savedDocOverlays?.userEditedHook) {
       userEditedHookDocIdRef.current = docId;
@@ -7267,12 +7284,15 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           ? globalHookTimes.hookLine2StartSec
           : defaultL2Start;
 
-      const resolvedOverlayEnd =
+      const resolvedOverlayEnd = upgradeOldHookEndSec(
         typeof docHookTimes?.clip1OverlayEndSec === 'number' && docHookTimes.clip1OverlayEndSec > 0
           ? docHookTimes.clip1OverlayEndSec
           : typeof globalHookTimes?.clip1OverlayEndSec === 'number' && globalHookTimes.clip1OverlayEndSec > 0
           ? globalHookTimes.clip1OverlayEndSec
-          : defaultOverlayEnd;
+          : defaultOverlayEnd,
+        activeDoc,
+        docIntroPlacement === 'INTRO_POST_SLOGAN'
+      );
 
       setHookLine1StartSec(resolvedL1Start);
       setHookLine2StartSec(resolvedL2Start);
@@ -21899,14 +21919,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                         onClick={() => {
                           // Opción B has no Intro in front: Clip 1 (and its text) starts at 00:00
                           const resetIsPostSlogan = introPlacementMode === 'INTRO_POST_SLOGAN';
-                          const { clip1Sec: resetClip1Sec } = getStage1ClipDurations(activeDoc);
                           const resetL1 = resetIsPostSlogan ? 0 : 8;
                           const resetL2 = resetL1 + 2;
-                          const resetEnd = resetIsPostSlogan
-                            ? !resetClip1Sec || resetClip1Sec <= 0
-                              ? 6
-                              : resetClip1Sec
-                            : 16;
+                          const resetEnd = defaultHookEndSec(activeDoc, resetIsPostSlogan);
                           setHookLine1StartSec(resetL1);
                           setHookLine1AnimIn('fade');
                           setHookLine1AnimInDur(1);
