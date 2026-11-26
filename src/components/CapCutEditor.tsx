@@ -20961,7 +20961,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   <div className="grid grid-cols-3 gap-2">
                     <div className="min-w-0">
                       <div className="flex flex-col items-start gap-0.5 text-[10px] text-slate-300 font-semibold mb-0.5 whitespace-nowrap">
-                        <span>🔊 Vol:</span>
+                        <span>🔊 Vol (dB):</span>
                         <div className="flex items-center gap-0.5">
                           <VolumeDbInput
                             pct={selectedClipFoleyPct}
@@ -20971,9 +20971,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                                 customVolumeSet: true,
                               })
                             }
-                            className="w-12 bg-slate-950 border border-emerald-500/40 rounded px-1 py-0.5 text-[10px] text-emerald-200 font-mono text-right"
+                            className="w-14 bg-slate-950 border border-emerald-500/40 rounded px-1 py-0.5 text-[10px] text-emerald-200 font-mono text-right"
                           />
-                          <span>dB</span>
                         </div>
                       </div>
                       <VolumeDbSlider
@@ -21286,14 +21285,13 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                     <div className="grid grid-cols-3 gap-2.5">
                       <div className="min-w-0">
                         <div className="flex flex-col items-start gap-0.5 text-[10px] text-purple-200 mb-0.5 whitespace-nowrap">
-                          <span>🔊 Volumen:</span>
+                          <span>🔊 Vol (dB):</span>
                           <div className="flex items-center gap-0.5">
                             <VolumeDbInput
                               pct={selectedMusicTrack.volume ?? masterMusicVolume}
                               onChangePct={(pct) => handleUpdateMusicTrack(selectedMusicTrack.id, { volume: pct })}
-                              className="w-12 bg-slate-900 border border-purple-500/40 rounded px-1 py-0.5 text-[10px] text-white font-mono text-right"
+                              className="w-14 bg-slate-900 border border-purple-500/40 rounded px-1 py-0.5 text-[10px] text-white font-mono text-right"
                             />
-                            <span>dB</span>
                           </div>
                         </div>
                         <VolumeDbSlider
