@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-11-25T22:15:59.273Z",
-    "updatedAt": "2026-11-26T04:21:22.557Z",
+    "updatedAt": "2026-11-26T04:26:44.146Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -42,7 +42,7 @@
       "FIELD_CLEARED_AT_clip1OptionsRaw": "0",
       "FIELD_CLEARED_AT_clip1Line1LocationTime": "0",
       "FIELD_CLEARED_AT_clip1Line2Hook": "0",
-      "PROMPTS_RESTORED_AT": "1795666725875",
+      "PROMPTS_RESTORED_AT": "1795666882557",
       "FIELD_CLEARED_AT_rawClipsText": "0"
     },
     "compiledMasterPrompt": "",
@@ -911,9 +911,9 @@
         "recreated": false,
         "auditStatus": "ok",
         "auditReason": "Sincronizado con el tramo de voz narrativa.",
-        "videoSavedFileName": "02_generate_a_video_in_16_9_1c4da792_4K.mp4",
+        "videoSavedFileName": "02_generate_a_video_in_16_9_f3253d3c_4K.mp4",
         "videoDiscardOverriddenAt": 1795666621864,
-        "videoSavedAt": 1795666621864,
+        "videoSavedAt": 1795667210155,
         "videoAuditStatus": "approved"
       },
       {
