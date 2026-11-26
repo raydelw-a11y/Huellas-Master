@@ -4306,6 +4306,30 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 );
                 return btn ? act(btn) : { found: false };
               }
+              if (op === 'CLOSE_DIALOG') {
+                // Close a rename dialog left open (Cancel button, else Escape on its input)
+                const dInp = Array.from(
+                  document.querySelectorAll(
+                    'input[aria-label="Rename this chat"], [data-test-id="edit-title-input"] input, input[aria-label*="rename" i], input[aria-label*="cambiar nombre" i], [role="dialog"] input, mat-dialog-container input'
+                  )
+                ).find(vis);
+                if (!dInp) return { found: false, open: false };
+                const dlg = dInp.closest('[role="dialog"], mat-dialog-container, .mat-mdc-dialog-container') || document;
+                const cancel = Array.from(dlg.querySelectorAll('button')).find(
+                  (b) => vis(b) && /^(cancel|cancelar)$/i.test((b.innerText || '').trim())
+                );
+                if (cancel) {
+                  const r = cancel.getBoundingClientRect();
+                  try {
+                    cancel.click();
+                  } catch {}
+                  return { found: true, open: true, x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+                }
+                try {
+                  dInp.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', keyCode: 27, bubbles: true }));
+                } catch {}
+                return { found: true, open: true };
+              }
               if (op === 'VERIFY') {
                 const dlgInp = Array.from(
                   document.querySelectorAll(
@@ -4358,6 +4382,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
         await locate('CLOSE_IMMERSIVE_IF_COVERING', true);
         await sleep(250);
+        // A rename dialog left open by an earlier attempt would cover the header: close it first
+        if ((await locate('CLOSE_DIALOG')).open) await sleep(400);
         const pre = await locate('VERIFY');
         if (pre.notInside) {
           sendResponse({ ok: false, error: 'el chat no está dentro del Notebook' });
@@ -4402,7 +4428,20 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
               const inp = await waitLocate('INPUT', 10, false);
               if (inp.found) {
                 await sleep(280);
-                const confirm = await waitLocate('CONFIRM', 10, false);
+                let confirm = await waitLocate('CONFIRM', 10, false);
+                if (!confirm.found && inp.x != null) {
+                  // "Rename" stays disabled when Angular did not register the scripted value: retype with real keys
+                  await dispatchHardwareClick(target, inp.x, inp.y);
+                  await sleep(120);
+                  for (const type of ['rawKeyDown', 'keyUp']) {
+                    await chrome.debugger
+                      .sendCommand(target, 'Input.dispatchKeyEvent', { type, key: 'a', code: 'KeyA', windowsVirtualKeyCode: 65, modifiers: 4, commands: type === 'rawKeyDown' ? ['selectAll'] : [] })
+                      .catch(() => {});
+                  }
+                  await chrome.debugger.sendCommand(target, 'Input.insertText', { text: newTitle }).catch(() => {});
+                  await sleep(300);
+                  confirm = await waitLocate('CONFIRM', 10, false);
+                }
                 if (confirm.found) {
                   await dispatchHardwareClick(target, confirm.x, confirm.y);
                   for (let i = 0; i < 14 && !verified; i++) {
@@ -4443,6 +4482,20 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         if (verified) {
           // Crucial: let Google's batchexecute RPC persist the title on the backend before any SPA navigation
           await sleep(1800);
+        } else {
+          // Never leave the rename dialog open on the page (user saw it stuck open, 11/25/2026)
+          for (let i = 0; i < 3; i++) {
+            const c = await locate('CLOSE_DIALOG');
+            if (!c.open) break;
+            if (attached && i > 0) {
+              await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 }).catch(() => {});
+              await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 }).catch(() => {});
+            }
+            await sleep(400);
+          }
+          // The dialog may have closed right after the last VERIFY with the new title already saved
+          const late = await locate('VERIFY');
+          if (late.done) verified = true;
         }
         sendResponse({ ok: verified, error: verified ? '' : 'el título no cambió' });
       } catch (err) {
