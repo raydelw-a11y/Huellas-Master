@@ -16,8 +16,8 @@
       "hookBoxWidthPct": 96,
       "captionFontSize": 25,
       "captionWordsPerLine": 0,
-      "captionBottomPct": 20,
-      "captionLineMode": "subdivide",
+      "captionBottomPct": 10,
+      "captionLineMode": "original",
       "captionMaxChars": 16
     },
     "9:16": {
@@ -47,11 +47,11 @@
     "_v9_9x16_logo_x10_y3": true,
     "_v10_9x16_captionBottom20": true
   },
-  "updatedAt": "2026-11-26T05:07:22.778Z",
+  "updatedAt": "2026-11-26T05:13:54.345Z",
   "overlayStyles": {
     "logoScalePct": 5,
     "logoOpacity": 95,
-    "logoPosX": 10,
+    "logoPosX": 3,
     "logoPosY": 3,
     "logoDefault16x9V4": true,
     "logoAnimIn": "fade",
@@ -290,7 +290,11 @@
       "smoothSlowMo": false,
       "foleyVolume": 20,
       "customVolumeSet": false,
-      "audioMuted": false
+      "audioMuted": false,
+      "reframe9x16Mode": "auto_pan",
+      "reframeFocusXStart": 37,
+      "reframeFocusXEnd": 84,
+      "reframeFocusY": 50
     },
     {
       "id": "clip-12-1795649050152-12",
@@ -302,7 +306,11 @@
       "smoothSlowMo": false,
       "foleyVolume": 20,
       "customVolumeSet": false,
-      "audioMuted": false
+      "audioMuted": false,
+      "reframe9x16Mode": "auto_center",
+      "reframeFocusXStart": 50,
+      "reframeFocusXEnd": 50,
+      "reframeFocusY": 50
     },
     {
       "id": "clip-13-1795649050152-13",
@@ -314,7 +322,11 @@
       "smoothSlowMo": false,
       "foleyVolume": 20,
       "customVolumeSet": false,
-      "audioMuted": false
+      "audioMuted": false,
+      "reframe9x16Mode": "auto_focus",
+      "reframeFocusXStart": 84,
+      "reframeFocusXEnd": 84,
+      "reframeFocusY": 50
     },
     {
       "id": "clip-14-1795649050152-14",
@@ -326,7 +338,11 @@
       "smoothSlowMo": false,
       "foleyVolume": 20,
       "customVolumeSet": false,
-      "audioMuted": false
+      "audioMuted": false,
+      "reframe9x16Mode": "auto_focus",
+      "reframeFocusXStart": 84,
+      "reframeFocusXEnd": 84,
+      "reframeFocusY": 50
     },
     {
       "id": "clip-15-1795649050152-15",
@@ -338,7 +354,11 @@
       "smoothSlowMo": false,
       "foleyVolume": 20,
       "customVolumeSet": false,
-      "audioMuted": false
+      "audioMuted": false,
+      "reframe9x16Mode": "auto_pan",
+      "reframeFocusXStart": 51,
+      "reframeFocusXEnd": 37,
+      "reframeFocusY": 50
     },
     {
       "id": "clip-16-1795649050152-16",
@@ -350,7 +370,11 @@
       "smoothSlowMo": false,
       "foleyVolume": 0,
       "customVolumeSet": true,
-      "audioMuted": true
+      "audioMuted": true,
+      "reframe9x16Mode": "auto_focus",
+      "reframeFocusXStart": 84,
+      "reframeFocusXEnd": 84,
+      "reframeFocusY": 50
     },
     {
       "id": "clip-17-1795649050152-17",
@@ -362,7 +386,11 @@
       "smoothSlowMo": false,
       "foleyVolume": 20,
       "customVolumeSet": false,
-      "audioMuted": false
+      "audioMuted": false,
+      "reframe9x16Mode": "auto_pan",
+      "reframeFocusXStart": 16,
+      "reframeFocusXEnd": 34,
+      "reframeFocusY": 50
     },
     {
       "id": "clip-18-1795649050152-18",
@@ -374,7 +402,11 @@
       "smoothSlowMo": false,
       "foleyVolume": 20,
       "customVolumeSet": false,
-      "audioMuted": false
+      "audioMuted": false,
+      "reframe9x16Mode": "auto_focus",
+      "reframeFocusXStart": 21,
+      "reframeFocusXEnd": 21,
+      "reframeFocusY": 50
     },
     {
       "id": "clip-19-1795649050152-19",
@@ -386,7 +418,11 @@
       "smoothSlowMo": false,
       "foleyVolume": 20,
       "customVolumeSet": false,
-      "audioMuted": false
+      "audioMuted": false,
+      "reframe9x16Mode": "auto_focus",
+      "reframeFocusXStart": 80,
+      "reframeFocusXEnd": 80,
+      "reframeFocusY": 50
     },
     {
       "id": "clip-20-1795649050152-20",
@@ -398,7 +434,11 @@
       "smoothSlowMo": false,
       "foleyVolume": 20,
       "customVolumeSet": false,
-      "audioMuted": false
+      "audioMuted": false,
+      "reframe9x16Mode": "auto_pan",
+      "reframeFocusXStart": 40,
+      "reframeFocusXEnd": 23,
+      "reframeFocusY": 50
     },
     {
       "id": "clip-21-1795649050152-21",
