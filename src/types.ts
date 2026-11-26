@@ -389,6 +389,10 @@ export interface DocumentaryProject {
   clip1Line2Hook: string;
   clip1OptionsRaw: string;
 
+  // Editor: date / place cards, source quote cards and routes over maps (src/utils/docGraphics.ts),
+  // in timeline seconds. Burned into the export by server/docGraphicsAss.ts.
+  docGraphics?: import('./utils/docGraphics').DocGraphic[];
+
   // Etapa 7: Prompts de Imágenes Iniciales y Clips
   operationalHeader: string;
   rawClipsText: string;

@@ -1726,6 +1726,11 @@ function mergeTwoDocumentaryObjects(
     masterAudioUrl: mergedMasterAudio,
     audioTracks: mergedAudioTracks,
   };
+  // Editor graphics (date cards, quotes, routes): a copy saved by a page that did not know them yet
+  // must not wipe them (an empty array saved on purpose is kept).
+  if (!Array.isArray(baseWinner.docGraphics) && Array.isArray(oNorm.docGraphics)) {
+    baseWinner = { ...baseWinner, docGraphics: oNorm.docGraphics };
+  }
 
   // Preserve long text fields (Deep Research, scripts…) when the winner has them blank,
   // unless they were intentionally cleared ("Limpiar Etapa 1" tombstone) after the other copy was saved
@@ -3680,10 +3685,15 @@ Execute an exhaustive Deep Research investigation on the topic, era, location, a
     }, and deliver the report in Spanish organized into these 4 clear sections:
 1. MATHEMATICAL & STRUCTURAL BREAKDOWN BY ACTS (~${(totalTargetSec / 60).toFixed(0)} MIN WITH 8S INTRO${introIsPostSlogan ? ' RIGHT AFTER THE OPENING SLOGAN (NOT AT 00:00)' : ' AT 00:00'} & 8S OUTRO${hasReferenceVideo ? ' + VIRAL PATTERNS FROM STEP 1' : ''}):
    - Exact map of narrative acts with percentage (%), exact time range, turning points, and retention micro-hooks${hasReferenceVideo ? ' calibrated to the Step 1 reference blueprint' : ''}.
+   - Close every act with a line "Fuentes: [n][n]" listing the numbered references (section 3) that back the facts of that act.
 2. CHRONOLOGICAL HISTORICAL ACCOUNT, UNUSUAL FACTS & DOCUMENTED CONTRADICTIONS:
    - Deep act-by-act historical account with exact dates, verified numbers, laws, contracts, period prices, sensory details (smells, sounds, textures, architecture), and historical answers to audience questions.
+   - Put a numbered citation [n] right after every date, number, name and quote (numbers of the reference list in section 3). Mark with "(incierto)" every point the sources do not settle.
 3. COMPLETE PRIMARY-SOURCE RESEARCH DOSSIER (ARCHIVES, CHRONICLES & RECORDS):
    - Documented facts, judicial/commercial/archaeological records, real human micro-stories with verified names, and historical quotes ready to feed the Voiceover Script.
+   - Sub-section "CIFRAS EN CONFLICTO": every figure, date or name on which the sources disagree, written as "<dato>: la fuente [a] dice X; la fuente [b] dice Y. Redacción recomendada: «...»". Never resolve a disagreement silently.
+   - Sub-section "CITAS PARA PANTALLA": 4 to 8 short sentences (at most 30 words each) copied word for word from primary sources (chronicles, letters, decrees, logbooks, trial records), translated into Spanish when the original is in another language, one per line in exactly this format: 1. «<cita exacta>» — <autor>, <obra o documento>, <año> [n]. Never invent, paraphrase or merge quotes; leave a quote out when its exact wording cannot be verified.
+   - Sub-section "REFERENCIAS": the numbered list behind every [n], one per line: [n] <autor o institución>, «<título>», <año o fecha>. <URL si existe>. Favour archives, primary chronicles, academic books and reputable encyclopedias.
 4. EARLY PRE-DETECTION OF KEY ANONYMOUS @CHARACTER ROLES & @LOCATIONS (FOR GOOGLE FLOW REFERENCES):
    - List of historical protagonists mapped to anonymous role handles (e.g., @Scottish_Bacteriologist_1928, @Senior_Oxford_Professor — NEVER real person names in @Tags) and primary settings (@Location_Name) with physical traits, adult age, face, and exact period attire (${cleanTime || 'target era'}, ${cleanLoc || 'target location'}).`;
   } else if (stageNumber === 4) {
@@ -3777,6 +3787,7 @@ Write the complete VOICEOVER SCRIPT 100% in Neutral Latin American Documentary S
 - Write years in digits, centuries and monarchs in Roman numerals (e.g., siglo XIX, Felipe II), thousands with the word "mil" (e.g., "70 mil"), and ZERO exclamation marks (!).
 - MANDATORY FIRST DAY OF THE MONTH PHONETIC RULE IN SPANISH NARRATION ("primero", NEVER "1" NOR "uno"): Whenever the Spanish voiceover mentions the first day of any month, ALWAYS write the Spanish word "primero" (e.g., "el primero de septiembre de 1939", "Primero de enero de 1885, La Habana, Cuba.", "aquel primero de mayo"). Strictly FORBIDDEN to write "1 de [month]", "01 de [month]", "1º de [month]", or "uno de [month]".
 - Include strategic pause tags such as [pausa: 1.5s] or [pausa: 2s].
+- FACTS ONLY FROM THE RESEARCH: every date, number, name and quote in the narration must come from the Deep Historical Research above (leave its [n] citation numbers out of the narration). Where the research lists a figure under "CIFRAS EN CONFLICTO", use its recommended wording; never state as certain what it marks "(incierto)" — narrate it with a hedge such as "según las crónicas" or "cerca de". When the narration quotes one of the "CITAS PARA PANTALLA", quote it word for word between quotation marks («...») and name its author in the same sentence (the editor shows that quote on screen at that moment).
 - For long-form documentaries, include before second 30 the Full Channel Slogan as a standalone Paragraph 2 ("En los próximos minutos... Cada historia deja una huella. Aquí seguimos sus rastros.")${
         introPlacement === 'INTRO_POST_SLOGAN'
           ? ' and IMMEDIATELY at the end of Paragraph 2 place the mandatory tag [pausa: 2s]: the editor inserts the 8-second Official Brand Intro (Intro.mp4) exactly there and pauses the narration by itself, so NEVER write an 8-second pause for it, and start Paragraph 3 as a clean new beginning (Chapter 1) that does not depend on the previous sentence'

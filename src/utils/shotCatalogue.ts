@@ -156,10 +156,13 @@ export function buildShotDirectionClause(opts: {
 
   const archive = hasBroll
     ? `
-- ONE PERIOD ARCHIVAL IMAGE PER DOCUMENTARY (EXACTLY ONE): Choose exactly ONE of the rows marked ★ — the one whose narration suits it best — and design its Static B-Roll plate as an archival image made in the medium that existed in the year narrated IN THAT SCENE (decide by the scene, not by the documentary as a whole): ${eraTable}. Add the tags "[Archive: KEY] [Era: YYYY]" immediately before "[Time:" in that Image NN. Never use a photograph of any kind for a scene narrated before 1840. The archival image is picture only: plain unlettered margins and mount, the image area filled by the scene itself (tested in Nano Banana: when margins are left undescribed it invents captions, dates and lines of script). All the other ★ rows stay regular Static B-Roll plates without an [Archive:] tag.`
+- ONE PERIOD ARCHIVAL IMAGE PER DOCUMENTARY (EXACTLY ONE): Choose exactly ONE of the rows marked ★ — the one whose narration suits it best — and design its Static B-Roll plate as an archival image made in the medium that existed in the year narrated IN THAT SCENE (decide by the scene, not by the documentary as a whole): ${eraTable}. Add the tags "[Archive: KEY] [Era: YYYY]" immediately before "[Time:" in that Image NN. Never use a photograph of any kind for a scene narrated before 1840. The archival image is picture only: plain unlettered margins and mount, the image area filled by the scene itself (tested in Nano Banana: when margins are left undescribed it invents captions, dates and lines of script). All the other ★ rows stay regular Static B-Roll plates without an [Archive:] tag. The archival image shows anonymous period figures, places or objects only: never a recognizable portrait of a real historical person made to pass as a genuine surviving picture.`
     : '';
 
-  return `${catalogue}${support}${archive}`;
+  const selectiveColour = `
+- SELECTIVE COLOUR AT THE CLIMAX (EXACTLY ONE SCENE): Choose the ONE scene with the highest dramatic tension (the climax of the story; never Clip 01, a row marked ★, a historical support shot, the slogan scene or the final scene) and design it in monochrome with selective colour: in its Image NN write "black-and-white image with selective colour, only the [one key element: a flame, a seal, a banner, a blade, a document, a garment] keeps its natural colour", and in its Clip NN write "the black-and-white look with only the [same element] in colour is kept for the whole clip". Every other scene keeps full natural colour.`;
+
+  return `${catalogue}${support}${archive}${selectiveColour}`;
 }
 
 export interface ShotPlanClipLike {

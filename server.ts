@@ -53,6 +53,7 @@ import {
   trimDuplicatedTakeInPcm,
 } from './src/utils/geminiTtsAudioClean';
 import { buildSegmentAss, resolveExportFont, type ExportHookConfig } from './server/exportOverlayAss';
+import { buildDocGraphicsAssEvents, sliceDocGraphicsForSegment } from './server/docGraphicsAss';
 import {
   renderViralTitleArt,
   renderViralTitleWords,
@@ -7191,6 +7192,22 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
     const hookTextConfig = overlays?.hookText || null;
     // Editor clients that send parityV2 get exact viewer parity (overlay geometry, fades, logo animation, strict clip resolution)
     const exportParityV2 = overlays?.parityV2 === true;
+    // Documentary graphics (date cards, source quotes, routes over maps): built once, sliced per segment
+    let docGraphicEvents: ReturnType<typeof buildDocGraphicsAssEvents> = [];
+    if (exportParityV2 && overlays?.burnInDocGraphics !== false && Array.isArray(overlays?.docGraphics)) {
+      try {
+        docGraphicEvents = buildDocGraphicsAssEvents({
+          graphics: overlays.docGraphics,
+          outW,
+          outH,
+          aspect: aspectRatio === '9:16' ? '9:16' : '16:9',
+          fontsDir: path.join(process.cwd(), 'data', 'fonts'),
+        });
+      } catch (gErr: any) {
+        console.warn('[render-ffmpeg] Gráficos documentales omitidos:', gErr?.message || gErr);
+        docGraphicEvents = [];
+      }
+    }
     const parityClipAnim = (overlays?.clipAnim || {}) as {
       animIn?: string;
       animOut?: string;
@@ -7937,6 +7954,9 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
           captions: overlappingCaptions,
           captionStyle: overlays?.burnInCaptions !== false ? overlays?.captionStyle || {} : null,
           hook: parityHook,
+          extraEvents: docGraphicEvents.length
+            ? sliceDocGraphicsForSegment(docGraphicEvents, segStartSec, effectiveClipDur)
+            : undefined,
         });
         if (parityAss) {
           const assPath = path.join(workDir, `seg_sub_${String(i + 1).padStart(3, '0')}.ass`);

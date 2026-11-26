@@ -122,6 +122,8 @@ const FONT_TABLE: Array<{ match: RegExp; assName: string; file: string | null }>
   // index.css aliases 'Cinzel' to local('Georgia') → the viewer actually paints Georgia.
   { match: /^(cinzel|georgia|times new roman|serif)$/i, assName: 'Georgia', file: 'Georgia-Bold.ttf' },
   { match: /^playfair display$/i, assName: 'Playfair Display', file: 'PlayfairDisplay-Bold.ttf' },
+  // Date cards of the documentary graphics layer (condensed poster face, one weight only)
+  { match: /^league gothic$/i, assName: 'League Gothic', file: 'LeagueGothic.ttf' },
   // Not loaded as webfonts → the browser falls back to these system faces on macOS.
   { match: /^(montserrat|helvetica neue|system-ui|-apple-system|blinkmacsystemfont|inter|arial|sans-serif)$/i, assName: 'Helvetica Neue', file: null },
   // Captions 9:16 (karaoke): gruesa sin remates, medida con el archivo real del sistema.
@@ -443,6 +445,8 @@ export interface BuildSegmentAssInput {
   captions: ExportTimelineCaption[];
   captionStyle: ExportCaptionStyle | null;
   hook: ExportHookConfig | null;
+  /** Ready-made Dialogue lines for this segment (documentary graphics, server/docGraphicsAss.ts). */
+  extraEvents?: string[];
 }
 
 /** Returns full .ass file content for one exported segment, or null when nothing overlaps it. */
@@ -728,6 +732,8 @@ export function buildSegmentAss(input: BuildSegmentAssInput): string | null {
       });
     }
   }
+
+  if (Array.isArray(input.extraEvents) && input.extraEvents.length > 0) events.push(...input.extraEvents);
 
   if (events.length === 0) return null;
   return [

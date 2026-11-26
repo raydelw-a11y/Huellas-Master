@@ -68,6 +68,9 @@ import {
   toCanonicalMediaBridgePath,
 } from '../utils/mediaBridge';
 import { useNoticeStack } from '../utils/noticeStack';
+import DocGraphicsLayer from './DocGraphicsLayer';
+import DocGraphicsPanel from './DocGraphicsPanel';
+import { sanitizeDocGraphics, type DocGraphic, type TimedCaptionLike } from '../utils/docGraphics';
 import {
   VOLUME_DB_FLOOR,
   VOLUME_DB_CEIL,
@@ -4901,13 +4904,51 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
       : false
   );
   const [activeInspectorTab, setActiveInspectorTab] = useState<
-    'clips' | 'audio' | 'branding' | 'captions'
+    'clips' | 'audio' | 'branding' | 'captions' | 'graphics'
   >(() => {
     const tab = initialSessionState?.activeInspectorTab;
-    return tab === 'clips' || tab === 'audio' || tab === 'branding' || tab === 'captions'
+    return tab === 'clips' || tab === 'audio' || tab === 'branding' || tab === 'captions' || tab === 'graphics'
       ? tab
       : 'clips';
   });
+  // Documentary graphics (date / place cards, source quotes, routes over maps): stored in the documentary
+  // itself, so they travel with it to the Mac, GitHub Pages and the iPhone, and are burned into the export.
+  const [docGraphics, setDocGraphics] = useState<DocGraphic[]>(() => sanitizeDocGraphics(activeDoc?.docGraphics));
+  const [selectedGraphicId, setSelectedGraphicId] = useState<string | null>(null);
+  const [routeCaptureId, setRouteCaptureId] = useState<string | null>(null);
+  const docGraphicsSaveTimerRef = useRef<any>(null);
+  const keepGraphicsTabUntilRef = useRef<number>(0);
+  const docGraphicsDocIdRef = useRef<string>(activeDoc?.id || '');
+  useEffect(() => {
+    const incoming = sanitizeDocGraphics(activeDoc?.docGraphics);
+    if (docGraphicsDocIdRef.current !== (activeDoc?.id || '')) {
+      docGraphicsDocIdRef.current = activeDoc?.id || '';
+      if (docGraphicsSaveTimerRef.current) {
+        clearTimeout(docGraphicsSaveTimerRef.current);
+        docGraphicsSaveTimerRef.current = null;
+      }
+      setSelectedGraphicId(null);
+      setRouteCaptureId(null);
+      setDocGraphics(incoming);
+      return;
+    }
+    // Our own edit is still waiting to be saved: keep it
+    if (docGraphicsSaveTimerRef.current) return;
+    // Same documentary changed elsewhere (another device): take its graphics
+    setDocGraphics((prev) => (JSON.stringify(prev) === JSON.stringify(incoming) ? prev : incoming));
+  }, [activeDoc?.id, activeDoc?.docGraphics]);
+  // Marking route points only makes sense while the Gráficos tab is open
+  useEffect(() => {
+    if (activeInspectorTab !== 'graphics' && routeCaptureId) setRouteCaptureId(null);
+  }, [activeInspectorTab, routeCaptureId]);
+  const commitDocGraphics = (next: DocGraphic[]) => {
+    setDocGraphics(next);
+    if (docGraphicsSaveTimerRef.current) clearTimeout(docGraphicsSaveTimerRef.current);
+    docGraphicsSaveTimerRef.current = setTimeout(() => {
+      docGraphicsSaveTimerRef.current = null;
+      updateActiveDoc({ docGraphics: next });
+    }, 350);
+  };
   const [voiceAudioError, setVoiceAudioError] = useState<boolean>(false);
   // Voice URL whose host refused the CORS load (no Access-Control-Allow-Origin): it plays as a plain element
   const [voiceCorsRefusedUrl, setVoiceCorsRefusedUrl] = useState<string>('');
@@ -5214,7 +5255,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           savedDoc?.activeInspectorTab === 'clips' ||
           savedDoc?.activeInspectorTab === 'audio' ||
           savedDoc?.activeInspectorTab === 'branding' ||
-          savedDoc?.activeInspectorTab === 'captions'
+          savedDoc?.activeInspectorTab === 'captions' ||
+          savedDoc?.activeInspectorTab === 'graphics'
         ) {
           setActiveInspectorTab(savedDoc.activeInspectorTab);
         }
@@ -10599,6 +10641,14 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     return isIntroOrOutro && officialLogoUrl ? officialLogoUrl : '';
   };
 
+  const graphicsCaptions: TimedCaptionLike[] = useMemo(
+    () =>
+      activeInspectorTab === 'graphics'
+        ? captions.map((c) => ({ start: c.start, end: c.end, text: c.text, wordStarts: getCaptionWordStarts(c) }))
+        : [],
+    [captions, activeInspectorTab]
+  );
+
   const activeCaptionAtPlayhead = useMemo(() => {
     return (
       captions.find((cap, idx) => {
@@ -15653,6 +15703,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   line2AnimOut: hookLine2AnimOut,
                   line2AnimOutDur: hookLine2AnimOutDur,
                 },
+                // Date cards, source quotes and routes (server/docGraphicsAss.ts)
+                docGraphics,
                 burnInCaptions,
                 ...(karaokeCaptions
                   ? {
@@ -16486,6 +16538,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
 
   useEffect(() => {
     if (selectedClipId) {
+      // A jump made from the Gráficos tab (its list, "Ir al inicio") keeps that tab open
+      if (Date.now() < keepGraphicsTabUntilRef.current) return;
       setActiveInspectorTab('clips');
       if (typeof window === 'undefined' || window.innerWidth >= 1024) {
         setIsRightPanelCollapsed(false);
@@ -18655,6 +18709,42 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                   overflow: clipTransformOn ? 'visible' : undefined,
                 }}
               >
+              {/* Documentary graphics (same layout as the export: src/utils/docGraphics.ts) */}
+              {docGraphics.length > 0 && (
+                <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 25 }}>
+                  <DocGraphicsLayer
+                    graphics={docGraphics}
+                    t={currentTime}
+                    aspect={aspectRatio === '9:16' ? '9:16' : '16:9'}
+                    stageW={canonicalStageWidth}
+                    stageH={CANONICAL_STAGE_HEIGHT}
+                    editingRouteId={routeCaptureId}
+                  />
+                </div>
+              )}
+              {/* Route points: each click on the frame adds the next point of the route being marked */}
+              {routeCaptureId && (
+                <div
+                  className="absolute inset-0 pointer-events-auto cursor-crosshair"
+                  style={{ zIndex: 60, outline: '2px dashed rgba(245,158,11,0.85)', outlineOffset: -2 }}
+                  title="Haz clic para añadir el siguiente punto de la ruta"
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const r = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
+                    if (!(r.width > 0 && r.height > 0)) return;
+                    const xPct = Math.max(0, Math.min(100, ((e.clientX - r.left) / r.width) * 100));
+                    const yPct = Math.max(0, Math.min(100, ((e.clientY - r.top) / r.height) * 100));
+                    commitDocGraphics(
+                      docGraphics.map((g) =>
+                        g.id === routeCaptureId && g.kind === 'route_map'
+                          ? { ...g, points: [...g.points, { xPct: Number(xPct.toFixed(2)), yPct: Number(yPct.toFixed(2)) }] }
+                          : g
+                      )
+                    );
+                  }}
+                />
+              )}
               {/* Clip move / resize box: drag inside to move the clip, drag a corner to enlarge or shrink it */}
               {clipTransformOn &&
                 activeClipAtPlayhead &&
@@ -19391,8 +19481,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             </button>
           </div>
 
-          {/* Compact 4-Column Inspector Tabs */}
-          <div className="grid grid-cols-4 gap-1 bg-slate-950 p-0.5 rounded-lg border border-slate-800 shrink-0">
+          {/* Compact 5-Column Inspector Tabs */}
+          <div className="grid grid-cols-5 gap-1 bg-slate-950 p-0.5 rounded-lg border border-slate-800 shrink-0">
             <button
               type="button"
               onClick={() => setActiveInspectorTab('clips')}
@@ -19441,7 +19531,40 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             >
               💬 SRT
             </button>
+            <button
+              type="button"
+              onClick={() => setActiveInspectorTab('graphics')}
+              className={`py-1 px-1 rounded-md text-[10px] font-bold cursor-pointer truncate ${
+                activeInspectorTab === 'graphics'
+                  ? 'bg-amber-500 text-slate-950'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+              title="Tarjetas de fecha y lugar, citas de fuentes y rutas sobre mapas"
+            >
+              🗺️ Gráf.
+            </button>
           </div>
+
+          {/* TAB 5: DOCUMENTARY GRAPHICS (date cards, source quotes, routes) */}
+          {activeInspectorTab === 'graphics' && (
+            <DocGraphicsPanel
+              graphics={docGraphics}
+              onChange={commitDocGraphics}
+              currentTime={currentTime}
+              onSeek={(t) => {
+                keepGraphicsTabUntilRef.current = Date.now() + 600;
+                seekToTime(t);
+              }}
+              aspect={aspectRatio === '9:16' ? '9:16' : '16:9'}
+              captions={graphicsCaptions}
+              researchText={String(activeDoc?.deepResearchResult || '')}
+              skipBeforeSec={voiceStartOffsetSec + 6}
+              selectedId={selectedGraphicId}
+              onSelect={setSelectedGraphicId}
+              routeCaptureId={routeCaptureId}
+              onRouteCaptureChange={setRouteCaptureId}
+            />
+          )}
 
           {/* TAB 1: CLIPS, ORDER, SPEED, FOLEY & TRANSITIONS */}
           {activeInspectorTab === 'clips' && (
