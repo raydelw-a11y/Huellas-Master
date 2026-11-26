@@ -92,6 +92,8 @@ import {
   dbToLinear,
   FOLEY_LIMITER_CEILING_DB,
   INTRO_MUSIC_FADE_SEC,
+  MID_INTRO_FADE_IN_SEC,
+  PRE_INTRO_CLIP_FADE_OUT_SEC,
   VOICE_PREVIEW_MAKEUP_DB,
   type FoleyLevelSegment,
 } from './src/utils/audioMix';
@@ -7763,15 +7765,37 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         };
       }
 
+      // Opción B (Intro after the slogan): the clip in front of the Intro fades out and the Intro fades in,
+      // picture and sound (utils/audioMix; the editor preview does the same). Not when 9:16 cuts the Intro out
+      // of the final file: there the clip would fade to black in front of nothing.
+      const midIntroStartsAfterVoiceSec = Math.max(0, Number(voiceoverStartSec || 0)) + 0.08;
+      const isSkippedIn916 = (atSec: number) =>
+        aspectRatio === '9:16' &&
+        (Array.isArray(skipRanges916) ? skipRanges916 : []).some(
+          (r: any) => Number(r?.start) <= atSec && Number(r?.end) > atSec
+        );
+      const isMidIntroWithFadeIn =
+        isIntroClip && i > 0 && segStartSec > midIntroStartsAfterVoiceSec && !isSkippedIn916(segStartSec + 0.5);
+      const isClipBeforeMidIntro =
+        !isIntroClip &&
+        !isOutroClip &&
+        Boolean(nextClipInList) &&
+        (Number(nextClipInList?.clipNumber) === 0 ||
+          nextClipInList?.id === 'fixed-doc-intro' ||
+          /intro_huellas/i.test(String(nextClipInList?.fileName || ''))) &&
+        segEndSec > midIntroStartsAfterVoiceSec &&
+        !isSkippedIn916(segEndSec + 0.5);
+
       const defaultAudioFadeIn = isIntroClip || isOutroClip ? 0.05 : isFirstClipAfterIntro ? 1.2 : 0;
       const defaultAudioFadeOut = isIntroClip || isOutroClip ? 0.25 : 0;
-      const audioFadeInSec =
-        isIntroClip || isOutroClip
-          ? defaultAudioFadeIn
-          : typeof c.audioFadeInSec === 'number'
-          ? Math.max(0, c.audioFadeInSec)
-          : defaultAudioFadeIn;
-      const audioFadeOutSec =
+      const audioFadeInSec = isMidIntroWithFadeIn
+        ? Math.min(MID_INTRO_FADE_IN_SEC, effectiveClipDur)
+        : isIntroClip || isOutroClip
+        ? defaultAudioFadeIn
+        : typeof c.audioFadeInSec === 'number'
+        ? Math.max(0, c.audioFadeInSec)
+        : defaultAudioFadeIn;
+      const ownAudioFadeOutSec =
         isIntroClip
           ? Math.max(5, Number(c.audioFadeOutSec) || 0)
           : isOutroClip
@@ -7779,6 +7803,11 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
           : typeof c.audioFadeOutSec === 'number'
           ? Math.max(0, c.audioFadeOutSec)
           : defaultAudioFadeOut;
+      // In front of the Intro the clip's sound is down to silence over at least those 2s (a longer fade set by
+      // hand on that clip is kept)
+      const audioFadeOutSec = isClipBeforeMidIntro
+        ? Math.min(effectiveClipDur, Math.max(PRE_INTRO_CLIP_FADE_OUT_SEC, ownAudioFadeOutSec))
+        : ownAudioFadeOutSec;
       const afFades: string[] = [];
       if (audioFadeInSec > 0.01) {
         afFades.push(`afade=t=in:st=0:d=${audioFadeInSec.toFixed(2)}`);
@@ -7799,7 +7828,9 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       const parityLastBodyBeforeOutro =
         parityHasOutro && clips.length >= 3 && i === clips.length - 2 && !isIntroClip && !isOutroClip;
       const parityGenericDur = Math.max(0.05, Number(parityClipAnim.dur) > 0 ? Number(parityClipAnim.dur) : 0.6);
-      const parityInDur = isIntroClip
+      const parityInDur = isMidIntroWithFadeIn
+        ? MID_INTRO_FADE_IN_SEC
+        : isIntroClip
         ? 0.5
         : isOutroClip
         ? 0.3
@@ -7812,6 +7843,8 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         ? 0.5
         : isIntroClip
         ? 0.8
+        : isClipBeforeMidIntro
+        ? PRE_INTRO_CLIP_FADE_OUT_SEC
         : parityLastBodyBeforeOutro
         ? 1.0
         : parityClipAnim.animOut && parityClipAnim.animOut !== 'none'
@@ -7823,17 +7856,22 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
           ? `,fade=t=out:st=${Math.max(0, effectiveClipDur - parityOutDur).toFixed(3)}:d=${Math.min(parityOutDur, effectiveClipDur).toFixed(3)}`
           : '');
 
+      // Older clients (no parityV2): the same Opción B fades on top of their fixed ones
+      const legacyPreIntroFadeSec = Math.min(PRE_INTRO_CLIP_FADE_OUT_SEC, effectiveClipDur);
+      const legacyPreIntroFade = isClipBeforeMidIntro
+        ? `,fade=t=out:st=${Math.max(0, effectiveClipDur - legacyPreIntroFadeSec).toFixed(3)}:d=${legacyPreIntroFadeSec.toFixed(3)}`
+        : '';
       const vfFadeSuffix = exportParityV2
         ? parityVfFade
         : isFirstClipAfterIntro
-        ? ',fade=t=in:st=0:d=1.2'
+        ? `,fade=t=in:st=0:d=1.2${legacyPreIntroFade}`
         : isIntroClip
-        ? ',fade=t=in:st=0:d=0.6,fade=t=out:st=7.2:d=0.8'
+        ? `,fade=t=in:st=0:d=${isMidIntroWithFadeIn ? MID_INTRO_FADE_IN_SEC.toFixed(1) : '0.6'},fade=t=out:st=7.2:d=0.8`
         : isOutroClip
         ? `,fade=t=out:st=${Math.max(0, effectiveClipDur - 0.8).toFixed(2)}:d=0.8`
         : isLastBodyClipBeforeOutro
         ? `,fade=t=out:st=${Math.max(0, effectiveClipDur - 1.0).toFixed(2)}:d=1.0`
-        : '';
+        : legacyPreIntroFade;
       const vfTrimSuffix =
         targetSegFrames > 1
           ? `,tpad=stop_mode=clone:stop_duration=0.15,trim=end_frame=${targetSegFrames},setpts=PTS-STARTPTS`

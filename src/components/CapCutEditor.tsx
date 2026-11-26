@@ -120,6 +120,8 @@ import {
   musicSourceSecAtTimeline,
   introMusicGainAtTimeline,
   INTRO_MUSIC_FADE_SEC,
+  MID_INTRO_FADE_IN_SEC,
+  PRE_INTRO_CLIP_FADE_OUT_SEC,
   type ClipLoudness,
   type FoleyLevelSettings,
 } from '../utils/audioMix';
@@ -10280,6 +10282,38 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     [postSloganIntroBounds?.start, postSloganIntroBounds?.end]
   );
 
+  // Opción B: the clip in front of the mid-timeline Intro fades out and the Intro fades in, picture and sound
+  // (utils/audioMix; the export applies the same rule in render-ffmpeg). Not while 9:16 hides the Intro: the
+  // clip would fade to black in front of nothing.
+  const introHiddenIn916 =
+    aspectRatio === '9:16' && activeDoc?.promptConfig?.MOSTRAR_INTRO_OUTRO_9X16 === false;
+  const introBFadeClips = useMemo(() => {
+    if (introHiddenIn916) return null;
+    const introIndex = clipsWithTimelineBounds.findIndex(
+      (c) => (c.id === 'fixed-doc-intro' || c.clipNumber === 0) && c.start > 2
+    );
+    if (introIndex <= 0) return null;
+    const prev = clipsWithTimelineBounds[introIndex - 1];
+    const prevIsBrandClip =
+      prev.id === 'fixed-doc-intro' || prev.clipNumber === 0 || prev.id === 'fixed-doc-outro' || prev.clipNumber === 999;
+    return { introIndex, preIntroIndex: prevIsBrandClip ? -1 : introIndex - 1 };
+  }, [clipsWithTimelineBounds, introHiddenIn916]);
+  // Seconds of those two fades for a clip (null where the rule does not touch it). The clip in front of the Intro
+  // keeps a longer fade-out of its own if it has one.
+  const getIntroBClipFades = (
+    clip?: { index: number; audioFadeOutSec?: number } | null
+  ): { fadeInSec: number | null; fadeOutSec: number | null } | null => {
+    if (!clip || !introBFadeClips) return null;
+    if (clip.index === introBFadeClips.introIndex) return { fadeInSec: MID_INTRO_FADE_IN_SEC, fadeOutSec: null };
+    if (clip.index === introBFadeClips.preIntroIndex) {
+      return {
+        fadeInSec: null,
+        fadeOutSec: Math.max(PRE_INTRO_CLIP_FADE_OUT_SEC, Number(clip.audioFadeOutSec) || 0),
+      };
+    }
+    return null;
+  };
+
   // Keep latest caption projection options synchronized for async Vosk/WebAudio callbacks
   const effectiveIntroModeForCaptions: 'INTRO_INICIO_00' | 'INTRO_POST_SLOGAN' =
     activeDoc?.promptConfig?.UBICACION_INTRO_MARCA === 'INTRO_POST_SLOGAN' ||
@@ -11330,14 +11364,20 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         : 0;
     const defaultFadeOut = isIntro ? 5 : isOutro ? 0.15 : 0;
 
+    // Opción B: the Intro's sound fades in, and the sound of the clip in front of it fades out
+    const introBFades = getIntroBClipFades(activeClipAtPlayhead);
     const fadeInSec =
-      isIntro || isOutro
+      introBFades?.fadeInSec != null
+        ? introBFades.fadeInSec
+        : isIntro || isOutro
         ? defaultFadeIn
         : typeof activeClipAtPlayhead.audioFadeInSec === 'number'
         ? Math.max(0, activeClipAtPlayhead.audioFadeInSec)
         : defaultFadeIn;
     const fadeOutSec =
-      isIntro
+      introBFades?.fadeOutSec != null
+        ? introBFades.fadeOutSec
+        : isIntro
         ? Math.max(5, Number(activeClipAtPlayhead.audioFadeOutSec) || 0)
         : isOutro
         ? defaultFadeOut
@@ -11355,7 +11395,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     const fadeEnvelope = Math.max(0, Math.min(fadeInFactor, fadeOutFactor));
 
     return Number(Math.max(0, Math.min(100, baseFoleyVol * fadeEnvelope)).toFixed(3));
-  }, [activeClipAtPlayhead, foleyLevelSettings, currentTime]);
+  }, [activeClipAtPlayhead, foleyLevelSettings, currentTime, introBFadeClips]);
 
   // Clip levelling gain of the clip under the playhead (dB), applied in the preview deck before its level
   const activeClipNormGainDb = getClipNormGainDb(activeClipAtPlayhead);
@@ -16426,14 +16466,35 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               clipsWithTimelineBounds.length >= 3 &&
               clip.index === clipsWithTimelineBounds.length - 2;
 
+            // Opción B: same fades as the viewer (clip in front of the Intro out, Intro in)
+            const simIntroBFades = getIntroBClipFades(clip);
+            const isSimMidIntroIn = simIntroBFades?.fadeInSec != null;
+            const isSimPreIntroOut = simIntroBFades?.fadeOutSec != null;
+
             const cAnim = computeElementAnimationState(
               simTime,
               clip.start,
               clip.end,
               isSimOutro || isSimIntro || isSimClip1AfterIntro ? 'fade' : clipAnimIn,
-              isSimOutro ? 1.2 : isSimClip1AfterIntro ? 1.2 : isSimIntro ? 0.5 : clipAnimDur,
-              isSimOutro || isSimIntro || isSimLastBodyClip ? 'fade' : clipAnimOut,
-              isSimOutro ? 2.5 : isSimIntro ? 0.8 : isSimLastBodyClip ? 1.0 : clipAnimDur
+              isSimOutro
+                ? 1.2
+                : isSimClip1AfterIntro
+                ? 1.2
+                : isSimMidIntroIn
+                ? MID_INTRO_FADE_IN_SEC
+                : isSimIntro
+                ? 0.5
+                : clipAnimDur,
+              isSimOutro || isSimIntro || isSimLastBodyClip || isSimPreIntroOut ? 'fade' : clipAnimOut,
+              isSimOutro
+                ? 2.5
+                : isSimIntro
+                ? 0.8
+                : isSimPreIntroOut
+                ? PRE_INTRO_CLIP_FADE_OUT_SEC
+                : isSimLastBodyClip
+                ? 1.0
+                : clipAnimDur
             );
             ctx.save();
             ctx.globalAlpha = cAnim.opacity;
@@ -16928,6 +16989,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     clipsWithTimelineBounds.length >= 3 &&
     activeClipAtPlayhead?.index === clipsWithTimelineBounds.length - 2;
 
+  // Opción B: the picture of the clip in front of the Intro fades to black and the Intro's picture fades in
+  const liveIntroBFades = getIntroBClipFades(activeClipAtPlayhead);
+  const isMidIntroFadingIn = liveIntroBFades?.fadeInSec != null;
+  const isClipFadingOutBeforeIntro = liveIntroBFades?.fadeOutSec != null;
+
   const liveClipAnim = activeClipAtPlayhead
     ? computeElementAnimationState(
         currentTime,
@@ -16938,18 +17004,22 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           ? 0.3
           : isFirstClipAfterIntro
           ? 1.2
+          : isMidIntroFadingIn
+          ? MID_INTRO_FADE_IN_SEC
           : isIntroClipActive
           ? 0.5
           : clipAnimDur,
         isOutroClipActive
           ? 'fade'
-          : isIntroClipActive || isLastBodyClipBeforeOutro
+          : isIntroClipActive || isLastBodyClipBeforeOutro || isClipFadingOutBeforeIntro
           ? 'fade'
           : clipAnimOut,
         isOutroClipActive
           ? 0.5
           : isIntroClipActive
           ? 0.8
+          : isClipFadingOutBeforeIntro
+          ? PRE_INTRO_CLIP_FADE_OUT_SEC
           : isLastBodyClipBeforeOutro
           ? 1.0
           : clipAnimDur
@@ -20376,8 +20446,12 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                         selectedClip.id === 'fixed-doc-intro' || selectedClip.clipNumber === 0;
                       const isOutroClip =
                         selectedClip.id === 'fixed-doc-outro' || selectedClip.clipNumber === 999;
+                      // The two clips of the Opción B rule show the fades they really get (see getIntroBClipFades)
+                      const selIntroBFades = getIntroBClipFades(selectedClip);
                       const effFadeIn =
-                        typeof selectedClip.audioFadeInSec === 'number'
+                        selIntroBFades?.fadeInSec != null
+                          ? selIntroBFades.fadeInSec
+                          : typeof selectedClip.audioFadeInSec === 'number'
                           ? selectedClip.audioFadeInSec
                           : isIntroClip || isOutroClip
                           ? 1.5
@@ -20385,7 +20459,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                           ? 1.2
                           : 0;
                       const effFadeOut =
-                        typeof selectedClip.audioFadeOutSec === 'number'
+                        selIntroBFades?.fadeOutSec != null
+                          ? selIntroBFades.fadeOutSec
+                          : typeof selectedClip.audioFadeOutSec === 'number'
                           ? selectedClip.audioFadeOutSec
                           : isIntroClip || isOutroClip
                           ? 2.5
@@ -20995,7 +21071,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                             min={0}
                             max={15}
                             step={0.1}
-                            value={selectedClip.audioFadeInSec ?? 0}
+                            value={getIntroBClipFades(selectedClip)?.fadeInSec ?? selectedClip.audioFadeInSec ?? 0}
                             onChange={(e) =>
                               handleUpdateClipsAudio({
                                 audioFadeInSec: Math.max(0, Number(e.target.value || 0)),
@@ -21012,7 +21088,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                         min={0}
                         max={10}
                         step={0.1}
-                        value={Math.min(10, selectedClip.audioFadeInSec ?? 0)}
+                        value={Math.min(10, getIntroBClipFades(selectedClip)?.fadeInSec ?? selectedClip.audioFadeInSec ?? 0)}
                         onChange={(e) =>
                           handleUpdateClipsAudio({
                             audioFadeInSec: Number(e.target.value),
@@ -21030,7 +21106,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                             min={0}
                             max={15}
                             step={0.1}
-                            value={selectedClip.audioFadeOutSec ?? 0}
+                            value={getIntroBClipFades(selectedClip)?.fadeOutSec ?? selectedClip.audioFadeOutSec ?? 0}
                             onChange={(e) =>
                               handleUpdateClipsAudio({
                                 audioFadeOutSec: Math.max(0, Number(e.target.value || 0)),
@@ -21047,7 +21123,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                         min={0}
                         max={10}
                         step={0.1}
-                        value={Math.min(10, selectedClip.audioFadeOutSec ?? 0)}
+                        value={Math.min(10, getIntroBClipFades(selectedClip)?.fadeOutSec ?? selectedClip.audioFadeOutSec ?? 0)}
                         onChange={(e) =>
                           handleUpdateClipsAudio({
                             audioFadeOutSec: Number(e.target.value),
@@ -23837,9 +23913,13 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                                   : clip.clipNumber === 0 || clip.clipNumber === 999
                                   ? `Audio Fade In/Out • ${formatVolumeDb(getClipShownFoleyPct(clip))}`
                                   : `🔊 ${formatVolumeDb(getClipShownFoleyPct(clip))}`}
-                                {(clip.audioFadeInSec || clip.audioFadeOutSec)
-                                  ? ` • 📈${clip.audioFadeInSec || 0}s 📉${clip.audioFadeOutSec || 0}s`
-                                  : ''}
+                                {(() => {
+                                  // The two clips of the Opción B rule show the fades they really get
+                                  const ibf = getIntroBClipFades(clip);
+                                  const shownIn = ibf?.fadeInSec ?? clip.audioFadeInSec ?? 0;
+                                  const shownOut = ibf?.fadeOutSec ?? clip.audioFadeOutSec ?? 0;
+                                  return shownIn || shownOut ? ` • 📈${shownIn}s 📉${shownOut}s` : '';
+                                })()}
                               </button>
                             </div>
                           </>
