@@ -6221,6 +6221,13 @@ app.post('/api/flow/save-asset-to-folder', async (req, res) => {
     const rawBuffer = Buffer.from(cleanBase64, 'base64');
     const clipNumForLock = isClipVideo ? matchVideoEntryClipNumber(safeName) : 0;
 
+    // The official thumbnail files hold the full-resolution capture (8K); the small cloud-sync preview
+    // (~520 px, a few KB) must never be written over them.
+    if (/^Miniatura_.*\.(png|jpe?g|webp)$/i.test(safeName) && rawBuffer.length < 60000) {
+      res.json({ ok: true, skippedPreviewOverThumbnail: true, fileName: safeName });
+      return;
+    }
+
     const runSave = async () => {
       const finalBuffer = isClipVideo ? await upscaleMp4BufferTo4K(rawBuffer) : rawBuffer;
       const fullTarget = writeBufferAtomicallyToDir(finalBuffer, targetDir, safeName);
@@ -6348,7 +6355,10 @@ app.post('/api/project/export-organized-package', async (req, res) => {
           const cleanB64 = String(th.imageDataUrl).replace(/^data:[^;]+;base64,/, '');
           const name = th.fileName || `Miniatura_Opcion_${th.option || 'A'}.png`;
           const thPath = path.join(thumbsDir, path.basename(name));
-          fs.writeFileSync(thPath, Buffer.from(cleanB64, 'base64'));
+          const thBuf = Buffer.from(cleanB64, 'base64');
+          // Never write the small cloud-sync preview over a full-resolution (8K) thumbnail already on disk
+          if (thBuf.length < 60000 && fs.existsSync(thPath) && fs.statSync(thPath).size > thBuf.length) continue;
+          fs.writeFileSync(thPath, thBuf);
           savedFiles.push(`03_Miniaturas/${path.basename(name)}`);
         }
       }

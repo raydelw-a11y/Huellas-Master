@@ -255,7 +255,7 @@ import { stampBrandMarksOnThumbnail, HD_BADGE_EMPTY_CORNER_CLAUSE, LOGO_EMPTY_CO
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '12:03 PM - 11/27/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '12:21 PM - 11/27/2026';
 
 // PRODUCTION LOCK: while promptConfig.PRODUCTION_LOCKED === 'YES' these fields never change (the server
 // enforces the same list in protectLockedDocs). Metadata, thumbnails, review marks and reframes stay editable.
@@ -7954,6 +7954,25 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           resolvedPayload = await resp.blob();
         }
       } catch {}
+    }
+
+    // The official thumbnail files hold the full-resolution capture (8K). The app only keeps a tiny preview
+    // (<=42,000 chars, ~520 px) for cloud sync; that preview must never be written over the real file.
+    if (/^Miniatura_.*\.(png|jpe?g|webp)$/i.test(cleanFileName)) {
+      const payloadBytes =
+        typeof resolvedPayload === 'string'
+          ? resolvedPayload.startsWith('data:')
+            ? Math.floor((resolvedPayload.length * 3) / 4)
+            : 0
+          : resolvedPayload.size;
+      if (payloadBytes < 60000) {
+        console.warn(`[Miniaturas] ${cleanFileName}: solo hay vista previa (${payloadBytes} bytes); no se guarda sobre el archivo 8K.`);
+        setBridgeStatusType('ERROR');
+        setBridgeStatusMsg(
+          `⚠️ ${cleanFileName}: aquí solo hay la vista previa pequeña, así que no se tocó el archivo de 03_Miniaturas. Para guardarla en 8K, vuelve a capturarla desde Gemini.`
+        );
+        return false;
+      }
     }
 
     const isClipVideoAsset =
