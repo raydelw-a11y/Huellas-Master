@@ -6861,7 +6861,8 @@ const EXPORT_PEAK_LIMIT = 0.841; // -1.5 dBFS
 async function normalizeExportLoudness(
   filePath: string,
   workDir: string,
-  ffmpegBin: string
+  ffmpegBin: string,
+  videoTagArgs: string[] = []
 ): Promise<{ applied: boolean; message: string }> {
   const runFf = (args: string[]) =>
     new Promise<{ code: number; stderr: string }>((resolve) => {
@@ -6899,7 +6900,7 @@ async function normalizeExportLoudness(
   }
   const outPath = path.join(workDir, `loudnorm_${Date.now()}.mp4`);
   const apply = await runFf([
-    '-hide_banner', '-y', '-i', filePath, '-map', '0:v:0', '-map', '0:a:0', '-c:v', 'copy',
+    '-hide_banner', '-y', '-i', filePath, '-map', '0:v:0', '-map', '0:a:0', '-c:v', 'copy', ...videoTagArgs,
     '-af', `volume=${gainDb.toFixed(2)}dB,alimiter=limit=${EXPORT_PEAK_LIMIT}:attack=3:release=100:level=disabled:latency=1`,
     '-c:a', 'aac', '-b:a', '256k', '-movflags', '+faststart', outPath,
   ]);
@@ -8885,6 +8886,10 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
     fs.writeFileSync(concatListPath, concatContent, 'utf8');
 
     const hasVo = fs.existsSync(voPath);
+    // The segments are MPEG-TS, which carries no codec tag, so copying them into mp4 writes HEVC as 'hev1' unless
+    // told otherwise, and QuickTime / Apple players only open HEVC tagged 'hvc1'. Re-apply it on every copy of the
+    // 8K (HEVC) video.
+    const copyVideoTagArgs = is8K ? ['-tag:v', 'hvc1'] : [];
     let muxerArgs: string[] = [];
     if (hasVo || resolvedMusicInputs.length > 0) {
       muxerArgs = ['-y', '-f', 'concat', '-safe', '0', '-i', concatListPath];
@@ -9088,6 +9093,7 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         '[aout]',
         '-c:v',
         'copy',
+        ...copyVideoTagArgs,
         '-c:a',
         'aac',
         '-b:a',
@@ -9105,6 +9111,7 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         concatListPath,
         '-c',
         'copy',
+        ...copyVideoTagArgs,
         tempMuxOutputPath,
       ];
     }
@@ -9246,7 +9253,7 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         stageLabel: 'Ajustando el volumen a -14 LUFS (YouTube)...',
       };
       try {
-        const loud = await normalizeExportLoudness(tempMuxOutputPath, workDir, ffmpegBin);
+        const loud = await normalizeExportLoudness(tempMuxOutputPath, workDir, ffmpegBin, copyVideoTagArgs);
         console.log(`[render-ffmpeg] Volumen: ${loud.message}`);
       } catch (loudErr: any) {
         console.warn('[render-ffmpeg] No se pudo ajustar el volumen a -14 LUFS:', loudErr?.message || loudErr);
