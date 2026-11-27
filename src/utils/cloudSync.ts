@@ -1981,6 +1981,20 @@ function mergeTwoDocumentaryObjects(
   ) {
     baseWinner.thumbnailTextOptions = oNorm.thumbnailTextOptions;
   }
+  // Three copies of the same text are not three options (an old copy of the documentary carried them after
+  // Etapa 5 repeated the chosen text): a list of repeated texts never replaces a list of different ones.
+  {
+    const distinctCount = (v: unknown) =>
+      Array.isArray(v) ? new Set(v.map((x) => String(x || '').trim().toUpperCase()).filter(Boolean)).size : 0;
+    if (
+      Array.isArray(baseWinner.thumbnailTextOptions) &&
+      baseWinner.thumbnailTextOptions.length > 1 &&
+      distinctCount(baseWinner.thumbnailTextOptions) === 1 &&
+      distinctCount(oNorm.thumbnailTextOptions) > 1
+    ) {
+      baseWinner.thumbnailTextOptions = oNorm.thumbnailTextOptions;
+    }
+  }
   if (!baseWinner.thumbnailPsychVariant && oNorm.thumbnailPsychVariant) {
     baseWinner.thumbnailPsychVariant = oNorm.thumbnailPsychVariant;
   }
