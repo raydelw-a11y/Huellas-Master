@@ -26839,8 +26839,12 @@ app.post('/api/gemini-web/remote-stage-result', async (req, res) => {
             thumbOrientationSrv,
             resolvedActiveOverlay
           );
-          if (overlays.length > 0 && (!Array.isArray(list[idx].thumbnailTextOptions) || list[idx].thumbnailTextOptions.length === 0)) {
-            extraPatch.thumbnailTextOptions = overlays;
+          // Repeated texts are not separate options (Etapa 5 repeats the chosen text in its three prompts)
+          const distinctOverlays = overlays.filter(
+            (v, i, arr) => arr.findIndex((x) => x.toUpperCase() === v.toUpperCase()) === i
+          );
+          if (distinctOverlays.length > 0 && (!Array.isArray(list[idx].thumbnailTextOptions) || list[idx].thumbnailTextOptions.length === 0)) {
+            extraPatch.thumbnailTextOptions = distinctOverlays;
           }
           if (resolvedActiveOverlay) {
             extraPatch.thumbnailTextOverlay = resolvedActiveOverlay;

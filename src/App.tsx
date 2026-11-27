@@ -255,7 +255,7 @@ import { stampBrandMarksOnThumbnail, HD_BADGE_EMPTY_CORNER_CLAUSE, LOGO_EMPTY_CO
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '01:00 PM - 11/27/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '01:04 PM - 11/27/2026';
 
 // PRODUCTION LOCK: while promptConfig.PRODUCTION_LOCKED === 'YES' these fields never change (the server
 // enforces the same list in protectLockedDocs). Metadata, thumbnails, review marks and reframes stay editable.
@@ -6300,8 +6300,15 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
             resolvedOverlay,
             curDoc
           );
-          if (suggestedList.length > 0 && (!Array.isArray(curDoc.thumbnailTextOptions) || curDoc.thumbnailTextOptions.length === 0 || !isUserLocked)) {
-            patch.thumbnailTextOptions = suggestedList;
+          // Once a text is chosen, Etapa 5 writes that same text in its three prompts: three equal texts are not
+          // three options, so they never replace the real list of suggestions (and repeats are never stored).
+          const distinctSuggested = suggestedList.filter(
+            (v, i, arr) => arr.findIndex((x) => x.toUpperCase() === v.toUpperCase()) === i
+          );
+          const hasTextOptions =
+            Array.isArray(curDoc.thumbnailTextOptions) && curDoc.thumbnailTextOptions.length > 0;
+          if (distinctSuggested.length > 0 && (!hasTextOptions || (!isUserLocked && distinctSuggested.length >= 2))) {
+            patch.thumbnailTextOptions = distinctSuggested;
           }
           if (!explicitOverlay && resolvedOverlay) {
             patch.thumbnailTextOverlay = resolvedOverlay;
