@@ -4103,7 +4103,6 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
   const flowAutoChainBatchesRef = React.useRef<boolean>(true);
   const [isFullPreprodRunning, setIsFullPreprodRunning] = useState<boolean>(false);
   const [fullPreprodStepMsg, setFullPreprodStepMsg] = useState<string>('');
-  const [stage11TitleOptions, setStage11TitleOptions] = useState<string[]>([]);
   const activeDocRef = React.useRef<DocumentaryProject | null>(null);
 
   useEffect(() => {
@@ -6752,30 +6751,14 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         .slice(0, 6);
 
       if (cleanedLines.length > 0) {
-        setStage11TitleOptions(cleanedLines);
-        const bestTitle = cleanedLines[0];
+        // Etapa 9 en dos pasos: solo se guardan las opciones; el título lo elige el usuario y después pide lo demás
         const latestDoc = activeDocRef.current || activeDoc;
-        if (latestDoc) {
-          const replaceFirstTitleLine = (rawMeta?: string): string => {
-            const m = String(rawMeta || '').trim();
-            if (!m) return bestTitle;
-            const lines = m.split(/\r?\n/);
-            lines[0] = bestTitle;
-            return lines.join('\n');
-          };
-          const patch: Partial<DocumentaryProject> = { publishTitle: bestTitle };
-          const curYt = latestDoc.rawYoutubeMetadata ?? latestDoc.rawMetadataText ?? '';
-          const curFb = latestDoc.rawFacebookMetadata ?? '';
-          if (curYt.trim()) {
-            const ytStripped = stripLeadingTitleFromYoutubeMetadata(curYt, bestTitle);
-            patch.rawYoutubeMetadata = ytStripped.body;
-            patch.rawMetadataText = ytStripped.body;
-          }
-          if (curFb.trim()) {
-            patch.rawFacebookMetadata = replaceFirstTitleLine(curFb);
-          }
-          updateActiveDoc(patch);
-        }
+        updateActiveDoc({
+          promptConfig: {
+            ...(latestDoc?.promptConfig || {}),
+            STAGE9_TITLE_OPTIONS: cleanedLines.join('\n'),
+          } as any,
+        });
       }
       if (pendingStage11QueueRef.current.length > 0) {
         const nextSubStage = pendingStage11QueueRef.current.shift()!;
@@ -14100,7 +14083,13 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             updatedAt: new Date().toISOString(),
                           } as DocumentaryProject;
                         })()
-                      : ({ ...d, [fieldKey]: text, updatedAt: new Date().toISOString() } as DocumentaryProject)
+                      : targetStage === 115
+                        ? ({
+                            ...d,
+                            promptConfig: { ...(d.promptConfig || {}), STAGE9_TITLE_OPTIONS: text.trim() },
+                            updatedAt: new Date().toISOString(),
+                          } as DocumentaryProject)
+                        : ({ ...d, [fieldKey]: text, updatedAt: new Date().toISOString() } as DocumentaryProject)
                     : d
                 );
                 pushDocumentariesToGitHub(next as any)
@@ -28432,9 +28421,50 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                     `${(activeDoc.topic || activeDoc.title || 'Historia Oculta').replace(/^Video\s*\d+\s*/i, '').trim()}: La Verdadera Historia Detrás de los Registros de la Época (${activeDoc.historicalTime || 'Siglo XIX'}) | Documental Completo`,
                   ];
 
+              const savedTitleOptions = String(activeDoc.promptConfig?.STAGE9_TITLE_OPTIONS || '')
+                .split(/\r?\n/)
+                .map((l) =>
+                  l
+                    .replace(/^\s*(?:Opci[oó]n\s*\d+\s*[:.-]?|\d+\s*[.)-]|[-•*])\s*/i, '')
+                    .replace(/^["«“]+|["»”]+$/g, '')
+                    .trim()
+                )
+                .filter((l) => l.length >= 18)
+                .slice(0, 6);
+              const hasGeminiTitleOptions = savedTitleOptions.length > 0;
               const displayedTitleSuggestions = (
-                stage11TitleOptions.length > 0 ? stage11TitleOptions : defaultSpecificTitleSuggestions
+                hasGeminiTitleOptions ? savedTitleOptions : defaultSpecificTitleSuggestions
               ).map((t) => fitYoutubeTitle(t));
+              const chosenTitleForRest = currentDetectedTitle.trim();
+              const requestTitleOptions = () => {
+                pendingStage11QueueRef.current = [];
+                handleSendStageToGeminiWeb(115, undefined, {
+                  enableHighModel: false,
+                  enableArgonLow: true,
+                  enableDeepResearch: false,
+                });
+              };
+              const requestRestWithChosenTitle = () => {
+                if (!chosenTitleForRest) {
+                  alert('Primero elige o escribe el título (Paso 1).');
+                  return;
+                }
+                const sendRest = () => {
+                  pendingStage11QueueRef.current = [112, 113, 114];
+                  handleSendStageToGeminiWeb(111, undefined, {
+                    enableHighModel: false,
+                    enableArgonLow: true,
+                    enableDeepResearch: false,
+                  });
+                };
+                if ((activeDoc.publishTitle || '').trim() !== chosenTitleForRest) {
+                  // El título visible venía de la metadata vieja: se fija antes de pedir lo demás
+                  applySpecificTitleToMetadata(chosenTitleForRest);
+                  setTimeout(sendRest, 400);
+                } else {
+                  sendRest();
+                }
+              };
 
               const handleExtractTagsAndPinned = () => {
                 const sourceText = (youtubeMeta || facebookMeta || '').trim();
@@ -28528,36 +28558,27 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                       <button
                         type="button"
                         disabled={aiGenerating}
-                        onClick={() => {
-                          pendingStage11QueueRef.current = [111, 112, 113, 114];
-                          handleSendStageToGeminiWeb(115, undefined, {
-                            enableHighModel: false,
-                            enableArgonLow: true,
-                            enableDeepResearch: false,
-                          });
-                        }}
-                        className="px-3.5 py-2 rounded-xl bg-violet-500/20 hover:bg-violet-500/30 text-violet-200 border border-violet-500/40 font-bold text-xs flex items-center gap-1.5 cursor-pointer"
-                        title="Pide a Gemini (modelo Neon) 5 opciones de títulos ultra-específicos y seguidamente genera las 4 secciones (YouTube, Facebook, Comentario Fijado y Tags)"
+                        onClick={requestTitleOptions}
+                        className="px-3.5 py-2 rounded-xl bg-violet-500/20 hover:bg-violet-500/30 text-violet-200 border border-violet-500/40 font-bold text-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Paso 1: pide a Gemini (modelo Neon) solo las 5 opciones de título. No genera nada más hasta que elijas uno."
                       >
-                        🎯 Generar 5 Títulos Específicos (Gemini)
+                        🎯 Paso 1: Pedir 5 Opciones de Título
                       </button>
                       <button
                         type="button"
-                        disabled={aiGenerating}
-                        onClick={async () => {
-                          pendingStage11QueueRef.current = [111, 112, 113, 114];
-                          handleSendStageToGeminiWeb(115, undefined, {
-                            enableHighModel: false,
-                            enableArgonLow: true,
-                            enableDeepResearch: false,
-                          });
-                        }}
-                        className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-lg shadow-amber-500/20"
+                        disabled={aiGenerating || !chosenTitleForRest}
+                        onClick={requestRestWithChosenTitle}
+                        className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-lg shadow-amber-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                        title={
+                          chosenTitleForRest
+                            ? `Paso 2: con el título elegido («${chosenTitleForRest}») pide YouTube, Facebook, Comentario Fijado y Tags`
+                            : 'Paso 2: primero elige o escribe el título'
+                        }
                       >
                         <Wand2 className="w-3.5 h-3.5" />
                         {aiGenerating
-                          ? 'Generando Títulos + 4 Secciones (Neon)...'
-                          : '✨ Generar Todo (YouTube + Facebook + Comentario + Tags)'}
+                          ? 'Generando (Neon)...'
+                          : '✨ Paso 2: Generar lo Demás con el Título Elegido'}
                       </button>
                     </div>
                   </div>
@@ -28571,6 +28592,13 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                         </span>
                         <p className="text-[11px] text-slate-400 mt-0.5">
                           Haz clic en cualquiera de las opciones específicas para la historia de este documental (o edítalo abajo) y se actualizará al instante en la primera línea de YouTube y Facebook sin alterar los párrafos ni capítulos.
+                        </p>
+                        <p className="text-[11px] mt-1 font-semibold text-amber-200/90">
+                          {!hasGeminiTitleOptions
+                            ? 'Paso 1: pulsa «Pedir 5 Opciones de Título». Las opciones de abajo son de ejemplo hasta que Gemini responda.'
+                            : chosenTitleForRest
+                              ? 'Paso 2: título elegido. Pulsa «Generar lo Demás con el Título Elegido» para pedir YouTube, Facebook, Comentario y Tags.'
+                              : 'Elige una de las opciones de Gemini y después pulsa el Paso 2.'}
                         </p>
                       </div>
                     </div>

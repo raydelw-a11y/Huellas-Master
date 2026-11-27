@@ -4595,7 +4595,7 @@ Act as Publishing & YouTube SEO Strategist for the Spanish-language documentary 
 Topic: ${doc.topic || doc.title} (${doc.historicalTime || ''}, ${doc.historicalLocation || ''})
 Confirmed Final Duration: ${resolvedFinalDuration11}
 Platform: YOUTUBE
-Thumbnail Overlay Text: ${doc.thumbnailTextOverlay || ''}
+${(doc.publishTitle || '').trim() ? `Official Selected Spanish Title (already chosen by the director; context ONLY so the description matches it — do NOT write it in the output): ${(doc.publishTitle || '').trim()}\n` : ''}Thumbnail Overlay Text: ${doc.thumbnailTextOverlay || ''}
 Clip 1 Opening Hook (Clip 1 lasts ${clip2StartSec}s; voiceover enters at second ${voiceEntrySec}): ${doc.clip1Line2Hook || ''}
 REAL Reference Script: ${(doc.voiceoverScript || doc.sectionsStructure || '').slice(0, 1800)}
 ${chaptersTimelineGuide ? `\nReal Documentary Timestamp Guide:\n${chaptersTimelineGuide}\n` : ''}

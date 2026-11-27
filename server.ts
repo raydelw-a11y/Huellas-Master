@@ -26927,7 +26927,7 @@ app.post('/api/gemini-web/remote-stage-result', async (req, res) => {
           }
         }
       } else if (stageNumber === 115) {
-        const firstTitle = text
+        const titleOptions115 = text
           .split(/\r?\n/)
           .map((l: string) =>
             l
@@ -26935,9 +26935,11 @@ app.post('/api/gemini-web/remote-stage-result', async (req, res) => {
               .replace(/^["'«»“”]+|["'«»“”]+$/g, '')
               .trim()
           )
-          .filter(Boolean)[0];
-        if (firstTitle) {
-          extraPatch.publishTitle = firstTitle;
+          .filter((l: string) => l.length >= 18)
+          .slice(0, 6);
+        // Etapa 9 en dos pasos: se guardan las opciones; el título lo elige el usuario (ya no se aplica solo el primero)
+        if (titleOptions115.length > 0) {
+          stage1PasoConfig.STAGE9_TITLE_OPTIONS = titleOptions115.join('\n');
         }
       } else if (stageNumber === 12) {
         const prevReplies = Array.isArray(list[idx].commentReplies) ? list[idx].commentReplies : [];
