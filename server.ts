@@ -11717,12 +11717,16 @@ function stampBrandMarksOnThumbnailServer(img: Buffer, orientation: 'vertical' |
       marks.push({ file: tmpLogo, box: g.logo, shadow: true });
     }
     if (fs.existsSync(badgeFile)) marks.push({ file: badgeFile, box: g.badge });
-    if (marks.length === 0) return img;
     const args = ['-loglevel', 'error', '-y', '-i', tmpIn];
     marks.forEach((m) => args.push('-i', m.file));
     // scale2ref: iw = the thumbnail width, main_w/main_h = the mark being scaled
-    const parts: string[] = [];
-    let cur = '[0:v]';
+    // Real 8K: the capture (5504x3072 / 3072x5504 from Gemini) is enlarged to 7680x4320 / 4320x7680 before the
+    // marks go on, filling the frame and trimming the few pixels of aspect difference from the centre.
+    const [outW, outH] = orientation === 'vertical' ? [4320, 7680] : [7680, 4320];
+    const parts: string[] = [
+      `[0:v]scale=${outW}:${outH}:force_original_aspect_ratio=increase:flags=lanczos,crop=${outW}:${outH},setsar=1[base8k]`,
+    ];
+    let cur = '[base8k]';
     marks.forEach((m, i) => {
       if (m.shadow) {
         // Soft dark shadow behind the logo so its text stays readable on light backgrounds:
@@ -11750,7 +11754,7 @@ function stampBrandMarksOnThumbnailServer(img: Buffer, orientation: 'vertical' |
       cur = `[o${i}]`;
     });
     args.push('-filter_complex', parts.join(';'), '-map', cur, '-frames:v', '1', tmpOut);
-    execFileSync(getFfmpegPath(), args, { stdio: 'ignore', timeout: 60000 });
+    execFileSync(getFfmpegPath(), args, { stdio: 'ignore', timeout: 180000 });
     const out = fs.existsSync(tmpOut) ? fs.readFileSync(tmpOut) : null;
     return out && out.length > 1000 ? out : img;
   } catch (e) {

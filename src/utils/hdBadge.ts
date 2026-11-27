@@ -73,9 +73,13 @@ export async function stampBrandMarksOnThumbnail(
       loadImage(orientation === 'vertical' ? hdBadgeUrl : k8BadgeUrl),
       logoSrc ? loadImage(logoSrc).catch(() => null) : Promise.resolve(null),
     ]);
-    const W = base.naturalWidth;
-    const H = base.naturalHeight;
-    if (!W || !H) return dataUrl;
+    const srcW = base.naturalWidth;
+    const srcH = base.naturalHeight;
+    if (!srcW || !srcH) return dataUrl;
+    // Real 8K: the capture (5504×3072 / 3072×5504 from Gemini) is enlarged to 7680×4320 / 4320×7680, filling the
+    // frame and trimming the few pixels of aspect difference from the centre (same as the server).
+    const [W, H] = orientation === 'vertical' ? [4320, 7680] : [7680, 4320];
+    const cover = Math.max(W / srcW, H / srcH);
     const canvas = document.createElement('canvas');
     canvas.width = W;
     canvas.height = H;
@@ -83,7 +87,7 @@ export async function stampBrandMarksOnThumbnail(
     if (!ctx) return dataUrl;
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(base, 0, 0);
+    ctx.drawImage(base, (W - srcW * cover) / 2, (H - srcH * cover) / 2, srcW * cover, srcH * cover);
     const place = (
       img: HTMLImageElement | null,
       box: { x: number; y: number; w: number },
