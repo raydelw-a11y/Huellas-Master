@@ -6701,6 +6701,8 @@ async function buildSmartNaturalFoleyFilter(opts: {
   normGainDb?: number | null;
   /** The clip's level as stretches over its own duration (auto-ducking); used when there is more than one. */
   levelSegments?: FoleyLevelSegment[];
+  /** Exact number of samples this segment's audio must have (see nextSegmentAudioSamples); default: from targetDurSec. */
+  targetAudioSamples?: number;
 }): Promise<string> {
   const {
     targetDurSec,
@@ -6713,7 +6715,10 @@ async function buildSmartNaturalFoleyFilter(opts: {
   } = opts;
 
   const safeTargetDur = Math.max(0.3, targetDurSec);
-  const targetAudioSamples = Math.max(1024, Math.round(safeTargetDur * 44100) - 1024);
+  const targetAudioSamples =
+    Number(opts.targetAudioSamples) >= 1024
+      ? Math.round(Number(opts.targetAudioSamples))
+      : Math.max(1024, Math.round(safeTargetDur * 44100) - 1024);
   const afTrimSuffix = `,aresample=44100,aformat=sample_fmts=fltp:sample_rates=44100:channel_layouts=stereo,apad,atrim=end_sample=${targetAudioSamples},asetpts=N/SR/TB`;
 
   // Per-clip levelling (same as the editor preview): bring the clip to the common loudness, hold its peaks under
@@ -7474,6 +7479,23 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
     }
 
     let runningTimelineSec = 0;
+    // Audio/picture lock across the joined segments. Each segment's audio is AAC inside MPEG-TS, which only holds
+    // whole 1024-sample frames and plays back one extra frame of encoder priming, so a segment cut to "its
+    // duration minus 1024 samples" decoded up to 1023 samples long. The final mix lays the segments' audio end to
+    // end, and over ~85 segments those leftovers added up to more than a second: every clip's sound drifted late
+    // and the Outro's sound was still playing when the audio was cut at the end of the picture. Now each segment
+    // gets a whole number of AAC frames chosen against the running total of video frames, so the error never
+    // exceeds half an AAC frame (~12 ms) anywhere in the video.
+    let segVideoFramesSoFar = 0;
+    let segAacFramesSoFar = 0;
+    const nextSegmentAudioSamples = (segVideoFrames: number): number => {
+      segVideoFramesSoFar += segVideoFrames;
+      const aacFramesWanted = Math.round(((segVideoFramesSoFar / safeFps) * 44100) / 1024);
+      const aacFrames = Math.max(2, aacFramesWanted - segAacFramesSoFar);
+      segAacFramesSoFar += aacFrames;
+      // One of those frames is the encoder priming the decoder also plays
+      return (aacFrames - 1) * 1024;
+    };
     let midTimelineIntroBounds: { startSec: number; endSec: number; durationSec: number } | null = null;
     const isClientStateForThisDoc = Boolean(
       docId &&
@@ -8411,12 +8433,14 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         if (loud?.status === 'ready') foleyNormGainDb = computeFoleyNormGainDb(loud);
       }
 
+      const segAudioSamples = nextSegmentAudioSamples(targetSegFrames);
       const afFilter = await buildSmartNaturalFoleyFilter({
         ffmpegBin,
         sourceMp4,
         trimStartSec,
         sourceSpanSec: effectiveSpan > 0.2 ? effectiveSpan : rawClipDur,
         targetDurSec: effectiveClipDur,
+        targetAudioSamples: segAudioSamples,
         rawSpeed: speed,
         afFadePrefix,
         foleyVol,
@@ -8610,7 +8634,7 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
             segOut,
           ];
         } else {
-          const silentAudioSamples = Math.max(1024, Math.round(effectiveClipDur * 44100) - 1024);
+          const silentAudioSamples = segAudioSamples;
           return [
             '-y',
             ...hwInArgs,

@@ -1559,7 +1559,7 @@ function mulberry32(seed: number) {
 /** One sound effect as mono samples (-1..1). Deterministic: same samples everywhere. */
 export function synthGraphicSfx(kind: GraphicSfxKind, variant: number, sampleRate: number): Float32Array {
   const sr = Math.max(8000, Math.round(sampleRate));
-  const dur = kind === 'type' ? 0.11 : kind === 'thud' ? 0.26 : kind === 'whoosh' ? 0.9 : kind === 'scribble' ? 0.45 : 0.34;
+  const dur = kind === 'type' ? 0.085 : kind === 'thud' ? 0.26 : kind === 'whoosh' ? 0.9 : kind === 'scribble' ? 0.45 : 0.34;
   const n = Math.max(1, Math.round(dur * sr));
   const out = new Float32Array(n);
   const rnd = mulberry32(1000 + variant * 77 + kind.length * 13);
@@ -1577,23 +1577,21 @@ export function synthGraphicSfx(kind: GraphicSfxKind, variant: number, sampleRat
       // few hundredths later. Three variants so a run of letters does not sound like one sample on repeat.
       const vi = variant % 3;
       const x = noise();
-      lp1 += lpCoef(5200) * (x - lp1);
-      lp2 += lpCoef(1400) * (lp1 - lp2);
-      const crack = (x - lp1) * Math.exp(-t / 0.0022) * 0.55 + (lp1 - lp2) * Math.exp(-t / 0.006) * 1.5;
-      phase += (2 * Math.PI * (150 + [0, 18, -14][vi]) * (0.6 + 0.4 * Math.exp(-t / 0.012))) / sr;
-      const knock = Math.sin(phase) * Math.exp(-t / 0.02) * 0.95;
-      const ringA = [1180, 1320, 1060][vi];
-      const ringB = [2840, 3150, 2560][vi];
+      // Tuned low and dry: most of the hit is the dull knock on the roller, the crack is kept under ~3 kHz and
+      // the metal barely rings (it dies in a few milliseconds instead of tailing off).
+      lp1 += lpCoef(3000) * (x - lp1);
+      lp2 += lpCoef(700) * (lp1 - lp2);
+      const crack = (x - lp1) * Math.exp(-t / 0.0015) * 0.22 + (lp1 - lp2) * Math.exp(-t / 0.0045) * 1.5;
+      phase += (2 * Math.PI * (105 + [0, 12, -9][vi]) * (0.6 + 0.4 * Math.exp(-t / 0.012))) / sr;
+      const knock = Math.sin(phase) * Math.exp(-t / 0.016) * 1.25;
+      const ringA = [640, 720, 580][vi];
+      const ringB = [1480, 1650, 1340][vi];
       const ring =
-        Math.sin(2 * Math.PI * ringA * t) * Math.exp(-t / 0.014) * 0.3 +
-        Math.sin(2 * Math.PI * ringB * t + 0.7) * Math.exp(-t / 0.007) * 0.2;
-      const backAt = [0.046, 0.054, 0.04][vi];
+        Math.sin(2 * Math.PI * ringA * t) * Math.exp(-t / 0.006) * 0.2 +
+        Math.sin(2 * Math.PI * ringB * t + 0.7) * Math.exp(-t / 0.003) * 0.1;
+      const backAt = [0.04, 0.046, 0.035][vi];
       const tb = t - backAt;
-      const back =
-        tb >= 0
-          ? (lp1 - lp2) * Math.exp(-tb / 0.005) * 0.6 +
-            Math.sin(2 * Math.PI * (ringA * 0.72) * tb) * Math.exp(-tb / 0.009) * 0.14
-          : 0;
+      const back = tb >= 0 ? (lp1 - lp2) * Math.exp(-tb / 0.003) * 0.4 : 0;
       v = crack + knock + ring + back;
     } else if (kind === 'thud' || kind === 'stamp') {
       const f0 = kind === 'stamp' ? 115 : 95 + variant * 8;
