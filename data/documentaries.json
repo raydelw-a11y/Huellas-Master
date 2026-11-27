@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-11-25T22:15:59.273Z",
-    "updatedAt": "2026-11-27T17:05:13.837Z",
+    "updatedAt": "2026-11-27T17:10:02.717Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -42,7 +42,7 @@
       "FIELD_CLEARED_AT_clip1OptionsRaw": "0",
       "FIELD_CLEARED_AT_clip1Line1LocationTime": "0",
       "FIELD_CLEARED_AT_clip1Line2Hook": "0",
-      "PROMPTS_RESTORED_AT": "1795799113837",
+      "PROMPTS_RESTORED_AT": "1795799402717",
       "FIELD_CLEARED_AT_rawClipsText": "0",
       "CAPTION_BOTTOM_PCT_16X9": 11,
       "CAPTION_SETTINGS_UPDATED_AT": "1795721953008",
@@ -3396,9 +3396,9 @@
     ],
     "thumbnailOrientation": "HORIZONTAL_16X9",
     "thumbnailTextOptions": [
-      "¿POR QUÉ AHÍ?",
       "NO ERA POTABLE",
-      "NADIE LO QUERÍA"
+      "NO ERA POTABLE",
+      "NO ERA POTABLE"
     ],
     "thumbnailPrompt": "Thumbnail: Create an image in 16:9 horizontal aspect ratio depicting a dramatic close-up documentary photograph at the muddy salt-crusted edge of Lake Texcoco in 1325, where a 32-year-old Indigenous Mesoamerican lake warrior with sun-weathered bronze skin, prominent cheekbones, and straight dark shoulder-length hair tied with a red cotton band, wearing a quilted unbleached cotton tunic, kneels in profile looking down with sharp disgust and recoiling expression at a cupped handful of cloudy yellowish brackish mineral water dripping beside white alkaline salt crusts on dark volcanic silt, his gaze fixed strictly downward on the water in his hand, with misty snow-capped highland volcanoes in the shadowed background, portrayed by an anonymous historical reenactment actor in authentic period attire (no real public figures or prominent people), lit by harsh low angled highland morning sunlight carving deep natural chiaroscuro shadows across his face and wet clay shore, the top-right corner left completely clean and empty with no text, no badge and no logo in that corner, the top-left corner left completely clean and empty with no text, no emblem and no logo in that corner. Generate this image with the Nano Banana 2.1 image model. In the bottom-left area of the image, a bold high-contrast cinematic documentary typography text overlay reads \"NO ERA POTABLE\". The top-right corner is left completely clean and empty, with no text, no badge and no logo in that corner. The top-left corner is left completely clean and empty, with no text, no emblem and no logo in that corner. Shot as a real photograph, not a render: a genuine documentary film still captured on a full-frame cinema camera with a real 35mm lens, natural motivated light coming only from light sources inside the scene, real skin texture with pores and imperfections, real fabric weave, dust and weathered surfaces, subtle film grain, true-to-life muted colors, safe framing composition, 8k resolution, sharp focus, no modern objects. Strictly NOT a 3D render, NOT CGI, NOT a video game or Unreal Engine look, NOT digital painting or illustration, no plastic or waxy skin, no oversaturated colors, no HDR glow, no unintended floating text, no music.",
     "thumbnailTextOverlay": "NO ERA POTABLE",
