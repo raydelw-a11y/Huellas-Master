@@ -3436,43 +3436,63 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                   {showDesignEditor &&
                     (() => {
                       const st = docStyle || VIRAL_CLASSIC_STYLE;
+                      // The classic look's own value is one more option of every list, marked as such
                       const pick = (
                         label: string,
-                        value: string,
-                        options: Array<{ id: string; label: string }>,
-                        onChange: (v: string) => void
+                        key: 'titleFont' | 'captionFont' | 'texture' | 'outline' | 'shadow' | 'titleAnimation' | 'captionAnimation',
+                        options: Array<{ id: string; label: string }>
                       ) => (
                         <label className="block min-w-0">
                           <span className="block text-[10px] text-slate-400 mb-0.5">{label}</span>
                           <select
-                            value={value}
-                            onChange={(e) => onChange(e.target.value)}
+                            value={st[key]}
+                            onChange={(e) => changeDocStyle({ [key]: e.target.value } as Partial<ViralDocStyle>)}
                             className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-amber-100"
                           >
                             {options.map((o) => (
                               <option key={o.id} value={o.id}>
                                 {o.label}
+                                {o.id === VIRAL_CLASSIC_STYLE[key] ? ' — clásico' : ''}
                               </option>
                             ))}
                           </select>
                         </label>
                       );
                       const colour = (label: string, key: 'titleColor' | 'titleAccentColor' | 'captionColor' | 'captionActiveColor') => (
-                        <label className="flex items-center gap-2 min-w-0 cursor-pointer">
-                          <input
-                            type="color"
-                            value={String(st[key]).toLowerCase()}
-                            onChange={(e) => changeDocStyle({ [key]: e.target.value })}
-                            className="w-8 h-7 shrink-0 bg-transparent border border-slate-700 rounded cursor-pointer"
-                          />
-                          <span className="text-[10px] text-slate-300 leading-tight">{label}</span>
-                        </label>
+                        <div className="flex items-center gap-2 min-w-0">
+                          <label className="flex items-center gap-2 min-w-0 flex-1 cursor-pointer">
+                            <input
+                              type="color"
+                              value={String(st[key]).toLowerCase()}
+                              onChange={(e) => changeDocStyle({ [key]: e.target.value })}
+                              className="w-8 h-7 shrink-0 bg-transparent border border-slate-700 rounded cursor-pointer"
+                            />
+                            <span className="text-[10px] text-slate-300 leading-tight">{label}</span>
+                          </label>
+                          {/* The classic look's colour for this piece, one tap away */}
+                          <button
+                            type="button"
+                            onClick={() => changeDocStyle({ [key]: VIRAL_CLASSIC_STYLE[key] })}
+                            title={`Usar el color clásico (${VIRAL_CLASSIC_STYLE[key]})`}
+                            className={`shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded border text-[9px] cursor-pointer ${
+                              String(st[key]).toUpperCase() === VIRAL_CLASSIC_STYLE[key]
+                                ? 'border-amber-400 text-amber-200'
+                                : 'border-slate-700 text-slate-400 hover:border-slate-500'
+                            }`}
+                          >
+                            <span
+                              className="inline-block w-3 h-3 rounded-sm border border-black/40"
+                              style={{ background: VIRAL_CLASSIC_STYLE[key] }}
+                            />
+                            clásico
+                          </button>
+                        </div>
                       );
                       return (
                         <div className="space-y-2 pt-2 border-t border-slate-800">
                           <div className="grid grid-cols-2 gap-2">
-                            {pick('Fuente del título', st.titleFont, VIRAL_TITLE_FONTS, (v) => changeDocStyle({ titleFont: v }))}
-                            {pick('Fuente de los captions', st.captionFont, VIRAL_CAPTION_FONTS, (v) => changeDocStyle({ captionFont: v }))}
+                            {pick('Fuente del título', 'titleFont', VIRAL_TITLE_FONTS)}
+                            {pick('Fuente de los captions', 'captionFont', VIRAL_CAPTION_FONTS)}
                           </div>
                           <div className="grid grid-cols-2 gap-2">
                             {colour('Título', 'titleColor')}
@@ -3481,7 +3501,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                             {colour('Palabra que se dice', 'captionActiveColor')}
                           </div>
                           <div className="grid grid-cols-2 gap-2">
-                            {pick('Textura del título', st.texture, VIRAL_TEXTURES, (v) => changeDocStyle({ texture: v as ViralDocStyle['texture'] }))}
+                            {pick('Textura del título', 'texture', VIRAL_TEXTURES)}
                             <label className="block min-w-0">
                               <span className="block text-[10px] text-slate-400 mb-0.5">Cantidad de textura ({st.textureAmount}%)</span>
                               <input
@@ -3495,14 +3515,10 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                                 className="w-full accent-amber-400 disabled:opacity-40"
                               />
                             </label>
-                            {pick('Contorno del título', st.outline, VIRAL_OUTLINES, (v) => changeDocStyle({ outline: v as ViralDocStyle['outline'] }))}
-                            {pick('Sombra del título', st.shadow, VIRAL_SHADOWS, (v) => changeDocStyle({ shadow: v as ViralDocStyle['shadow'] }))}
-                            {pick('Entrada del título', st.titleAnimation, VIRAL_TITLE_ANIMS, (v) =>
-                              changeDocStyle({ titleAnimation: v as ViralDocStyle['titleAnimation'] })
-                            )}
-                            {pick('Animación de los captions', st.captionAnimation, VIRAL_CAPTION_ANIMS, (v) =>
-                              changeDocStyle({ captionAnimation: v as ViralDocStyle['captionAnimation'] })
-                            )}
+                            {pick('Contorno del título', 'outline', VIRAL_OUTLINES)}
+                            {pick('Sombra del título', 'shadow', VIRAL_SHADOWS)}
+                            {pick('Entrada del título', 'titleAnimation', VIRAL_TITLE_ANIMS)}
+                            {pick('Animación de los captions', 'captionAnimation', VIRAL_CAPTION_ANIMS)}
                           </div>
                           <p className="text-[10px] text-slate-500 italic">
                             Los cambios se ven en la vista previa y valen para todos los clips de este documental. Un color
