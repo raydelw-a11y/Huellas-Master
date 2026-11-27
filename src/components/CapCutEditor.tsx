@@ -8215,11 +8215,24 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           ? liveMatch.audioFadeOutSec
           : bc.audioFadeOutSec;
 
+      // A static B-roll is silenced by the editor itself (muted, volume 0). When the row is a video clip
+      // again that silence must go with it: muted + volume 0 on a clip that is not a B-roll, and that the
+      // user never adjusted by hand (no saved audio edit), is that leftover, so the clip gets its sound back.
+      const isBodyClipRow =
+        bc.clipNumber > 0 && bc.clipNumber !== 999 && bc.id !== 'fixed-doc-intro' && bc.id !== 'fixed-doc-outro';
+      const isBrollMuteLeftover =
+        isBodyClipRow &&
+        !savedAudio &&
+        !bc.isStaticBroll &&
+        !/_broll_4k/i.test(`${bc.fileName || ''} ${bc.videoUrl || ''}`) &&
+        Boolean(bc.videoUrl) &&
+        mergedMuted &&
+        Number(mergedFoleyVol) === 0;
       return {
         ...bc,
-        audioMuted: mergedMuted,
-        customVolumeSet: mergedCustomVol || mergedMuted,
-        foleyVolume: mergedFoleyVol,
+        audioMuted: isBrollMuteLeftover ? false : mergedMuted,
+        customVolumeSet: isBrollMuteLeftover ? false : mergedCustomVol || mergedMuted,
+        foleyVolume: isBrollMuteLeftover ? (bc.clipNumber === 1 ? 80 : 20) : mergedFoleyVol,
         audioFadeInSec: mergedFadeIn,
         audioFadeOutSec: mergedFadeOut,
         reframe9x16Mode: liveMatch?.reframe9x16Mode || bc.reframe9x16Mode,
