@@ -1425,6 +1425,11 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
     };
   }, [clipCuts, useMasterSource, viralMaster?.builtAt]);
   const partRef = useRef<number>(0);
+  // Where the player should be (seconds of the source video). An iPhone ignores a jump made before the video
+  // has data and then plays from 00:00, far before the clip: the captions stayed on the first line and the
+  // title never changed. applyClipCutsAt puts the video back here when it finds it before its piece.
+  const wantedSourceRef = useRef<number>(0);
+  const lastSeekFixAtRef = useRef<number>(0);
   const toClipTime = (sourceSec: number) => (playCuts ? viralSourceToClipTime(playCuts, sourceSec, partRef.current) : 0);
   /** Moves the player to a point of the exported clip (0 … total) */
   const seekClipTime = (clipSec: number) => {
@@ -1432,6 +1437,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
     const ct = Math.max(0, Math.min(playCuts.totalDurSec, clipSec));
     const { partIndex, sourceSec } = viralClipTimeToSource(playCuts, ct);
     partRef.current = partIndex;
+    wantedSourceRef.current = sourceSec;
     if (videoRef.current) videoRef.current.currentTime = sourceSec;
     setPlayheadSec(sourceSec);
     setCaptionSec(ct);
@@ -1441,10 +1447,22 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
     if (!playCuts || playCuts.parts.length === 0) return false;
     const idx = Math.max(0, Math.min(playCuts.parts.length - 1, partRef.current));
     const part = playCuts.parts[idx];
+    if (vid.currentTime < part.srcStart - 0.3) {
+      // The video is before its piece: the jump was ignored (iPhone, before the video had data). Jump again,
+      // at most every 0.4 s, once the video can take it.
+      const now = performance.now();
+      if (vid.readyState >= 1 && now - lastSeekFixAtRef.current > 400) {
+        lastSeekFixAtRef.current = now;
+        const wanted = wantedSourceRef.current;
+        vid.currentTime = wanted >= part.srcStart && wanted < part.srcEnd ? wanted : part.srcStart;
+      }
+      return true;
+    }
     if (vid.currentTime >= part.srcEnd - 0.01) {
       const next = playCuts.parts[idx + 1];
       if (next) {
         partRef.current = idx + 1;
+        wantedSourceRef.current = next.srcStart;
         vid.currentTime = next.srcStart;
       } else {
         vid.pause();
@@ -2408,6 +2426,9 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                         // Keep the place (on the clip's own timeline) when the player switches source or preview
                         seekClipTime(captionSec);
                       }}
+                      onLoadedData={(e) => void applyClipCutsAt(e.currentTarget)}
+                      onCanPlay={(e) => void applyClipCutsAt(e.currentTarget)}
+                      onPlaying={(e) => void applyClipCutsAt(e.currentTarget)}
                       onPlay={() => setIsPlaying(true)}
                       onPause={() => setIsPlaying(false)}
                       playsInline
