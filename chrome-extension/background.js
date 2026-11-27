@@ -2705,7 +2705,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           try {
             await ensureScriptInjected(t.id, 'gemini-content.js');
             await sleep(100);
-            const r = await chrome.tabs.sendMessage(t.id, { ...payload, quietIfNone: true });
+            // target: 'GEMINI' is required: the Gemini content script ignores any message without it
+            const r = await chrome.tabs.sendMessage(t.id, { target: 'GEMINI', ...payload, quietIfNone: true });
             if (r && r.handled) {
               sendResponse({ ok: true, tabId: t.id });
               return;

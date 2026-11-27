@@ -443,12 +443,71 @@
     return !loadedGenImg;
   }
 
+  // The <img> Gemini shows is a re-compressed copy (blob) of the generated image. The page loaded it from a
+  // googleusercontent "gg-dl" address that is still listed in the page's resource timings; the same address
+  // ending in "=d-I" returns the stored original (same pixels, about 4x less compression). Each hop answers
+  // with the next address as plain text until the image itself arrives. Returns '' when it cannot be found.
+  async function fetchGeminiOriginalImageDataUrl(blobSrc) {
+    try {
+      const domImg = Array.from(document.querySelectorAll('img')).find((i) => i.src === blobSrc);
+      const domRatio =
+        domImg && domImg.naturalWidth && domImg.naturalHeight ? domImg.naturalWidth / domImg.naturalHeight : 0;
+      const seen = new Set();
+      const candidates = performance
+        .getEntriesByType('resource')
+        .map((e) => e.name)
+        .filter((n) => /^https:\/\/[^/]*googleusercontent\.com\/gg-dl\/[^?]+=s\d+/.test(n))
+        .reverse()
+        .filter((n) => {
+          const key = n.replace(/=s\d+[^?]*.*$/, '');
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        })
+        .slice(0, 4);
+      for (const entryUrl of candidates) {
+        try {
+          let u = entryUrl.replace(/=s\d+[^?]*/, '=d-I');
+          let blob = null;
+          for (let hop = 0; hop < 5; hop++) {
+            const r = await fetch(u, { credentials: 'include' });
+            if (!r.ok) break;
+            if (/^image\//i.test(r.headers.get('content-type') || '')) {
+              blob = await r.blob();
+              break;
+            }
+            const next = (await r.text()).trim();
+            if (!/^https:\/\//.test(next)) break;
+            u = next;
+          }
+          if (!blob || blob.size < 20000) continue;
+          // Several images can live in one chat: only the one with the same shape as the wanted <img> counts
+          const bm = await createImageBitmap(blob);
+          const ratio = bm.width / bm.height;
+          const bigEnough = !domImg || bm.width >= domImg.naturalWidth;
+          if (bm.close) bm.close();
+          if (!bigEnough || (domRatio && Math.abs(ratio - domRatio) / domRatio > 0.02)) continue;
+          const dataUrl = await new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(typeof reader.result === 'string' ? reader.result : '');
+            reader.onerror = () => resolve('');
+            reader.readAsDataURL(blob);
+          });
+          if (dataUrl) return dataUrl;
+        } catch {}
+      }
+    } catch {}
+    return '';
+  }
+
   async function convertGeminiImageUrlToDataUrl(src) {
     const raw = String(src || '').trim();
     if (!raw) return '';
     if (raw.startsWith('data:image/')) return raw;
 
     if (raw.startsWith('blob:')) {
+      const original = await fetchGeminiOriginalImageDataUrl(raw);
+      if (original) return original;
       try {
         const resp = await fetch(raw);
         if (resp.ok) {
