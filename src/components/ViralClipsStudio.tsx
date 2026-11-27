@@ -1092,7 +1092,15 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
   useEffect(() => {
     const onAnswer = (ev: Event) => {
       const docId = String((ev as CustomEvent).detail?.docId || '');
-      if (docId && docId === selectedDocId) void fetchPendingGeminiAnswer(docId);
+      if (!docId || docId !== selectedDocId) return;
+      // The Mac could not store the answer: it comes in the event itself
+      const directText = String((ev as CustomEvent).detail?.text || '');
+      if (directText.trim()) {
+        pendingGeminiAnswerRef.current = { docId, text: directText, at: Date.now() };
+        setPendingGeminiTick((t) => t + 1);
+        return;
+      }
+      void fetchPendingGeminiAnswer(docId);
     };
     window.addEventListener('huellas-viral-gemini-answer', onAnswer);
     return () => window.removeEventListener('huellas-viral-gemini-answer', onAnswer);

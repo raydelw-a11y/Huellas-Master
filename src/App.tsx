@@ -255,7 +255,7 @@ import { stampBrandMarksOnThumbnail, HD_BADGE_EMPTY_CORNER_CLAUSE, LOGO_EMPTY_CO
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '03:33 PM - 11/27/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '03:39 PM - 11/27/2026';
 
 // PRODUCTION LOCK: while promptConfig.PRODUCTION_LOCKED === 'YES' these fields never change (the server
 // enforces the same list in protectLockedDocs). Metadata, thumbnails, review marks and reframes stay editable.
@@ -13968,15 +13968,23 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         const viralDocId = String(msg.docId || '').trim();
         const viralText = String(msg.text || '');
         if (viralDocId && viralText.trim()) {
-          void fetch('/api/viral-clips/gemini-answer', {
+          // The page may be the GitHub Pages copy: the Mac is reached at its own address, never with a relative
+          // /api path (that one went to github.io and the answer was lost). If the Mac cannot store it, the
+          // answer goes straight to the Viral Clips screen.
+          const viralOrigin = getMediaBridgeSnapshot().activeOrigin || getOrderedMediaBridgeBases()[0] || '';
+          const announceViralAnswer = (stored: boolean) =>
+            window.dispatchEvent(
+              new CustomEvent('huellas-viral-gemini-answer', {
+                detail: stored ? { docId: viralDocId } : { docId: viralDocId, text: viralText },
+              })
+            );
+          void fetch(`${viralOrigin}/api/viral-clips/gemini-answer`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ docId: viralDocId, text: viralText }),
           })
-            .then(() =>
-              window.dispatchEvent(new CustomEvent('huellas-viral-gemini-answer', { detail: { docId: viralDocId } }))
-            )
-            .catch(() => {});
+            .then((r) => announceViralAnswer(r.ok))
+            .catch(() => announceViralAnswer(false));
         }
       } else if (msg.type === 'GEMINI_RESPONSE_READY' && Number(msg.stageNumber) === 975) {
         // Análisis de un video de Etapa 1 (varios a la vez): la extensión ya lo guardó en la biblioteca. Nunca es una etapa.
