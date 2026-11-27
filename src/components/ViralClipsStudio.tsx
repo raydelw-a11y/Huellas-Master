@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-declare const __BUILD_TIMESTAMP__: string | undefined;
 import {
   computeViralClipCuts,
   buildViralLocalWords,
@@ -42,6 +41,27 @@ import {
   computeViralBigTitleTopFrac,
   type ViralFaceBox,
 } from '../utils/viralTitle';
+import {
+  VIRAL_CAPTION_ANIMS,
+  VIRAL_CAPTION_BOX_PAD_CAPS,
+  VIRAL_CAPTION_FONTS,
+  VIRAL_CAPTION_REF_CAP_EM,
+  VIRAL_CLASSIC_STYLE,
+  VIRAL_OUTLINES,
+  VIRAL_SHADOWS,
+  VIRAL_TEXTURES,
+  VIRAL_TITLE_ANIMS,
+  VIRAL_TITLE_FONTS,
+  buildViralStyleRequest,
+  makeViralStyleUnique,
+  normalizeViralStyle,
+  viralCaptionSizeFactor,
+  viralFontById,
+  viralInkOn,
+  viralStyleSignature,
+  type ViralDocStyle,
+} from '../utils/viralStyle';
+import { useViralFontTick, viralFontCssFamily, viralFontCssWeight, viralFontMetrics } from '../utils/viralFonts';
 import { sendCommandToWebBridge } from '../utils/webStudioBridge';
 import { getBrowserGitHubToken, GITHUB_OWNER, GITHUB_REPO, GITHUB_BRANCH } from '../utils/cloudSync';
 import {
@@ -499,6 +519,18 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
     } catch {}
   }, [linkPlace]);
   const [docYoutubeUrl, setDocYoutubeUrl] = useState<string>('');
+  // The documentary's own design for its clips' title and captions (null = the classic look). Gemini chooses
+  // it from the documentary's era, place and story when the clips are asked for; every piece can be changed
+  // by hand. `docStyleLocked`: Gemini never changes it (asking for clips again keeps the design).
+  const [docStyle, setDocStyle] = useState<ViralDocStyle | null>(null);
+  const [docStyleLocked, setDocStyleLocked] = useState<boolean>(false);
+  const docStyleLockedRef = useRef<boolean>(false);
+  docStyleLockedRef.current = docStyleLocked;
+  // Designs of the other documentaries: a whole combination is never repeated
+  const [otherDocStyles, setOtherDocStyles] = useState<Array<{ docId: string; title: string; style: ViralDocStyle }>>([]);
+  const otherDocStylesRef = useRef(otherDocStyles);
+  otherDocStylesRef.current = otherDocStyles;
+  const [showDesignEditor, setShowDesignEditor] = useState<boolean>(false);
   // Cover: the clip's last frame is a still of the clip with the big title
   const [showCover, setShowCover] = useState<boolean>(() => {
     try {
@@ -750,6 +782,8 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
     if (viralClipsDocIdRef.current && viralClipsDocIdRef.current !== selectedDocId) {
       setViralClips([]);
       setSelectedClipId('');
+      setDocStyle(null);
+      setDocStyleLocked(false);
     }
     viralClipsDocIdRef.current = '';
     setViralOffline(false);
@@ -770,6 +804,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
             const copyClips = Array.isArray(copy?.clips) ? copy.clips : [];
             if (!cancelled && copyClips.length > 0 && !viralClipsDocIdRef.current) {
               setDocYoutubeUrl(String(copy.youtubeUrl || ''));
+              setDocStyle(normalizeViralStyle(copy.docStyle));
               setViralClips(
                 applyViralPublishedMarks(
                   copyClips.map((c: any) => ({
@@ -819,6 +854,8 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
           viralClipsDocIdRef.current = selectedDocId;
           setViralOffline(false);
           setDocYoutubeUrl(String(data.youtubeUrl || ''));
+          setDocStyle(normalizeViralStyle(data.docStyle));
+          setDocStyleLocked(Boolean(data.docStyleLocked));
           if (data.pendingGeminiAnswer?.text && Number(data.pendingGeminiAnswer.at) > appliedGeminiAnswerAtRef.current) {
             pendingGeminiAnswerRef.current = {
               docId: selectedDocId,
@@ -866,11 +903,50 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
           clips: viralClips,
           selectedClipId,
           youtubeUrl: docYoutubeUrl,
+          docStyle,
+          docStyleLocked,
           clearPendingGeminiAt: appliedGeminiAnswerAtRef.current || undefined,
         }),
       }).catch(() => {});
     }, 800);
-  }, [viralClips, selectedClipId, docYoutubeUrl]);
+  }, [viralClips, selectedClipId, docYoutubeUrl, docStyle, docStyleLocked]);
+  // Designs the other documentaries already have (asked again right before each order to Gemini)
+  const fetchOtherDocStyles = async (): Promise<Array<{ docId: string; title: string; style: ViralDocStyle }>> => {
+    try {
+      const ctrl = new AbortController();
+      const timer = window.setTimeout(() => ctrl.abort(), 5000);
+      const resp = await fetch(viralApi(`/api/viral-clips/styles?exceptDocId=${encodeURIComponent(selectedDocId || '')}`), {
+        cache: 'no-store',
+        signal: ctrl.signal,
+      });
+      window.clearTimeout(timer);
+      const data = resp.ok ? await resp.json() : null;
+      const list = (Array.isArray(data?.styles) ? data.styles : [])
+        .map((x: any) => ({ docId: String(x?.docId || ''), title: String(x?.title || ''), style: normalizeViralStyle(x?.style) }))
+        .filter((x: any) => x.docId && x.style) as Array<{ docId: string; title: string; style: ViralDocStyle }>;
+      setOtherDocStyles(list);
+      return list;
+    } catch {
+      return otherDocStylesRef.current;
+    }
+  };
+  useEffect(() => {
+    if (sourceMode !== 'doc' || !selectedDocId) {
+      setOtherDocStyles([]);
+      return;
+    }
+    void fetchOtherDocStyles();
+  }, [sourceMode, selectedDocId]);
+  /** A change made by hand to the design (from the classic look when there is none yet). */
+  const changeDocStyle = (patch: Partial<ViralDocStyle>) => {
+    setDocStyle((prev) => normalizeViralStyle({ ...(prev || VIRAL_CLASSIC_STYLE), ...patch, source: 'manual', reason: '' }));
+  };
+  // Another documentary with exactly this combination (the whole combination must never repeat)
+  const docStyleTwin = useMemo(() => {
+    if (!docStyle) return null;
+    const sig = viralStyleSignature(docStyle);
+    return otherDocStyles.find((o) => viralStyleSignature(o.style) === sig) || null;
+  }, [docStyle, otherDocStyles]);
 
   // Upload Local Video Handler
   const handleUploadLocalVideo = async (file: File) => {
@@ -1001,11 +1077,73 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
       };
     });
 
+  // Order for Gemini Web: a documentary's goes to ITS Gemini chat (same conversation as its stages, so
+  // Gemini knows the documentary); other sources (MP4, YouTube link) use a new chat. The answer comes back to
+  // this screen (VIRAL_CLIPS_GEMINI_STAGE), never into a stage.
+  const buildGeminiViralPayload = (prompt: string, ctxDoc: any) => {
+    const docChatUrl = String(ctxDoc?.geminiChatUrl || ctxDoc?.promptConfig?.GEMINI_CHAT_URL || '').trim();
+    const useDocChat = Boolean(ctxDoc && docChatUrl);
+    return {
+      action: 'SEND_PROMPT',
+      prompt,
+      stageNumber: VIRAL_CLIPS_GEMINI_STAGE,
+      taskType: 'VIRAL_CLIPS',
+      // The answer comes back tagged with it and is stored under this documentary
+      docId: sourceMode === 'doc' ? selectedDocId : '',
+      videoName: useDocChat ? String(ctxDoc?.geminiChatTitle || ctxDoc?.title || '') : '',
+      deepResearchVideoName: '',
+      geminiChatUrl: useDocChat ? docChatUrl : '',
+      geminiDeepResearchChatUrl: '',
+      notebookName: useDocChat ? 'Huellas de la Humanidad' : '',
+      standaloneNewChat: !useDocChat,
+      noNotebook: !useDocChat,
+      enableHighModel: false,
+      enableArgonLow: true,
+      enableCarbonLow: true,
+      preferredModel: 'CARBON_4_LOW',
+      thinkingLevel: 'LOW',
+      enableDeepResearch: false,
+      enableCreateImage: false,
+      autoSubmit: true,
+      focusTab: false,
+    } as any;
+  };
+  // The design alone, for a documentary that already has its clips: Gemini chooses it from what the
+  // documentary is about and the clip list is not touched
+  const requestDocStyleFromGemini = async () => {
+    const ctxDoc: any = sourceMode === 'doc' ? documentaries.find((d) => d.id === selectedDocId) || null : null;
+    if (!ctxDoc) return;
+    const others = await fetchOtherDocStyles();
+    const ctxLines = [
+      ctxDoc?.clip1Line2Hook ? `What the documentary reveals: "${ctxDoc.clip1Line2Hook}"` : '',
+      ctxDoc?.historicalTime ? `Era: ${ctxDoc.historicalTime}` : '',
+      ctxDoc?.historicalLocation ? `Place: ${ctxDoc.historicalLocation}` : '',
+      ctxDoc?.clip1Line1LocationTime ? `Setting: ${ctxDoc.clip1Line1LocationTime}` : '',
+    ].filter(Boolean);
+    const clipTitles = viralClips
+      .slice(0, 12)
+      .map((c) => String(c.hookBannerText || c.title || '').trim())
+      .filter(Boolean);
+    const prompt =
+      `Act as the art director of a history channel's viral short videos. Choose the on-screen design for the viral clips of the documentary "${
+        (ctxDoc?.publishTitle as string) || ctxDoc?.title || sourceTitle
+      }".` +
+      (ctxLines.length ? ` DOCUMENTARY CONTEXT: ${ctxLines.join('; ')}.` : '') +
+      (clipTitles.length ? ` On-screen titles of its clips: ${clipTitles.map((t) => `"${t}"`).join('; ')}.` : '') +
+      buildViralStyleRequest(others.map((o) => ({ title: o.title, style: o.style }))) +
+      ` Return ONLY a valid JSON object (no markdown, no commentary) with that single top-level key: {"style":{...}}.`;
+    const payload = buildGeminiViralPayload(prompt, ctxDoc);
+    geminiViralOrderRef.current = { payload, attempts: 1, styleOnly: true };
+    sendCommandToWebBridge('GEMINI', payload);
+    setIsWaitingGeminiClips(true);
+    setActionToast('🎨 Pedido a Gemini Web: el diseño de este documental. Cuando responda, se aplicará aquí solo.');
+  };
+
   // Respuesta de Gemini Web al botón "Gemini Web (Gratis)": se convierte en la lista de clips, igual que
   // el análisis local. Llega marcada con VIRAL_CLIPS_GEMINI_STAGE y nunca se guarda como resultado de una etapa.
   const transcriptSegmentsRef = useRef<TranscriptSegmentItem[]>([]);
   transcriptSegmentsRef.current = transcriptSegments;
-  const geminiViralOrderRef = useRef<{ payload: any; attempts: number } | null>(null);
+  const geminiViralOrderRef = useRef<{ payload: any; attempts: number; styleOnly?: boolean } | null>(null);
   const applyGeminiViralResponseRef = useRef<(text: string) => boolean>(() => false);
   // Instant of the stored Gemini answer turned into the list on screen (the next save clears it on the Mac)
   const appliedGeminiAnswerAtRef = useRef<number>(0);
@@ -1013,14 +1151,51 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
     setIsWaitingGeminiClips(false);
     if (sourceMode === 'doc' && selectedDocId) viralClipsDocIdRef.current = selectedDocId;
     let parsedList: any[] = [];
+    let parsedStyle: ViralDocStyle | null = null;
     try {
       const raw = String(text || '');
       const startIdx = raw.indexOf('{');
       const endIdx = raw.lastIndexOf('}');
       const parsed = startIdx >= 0 && endIdx > startIdx ? JSON.parse(raw.slice(startIdx, endIdx + 1)) : null;
       parsedList = Array.isArray(parsed?.clips) ? parsed.clips : [];
+      parsedStyle = parsed?.style && typeof parsed.style === 'object' ? normalizeViralStyle({ ...parsed.style, source: 'gemini' }) : null;
     } catch {
       parsedList = [];
+    }
+    // The documentary's design, when Gemini sends one and it is not fixed: never the whole combination of
+    // another documentary (its animations change if it comes out identical)
+    let styleNote = '';
+    if (parsedStyle && sourceMode === 'doc' && !docStyleLockedRef.current) {
+      const unique = makeViralStyleUnique(
+        parsedStyle,
+        otherDocStylesRef.current.map((o) => viralStyleSignature(o.style))
+      );
+      setDocStyle(unique.style);
+      styleNote = ` Diseño propio: ${viralFontById(unique.style.titleFont).label}.`;
+    }
+    const styleOnlyOrder = Boolean(geminiViralOrderRef.current?.styleOnly);
+    if (styleOnlyOrder || (parsedStyle && parsedList.length === 0)) {
+      // An order for the design alone: the clip list stays as it is
+      if (styleNote) {
+        geminiViralOrderRef.current = null;
+        setActionToast(`🎨 Gemini eligió el diseño de este documental.${styleNote}`);
+        return true;
+      }
+      const pendingStyle = geminiViralOrderRef.current;
+      if (pendingStyle && pendingStyle.attempts < 2) {
+        pendingStyle.attempts += 1;
+        sendCommandToWebBridge('GEMINI', pendingStyle.payload);
+        setIsWaitingGeminiClips(true);
+        setActionToast('🔁 La respuesta de Gemini llegó incompleta; la pido otra vez...');
+        return false;
+      }
+      geminiViralOrderRef.current = null;
+      setActionToast(
+        docStyleLockedRef.current
+          ? '🔒 El diseño de este documental está fijado: quita el candado para que Gemini lo cambie.'
+          : '⚠️ Gemini respondió, pero sin un diseño que se pueda leer. Vuelve a pedirlo.'
+      );
+      return false;
     }
     const segs = transcriptSegmentsRef.current;
     const spanEnd = segs.length > 0 ? segs[segs.length - 1].end : 0;
@@ -1057,7 +1232,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
     setViralClips(built);
     setSelectedClipId(built[0].id);
     setPlayheadSec(built[0].startSec);
-    setActionToast(`✅ Gemini eligió ${built.length} clips. Ya están en la lista.`);
+    setActionToast(`✅ Gemini eligió ${built.length} clips. Ya están en la lista.${styleNote}`);
     return true;
   };
 
@@ -1382,9 +1557,6 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
       if (clipCuts && toClipTime(vid.currentTime) >= clipCuts.totalDurSec - 0.3) seekClipTime(0);
       vid.play().catch(() => {});
       setIsPlaying(true);
-      sendPlayerDiag('play');
-      window.setTimeout(() => sendPlayerDiagRef.current('play+1.5s'), 1500);
-      window.setTimeout(() => sendPlayerDiagRef.current('play+4s'), 4000);
     } else {
       vid.pause();
       setIsPlaying(false);
@@ -1456,54 +1628,6 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
       vid.currentTime = sourceSec;
     } catch {}
   };
-  // Player diagnosis from a phone or any device that is not the Mac (temporary, to see why jumps are dropped
-  // there): a few lines per page load, kept by the Mac in data/viral-clips/player-diag.log
-  const playCutsRef = useRef(playCuts);
-  playCutsRef.current = playCuts;
-  const playerDiagCountRef = useRef<number>(0);
-  const sendPlayerDiag = (label: string) => {
-    try {
-      if (!getViralServerOrigin() || playerDiagCountRef.current >= 60) return;
-      const vid = videoRef.current;
-      if (!vid) return;
-      playerDiagCountRef.current += 1;
-      const ranges = (r: TimeRanges) => {
-        const out: number[][] = [];
-        for (let i = 0; i < Math.min(3, r.length); i++) out.push([Number(r.start(i).toFixed(1)), Number(r.end(i).toFixed(1))]);
-        return out;
-      };
-      const cuts = playCutsRef.current;
-      const part = cuts?.parts[Math.max(0, Math.min((cuts?.parts.length || 1) - 1, partRef.current))];
-      void fetch(viralApi('/api/viral-clips/player-diag'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        keepalive: true,
-        body: JSON.stringify({
-          label,
-          n: playerDiagCountRef.current,
-          build: typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '',
-          file: String(vid.currentSrc || '').split('?')[0].split('/').pop(),
-          ct: Number(vid.currentTime.toFixed(2)),
-          dur: Number.isFinite(vid.duration) ? Number(vid.duration.toFixed(1)) : String(vid.duration),
-          rs: vid.readyState,
-          ns: vid.networkState,
-          paused: vid.paused,
-          seeking: vid.seeking,
-          seekable: ranges(vid.seekable),
-          buffered: ranges(vid.buffered),
-          err: vid.error?.code || 0,
-          part: part ? [part.srcStart, part.srcEnd] : null,
-          partIdx: partRef.current,
-          wanted: wantedSourceRef.current,
-          pending: pendingSeekRef.current,
-          retries: seekRetriesRef.current,
-          gaveUp: seekGaveUpRef.current,
-        }),
-      }).catch(() => {});
-    } catch {}
-  };
-  const sendPlayerDiagRef = useRef(sendPlayerDiag);
-  sendPlayerDiagRef.current = sendPlayerDiag;
   const toClipTime = (sourceSec: number) => (playCuts ? viralSourceToClipTime(playCuts, sourceSec, partRef.current) : 0);
   /** Moves the player to a point of the exported clip (0 … total) */
   const seekClipTime = (clipSec: number) => {
@@ -1542,12 +1666,10 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
           if (seekRetriesRef.current > 30) {
             pendingSeekRef.current = null;
             seekGaveUpRef.current = true;
-            sendPlayerDiag('abandonado');
           } else {
             try {
               vid.currentTime = pending;
             } catch {}
-            if (seekRetriesRef.current <= 5) sendPlayerDiag('reintento');
           }
         }
         return true;
@@ -1574,7 +1696,6 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
       videoRef.current.pause();
       setIsPlaying(false);
       seekClipTime(0);
-      sendPlayerDiag('clip');
     }
   }, [selectedClip?.id, playCuts]);
   // A paused video gives almost no events: check twice a second whether a jump is still pending
@@ -1639,7 +1760,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
 
   const activeCaptionChunk = useMemo(() => {
     if (!clipCuts || clipLocalWords.length === 0) return null;
-    const safePerLine = Math.max(1, Math.min(2, wordsPerLine));
+    const safePerLine = docStyle?.captionAnimation === 'single' ? 1 : Math.max(1, Math.min(2, wordsPerLine));
     const words = clipLocalWords;
     // Igual que la exportación: cada línea se corta también a los 16 caracteres y nunca cruza el paso
     // del gancho al cuerpo del clip
@@ -1690,15 +1811,23 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
       return { chunk, activeIdx };
     }
     return null;
-  }, [clipCuts, clipLocalWords, captionSec, wordsPerLine]);
+  }, [clipCuts, clipLocalWords, captionSec, wordsPerLine, docStyle?.captionAnimation]);
+  // The design's caption font (loaded from the Mac the first time it is needed)
+  const captionFontDef = docStyle ? viralFontById(docStyle.captionFont) : null;
+  useViralFontTick(captionFontDef);
 
-  // Poster title in the preview: the same lines, moments and places as the render
+  // Poster title in the preview: the same lines, moments and places as the render. A design's font can be
+  // wider than the classic one, and then the title takes more lines.
+  const titleWidthFactor = docStyle ? viralFontById(docStyle.titleFont).widthFactor : 1;
   const posterTitleLines = useMemo(
-    () => (showHookBanner ? splitViralTitleLines(selectedClip?.hookBannerText || '') : []),
-    [showHookBanner, selectedClip?.hookBannerText]
+    () => (showHookBanner ? splitViralTitleLines(selectedClip?.hookBannerText || '', titleWidthFactor) : []),
+    [showHookBanner, selectedClip?.hookBannerText, titleWidthFactor]
   );
   const previewFrameW = (previewFrameH * 9) / 16;
-  const posterSmallLines = useMemo(() => buildViralSmallTitleLines(posterTitleLines), [posterTitleLines]);
+  const posterSmallLines = useMemo(
+    () => buildViralSmallTitleLines(posterTitleLines, titleWidthFactor),
+    [posterTitleLines, titleWidthFactor]
+  );
   // Faces under the big title (found by the Mac in the clip's opening seconds): the title starts below them
   const [titleFaces, setTitleFaces] = useState<ViralFaceBox[]>([]);
   // The same while each YouTube notice is on screen (one list per notice, in order)
@@ -1765,7 +1894,8 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
     previewFrameW,
     previewFrameH,
     VIRAL_TITLE_LOOK.noticeTextWFrac,
-    VIRAL_TITLE_LOOK.noticeFontHFrac
+    VIRAL_TITLE_LOOK.noticeFontHFrac,
+    docStyle
   );
   // Frames offered as the clip's cover, with the one the page proposes
   const coverWanted = Boolean(selectedClip) && showCover && titleStyle === 'poster_gold' && showHookBanner;
@@ -1789,6 +1919,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
           reframeMode: selectedClip.reframeMode,
           focusX: selectedClip.focusX,
           hookBannerText: selectedClip.hookBannerText,
+          docStyle: docStyle || undefined,
         }),
       })
         .then((r) => (r.ok ? r.json() : null))
@@ -1811,21 +1942,25 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
       window.clearTimeout(timer);
       setCoverLoading(false);
     };
-  }, [titleFacesKey, coverWanted, coverTitleKey, sourceMode]);
+  }, [titleFacesKey, coverWanted, coverTitleKey, sourceMode, docStyle?.titleFont]);
   const posterBigFontPx = useViralPosterFontPx(
     posterTitleLines,
     previewFrameW,
     previewFrameH,
     VIRAL_TITLE_LOOK.bigTextWFrac,
-    VIRAL_TITLE_LOOK.bigFontHFrac
+    VIRAL_TITLE_LOOK.bigFontHFrac,
+    docStyle
   );
-  const posterSmallFontPx = useViralPosterFontPx(
+  const posterSmallFontPxFit = useViralPosterFontPx(
     posterSmallLines,
     previewFrameW,
     previewFrameH,
     VIRAL_TITLE_LOOK.smallTextWFrac,
-    VIRAL_TITLE_LOOK.bigFontHFrac * VIRAL_TITLE_LOOK.smallFontScale
+    VIRAL_TITLE_LOOK.bigFontHFrac * VIRAL_TITLE_LOOK.smallFontScale,
+    docStyle
   );
+  // As in the render: the line that stays is never bigger than the opening title
+  const posterSmallFontPx = docStyle ? Math.min(posterSmallFontPxFit, posterBigFontPx) : posterSmallFontPxFit;
   const posterTitle = useMemo(() => {
     const timeline = computeViralTitleTimeline(clipCuts ? clipCuts.totalDurSec : 0, {
       hasTitle: posterTitleLines.length > 0,
@@ -1835,14 +1970,15 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
     // The notice sits under the small title (under the logo when the yellow banner is used instead)
     const smallTextH =
       titleStyle === 'poster_gold' && timeline.small
-        ? viralPosterTextHeightPx(posterSmallLines.length, posterSmallFontPx)
+        ? viralPosterTextHeightPx(posterSmallLines.length, posterSmallFontPx, docStyle)
         : 0;
     // The big title goes below a face it would cover, as in the render
     const bigTopPx =
       previewFrameH *
       computeViralBigTitleTopFrac({
         defaultTopFrac: topPx / Math.max(1, previewFrameH),
-        textHeightFrac: viralPosterTextHeightPx(posterTitleLines.length, posterBigFontPx) / Math.max(1, previewFrameH),
+        textHeightFrac:
+          viralPosterTextHeightPx(posterTitleLines.length, posterBigFontPx, docStyle) / Math.max(1, previewFrameH),
         faces: titleFaces,
         maxBottomFrac: viralTitleMaxBottomFrac(captionYPercent),
       });
@@ -1853,7 +1989,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
         previewFrameH *
         computeViralBigTitleTopFrac({
           defaultTopFrac: noticeTopPx / Math.max(1, previewFrameH),
-          textHeightFrac: viralPosterTextHeightPx(1, posterNoticeFontPx) / Math.max(1, previewFrameH),
+          textHeightFrac: viralPosterTextHeightPx(1, posterNoticeFontPx, docStyle) / Math.max(1, previewFrameH),
           faces: noticeFaces[i] || [],
           maxBottomFrac: viralTitleMaxBottomFrac(captionYPercent),
         })
@@ -1883,6 +2019,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
     titleFaces,
     noticeFaces,
     captionYPercent,
+    docStyle,
   ]);
 
   // Exports ("Guardar Clip ##"): each click queues a render on the Mac; several can run at once (the Mac
@@ -2025,6 +2162,8 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
           titleStyle,
           showYoutubeNotice,
           showCover,
+          // The documentary's design (absent: the classic look)
+          docStyle: sourceMode === 'doc' && docStyle ? docStyle : undefined,
           coverClipSec: typeof clip.coverSec === 'number' ? clip.coverSec : undefined,
           // Background job in the Mac's queue (through the tunnel a request open more than 100 s is cut)
           async: true,
@@ -2327,7 +2466,12 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
               <button
                 type="button"
                 disabled={transcriptSegments.length === 0}
-                onClick={() => {
+                onClick={async () => {
+                  // The documentary's design is asked for in the same order (unless it is fixed)
+                  const wantsStyle = sourceMode === 'doc' && Boolean(selectedDocId) && !docStyleLocked;
+                  const styleRequest = wantsStyle
+                    ? buildViralStyleRequest((await fetchOtherDocStyles()).map((o) => ({ title: o.title, style: o.style })))
+                    : '';
                   const minDur =
                     targetDurationRange === '15_30' ? 18 : targetDurationRange === '60_90' ? 55 : 30;
                   const maxDur =
@@ -2355,36 +2499,11 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                     : '';
                   const webPrompt = `Act as OpusClip Pro and an expert viral short-form video editor. From the following timestamped Spanish transcript of "${
                     (ctxDoc?.publishTitle as string) || sourceTitle
-                  }",${docContextBlock} ${desiredClipCount > 0 ? `select the ${desiredClipCount} most viral standalone clips` : 'decide yourself how many standalone clips this transcript genuinely supports with strong viral potential (at most about one per 75 seconds of narration, so a longer documentary can give more, never fewer than 3, and never a weak one just to reach a number), and select them'}, each lasting between ${minDur}s and ${maxDur}s IN TOTAL. CLIP STRUCTURE: a clip is built from 1 to 4 pieces ("segments") of the transcript, ALWAYS in chronological order (never a flash-forward, hook teaser or any later moment placed before an earlier one). Use several pieces only when cutting out filler, a tangent or a slow passage makes the clip stronger: skip what is in between and keep the best lines. Every piece starts at the beginning of a phrase and ends at the end of a phrase (never in the middle of a sentence), is at least 4 seconds long, and the pieces together must read as one clear, self-contained story. The first piece opens with the strongest possible line, because the first 3 seconds decide whether people keep watching. If the moment already works as one continuous stretch, use a single piece. The clip length is the SUM of its pieces. CRITICAL OUTPUT LANGUAGE REQUIREMENT: Return ONLY a valid JSON object (no markdown commentary) where all audience-facing text fields ("title", "viralityReason", "hookBannerText", "socialCaption", "hashtags", "pinnedComment") are written in Neutral Spanish: {"clips":[{"title":"...","viralityScore":96,"viralityReason":"...","segments":[{"startSec":120.5,"endSec":138.2},{"startSec":146.0,"endSec":171.4}],"hookBannerText":"...","socialCaption":"...","hashtags":"#Uno #Dos #Tres #Cuatro #Cinco","pinnedComment":"..."}]}. EVERY clip has its OWN publication text, written for that clip only, for a COLD VIEWER who has never seen the channel or the documentary and scrolls past in 2 seconds: every text must say WHERE and WHEN (or WHO) it happens and why it matters, never vague abstractions like "El lujo mortal" or "La gran paradoja", never pronouns or references that only make sense inside the documentary ("él", "esto", "la fortaleza" without naming it). "hookBannerText" is the on-screen title shown during the first 8 seconds (UPPERCASE, max 55 characters): it names the concrete place/era or protagonist AND the intrigue, e.g. "PARÍS, AÑO 1200: EL LUJO QUE ENVENENABA A LOS REYES". "title" is a clear headline for that clip (max 70 characters), also with place/era or protagonist, used only as the clip name and NEVER repeated inside the description. "socialCaption" is 2 or 3 short sentences in this order: (1) the context in one line (where, when, who, e.g. "En el París del año 1200, dentro de la fortaleza del Louvre…"), (2) the specific fact or revelation this clip shows, (3) an open question or curiosity gap about what the full documentary explains, so the viewer wants to watch it; it must not start with or contain the title, and it must NOT include links or invitations like "mira el video completo" or "enlace en la bio" (a fixed closing paragraph with that invitation is added automatically). "hashtags" holds EXACTLY 5 hashtags specific to that clip (no generic repeats across all clips, never more than 5, never fewer), and EVERY hashtag is made of EXACTLY TWO Spanish words joined in CamelCase with no spaces or accents (e.g. #HistoriaMedieval #EdadMedia #DatosCuriosos), never a single-word hashtag like #Historia or #Reels. "pinnedComment" is the comment the channel pins under that clip: 1 or 2 short sentences starting with one emoji, with a concrete, easy question about the clip's topic that makes people want to answer (an opinion, a choice, or "¿sabías que…?"), and nothing else: it must NOT mention YouTube, the channel, the full documentary or any link (the page adds that where it belongs); no hashtags, different for every clip. TIMESTAMPED TRANSCRIPT: ${formattedTranscript}`;
+                  }",${docContextBlock} ${desiredClipCount > 0 ? `select the ${desiredClipCount} most viral standalone clips` : 'decide yourself how many standalone clips this transcript genuinely supports with strong viral potential (at most about one per 75 seconds of narration, so a longer documentary can give more, never fewer than 3, and never a weak one just to reach a number), and select them'}, each lasting between ${minDur}s and ${maxDur}s IN TOTAL. CLIP STRUCTURE: a clip is built from 1 to 4 pieces ("segments") of the transcript, ALWAYS in chronological order (never a flash-forward, hook teaser or any later moment placed before an earlier one). Use several pieces only when cutting out filler, a tangent or a slow passage makes the clip stronger: skip what is in between and keep the best lines. Every piece starts at the beginning of a phrase and ends at the end of a phrase (never in the middle of a sentence), is at least 4 seconds long, and the pieces together must read as one clear, self-contained story. The first piece opens with the strongest possible line, because the first 3 seconds decide whether people keep watching. If the moment already works as one continuous stretch, use a single piece. The clip length is the SUM of its pieces. CRITICAL OUTPUT LANGUAGE REQUIREMENT: Return ONLY a valid JSON object (no markdown commentary) where all audience-facing text fields ("title", "viralityReason", "hookBannerText", "socialCaption", "hashtags", "pinnedComment") are written in Neutral Spanish: {"clips":[{"title":"...","viralityScore":96,"viralityReason":"...","segments":[{"startSec":120.5,"endSec":138.2},{"startSec":146.0,"endSec":171.4}],"hookBannerText":"...","socialCaption":"...","hashtags":"#Uno #Dos #Tres #Cuatro #Cinco","pinnedComment":"..."}]}. EVERY clip has its OWN publication text, written for that clip only, for a COLD VIEWER who has never seen the channel or the documentary and scrolls past in 2 seconds: every text must say WHERE and WHEN (or WHO) it happens and why it matters, never vague abstractions like "El lujo mortal" or "La gran paradoja", never pronouns or references that only make sense inside the documentary ("él", "esto", "la fortaleza" without naming it). "hookBannerText" is the on-screen title shown during the first 8 seconds (UPPERCASE, max 55 characters): it names the concrete place/era or protagonist AND the intrigue, e.g. "PARÍS, AÑO 1200: EL LUJO QUE ENVENENABA A LOS REYES". "title" is a clear headline for that clip (max 70 characters), also with place/era or protagonist, used only as the clip name and NEVER repeated inside the description. "socialCaption" is 2 or 3 short sentences in this order: (1) the context in one line (where, when, who, e.g. "En el París del año 1200, dentro de la fortaleza del Louvre…"), (2) the specific fact or revelation this clip shows, (3) an open question or curiosity gap about what the full documentary explains, so the viewer wants to watch it; it must not start with or contain the title, and it must NOT include links or invitations like "mira el video completo" or "enlace en la bio" (a fixed closing paragraph with that invitation is added automatically). "hashtags" holds EXACTLY 5 hashtags specific to that clip (no generic repeats across all clips, never more than 5, never fewer), and EVERY hashtag is made of EXACTLY TWO Spanish words joined in CamelCase with no spaces or accents (e.g. #HistoriaMedieval #EdadMedia #DatosCuriosos), never a single-word hashtag like #Historia or #Reels. "pinnedComment" is the comment the channel pins under that clip: 1 or 2 short sentences starting with one emoji, with a concrete, easy question about the clip's topic that makes people want to answer (an opinion, a choice, or "¿sabías que…?"), and nothing else: it must NOT mention YouTube, the channel, the full documentary or any link (the page adds that where it belongs); no hashtags, different for every clip.${styleRequest} TIMESTAMPED TRANSCRIPT: ${formattedTranscript}`;
                   // A documentary's order goes to ITS Gemini chat (same conversation as its stages, so Gemini
                   // knows the documentary); other sources (MP4, YouTube link) use a new chat. The answer comes back
                   // to this screen (VIRAL_CLIPS_GEMINI_STAGE), never into a stage.
-                  const docChatUrl = String(ctxDoc?.geminiChatUrl || ctxDoc?.promptConfig?.GEMINI_CHAT_URL || '').trim();
-                  const useDocChat = Boolean(ctxDoc && docChatUrl);
-                  const geminiViralPayload = {
-                    action: 'SEND_PROMPT',
-                    prompt: webPrompt,
-                    stageNumber: VIRAL_CLIPS_GEMINI_STAGE,
-                    taskType: 'VIRAL_CLIPS',
-                    // The answer comes back tagged with it and is stored under this documentary
-                    docId: sourceMode === 'doc' ? selectedDocId : '',
-                    videoName: useDocChat ? String(ctxDoc?.geminiChatTitle || ctxDoc?.title || '') : '',
-                    deepResearchVideoName: '',
-                    geminiChatUrl: useDocChat ? docChatUrl : '',
-                    geminiDeepResearchChatUrl: '',
-                    notebookName: useDocChat ? 'Huellas de la Humanidad' : '',
-                    standaloneNewChat: !useDocChat,
-                    noNotebook: !useDocChat,
-                    enableHighModel: false,
-                    enableArgonLow: true,
-                    enableCarbonLow: true,
-                    preferredModel: 'CARBON_4_LOW',
-                    thinkingLevel: 'LOW',
-                    enableDeepResearch: false,
-                    enableCreateImage: false,
-                    autoSubmit: true,
-                    focusTab: false,
-                  } as any;
+                  const geminiViralPayload = buildGeminiViralPayload(webPrompt, ctxDoc);
                   geminiViralOrderRef.current = { payload: geminiViralPayload, attempts: 1 };
                   sendCommandToWebBridge('GEMINI', geminiViralPayload);
                   setIsWaitingGeminiClips(true);
@@ -2530,10 +2649,8 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                       onLoadedMetadata={() => {
                         // Keep the place (on the clip's own timeline) when the player switches source or preview
                         seekClipTime(captionSec);
-                        sendPlayerDiag('metadata');
                       }}
                       onSeeked={(e) => void applyClipCutsAt(e.currentTarget)}
-                      onError={() => sendPlayerDiag('error')}
                       onLoadedData={(e) => void applyClipCutsAt(e.currentTarget)}
                       onCanPlay={(e) => void applyClipCutsAt(e.currentTarget)}
                       onPlaying={(e) => void applyClipCutsAt(e.currentTarget)}
@@ -2590,6 +2707,13 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                     maxFontHFrac={VIRAL_TITLE_LOOK.bigFontHFrac}
                     topPx={posterTitle.bigTopPx}
                     visible={captionSec < posterTitle.timeline.big.endSec - 0.15}
+                    docStyle={docStyle}
+                    clipSec={captionSec}
+                    playing={isPlaying}
+                    getClipSec={() => {
+                      const vid = videoRef.current;
+                      return vid ? toClipTime(vid.currentTime) : captionSec;
+                    }}
                   />
                 )}
                 {titleStyle === 'poster_gold' && posterTitle.timeline.small && (
@@ -2601,6 +2725,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                     maxFontHFrac={VIRAL_TITLE_LOOK.bigFontHFrac * VIRAL_TITLE_LOOK.smallFontScale}
                     topPx={posterTitle.topPx}
                     visible={captionSec >= posterTitle.timeline.small.startSec}
+                    docStyle={docStyle}
                   />
                 )}
                 {posterTitle.timeline.notices.length > 0 && (
@@ -2620,6 +2745,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                     visible={posterTitle.timeline.notices.some(
                       (span) => captionSec >= span.startSec && captionSec < span.endSec + 0.05
                     )}
+                    docStyle={docStyle}
                   />
                 )}
 
@@ -2652,7 +2778,81 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                   className="absolute inset-x-3 z-20 flex justify-center pointer-events-none"
                   style={{ top: `${captionYPercent}%`, transform: 'translateY(-100%)' }}
                 >
-                  {activeCaptionChunk ? (
+                  {activeCaptionChunk && docStyle && captionFontDef ? (
+                    (() => {
+                      // The design's captions: its font (capitals as tall as the classic ones), colours and
+                      // animation, with the same black edge and shadow the render draws
+                      const anim = docStyle.captionAnimation;
+                      const emPx = (look916 ? look916.captionEmOfHeight * previewFrameH : 17) * fontSizeScale;
+                      const grow = viralCaptionSizeFactor(captionFontDef, anim);
+                      const capPx = emPx * VIRAL_CAPTION_REF_CAP_EM * grow;
+                      const fontPx = capPx / Math.max(0.2, viralFontMetrics(captionFontDef).capEm);
+                      const refAss = emPx * 1.41 * grow;
+                      const edge = Math.max(0.6, refAss * 0.09);
+                      const drop = Math.max(0.4, refAss * 0.05);
+                      const activeColor = docStyle.captionActiveColor;
+                      return (
+                        <div
+                          className="px-3 py-1.5 text-center leading-tight flex flex-wrap items-center justify-center gap-y-0.5"
+                          style={{
+                            fontSize: `${fontPx.toFixed(1)}px`,
+                            fontFamily: viralFontCssFamily(captionFontDef),
+                            fontWeight: viralFontCssWeight(captionFontDef),
+                            fontSynthesis: 'none',
+                            columnGap: '0.3em',
+                          }}
+                        >
+                          <style>{`@keyframes viralCapPop{0%{transform:scale(1)}43%{transform:scale(1.26)}100%{transform:scale(1.14)}}@keyframes viralCapSingle{0%{transform:scale(1.16);color:var(--vc-active)}37%{transform:scale(1);color:var(--vc-active)}100%{transform:scale(1);color:var(--vc-base)}}`}</style>
+                          {activeCaptionChunk.chunk.map((w, idx) => {
+                            const isActive = idx === activeCaptionChunk.activeIdx;
+                            const base: React.CSSProperties = {
+                              display: 'inline-block',
+                              color: docStyle.captionColor,
+                              WebkitTextStroke: `${(edge * 2).toFixed(2)}px #000`,
+                              paintOrder: 'stroke fill',
+                              textShadow: `${drop.toFixed(2)}px ${drop.toFixed(2)}px 0 rgba(0,0,0,0.5)`,
+                            };
+                            let active: React.CSSProperties = {};
+                            if (isActive) {
+                              if (anim === 'box') {
+                                const pad = capPx * VIRAL_CAPTION_BOX_PAD_CAPS;
+                                active = {
+                                  color: viralInkOn(activeColor),
+                                  WebkitTextStroke: '0px transparent',
+                                  textShadow: 'none',
+                                  background: activeColor,
+                                  borderRadius: `${(pad * 0.9).toFixed(1)}px`,
+                                  boxShadow: `0 0 0 ${(pad * 0.55).toFixed(1)}px ${activeColor}`,
+                                };
+                              } else if (anim === 'underline') {
+                                active = {
+                                  color: activeColor,
+                                  textDecoration: 'underline',
+                                  textDecorationThickness: '0.09em',
+                                  textUnderlineOffset: '0.12em',
+                                };
+                              } else if (anim === 'pop') {
+                                active = { color: activeColor, animation: 'viralCapPop 0.21s ease-out forwards' };
+                              } else if (anim === 'single') {
+                                active = {
+                                  ['--vc-active' as any]: activeColor,
+                                  ['--vc-base' as any]: docStyle.captionColor,
+                                  animation: 'viralCapSingle 0.3s linear forwards',
+                                };
+                              } else {
+                                active = { color: activeColor, transform: 'scale(1.08)' };
+                              }
+                            }
+                            return (
+                              <span key={`${w.start}-${idx}`} className="uppercase" style={{ ...base, ...active }}>
+                                {w.word}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()
+                  ) : activeCaptionChunk ? (
                     <div
                       className="px-3 py-1.5 text-center leading-tight flex flex-wrap items-center justify-center gap-x-1.5 gap-y-0.5"
                       style={{
@@ -2778,7 +2978,17 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                   </>
                   )}
 
-                  <div className="flex items-center justify-between gap-1 pt-1 border-t border-slate-800">
+                  {docStyle && (
+                    <div className="text-[11px] text-slate-400 pt-1 border-t border-slate-800">
+                      <span className="font-bold text-slate-300">Captions:</span> los del diseño de este documental (
+                      {viralFontById(docStyle.captionFont).label},{' '}
+                      {(VIRAL_CAPTION_ANIMS.find((x) => x.id === docStyle.captionAnimation)?.label || '').toLowerCase()}). Se
+                      cambian en «Diseño de este documental».
+                    </div>
+                  )}
+                  <div
+                    className={`flex items-center justify-between gap-1 pt-1 border-t border-slate-800 ${docStyle ? 'hidden' : ''}`}
+                  >
                     <span className="text-[11px] font-bold text-slate-400">Estilo Captions:</span>
                     <div className="flex items-center gap-1 flex-wrap">
                       {(
@@ -3158,6 +3368,153 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                 </div>
               </div>
 
+              {/* The documentary's design for the title and captions of all its clips */}
+              {sourceMode === 'doc' && (
+                <div className="bg-[#14110d] border border-amber-500/25 rounded-2xl p-4 space-y-2.5 text-xs">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-bold text-amber-300">🎨 Diseño de este documental</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-900 border border-slate-700 text-slate-300 shrink-0">
+                      {docStyle ? (docStyle.source === 'gemini' ? 'Elegido por Gemini' : 'Ajustado a mano') : 'Clásico'}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400">
+                    {docStyle
+                      ? `Título en ${viralFontById(docStyle.titleFont).label}, captions en ${viralFontById(docStyle.captionFont).label}. ${
+                          VIRAL_TEXTURES.find((x) => x.id === docStyle.texture)?.label || ''
+                        } · ${VIRAL_TITLE_ANIMS.find((x) => x.id === docStyle.titleAnimation)?.label || ''} · ${
+                          VIRAL_CAPTION_ANIMS.find((x) => x.id === docStyle.captionAnimation)?.label || ''
+                        }.`
+                      : 'El de siempre: título póster en blanco hueso y dorado, captions amarillos. Vale para todos los clips de este documental.'}
+                  </p>
+                  {docStyle?.reason && <p className="text-[11px] text-amber-100/80 italic">“{docStyle.reason}”</p>}
+                  {docStyleTwin && (
+                    <p className="text-[11px] text-rose-300">
+                      ⚠️ Esta combinación completa ya la usa «{docStyleTwin.title}». Cambia algún elemento para que no se
+                      repita.
+                    </p>
+                  )}
+                  <div className="flex flex-wrap gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => void requestDocStyleFromGemini()}
+                      disabled={docStyleLocked || isWaitingGeminiClips || viralOffline}
+                      title={
+                        docStyleLocked
+                          ? 'El diseño está fijado: quita el candado para que Gemini lo elija'
+                          : 'Gemini elige fuentes, colores, textura y animaciones según la época, el lugar y la historia del documental'
+                      }
+                      className="px-2.5 py-1 rounded-lg bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-500/40 text-emerald-300 font-bold text-[11px] cursor-pointer disabled:opacity-50"
+                    >
+                      ✨ Pedir diseño a Gemini
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowDesignEditor((v) => !v)}
+                      className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-amber-100 font-bold text-[11px] cursor-pointer"
+                    >
+                      {showDesignEditor ? 'Ocultar ajustes' : 'Cambiar a mano'}
+                    </button>
+                    {docStyle && (
+                      <button
+                        type="button"
+                        onClick={() => setDocStyle(null)}
+                        className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 font-bold text-[11px] cursor-pointer"
+                      >
+                        Volver al clásico
+                      </button>
+                    )}
+                  </div>
+                  <label className="flex items-center gap-2 text-[11px] text-slate-300 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={docStyleLocked}
+                      onChange={(e) => setDocStyleLocked(e.target.checked)}
+                      className="accent-amber-400"
+                    />
+                    🔒 Fijar este diseño (Gemini no lo cambia al pedir clips)
+                  </label>
+                  {showDesignEditor &&
+                    (() => {
+                      const st = docStyle || VIRAL_CLASSIC_STYLE;
+                      const pick = (
+                        label: string,
+                        value: string,
+                        options: Array<{ id: string; label: string }>,
+                        onChange: (v: string) => void
+                      ) => (
+                        <label className="block min-w-0">
+                          <span className="block text-[10px] text-slate-400 mb-0.5">{label}</span>
+                          <select
+                            value={value}
+                            onChange={(e) => onChange(e.target.value)}
+                            className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-amber-100"
+                          >
+                            {options.map((o) => (
+                              <option key={o.id} value={o.id}>
+                                {o.label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      );
+                      const colour = (label: string, key: 'titleColor' | 'titleAccentColor' | 'captionColor' | 'captionActiveColor') => (
+                        <label className="flex items-center gap-2 min-w-0 cursor-pointer">
+                          <input
+                            type="color"
+                            value={String(st[key]).toLowerCase()}
+                            onChange={(e) => changeDocStyle({ [key]: e.target.value })}
+                            className="w-8 h-7 shrink-0 bg-transparent border border-slate-700 rounded cursor-pointer"
+                          />
+                          <span className="text-[10px] text-slate-300 leading-tight">{label}</span>
+                        </label>
+                      );
+                      return (
+                        <div className="space-y-2 pt-2 border-t border-slate-800">
+                          <div className="grid grid-cols-2 gap-2">
+                            {pick('Fuente del título', st.titleFont, VIRAL_TITLE_FONTS, (v) => changeDocStyle({ titleFont: v }))}
+                            {pick('Fuente de los captions', st.captionFont, VIRAL_CAPTION_FONTS, (v) => changeDocStyle({ captionFont: v }))}
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            {colour('Título', 'titleColor')}
+                            {colour('Última línea del título', 'titleAccentColor')}
+                            {colour('Captions', 'captionColor')}
+                            {colour('Palabra que se dice', 'captionActiveColor')}
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            {pick('Textura del título', st.texture, VIRAL_TEXTURES, (v) => changeDocStyle({ texture: v as ViralDocStyle['texture'] }))}
+                            <label className="block min-w-0">
+                              <span className="block text-[10px] text-slate-400 mb-0.5">Cantidad de textura ({st.textureAmount}%)</span>
+                              <input
+                                type="range"
+                                min={0}
+                                max={100}
+                                step={5}
+                                value={st.textureAmount}
+                                disabled={st.texture === 'none'}
+                                onChange={(e) => changeDocStyle({ textureAmount: Number(e.target.value) })}
+                                className="w-full accent-amber-400 disabled:opacity-40"
+                              />
+                            </label>
+                            {pick('Contorno del título', st.outline, VIRAL_OUTLINES, (v) => changeDocStyle({ outline: v as ViralDocStyle['outline'] }))}
+                            {pick('Sombra del título', st.shadow, VIRAL_SHADOWS, (v) => changeDocStyle({ shadow: v as ViralDocStyle['shadow'] }))}
+                            {pick('Entrada del título', st.titleAnimation, VIRAL_TITLE_ANIMS, (v) =>
+                              changeDocStyle({ titleAnimation: v as ViralDocStyle['titleAnimation'] })
+                            )}
+                            {pick('Animación de los captions', st.captionAnimation, VIRAL_CAPTION_ANIMS, (v) =>
+                              changeDocStyle({ captionAnimation: v as ViralDocStyle['captionAnimation'] })
+                            )}
+                          </div>
+                          <p className="text-[10px] text-slate-500 italic">
+                            Los cambios se ven en la vista previa y valen para todos los clips de este documental. Un color
+                            muy oscuro se aclara solo para que se lea sobre el video. Vuelve al inicio del clip y pulsa
+                            Reproducir para ver la entrada del título.
+                          </p>
+                        </div>
+                      );
+                    })()}
+                </div>
+              )}
+
               {/* Hook Banner, Caption & Hashtags */}
               <div className="bg-[#14110d] border border-amber-500/25 rounded-2xl p-4 space-y-3 text-xs">
                 <div className="flex items-center justify-between">
@@ -3216,6 +3573,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                     titleLines={posterTitle.lines}
                     titleTopPct={look916?.hookBannerTopPct ?? 13.5}
                     loading={coverLoading}
+                    docStyle={docStyle}
                   />
                 )}
                 {showCover && titleStyle !== 'poster_gold' && (

@@ -10,11 +10,53 @@ import os from 'os';
 import path from 'path';
 import { spawnSync } from 'child_process';
 import { VIRAL_TITLE_LOOK } from '../src/utils/viralTitle';
+import {
+  VIRAL_CLASSIC_STYLE,
+  applyViralTitleCase,
+  viralFontById,
+  viralHexToAss,
+  viralMaxFontSizeFor,
+  viralTitleUnit,
+  viralTitleLineStepFactor,
+  viralTitleEntrance,
+  VIRAL_TITLE_SLIDE_FRAC,
+  VIRAL_TITLE_ZOOM_FROM,
+  VIRAL_TITLE_BLUR_UNITS,
+  type ViralDocStyle,
+  type ViralFontDef,
+  type ViralOutline,
+  type ViralShadow,
+  type ViralTexture,
+  type ViralTitleAnim,
+} from '../src/utils/viralStyle';
 
 export const VIRAL_TITLE_FONT_NAME = 'League Gothic';
-/** ASS colours are &HBBGGRR& */
-const BONE_WHITE_ASS = '&H00D6E7EF&'; // #EFE7D6
-const GOLD_ASS = '&H003CAAE3&'; // #E3AA3C
+
+/** How the title's letters are drawn: the documentary's design, or the classic look when it has none. */
+export interface ViralTitleDrawLook {
+  font: ViralFontDef;
+  /** ASS colours (&HBBGGRR&) of most of the title and of its last line */
+  mainAss: string;
+  accentAss: string;
+  texture: ViralTexture;
+  /** 0–1 (0.5 is the classic amount of wear) */
+  textureAmount: number;
+  outline: ViralOutline;
+  shadow: ViralShadow;
+}
+export function viralTitleDrawLookFor(style?: ViralDocStyle | null): ViralTitleDrawLook {
+  const st = style || VIRAL_CLASSIC_STYLE;
+  return {
+    font: viralFontById(st.titleFont),
+    mainAss: viralHexToAss(st.titleColor),
+    accentAss: viralHexToAss(st.titleAccentColor),
+    texture: st.texture,
+    textureAmount: Math.max(0, Math.min(1, (Number(st.textureAmount) || 0) / 100)),
+    outline: st.outline,
+    shadow: st.shadow,
+  };
+}
+const CLASSIC_LOOK = viralTitleDrawLookFor(null);
 
 export interface ViralTitleArt {
   path: string;
@@ -45,6 +87,8 @@ export interface ViralTitleWordsArt {
   smallTextBottom: number;
   /** Height of the big title's letters, first line's top to last line's bottom */
   bigTextHeight: number;
+  /** The big title's size in title units (the League Gothic font size with capitals as tall) */
+  unit: number;
 }
 
 interface TitleWord {
@@ -61,16 +105,27 @@ interface Box {
 
 const escFilterPath = (p: string) => p.replace(/\\/g, '/').replace(/:/g, '\\:').replace(/'/g, "\\'");
 
-/** "white part|gold part" on one line; otherwise a line is white, or gold when it is the last one. */
-function parseTitleLines(rawLines: string[]): TitleLine[] {
+/**
+ * "white part|gold part" on one line; otherwise a line is white, or gold when it is the last one.
+ * Words are written as the font wants them (all capitals, or capitals at the start of the main words).
+ */
+function parseTitleLines(rawLines: string[], titleCase: ViralFontDef['titleCase'] = 'upper'): TitleLine[] {
   const lines = rawLines.map((l) => String(l || '').trim()).filter(Boolean);
+  let isFirstWord = true;
+  let afterStop = false;
+  const cased = (text: string) => {
+    const out = titleCase === 'capitalized' ? applyViralTitleCase(text, titleCase, isFirstWord || afterStop) : text;
+    isFirstWord = false;
+    afterStop = /[:.?!]$/.test(text);
+    return out;
+  };
   return lines
     .map((line, i) => {
       const toWords = (s: string, gold: boolean) =>
         s
           .split(/\s+/)
           .filter(Boolean)
-          .map((text) => ({ text, gold }));
+          .map((text) => ({ text: cased(text), gold }));
       if (line.includes('|')) {
         const [whitePart, goldPart] = line.split('|');
         return [...toWords(whitePart, false), ...toWords(goldPart || '', true)];
@@ -99,12 +154,17 @@ function buildTitleAss(opts: {
   topY: number;
   shadow: boolean;
   oneWordPerSecond?: boolean;
+  look?: ViralTitleDrawLook;
 }): string {
   const { canvasW, canvasH, lines, fontSize, topY, shadow, oneWordPerSecond = false } = opts;
+  const look = opts.look || CLASSIC_LOOK;
+  // Every size of the look follows the height of the capitals, so any font gets the same proportions
+  // (`u` is the League Gothic font size whose capitals are as tall as this font's)
+  const u = viralTitleUnit(look.font, fontSize);
   // Lines sit tight, like a film poster
-  const lineStep = fontSize * VIRAL_TITLE_LOOK.lineStep;
+  const lineStep = u * VIRAL_TITLE_LOOK.lineStep * viralTitleLineStepFactor(look.font);
   // "A little bolder": an outline in the letter's own colour thickens every stroke
-  const inkBord = Math.max(1, fontSize * VIRAL_TITLE_LOOK.inkBord);
+  const inkBord = Math.max(1, u * VIRAL_TITLE_LOOK.inkBord);
   const out = [
     '[Script Info]',
     'ScriptType: v4.00+',
@@ -115,31 +175,80 @@ function buildTitleAss(opts: {
     '',
     '[V4+ Styles]',
     'Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding',
-    `Style: T,${VIRAL_TITLE_FONT_NAME},${fontSize.toFixed(1)},&H00FFFFFF,&H00FFFFFF,&H00FFFFFF,&H00000000,0,0,0,0,100,100,${(fontSize * VIRAL_TITLE_LOOK.spacing).toFixed(2)},0,1,0,0,8,0,0,0,1`,
+    `Style: T,${look.font.ass},${fontSize.toFixed(1)},&H00FFFFFF,&H00FFFFFF,&H00FFFFFF,&H00000000,${look.font.bold ? -1 : 0},0,0,0,100,100,${(u * VIRAL_TITLE_LOOK.spacing).toFixed(2)},0,1,0,0,8,0,0,0,1`,
     '',
     '[Events]',
     'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
   ];
   const cx = Math.round(canvasW / 2);
-  const shown = (w: TitleWord) => {
-    if (shadow) {
-      return `{\\alpha&H00&\\1c&H000000&\\3c&H000000&\\bord${Math.max(4, fontSize * 0.075).toFixed(2)}\\blur${Math.max(5, fontSize * 0.085).toFixed(1)}\\1a&H12&\\3a&H12&}${w.text}`;
+  const wordColor = (w: TitleWord) => (w.gold ? look.accentAss : look.mainAss);
+  // What is drawn in one pass: the letters themselves, or (under them) each piece of shadow and edge
+  type Pass = { dx: number; dy: number; tags: (w: TitleWord) => string };
+  const passes: Pass[] = [];
+  if (!shadow) {
+    passes.push({
+      dx: 0,
+      dy: 0,
+      tags: (w) => `\\alpha&H00&\\1c${wordColor(w)}\\3c${wordColor(w)}\\bord${inkBord.toFixed(2)}`,
+    });
+  } else {
+    const black = '\\1c&H000000&\\3c&H000000&';
+    if (look.shadow === 'soft') {
+      passes.push({
+        dx: 0,
+        dy: 0,
+        tags: () =>
+          `\\alpha&H00&${black}\\bord${Math.max(4, u * 0.075).toFixed(2)}\\blur${Math.max(5, u * 0.085).toFixed(1)}\\1a&H12&\\3a&H12&`,
+      });
+    } else if (look.shadow === 'hard') {
+      // A faint halo so the letters still read on a bright picture, then the offset shadow
+      passes.push({
+        dx: 0,
+        dy: 0,
+        tags: () => `\\alpha&H00&${black}\\bord${Math.max(2, u * 0.03).toFixed(2)}\\blur${Math.max(3, u * 0.05).toFixed(1)}\\1a&H70&\\3a&H70&`,
+      });
+      passes.push({
+        dx: u * 0.05,
+        dy: u * 0.06,
+        tags: () => `\\alpha&H00&${black}\\bord${inkBord.toFixed(2)}\\blur0\\1a&H20&\\3a&H20&`,
+      });
+    } else if (look.shadow === 'glow') {
+      passes.push({
+        dx: 0,
+        dy: 0,
+        tags: () => `\\alpha&H00&${black}\\bord${Math.max(3, u * 0.05).toFixed(2)}\\blur${Math.max(4, u * 0.07).toFixed(1)}\\1a&H38&\\3a&H38&`,
+      });
+      passes.push({
+        dx: 0,
+        dy: 0,
+        tags: (w) =>
+          `\\alpha&H00&\\1c${wordColor(w)}\\3c${wordColor(w)}\\bord${Math.max(3, u * 0.05).toFixed(2)}\\blur${Math.max(6, u * 0.12).toFixed(1)}\\1a&H50&\\3a&H50&`,
+      });
     }
-    const color = w.gold ? GOLD_ASS : BONE_WHITE_ASS;
-    return `{\\alpha&H00&\\1c${color}\\3c${color}\\bord${inkBord.toFixed(2)}}${w.text}`;
-  };
+    if (look.outline !== 'none') {
+      const edge = Math.max(2, u * (look.outline === 'thick' ? 0.065 : 0.032));
+      passes.push({ dx: 0, dy: 0, tags: () => `\\alpha&H00&${black}\\bord${edge.toFixed(2)}\\blur0.6` });
+    }
+  }
+  const shown = (pass: Pass) => (w: TitleWord) => `{${pass.tags(w)}}${w.text}`;
   const hidden = (w: TitleWord) => `{\\alpha&HFF&\\bord0\\blur0}${w.text}`;
-  const lineEvent = (lineIdx: number, text: string, startSec: number, endSec: number) =>
-    `Dialogue: 0,${assTime(startSec)},${assTime(endSec)},T,,0,0,0,,{\\an8\\pos(${cx},${Math.round(topY + lineIdx * lineStep)})}${text}`;
+  const lineEvent = (layer: number, pass: Pass, lineIdx: number, text: string, startSec: number, endSec: number) =>
+    `Dialogue: ${layer},${assTime(startSec)},${assTime(endSec)},T,,0,0,0,,{\\an8\\pos(${Math.round(cx + pass.dx)},${Math.round(
+      topY + lineIdx * lineStep + pass.dy
+    )})}${text}`;
   if (!oneWordPerSecond) {
-    lines.forEach((line, i) => out.push(lineEvent(i, line.map(shown).join(' '), 0, 3600)));
+    passes.forEach((pass, layer) =>
+      lines.forEach((line, i) => out.push(lineEvent(layer, pass, i, line.map(shown(pass)).join(' '), 0, 3600)))
+    );
     return out.join('\n');
   }
   let k = 0;
   lines.forEach((line, i) => {
     line.forEach((_w, j) => {
-      const text = line.map((w, jj) => (jj === j ? shown(w) : hidden(w))).join(' ');
-      out.push(lineEvent(i, text, k, k + 1));
+      passes.forEach((pass, layer) => {
+        const text = line.map((w, jj) => (jj === j ? shown(pass)(w) : hidden(w))).join(' ');
+        out.push(lineEvent(layer, pass, i, text, k, k + 1));
+      });
       k++;
     });
   });
@@ -188,10 +297,10 @@ function measureAssBoxes(
 }
 
 /**
- * Filter graph that draws the text ASS over its shadow ASS with the worn texture, ending in [art].
+ * Filter graph that draws the text ASS over its shadow ASS with the look's texture, ending in [art].
  * The texture is multiplied into the letters' opacity (the shadow underneath stays whole, so the worn spots
- * read dark, as on a printed poster): light pitting that is denser in some areas than others, a few small
- * chipped patches, and the odd thin scratch.
+ * read dark, as on a printed poster). "worn" is light pitting that is denser in some areas than others, a few
+ * small chipped patches and the odd thin scratch; the other textures use the same pieces in other amounts.
  * The noise is a position hash, not random(): geq runs in slices and random() repeats in each one.
  */
 function texturedTitleGraph(opts: {
@@ -201,31 +310,95 @@ function texturedTitleGraph(opts: {
   fontsDir: string;
   textAss: string;
   shadowAss: string;
+  look?: ViralTitleDrawLook;
 }): string {
-  const { canvasW, canvasH, fontSize, fontsDir, textAss, shadowAss } = opts;
+  const { canvasW, canvasH, fontsDir, textAss, shadowAss } = opts;
+  const look = opts.look || CLASSIC_LOOK;
+  const u = viralTitleUnit(look.font, opts.fontSize);
   const hash = (seed: number) => `mod(abs(sin(X*12.9898+Y*78.233+${seed})*43758.5453),1)`;
   const src = (expr: string, w: number, h: number) =>
     `nullsrc=s=${Math.max(2, Math.round(w))}x${Math.max(2, Math.round(h))}:r=1,format=gray,geq=lum='${expr}'`;
   const up = (flags: string) => `scale=${canvasW}:${canvasH}:flags=${flags},format=gray`;
-  const g = Math.max(2, fontSize / 85);
+  const g = Math.max(2, u / 85);
   const fontsArg = `fontsdir='${escFilterPath(fontsDir)}'`;
-  return [
-    `color=c=black@0.0:s=${canvasW}x${canvasH}:r=1,format=rgba,ass=filename='${escFilterPath(textAss)}':${fontsArg}:alpha=1,split[t1][t2]`,
-    `[t1]alphaextract,format=gray[ta]`,
-    `${src(`255*${hash(11)}`, canvasW / g, canvasH / g)},${up('bilinear')}[nfine]`,
-    `${src(`255*${hash(23)}`, canvasW / (g * 34), canvasH / (g * 34))},${up('bicubic')}[nlow]`,
-    `[nfine][nlow]blend=all_expr='if(gt(A,234+B*0.16),0,255)',gblur=sigma=0.7[mpit]`,
-    `${src(`255*${hash(37)}`, canvasW / (g * 4.5), canvasH / (g * 4.5))},${up('bicubic')},lutyuv=y='if(gt(val,246),0,255)'[mchip]`,
-    `${src(`if(gt(${hash(51)},0.998),0,255)`, canvasW / (g * 20), canvasH / (g * 0.7))},${up('bilinear')}[mscrh]`,
-    `${src(`if(gt(${hash(67)},0.9992),0,255)`, canvasW / (g * 0.7), canvasH / (g * 16))},${up('bilinear')}[mscrv]`,
-    `[mpit][mchip]blend=all_mode=multiply[m1]`,
-    `[mscrh][mscrv]blend=all_mode=multiply[m2]`,
-    `[m1][m2]blend=all_mode=multiply[mask]`,
-    `[ta][mask]blend=all_mode=multiply[ta2]`,
-    `[t2][ta2]alphamerge[txt]`,
-    `color=c=black@0.0:s=${canvasW}x${canvasH}:r=1,format=rgba,ass=filename='${escFilterPath(shadowAss)}':${fontsArg}:alpha=1[sh]`,
-    `[sh][txt]overlay=format=auto[art]`,
-  ].join(';');
+  // 0.5 is the classic amount; twice that is the most a texture may eat
+  const a = look.texture === 'none' ? 0 : look.textureAmount;
+  const n = (v: number, digits = 4) => String(Number(v.toFixed(digits)));
+
+  // Each piece is a grey mask (white keeps the letter, black removes it); they are multiplied together
+  const chains: string[] = [];
+  const masks: string[] = [];
+  const pits = (amount: number) => {
+    chains.push(`${src(`255*${hash(11)}`, canvasW / g, canvasH / g)},${up('bilinear')}[nfine]`);
+    chains.push(`${src(`255*${hash(23)}`, canvasW / (g * 34), canvasH / (g * 34))},${up('bicubic')}[nlow]`);
+    chains.push(`[nfine][nlow]blend=all_expr='if(gt(A,${n(255 - 42 * amount, 2)}+B*0.16),0,255)',gblur=sigma=0.7[mpit]`);
+    masks.push('mpit');
+  };
+  const chips = (amount: number, size: number, seed: number, label: string) => {
+    chains.push(
+      `${src(`255*${hash(seed)}`, canvasW / (g * size), canvasH / (g * size))},${up('bicubic')},lutyuv=y='if(gt(val,${n(255 - 18 * amount, 2)}),0,255)'[${label}]`
+    );
+    masks.push(label);
+  };
+  const scratches = (amount: number) => {
+    chains.push(`${src(`if(gt(${hash(51)},${n(1 - 0.004 * amount, 5)}),0,255)`, canvasW / (g * 20), canvasH / (g * 0.7))},${up('bilinear')}[mscrh]`);
+    chains.push(`${src(`if(gt(${hash(67)},${n(1 - 0.0016 * amount, 5)}),0,255)`, canvasW / (g * 0.7), canvasH / (g * 16))},${up('bilinear')}[mscrv]`);
+    masks.push('mscrh', 'mscrv');
+  };
+  if (a > 0) {
+    if (look.texture === 'worn') {
+      pits(a);
+      chips(a, 4.5, 37, 'mchip');
+      scratches(a);
+    } else if (look.texture === 'grain') {
+      // Film grain: every letter is finely speckled, no holes
+      chains.push(`${src(`255*(1-${n(Math.min(0.8, a * 0.8))}*${hash(83)})`, canvasW / (g * 0.8), canvasH / (g * 0.8))},${up('bilinear')}[mgrain]`);
+      masks.push('mgrain');
+      pits(a * 0.35);
+    } else if (look.texture === 'scratched') {
+      scratches(Math.min(5, a * 4.5));
+      pits(a * 0.3);
+    } else if (look.texture === 'stone') {
+      // Carved stone: bigger chipped patches and coarse pitting, no scratches
+      chips(Math.min(4.5, a * 3.2), 4.5, 37, 'mchip');
+      chips(Math.min(4.5, a * 2.2), 10, 41, 'mchipbig');
+      pits(a * 0.9);
+    } else if (look.texture === 'ink') {
+      // Uneven ink: whole areas print thin, as from a badly inked stamp
+      chains.push(`${src(`255*${hash(11)}`, canvasW / g, canvasH / g)},${up('bilinear')}[nfine]`);
+      chains.push(`${src(`255*${hash(29)}`, canvasW / (g * 16), canvasH / (g * 16))},${up('bicubic')}[nblot]`);
+      chains.push(`[nfine][nblot]blend=all_expr='if(gt(A,255-${n(Math.min(230, a * 300), 1)}*max(0,B-105)/150),0,255)',gblur=sigma=0.8[mink]`);
+      masks.push('mink');
+    }
+  }
+  const out: string[] = [
+    `color=c=black@0.0:s=${canvasW}x${canvasH}:r=1,format=rgba,ass=filename='${escFilterPath(textAss)}':${fontsArg}:alpha=1${masks.length ? ',split[t1][t2]' : '[txt]'}`,
+  ];
+  if (masks.length) {
+    out.push(`[t1]alphaextract,format=gray[ta]`);
+    out.push(...chains);
+    // Multiplied in pairs (pits with chips, one scratch with the other, then both), as the classic look does
+    let level = masks.slice();
+    let tmpIdx = 0;
+    while (level.length > 1) {
+      const next: string[] = [];
+      for (let i = 0; i < level.length; i += 2) {
+        if (i + 1 >= level.length) {
+          next.push(level[i]);
+          continue;
+        }
+        const label = level.length === 2 ? 'mask' : `m${++tmpIdx}`;
+        out.push(`[${level[i]}][${level[i + 1]}]blend=all_mode=multiply[${label}]`);
+        next.push(label);
+      }
+      level = next;
+    }
+    out.push(`[ta][${level[0]}]blend=all_mode=multiply[ta2]`);
+    out.push(`[t2][ta2]alphamerge[txt]`);
+  }
+  out.push(`color=c=black@0.0:s=${canvasW}x${canvasH}:r=1,format=rgba,ass=filename='${escFilterPath(shadowAss)}':${fontsArg}:alpha=1[sh]`);
+  out.push(`[sh][txt]overlay=format=auto[art]`);
+  return out.join(';');
 }
 
 /** Temp-file helper: everything it makes is removed by `cleanup()`. */
@@ -262,21 +435,34 @@ function fitFontSize(
   name: string,
   lines: TitleLine[],
   maxTextWidthPx: number,
-  maxFontSize: number
+  maxFontSize: number,
+  look?: ViralTitleDrawLook
 ): number | null {
   const refSize = 200;
-  const refW = 8000;
+  // Wide fonts need a wider sheet to be measured on
+  const refW = look && look.font.widthFactor > 1.4 ? 16000 : 8000;
   const refH = Math.round(200 + lines.length * refSize * 1.2);
-  const refAss = tmp.write(`${name}_ref.ass`, buildTitleAss({ canvasW: refW, canvasH: refH, lines, fontSize: refSize, topY: 60, shadow: false }));
+  const refAss = tmp.write(`${name}_ref.ass`, buildTitleAss({ canvasW: refW, canvasH: refH, lines, fontSize: refSize, topY: 60, shadow: false, look }));
   const box = measureAssBoxes(ffmpegBin, fontsDir, refAss, refW, refH, 1)[0];
   if (!box) return null;
   const refTextW = Math.max(1, box.x2 - box.x1 + 1);
   return Math.max(18, Math.min(maxFontSize, (refSize * maxTextWidthPx) / refTextW));
 }
 
-const padFor = (fontSize: number) => Math.round(Math.max(28, fontSize * 0.36));
-const canvasHeightFor = (lineCount: number, fontSize: number) =>
-  2 * Math.round((padFor(fontSize) * 2 + lineCount * fontSize * 1.05 + 40) / 2);
+/** `unit`: the font size in title units (the League Gothic size with capitals as tall), see viralTitleUnit */
+const padFor = (unit: number) => Math.round(Math.max(28, unit * 0.36));
+/** Tall enough for the lines at their distance plus the last line's full height in the font's own size. */
+const canvasHeightFor = (lineCount: number, fontSize: number, look: ViralTitleDrawLook) => {
+  const unit = viralTitleUnit(look.font, fontSize);
+  const linesH = Math.max(
+    lineCount * unit * 1.05,
+    (lineCount - 1) * unit * VIRAL_TITLE_LOOK.lineStep * viralTitleLineStepFactor(look.font) + fontSize * 1.05
+  );
+  return 2 * Math.round((padFor(unit) * 2 + linesH + 40) / 2);
+};
+/** The font file is where the render looks for it (a font with no file is one the system has). */
+const fontAvailable = (fontsDir: string, look: ViralTitleDrawLook) =>
+  !look.font.file || fs.existsSync(path.join(fontsDir, look.font.file));
 
 /**
  * Draws the lines as one transparent PNG, `frameW` wide (so it is laid at x = 0) and cropped to the text's
@@ -290,28 +476,33 @@ export function renderViralTitleArt(opts: {
   lines: string[];
   frameW: number;
   maxTextWidthPx: number;
+  /** Largest size, as the ASS font size League Gothic would have (other fonts get capitals just as tall) */
   maxFontSize: number;
   outPath: string;
+  /** The documentary's design; absent, the classic look */
+  look?: ViralTitleDrawLook;
 }): ViralTitleArt | null {
-  const { ffmpegBin, fontsDir, frameW, maxTextWidthPx, maxFontSize, outPath } = opts;
-  const lines = parseTitleLines(opts.lines);
+  const { ffmpegBin, fontsDir, frameW, maxTextWidthPx, outPath } = opts;
+  const look = opts.look || CLASSIC_LOOK;
+  const lines = parseTitleLines(opts.lines, look.font.titleCase);
   if (lines.length === 0) return null;
-  if (!fs.existsSync(path.join(fontsDir, 'LeagueGothic.ttf'))) return null;
+  if (!fontAvailable(fontsDir, look)) return null;
+  const maxFontSize = viralMaxFontSizeFor(look.font, opts.maxFontSize);
   const tmp = tempFiles();
   try {
-    const fontSize = fitFontSize(ffmpegBin, fontsDir, tmp, 'art', lines, maxTextWidthPx, maxFontSize);
+    const fontSize = fitFontSize(ffmpegBin, fontsDir, tmp, 'art', lines, maxTextWidthPx, maxFontSize, look);
     if (!fontSize) return null;
-    const pad = padFor(fontSize);
+    const pad = padFor(viralTitleUnit(look.font, fontSize));
     const canvasW = 2 * Math.round(frameW / 2);
-    const canvasH = canvasHeightFor(lines.length, fontSize);
-    const assArgs = { canvasW, canvasH, lines, fontSize, topY: pad };
+    const canvasH = canvasHeightFor(lines.length, fontSize, look);
+    const assArgs = { canvasW, canvasH, lines, fontSize, topY: pad, look };
     const textAss = tmp.write('art_text.ass', buildTitleAss({ ...assArgs, shadow: false }));
     const shadowAss = tmp.write('art_shadow.ass', buildTitleAss({ ...assArgs, shadow: true }));
     const box = measureAssBoxes(ffmpegBin, fontsDir, textAss, canvasW, canvasH, 1)[0];
     if (!box) return null;
     const cropY = Math.max(0, box.y1 - pad);
     const cropH = 2 * Math.round(Math.min(canvasH - cropY, box.y2 - box.y1 + 1 + pad * 2) / 2);
-    const graph = `${texturedTitleGraph({ canvasW, canvasH, fontSize, fontsDir, textAss, shadowAss })};[art]crop=${canvasW}:${cropH}:0:${cropY}[out]`;
+    const graph = `${texturedTitleGraph({ canvasW, canvasH, fontSize, fontsDir, textAss, shadowAss, look })};[art]crop=${canvasW}:${cropH}:0:${cropY}[out]`;
     const r = runFfmpeg(ffmpegBin, ['-filter_complex', graph, '-map', '[out]', '-frames:v', '1', outPath]);
     if (!r.ok || !fs.existsSync(outPath)) {
       console.warn('[ViralClips] No se pudo dibujar el texto:', r.stderr.slice(-400));
@@ -343,18 +534,30 @@ export function renderViralTitleWords(opts: {
   smallMaxTextWidthPx: number;
   smallMaxFontSize: number;
   outPrefix: string;
+  /** The documentary's design; absent, the classic look. Font sizes are given as League Gothic's. */
+  look?: ViralTitleDrawLook;
 }): ViralTitleWordsArt | null {
   const { ffmpegBin, fontsDir, frameW, outPrefix } = opts;
-  const bigLines = parseTitleLines(opts.bigLines);
-  const smallLines = parseTitleLines(opts.smallLines);
+  const look = opts.look || CLASSIC_LOOK;
+  const bigLines = parseTitleLines(opts.bigLines, look.font.titleCase);
+  const smallLines = parseTitleLines(opts.smallLines, look.font.titleCase);
   const wordCount = bigLines.reduce((acc, l) => acc + l.length, 0);
   if (wordCount === 0 || wordCount > 40) return null;
   if (smallLines.reduce((acc, l) => acc + l.length, 0) !== wordCount) return null;
-  if (!fs.existsSync(path.join(fontsDir, 'LeagueGothic.ttf'))) return null;
+  if (!fontAvailable(fontsDir, look)) return null;
   const tmp = tempFiles();
   try {
-    const bigFont = fitFontSize(ffmpegBin, fontsDir, tmp, 'big', bigLines, opts.bigMaxTextWidthPx, opts.bigMaxFontSize);
-    const smallFontFit = fitFontSize(ffmpegBin, fontsDir, tmp, 'small', smallLines, opts.smallMaxTextWidthPx, opts.smallMaxFontSize);
+    const bigFont = fitFontSize(ffmpegBin, fontsDir, tmp, 'big', bigLines, opts.bigMaxTextWidthPx, viralMaxFontSizeFor(look.font, opts.bigMaxFontSize), look);
+    const smallFontFit = fitFontSize(
+      ffmpegBin,
+      fontsDir,
+      tmp,
+      'small',
+      smallLines,
+      opts.smallMaxTextWidthPx,
+      viralMaxFontSizeFor(look.font, opts.smallMaxFontSize),
+      look
+    );
     if (!bigFont || !smallFontFit) return null;
     // The small line is never bigger than the opening title
     const smallFont = Math.min(smallFontFit, bigFont);
@@ -362,17 +565,18 @@ export function renderViralTitleWords(opts: {
     const canvasW = 2 * Math.round(frameW / 2);
 
     // Where each word sits: one frame per word, in the big title and in the small line
-    const bigPad = padFor(bigFont);
-    const bigH = canvasHeightFor(bigLines.length, bigFont);
-    const bigArgs = { canvasW, canvasH: bigH, lines: bigLines, fontSize: bigFont, topY: bigPad, oneWordPerSecond: true };
+    const bigUnit = viralTitleUnit(look.font, bigFont);
+    const bigPad = padFor(bigUnit);
+    const bigH = canvasHeightFor(bigLines.length, bigFont, look);
+    const bigArgs = { canvasW, canvasH: bigH, lines: bigLines, fontSize: bigFont, topY: bigPad, oneWordPerSecond: true, look };
     const bigTextAss = tmp.write('big_text.ass', buildTitleAss({ ...bigArgs, shadow: false }));
     const bigShadowAss = tmp.write('big_shadow.ass', buildTitleAss({ ...bigArgs, shadow: true }));
     const bigBoxes = measureAssBoxes(ffmpegBin, fontsDir, bigTextAss, canvasW, bigH, wordCount);
-    const smallPad = padFor(smallFont);
-    const smallH = canvasHeightFor(smallLines.length, smallFont);
+    const smallPad = padFor(viralTitleUnit(look.font, smallFont));
+    const smallH = canvasHeightFor(smallLines.length, smallFont, look);
     const smallTextAss = tmp.write(
       'small_text.ass',
-      buildTitleAss({ canvasW, canvasH: smallH, lines: smallLines, fontSize: smallFont, topY: smallPad, shadow: false, oneWordPerSecond: true })
+      buildTitleAss({ canvasW, canvasH: smallH, lines: smallLines, fontSize: smallFont, topY: smallPad, shadow: false, oneWordPerSecond: true, look })
     );
     const smallBoxes = measureAssBoxes(ffmpegBin, fontsDir, smallTextAss, canvasW, smallH, wordCount);
     if (bigBoxes.some((b) => !b) || smallBoxes.some((b) => !b)) return null;
@@ -382,7 +586,7 @@ export function renderViralTitleWords(opts: {
     const seqFile = (k: number) => seqPattern.replace('%02d', String(k).padStart(2, '0'));
     const seqRun = runFfmpeg(ffmpegBin, [
       '-filter_complex',
-      texturedTitleGraph({ canvasW, canvasH: bigH, fontSize: bigFont, fontsDir, textAss: bigTextAss, shadowAss: bigShadowAss }),
+      texturedTitleGraph({ canvasW, canvasH: bigH, fontSize: bigFont, fontsDir, textAss: bigTextAss, shadowAss: bigShadowAss, look }),
       '-map',
       '[art]',
       '-frames:v',
@@ -398,7 +602,7 @@ export function renderViralTitleWords(opts: {
         return null;
       }
       // Cut each word out of its frame, with room for its shadow
-      const margin = Math.round(bigFont * 0.3);
+      const margin = Math.round(bigUnit * 0.3);
       const crops = (bigBoxes as Box[]).map((b) => {
         const x = Math.max(0, b.x1 - margin);
         const y = Math.max(0, b.y1 - margin);
@@ -440,7 +644,7 @@ export function renderViralTitleWords(opts: {
       });
       const smallTextBottom = Math.max(...(smallBoxes as Box[]).map((b) => b.y2)) - smallInkTop;
       const bigTextHeight = Math.max(...(bigBoxes as Box[]).map((b) => b.y2)) - bigInkTop;
-      return { words, scale, smallTextBottom, bigTextHeight };
+      return { words, scale, smallTextBottom, bigTextHeight, unit: bigUnit };
     } finally {
       for (const f of seqFiles) {
         try {
@@ -457,9 +661,10 @@ export function renderViralTitleWords(opts: {
 }
 
 /**
- * ffmpeg inputs and filter chain that lay the title's words over `inLabel`: each word sits in the big title,
- * then (with `morph`) shrinks and glides to its place in the small line, one word slightly after the other,
- * easing in and out, and stays there until the end of the clip.
+ * ffmpeg inputs and filter chain that lay the title's words over `inLabel`: each word comes in (the design's
+ * animation; the classic one is a short fade of the whole title), sits in the big title, then (with `morph`)
+ * shrinks and glides to its place in the small line, one word slightly after the other, easing in and out,
+ * and stays there until the end of the clip.
  */
 export function buildViralTitleWordFilters(opts: {
   art: ViralTitleWordsArt;
@@ -471,16 +676,57 @@ export function buildViralTitleWordFilters(opts: {
   bigTopY?: number;
   totalDurSec: number;
   morph: { startSec: number; durSec: number; staggerSec: number } | null;
+  /** How the words come in (the design's); absent, the classic fade */
+  anim?: ViralTitleAnim;
+  /** Frame width, for the animations that move the words */
+  frameW?: number;
 }): { inputArgs: string[]; chain: string; outLabel: string } {
   const { art, firstInputIdx, titleTopY, totalDurSec, morph } = opts;
+  const anim: ViralTitleAnim = opts.anim || 'fade';
+  const frameW = opts.frameW || 1440;
   const inputArgs: string[] = [];
   let chain = '';
   let last = opts.inLabel;
   const f = (n: number) => n.toFixed(3);
+  const count = art.words.length;
   art.words.forEach((w, k) => {
     inputArgs.push('-loop', '1', '-framerate', '30', '-t', f(totalDurSec + 0.5), '-i', w.path);
     const x0 = w.bigX;
     const y0 = (opts.bigTopY ?? titleTopY) + w.bigY;
+    const { startSec: inAt, durSec: inDur } = viralTitleEntrance(anim, k, count);
+    // 0 → 1 while the word comes in
+    const pin = `clip((t-${f(inAt)})/${f(inDur)},0,1)`;
+    let pre = `format=rgba`;
+    let sizeMul = '';
+    let xAdd = '';
+    let yAdd = '';
+    let blurChain = '';
+    if (anim === 'slide') {
+      pre += `,fade=t=in:st=${f(inAt)}:d=0.2:alpha=1`;
+      xAdd = `-${f(frameW * VIRAL_TITLE_SLIDE_FRAC)}*pow(1-${pin},3)`;
+    } else if (anim === 'zoom') {
+      pre += `,fade=t=in:st=${f(inAt)}:d=0.1:alpha=1`;
+      // Starts bigger and lands on its place, growing from its centre
+      const extra = `(${f(VIRAL_TITLE_ZOOM_FROM - 1)}*(1-${pin}*${pin}))`;
+      sizeMul = `*(1+${extra})`;
+      xAdd = `-${f(w.width / 2)}*${extra}`;
+      yAdd = `-${f(w.height / 2)}*${extra}`;
+    } else if (anim === 'wipe') {
+      // A transparent strip as wide as the word to its left; the window slides from the strip onto the word
+      pre += `,fade=t=in:st=${f(inAt)}:d=0.03:alpha=1,pad=w=${w.width * 2}:h=${w.height}:x=${w.width}:y=0:color=black@0.0,crop=w=${w.width}:h=${w.height}:x='${w.width}*${pin}':y=0:exact=1`;
+      xAdd = `-${f(w.width)}*(1-${pin})`;
+    } else if (anim === 'blur') {
+      // A blurred copy comes first and gives way to the sharp word
+      const sigma = Math.max(2, art.unit * VIRAL_TITLE_BLUR_UNITS);
+      const fadeOutAt = inAt + inDur * 0.45;
+      blurChain =
+        `;[${firstInputIdx + k}:v]split[twa${k}][twb${k}]` +
+        `;[twb${k}]format=rgba,trim=duration=${f(inAt + inDur + 0.1)},gblur=sigma=${f(sigma)},fade=t=in:st=${f(inAt)}:d=0.2:alpha=1,fade=t=out:st=${f(fadeOutAt)}:d=${f(inDur * 0.55)}:alpha=1[twblur${k}]`;
+      pre += `,fade=t=in:st=${f(inAt + inDur * 0.3)}:d=${f(inDur * 0.7)}:alpha=1`;
+    } else {
+      // fade (the whole title), words and typewriter (one after another, soft or sharp)
+      pre += `,fade=t=in:st=${f(inAt)}:d=${f(inDur)}:alpha=1`;
+    }
     let scaleFilter = '';
     let xExpr = f(x0);
     let yExpr = f(y0);
@@ -488,13 +734,24 @@ export function buildViralTitleWordFilters(opts: {
       const p = `clip((t-${f(morph.startSec + k * morph.staggerSec)})/${f(morph.durSec)},0,1)`;
       // Smoothstep: starts and lands gently
       const e = `(${p}*${p}*(3-2*${p}))`;
-      const sizeExpr = (px: number) => `max(2,${px}*(1+(${f(art.scale)}-1)*${e}))`;
+      const sizeExpr = (px: number) => `max(2,${px}*(1+(${f(art.scale)}-1)*${e})${sizeMul})`;
       scaleFilter = `,scale=w='${sizeExpr(w.width)}':h='${sizeExpr(w.height)}':eval=frame:flags=bilinear`;
       xExpr = `${f(x0)}+(${f(w.smallX)}-${f(x0)})*${e}`;
       yExpr = `${f(y0)}+(${f(titleTopY + w.smallY)}-${f(y0)})*${e}`;
+    } else if (sizeMul) {
+      scaleFilter = `,scale=w='max(2,${w.width}${sizeMul})':h='max(2,${w.height}${sizeMul})':eval=frame:flags=bilinear`;
     }
+    xExpr += xAdd;
+    yExpr += yAdd;
     const next = `vtw${k}`;
-    chain += `;[${firstInputIdx + k}:v]format=rgba,fade=t=in:st=0:d=0.25:alpha=1${scaleFilter}[tword${k}];[${last}][tword${k}]overlay=x='${xExpr}':y='${yExpr}':eof_action=pass:format=auto[${next}]`;
+    if (blurChain) {
+      chain += blurChain;
+      chain += `;[${last}][twblur${k}]overlay=x='${f(x0)}':y='${f(y0)}':eof_action=pass:format=auto[vtwb${k}]`;
+      last = `vtwb${k}`;
+      chain += `;[twa${k}]${pre}${scaleFilter}[tword${k}];[${last}][tword${k}]overlay=x='${xExpr}':y='${yExpr}':eof_action=pass:format=auto[${next}]`;
+    } else {
+      chain += `;[${firstInputIdx + k}:v]${pre}${scaleFilter}[tword${k}];[${last}][tword${k}]overlay=x='${xExpr}':y='${yExpr}':eof_action=pass:format=auto[${next}]`;
+    }
     last = next;
   });
   return { inputArgs, chain, outLabel: last };

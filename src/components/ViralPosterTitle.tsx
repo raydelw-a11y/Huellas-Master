@@ -1,6 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import leagueGothicUrl from '../assets/fonts/LeagueGothic.ttf';
 import { VIRAL_TITLE_LOOK } from '../utils/viralTitle';
+import {
+  VIRAL_REF_CAP_ASS,
+  viralFontById,
+  viralTitleLineStepFactor,
+  viralTitleWordLines,
+  type ViralDocStyle,
+} from '../utils/viralStyle';
+import { useViralFontTick, viralFontMetrics } from '../utils/viralFonts';
+import { ViralStyledTitle, viralStyledTitleLayout } from './ViralStyledTitle';
 
 // Preview of the Viral Clips "poster" title: the same letters, colours, sizes and position as the image the
 // Mac draws for the exported clip (server/viralTitleArt.ts). The worn texture here is a CSS mask, so its
@@ -30,16 +39,28 @@ export interface ViralPosterTitleProps {
   /** Top of the text box, in CSS pixels from the top of the frame (what the render calls the title's top) */
   topPx: number;
   visible: boolean;
+  /** The documentary's design; absent, the classic poster look */
+  docStyle?: ViralDocStyle | null;
+  /** With a design, its entrance animation: the clip's second, and how to read it every frame while playing */
+  clipSec?: number;
+  playing?: boolean;
+  getClipSec?: () => number;
 }
 
-/** CSS font size (px) that the render would use for these lines in a frame of this size. */
+/**
+ * CSS font size (px) that the render would use for these lines in a frame of this size. With a design, in
+ * the design's title font.
+ */
 export function useViralPosterFontPx(
   lines: string[],
   frameW: number,
   frameH: number,
   maxTextWFrac: number,
-  maxFontHFrac: number
+  maxFontHFrac: number,
+  docStyle?: ViralDocStyle | null
 ): number {
+  const styledFont = docStyle ? viralFontById(docStyle.titleFont) : null;
+  const styledTick = useViralFontTick(styledFont);
   const [fontReady, setFontReady] = useState(false);
   useEffect(() => {
     ensureLeagueGothicFace();
@@ -57,6 +78,16 @@ export function useViralPosterFontPx(
     };
   }, []);
   return useMemo(() => {
+    if (styledFont) {
+      return viralStyledTitleLayout(
+        styledFont,
+        viralTitleWordLines(lines, styledFont.titleCase),
+        frameW,
+        frameH,
+        maxTextWFrac,
+        maxFontHFrac
+      ).fontPx;
+    }
     const L = VIRAL_TITLE_LOOK;
     const emCap = (frameH * maxFontHFrac) / L.assHeightRatio;
     if (lines.length === 0 || frameW <= 0) return emCap;
@@ -75,17 +106,26 @@ export function useViralPosterFontPx(
     if (widest <= 0) return emCap;
     return Math.max(6, Math.min(emCap, (100 * frameW * maxTextWFrac) / widest));
     // fontReady: measure again once the real font is in
-  }, [lines.join('\n'), frameW, frameH, maxTextWFrac, maxFontHFrac, fontReady]);
+  }, [lines.join('\n'), frameW, frameH, maxTextWFrac, maxFontHFrac, fontReady, styledFont?.id, styledTick]);
 }
 
 /** Height of the drawn text (first cap line to the last baseline), for stacking the notice under the title. */
-export function viralPosterTextHeightPx(lineCount: number, fontPx: number): number {
+export function viralPosterTextHeightPx(lineCount: number, fontPx: number, docStyle?: ViralDocStyle | null): number {
   const L = VIRAL_TITLE_LOOK;
+  if (docStyle) {
+    const font = viralFontById(docStyle.titleFont);
+    const capPx = fontPx * viralFontMetrics(font).capEm;
+    const unit = capPx / VIRAL_REF_CAP_ASS;
+    return Math.max(0, lineCount - 1) * L.lineStep * viralTitleLineStepFactor(font) * unit + capPx;
+  }
   const assSize = fontPx * L.assHeightRatio;
   return Math.max(0, lineCount - 1) * L.lineStep * assSize + 0.565 * assSize;
 }
 
-export const ViralPosterTitle: React.FC<ViralPosterTitleProps> = ({
+export const ViralPosterTitle: React.FC<ViralPosterTitleProps> = (props) =>
+  props.docStyle ? <ViralStyledTitle {...props} docStyle={props.docStyle} /> : <ClassicPosterTitle {...props} />;
+
+const ClassicPosterTitle: React.FC<ViralPosterTitleProps> = ({
   lines,
   frameW,
   frameH,

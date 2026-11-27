@@ -68,9 +68,22 @@ import {
   renderViralTitleArt,
   renderViralTitleWords,
   buildViralTitleWordFilters,
+  viralTitleDrawLookFor,
   type ViralTitleArt,
   type ViralTitleWordsArt,
 } from './server/viralTitleArt';
+import {
+  VIRAL_FONT_FILES,
+  VIRAL_CAPTION_BOX_PAD_CAPS,
+  normalizeViralStyle,
+  viralFontById,
+  viralHexToAss,
+  viralInkOn,
+  viralCaptionSizeFactor,
+  viralTitleFontMetrics,
+  type ViralDocStyle,
+  type ViralFontDef,
+} from './src/utils/viralStyle';
 import {
   VIRAL_TITLE_LOOK,
   splitViralTitleLines,
@@ -22106,22 +22119,14 @@ for (const d of [VIRAL_CLIPS_DIR, VIRAL_UPLOADS_DIR, VIRAL_YOUTUBE_DIR, VIRAL_EX
 }
 
 app.use('/viral-clips-media', express.static(VIRAL_CLIPS_DIR));
-// Player diagnosis sent by the Viral Clips viewer from a phone (temporary): what the video element reports
-// when a jump is dropped. Kept in data/viral-clips/player-diag.log, never above ~512 KB.
-app.post('/api/viral-clips/player-diag', (req, res) => {
-  try {
-    const file = path.join(VIRAL_CLIPS_DIR, 'player-diag.log');
-    const line = JSON.stringify({
-      at: new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }),
-      ua: String(req.headers['user-agent'] || '').slice(0, 160),
-      ...(req.body && typeof req.body === 'object' ? req.body : {}),
-    }).slice(0, 1500);
-    try {
-      if (fs.existsSync(file) && fs.statSync(file).size > 512 * 1024) fs.writeFileSync(file, '');
-    } catch {}
-    fs.appendFileSync(file, line + '\n');
-  } catch {}
-  res.json({ ok: true });
+// Fonts of the documentaries' designs, for the page's preview (only the files of the fonts list)
+app.get('/api/viral-clips/font/:file', (req, res) => {
+  const name = path.basename(String(req.params.file || ''));
+  const file = path.join(process.cwd(), 'data', 'fonts', name);
+  if (!VIRAL_FONT_FILES.includes(name) || !fs.existsSync(file)) return res.status(404).end();
+  res.setHeader('Cache-Control', 'public, max-age=2592000');
+  res.type('font/ttf');
+  res.sendFile(file);
 });
 
 interface InstagramAutoDmRule {
@@ -22572,10 +22577,12 @@ function buildViralPublicCopy(docId: string): string | null {
       return rest;
     });
     if (clips.length === 0) return null;
+    const docStyle = normalizeViralStyle(data?.docStyle);
     return JSON.stringify({
       docId,
       savedAt: Number(data?.savedAt || 0),
       youtubeUrl: String(data?.youtubeUrl || ''),
+      ...(docStyle ? { docStyle } : {}),
       clips,
     });
   } catch {
@@ -22673,10 +22680,39 @@ app.get('/api/viral-clips/saved', (req, res) => {
       savedAt: Number(data?.savedAt || 0),
       // Link to the full documentary on YouTube (goes in the pinned comment of Facebook posts)
       youtubeUrl: String(data?.youtubeUrl || ''),
+      // The documentary's design for its clips' title and captions (absent: the classic look)
+      docStyle: normalizeViralStyle(data?.docStyle),
+      // Fixed: Gemini never changes it when clips are asked for again
+      docStyleLocked: Boolean(data?.docStyleLocked),
       ...(data?.pendingGeminiAnswer?.text ? { pendingGeminiAnswer: data.pendingGeminiAnswer } : {}),
     });
   } catch (err: any) {
     res.status(500).json({ ok: false, error: err?.message || 'No se pudieron leer los clips guardados.' });
+  }
+});
+
+// Designs the other documentaries already have, so a new one never repeats a whole combination
+app.get('/api/viral-clips/styles', (req, res) => {
+  try {
+    const except = String(req.query.exceptDocId || '').trim();
+    const titles = new Map<string, string>();
+    try {
+      for (const d of readDocumentaries() || []) if (d?.id) titles.set(String(d.id), String(d.title || ''));
+    } catch {}
+    const styles: Array<{ docId: string; title: string; style: ViralDocStyle }> = [];
+    if (fs.existsSync(VIRAL_SAVED_DIR)) {
+      for (const n of fs.readdirSync(VIRAL_SAVED_DIR).filter((x) => x.endsWith('.json'))) {
+        try {
+          const data = JSON.parse(fs.readFileSync(path.join(VIRAL_SAVED_DIR, n), 'utf8'));
+          const docId = String(data?.docId || '');
+          const style = normalizeViralStyle(data?.docStyle);
+          if (docId && docId !== except && style) styles.push({ docId, title: titles.get(docId) || docId, style });
+        } catch {}
+      }
+    }
+    res.json({ ok: true, styles });
+  } catch (err: any) {
+    res.json({ ok: true, styles: [] });
   }
 });
 
@@ -22689,11 +22725,18 @@ app.post('/api/viral-clips/saved', (req, res) => {
     const f = viralSavedFileFor(docId);
     let prevPending: any = null;
     let prevYoutubeUrl = '';
+    let prevDocStyle: any = null;
+    let prevDocStyleLocked = false;
     try {
       const prev = fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, 'utf8')) : null;
       prevPending = prev?.pendingGeminiAnswer || null;
       prevYoutubeUrl = String(prev?.youtubeUrl || '');
+      prevDocStyle = prev?.docStyle || null;
+      prevDocStyleLocked = Boolean(prev?.docStyleLocked);
     } catch {}
+    // The design: an older page does not send it (keep the saved one); null goes back to the classic look
+    const docStyle = normalizeViralStyle(req.body && 'docStyle' in req.body ? req.body.docStyle : prevDocStyle);
+    const docStyleLocked = req.body && 'docStyleLocked' in req.body ? Boolean(req.body.docStyleLocked) : prevDocStyleLocked;
     // An older page does not send the link: keep the saved one
     const youtubeUrl =
       typeof req.body?.youtubeUrl === 'string' ? req.body.youtubeUrl.trim().slice(0, 300) : prevYoutubeUrl;
@@ -22708,6 +22751,8 @@ app.post('/api/viral-clips/saved', (req, res) => {
         selectedClipId: String(req.body?.selectedClipId || ''),
         savedAt: Date.now(),
         ...(youtubeUrl ? { youtubeUrl } : {}),
+        ...(docStyle ? { docStyle } : {}),
+        ...(docStyleLocked ? { docStyleLocked: true } : {}),
         ...(keepPending ? { pendingGeminiAnswer: prevPending } : {}),
       })
     );
@@ -23590,6 +23635,8 @@ function buildOpusClipAssSubtitles(params: {
   hookBannerTopPct?: number;
   /** A caption line never spans these times (the cuts between the clip's pieces) */
   chunkBreaks?: number[];
+  /** The documentary's design (captions' font, colours and animation); absent, the classic captions */
+  docStyle?: ViralDocStyle | null;
 }): string {
   const {
     outW,
@@ -23627,19 +23674,37 @@ function buildOpusClipAssSubtitles(params: {
       return 1.41;
     }
   })();
-  const baseFontSize =
+  const classicFontSize =
     captionEmOfHeight && captionEmOfHeight > 0
       ? Math.round(outH * captionEmOfHeight * captionFontHeightRatio * fontSizeScale)
       : Math.round(outH * 0.041 * fontSizeScale);
+  // The documentary's design: its own caption font, with capitals as tall as Arial Black's would be here.
+  // `refFontSize` is that Arial Black size (edge and shadow follow it); `baseFontSize` is the font's own.
+  const docStyle = params.docStyle || null;
+  const capFont: ViralFontDef | null = docStyle ? viralFontById(docStyle.captionFont) : null;
+  const capAnim = docStyle ? docStyle.captionAnimation : 'highlight';
+  const refFontSize = capFont ? Math.round(classicFontSize * viralCaptionSizeFactor(capFont, capAnim)) : classicFontSize;
+  const arialCapAss = viralFontById('arial_black').capAss;
+  const baseFontSize =
+    capFont && capFont.id !== 'arial_black' ? Math.round((refFontSize * arialCapAss) / capFont.capAss) : refFontSize;
+  const capFontName = capFont ? capFont.ass : 'Arial Black';
+  const capBold = !capFont || capFont.bold ? -1 : 0;
+  const capOutline = Math.max(4, Math.round(refFontSize * 0.09));
+  const capShadow = Math.max(2, Math.round(refFontSize * 0.05));
   const hookBannerFontSize = Math.round(outH * 0.042);
   const posY = Math.round((Math.max(20, Math.min(88, captionYPercent)) / 100) * outH);
   const centerX = Math.round(outW / 2);
 
   // Active word highlight colors in ASS BGR format (&HBBGGRR&)
   // 'yellow_white': texto amarillo de alto contraste y la palabra que se está diciendo en blanco
-  const baseColorAss = captionStyle === 'yellow_white' ? '&H0000E6FF&' : '&H00FFFFFF&';
-  const highlightColorAss =
-    captionStyle === 'yellow_white'
+  const baseColorAss = docStyle
+    ? viralHexToAss(docStyle.captionColor)
+    : captionStyle === 'yellow_white'
+    ? '&H0000E6FF&'
+    : '&H00FFFFFF&';
+  const highlightColorAss = docStyle
+    ? viralHexToAss(docStyle.captionActiveColor)
+    : captionStyle === 'yellow_white'
       ? '&H00FFFFFF&'
       : captionStyle === 'hormozi_green'
       ? '&H0080DE4A&' // Neon Green (#4ADE80)
@@ -23659,10 +23724,7 @@ function buildOpusClipAssSubtitles(params: {
     '',
     '[V4+ Styles]',
     'Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding',
-    `Style: OpusMain,Arial Black,${baseFontSize},&H00FFFFFF,&H0000FFFF,&H00000000,&H80000000,-1,0,0,0,100,100,1,0,1,${Math.max(
-      4,
-      Math.round(baseFontSize * 0.09)
-    )},${Math.max(2, Math.round(baseFontSize * 0.05))},5,40,40,40,1`,
+    `Style: OpusMain,${capFontName},${baseFontSize},&H00FFFFFF,&H0000FFFF,&H00000000,&H80000000,${capBold},0,0,0,100,100,1,0,1,${capOutline},${capShadow},5,40,40,40,1`,
     `Style: OpusPillBg,Arial Black,${baseFontSize},&HB0000000,&H0000FFFF,&H00000000,&H00000000,-1,0,0,0,100,100,1,0,1,0,0,5,40,40,40,1`,
     `Style: HookBanner,Arial Black,${hookBannerFontSize},&H00101010,&H0000FFFF,&H0015CCFA,&H0015CCFA,-1,0,0,0,100,100,1,0,3,${Math.round(
       hookBannerFontSize * 0.36
@@ -23706,8 +23768,26 @@ function buildOpusClipAssSubtitles(params: {
   // 3) Group words into chunks of `wordsPerLine` and emit word-by-word active highlight events
   //    Each line also stops at VIRAL_CAPTION_MAX_CHARS characters (a single longer word still gets its own line).
   // Viral Clips: at most 2 words per caption line
-  const safeWordsPerChunk = Math.max(1, Math.min(2, Number(wordsPerLine) || 2));
+  const safeWordsPerChunk = capAnim === 'single' ? 1 : Math.max(1, Math.min(2, Number(wordsPerLine) || 2));
   const VIRAL_CAPTION_MAX_CHARS = 16;
+  // How the word being said is drawn, by the design's caption animation
+  const boxInkAss = docStyle ? viralHexToAss(viralInkOn(docStyle.captionActiveColor)) : '';
+  const activeToken = (word: string): string => {
+    const back = `{\\1c${baseColorAss}\\fscx100\\fscy100}`;
+    switch (capAnim) {
+      case 'pop':
+        return `{\\1c${highlightColorAss}\\t(0,90,\\fscx126\\fscy126)\\t(90,210,\\fscx114\\fscy114)}${word}${back}`;
+      case 'box':
+        // Dark or light ink on the colour block drawn under it (see the layer below)
+        return `{\\1c${boxInkAss}\\bord0\\shad0}${word}{\\1c${baseColorAss}\\bord${capOutline}\\shad${capShadow}}`;
+      case 'underline':
+        return `{\\1c${highlightColorAss}\\u1}${word}{\\u0\\1c${baseColorAss}}`;
+      case 'single':
+        return `{\\1c${highlightColorAss}\\fscx116\\fscy116\\t(0,110,\\fscx100\\fscy100)\\t(110,300,\\1c${baseColorAss})}${word}`;
+      default:
+        return `{\\1c${highlightColorAss}\\fscx108\\fscy108}${word}${back}`;
+    }
+  };
   const wordChunks: WordTimestamp[][] = [];
   {
     let cur: WordTimestamp[] = [];
@@ -23753,10 +23833,29 @@ function buildOpusClipAssSubtitles(params: {
           .replace(/[{}]/g, '')
           .toUpperCase();
         if (j === activeIdx) {
+          if (docStyle) return activeToken(cleanWord);
           return `{\\1c${highlightColorAss}\\fscx108\\fscy108}${cleanWord}{\\1c${baseColorAss}\\fscx100\\fscy100}`;
         }
         return cleanWord;
       });
+
+      if (docStyle && capAnim === 'box') {
+        // The colour block: the same line underneath, where only the spoken word shows, as a thick soft blob
+        const pad = Math.max(6, Math.round(refFontSize * arialCapAss * VIRAL_CAPTION_BOX_PAD_CAPS));
+        const under = chunk
+          .map((tokenObj, j) => {
+            const w = String(tokenObj.word || '')
+              .replace(/[{}]/g, '')
+              .toUpperCase();
+            return j === activeIdx
+              ? `{\\alpha&H00&\\1c${highlightColorAss}\\3c${highlightColorAss}\\bord${pad}\\blur1}${w}{\\alpha&HFF&}`
+              : w;
+          })
+          .join(' ');
+        assLines.push(
+          `Dialogue: 1,${formatAssTime(wStart)},${formatAssTime(wEnd)},OpusMain,,0,0,0,,{\\an2\\pos(${centerX},${posY})\\shad0\\alpha&HFF&}${under}`
+        );
+      }
 
       const lineStr = formattedTokens.join(' ');
       assLines.push(
@@ -23886,13 +23985,17 @@ async function listViralCoverCandidates(
   defaultTopFrac: number,
   withThumbs: boolean,
   /** The title's real height when it is already drawn (otherwise it is estimated from its lines) */
-  knownTextHeightFrac?: number
+  knownTextHeightFrac?: number,
+  /** The title's font when the documentary has a design (the estimate depends on it) */
+  titleFont?: ViralFontDef | null
 ): Promise<{ candidates: Array<{ clipSec: number; score: number; faces: ViralFaceBox[]; thumb?: string }>; bestClipSec: number | null }> {
   const times = viralCoverCandidateTimes(p.cuts.totalDurSec);
   const infos = await analyzeViralClipFrames(p, times, withThumbs);
   const maxSharp = Math.max(1, ...infos.map((x) => (x ? x.sharp : 0)));
   const textHeightFrac =
-    knownTextHeightFrac && knownTextHeightFrac > 0 ? knownTextHeightFrac : estimateViralBigTitleHeightFrac(titleLines);
+    knownTextHeightFrac && knownTextHeightFrac > 0
+      ? knownTextHeightFrac
+      : estimateViralBigTitleHeightFrac(titleLines, titleFont ? viralTitleFontMetrics(titleFont) : undefined);
   const candidates = infos
     .map((info, i) =>
       info
@@ -23953,6 +24056,8 @@ async function renderViralClipMp4Internal(params: {
   sourceIsViralMaster?: boolean;
   /** Timeline ranges the 9:16 master leaves out (intro/outro), to move the clip's times onto the master */
   viralMasterSkipRanges?: Array<{ start: number; end: number }>;
+  /** The documentary's design for the title and captions (see src/utils/viralStyle.ts); absent, the classic look */
+  docStyle?: any;
 }): Promise<{
   outputFilePath: string;
   savedInDocFolderPath?: string;
@@ -23984,6 +24089,11 @@ async function renderViralClipMp4Internal(params: {
     viralMasterSkipRanges = [],
   } = params;
   const look916 = getViral916Look(docId);
+  // The documentary's design. Without one, everything below draws exactly the classic look.
+  const docStyle = normalizeViralStyle(params.docStyle);
+  const titleDrawLook = docStyle ? viralTitleDrawLookFor(docStyle) : undefined;
+  const titleFontDef = docStyle ? viralFontById(docStyle.titleFont) : null;
+  const titleWidthFactor = titleFontDef ? titleFontDef.widthFactor : 1;
 
   if (!sourceVideoPath || !fs.existsSync(sourceVideoPath)) {
     throw new Error(
@@ -24061,6 +24171,7 @@ async function renderViralClipMp4Internal(params: {
           maxTextWidthPx,
           maxFontSize,
           outPath,
+          look: titleDrawLook,
         });
         if (art) titleArtFiles.push(art.path);
         return art;
@@ -24068,8 +24179,8 @@ async function renderViralClipMp4Internal(params: {
       const L = VIRAL_TITLE_LOOK;
       const bigTextW = outW * L.bigTextWFrac;
       const bigFont = outH * L.bigFontHFrac;
-      const titleLines = showHookBanner ? splitViralTitleLines(hookBannerText) : [];
-      const smallLines = buildViralSmallTitleLines(titleLines);
+      const titleLines = showHookBanner ? splitViralTitleLines(hookBannerText, titleWidthFactor) : [];
+      const smallLines = buildViralSmallTitleLines(titleLines, titleWidthFactor);
       const timeline = computeViralTitleTimeline(totalClipDurSec, {
         hasTitle: titleLines.length > 0,
         showNotice: showYoutubeNotice,
@@ -24088,6 +24199,7 @@ async function renderViralClipMp4Internal(params: {
           smallMaxTextWidthPx: outW * L.smallTextWFrac,
           smallMaxFontSize: bigFont * L.smallFontScale,
           outPrefix: path.join(os.tmpdir(), `viral_title_${stamp}_word`),
+          look: titleDrawLook,
         });
         if (wordsArt) {
           posterTitleDrawn = true;
@@ -24181,11 +24293,20 @@ async function renderViralClipMp4Internal(params: {
     totalClipDurSec,
     chunkBreaks: viralCutTimes(cuts),
     hookBannerTopPct: look916.hookBannerTopPct,
+    docStyle,
   });
 
   const assPath = path.join(os.tmpdir(), `viral_ass_${stamp}.ass`);
   fs.writeFileSync(assPath, assContent, 'utf8');
   const escapedAssPath = assPath.replace(/\\/g, '/').replace(/:/g, '\\:');
+  // Captions filter; a design's font is read from the project's fonts folder
+  const captionsFilter = docStyle
+    ? `ass='${escapedAssPath}':fontsdir='${path
+        .join(process.cwd(), 'data', 'fonts')
+        .replace(/\\/g, '/')
+        .replace(/:/g, '\\:')
+        .replace(/'/g, "\\'")}'`
+    : `ass='${escapedAssPath}'`;
 
   // Official logo, same size and place as in the documentary's 9:16 Reel (the 9:16 master already has it)
   let logoOverlaySuffix = '';
@@ -24254,17 +24375,17 @@ async function renderViralClipMp4Internal(params: {
   let reframeVf = '';
   if (sourceIsViralMaster) {
     // Clean 9:16 master: the editor's framing per scene is already in the picture
-    reframeVf = `scale=${outW}:${outH}:flags=lanczos,setsar=1,ass='${escapedAssPath}'`;
+    reframeVf = `scale=${outW}:${outH}:flags=lanczos,setsar=1,${captionsFilter}`;
   } else if (reframeMode === 'fit_blur') {
-    reframeVf = `${preCropVf}split=2[bg][fg];[bg]scale=${outW}:${outH}:force_original_aspect_ratio=increase:flags=lanczos,crop=${outW}:${outH},boxblur=24:4,eq=brightness=-0.18[bgblur];[fg]scale=${outW}:${outH}:force_original_aspect_ratio=decrease:flags=lanczos[fgscaled];[bgblur][fgscaled]overlay=(W-w)/2:(H-h)/2,ass='${escapedAssPath}'${logoOverlaySuffix}`;
+    reframeVf = `${preCropVf}split=2[bg][fg];[bg]scale=${outW}:${outH}:force_original_aspect_ratio=increase:flags=lanczos,crop=${outW}:${outH},boxblur=24:4,eq=brightness=-0.18[bgblur];[fg]scale=${outW}:${outH}:force_original_aspect_ratio=decrease:flags=lanczos[fgscaled];[bgblur][fgscaled]overlay=(W-w)/2:(H-h)/2,${captionsFilter}${logoOverlaySuffix}`;
   } else if (reframeMode === 'auto_pan') {
     reframeVf = `${preCropVf}scale=${outW}:${outH}:force_original_aspect_ratio=increase:flags=lanczos,crop=${outW}:${outH}:'(iw-ow)*(0.25+0.5*min(1,t/${Math.max(1, totalClipDurSec).toFixed(
       2
-    )}))':(ih-oh)/2,ass='${escapedAssPath}'${logoOverlaySuffix}`;
+    )}))':(ih-oh)/2,${captionsFilter}${logoOverlaySuffix}`;
   } else {
     reframeVf = `${preCropVf}scale=${outW}:${outH}:force_original_aspect_ratio=increase:flags=lanczos,crop=${outW}:${outH}:(iw-ow)*${fX.toFixed(
       3
-    )}:(ih-oh)/2,ass='${escapedAssPath}'${logoOverlaySuffix}`;
+    )}:(ih-oh)/2,${captionsFilter}${logoOverlaySuffix}`;
   }
 
   try {
@@ -24310,6 +24431,8 @@ async function renderViralClipMp4Internal(params: {
         bigTopY: titleBigTopY,
         totalDurSec: totalClipDurSec,
         morph: titleWordsMorph,
+        anim: docStyle ? docStyle.titleAnimation : undefined,
+        frameW: outW,
       });
       inputArgs.push(...wordFilters.inputArgs);
       titleChain += wordFilters.chain;
@@ -24346,10 +24469,11 @@ async function renderViralClipMp4Internal(params: {
         if (coverSec < 0) {
           const picked = await listViralCoverCandidates(
             frameSource,
-            splitViralTitleLines(hookBannerText),
+            splitViralTitleLines(hookBannerText, titleWidthFactor),
             titleTopY / outH,
             false,
-            titleWordsArt.bigTextHeight / outH
+            titleWordsArt.bigTextHeight / outH,
+            titleFontDef
           );
           coverSec = picked.bestClipSec ?? totalClipDurSec / 2;
           coverFaces = picked.candidates.find((c) => c.clipSec === coverSec)?.faces || [];
@@ -24366,7 +24490,7 @@ async function renderViralClipMp4Internal(params: {
         const coverScale = coverPlace.scale;
         const coverPath = path.join(os.tmpdir(), `viral_cover_${stamp}.png`);
         // The frame goes through the clip's own framing (without captions), then every word of the title on top
-        const coverVf = reframeVf.replace(`,ass='${escapedAssPath}'`, '');
+        const coverVf = reframeVf.replace(`,${captionsFilter}`, '');
         const coverArgs = ['-hide_banner', '-v', 'error', '-y', '-ss', viralClipSecToSourceSec(frameSource, coverSec).toFixed(3), '-i', sourceVideoPath];
         let coverGraph = `[0:v]${coverVf}[cv0]`;
         titleWordsArt.words.forEach((w, k) => {
@@ -25026,11 +25150,15 @@ app.post('/api/viral-clips/cover-candidates', async (req, res) => {
   try {
     const body = req.body || {};
     const look = getViral916Look(String(body.docId || ''));
+    const coverStyle = normalizeViralStyle(body.docStyle);
+    const coverFont = coverStyle ? viralFontById(coverStyle.titleFont) : null;
     const result = await listViralCoverCandidates(
       viralFrameSourceFromBody(body),
-      splitViralTitleLines(String(body.hookBannerText || '')),
+      splitViralTitleLines(String(body.hookBannerText || ''), coverFont ? coverFont.widthFactor : 1),
       (look.hookBannerTopPct ?? 13.5) / 100,
-      true
+      true,
+      undefined,
+      coverFont
     );
     res.json({ ok: true, ...result });
   } catch (err: any) {

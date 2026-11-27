@@ -1,6 +1,7 @@
 import React from 'react';
 import { ViralPosterTitle, useViralPosterFontPx, viralPosterTextHeightPx } from './ViralPosterTitle';
 import { VIRAL_TITLE_LOOK, computeViralCoverTitlePlacement, type ViralFaceBox } from '../utils/viralTitle';
+import type { ViralDocStyle } from '../utils/viralStyle';
 
 // Cover of a viral clip: the clip's last frame is a still with the big title. Shows the cover as it will be
 // exported (picture + title in its usual place, full size) and the frames it can be changed to.
@@ -26,7 +27,9 @@ export const ViralCoverPicker: React.FC<{
   /** Usual top of the title, % of the frame height */
   titleTopPct: number;
   loading: boolean;
-}> = ({ candidates, bestClipSec, chosenClipSec, onChoose, titleLines, titleTopPct, loading }) => {
+  /** The documentary's design (the cover's title is drawn with it); absent, the classic look */
+  docStyle?: ViralDocStyle | null;
+}> = ({ candidates, bestClipSec, chosenClipSec, onChoose, titleLines, titleTopPct, loading, docStyle }) => {
   const activeSec =
     typeof chosenClipSec === 'number' && candidates.some((c) => c.clipSec === chosenClipSec)
       ? chosenClipSec
@@ -37,11 +40,12 @@ export const ViralCoverPicker: React.FC<{
     COVER_W,
     COVER_H,
     VIRAL_TITLE_LOOK.bigTextWFrac,
-    VIRAL_TITLE_LOOK.bigFontHFrac
+    VIRAL_TITLE_LOOK.bigFontHFrac,
+    docStyle
   );
   const place = computeViralCoverTitlePlacement({
     defaultTopFrac: titleTopPct / 100,
-    textHeightFrac: viralPosterTextHeightPx(titleLines.length, fontPx) / COVER_H,
+    textHeightFrac: viralPosterTextHeightPx(titleLines.length, fontPx, docStyle) / COVER_H,
     faces: active ? active.faces : [],
   });
   const topPx = COVER_H * place.topFrac;
@@ -71,6 +75,7 @@ export const ViralCoverPicker: React.FC<{
           maxFontHFrac={VIRAL_TITLE_LOOK.bigFontHFrac * place.scale}
           topPx={topPx}
           visible
+          docStyle={docStyle}
         />
       </div>
       <div className="min-w-0 flex-1 space-y-1.5">

@@ -29,8 +29,12 @@ export const VIRAL_TITLE_LOOK = {
   fontFamily: 'League Gothic',
 } as const;
 
-/** Title in capitals, split into balanced lines: 1 line for a couple of words, up to 4 for a long title. */
-export function splitViralTitleLines(rawText: string): string[] {
+/**
+ * Title in capitals, split into balanced lines: 1 line for a couple of words, up to 4 for a long title.
+ * `widthFactor` is how wide the title's font is next to League Gothic (1): a wide font gets more, shorter
+ * lines (up to 5), so its letters do not end up tiny.
+ */
+export function splitViralTitleLines(rawText: string, widthFactor = 1): string[] {
   const clean = String(rawText || '')
     .replace(/[{}\\|]/g, '')
     .replace(/\s+/g, ' ')
@@ -39,7 +43,8 @@ export function splitViralTitleLines(rawText: string): string[] {
     .slice(0, 90);
   if (!clean) return [];
   const words = clean.split(' ');
-  const wanted = clean.length <= 9 || words.length === 1 ? 1 : clean.length <= 44 ? 2 : clean.length <= 72 ? 3 : 4;
+  const effLen = clean.length * Math.max(1, Math.min(2.6, Number(widthFactor) || 1));
+  const wanted = effLen <= 9 || words.length === 1 ? 1 : effLen <= 44 ? 2 : effLen <= 72 ? 3 : effLen <= 100 ? 4 : 5;
   const lineCount = Math.min(wanted, words.length);
   if (lineCount <= 1) return [clean];
   // Choose the break points that keep the longest line as short as possible (titles are short: try them all)
@@ -69,12 +74,13 @@ export function splitViralTitleLines(rawText: string): string[] {
  * the big title's last line still in gold (the "|" marks where the gold starts). A very long title would be
  * unreadable on one line, so it goes on two.
  */
-export function buildViralSmallTitleLines(bigLines: string[]): string[] {
+export function buildViralSmallTitleLines(bigLines: string[], widthFactor = 1): string[] {
   const lines = bigLines.map((l) => String(l || '').trim()).filter(Boolean);
   if (lines.length <= 1) return lines;
   const whitePart = lines.slice(0, -1).join(' ');
   const goldPart = lines[lines.length - 1];
-  if (whitePart.length + 1 + goldPart.length <= 52) return [`${whitePart}|${goldPart}`];
+  const oneLineMax = 52 / Math.max(1, Math.min(2.6, Number(widthFactor) || 1));
+  if (whitePart.length + 1 + goldPart.length <= oneLineMax) return [`${whitePart}|${goldPart}`];
   const words = lines.join(' ').split(' ');
   let best = Math.ceil(words.length / 2);
   let bestDiff = Infinity;
@@ -205,16 +211,28 @@ export function viralCoverCandidateTimes(totalDurSec: number): number[] {
   return Array.from({ length: count }, (_v, i) => Number((total * (0.04 + (0.92 * i) / (count - 1))).toFixed(2)));
 }
 
-/** Rough height of the big title (fraction of the frame height), from its lines alone. */
-export function estimateViralBigTitleHeightFrac(lines: string[]): number {
+/**
+ * Rough height of the big title (fraction of the frame height), from its lines alone. `font` is the title's
+ * font when it is not League Gothic: how wide its capitals are next to League Gothic's and how tall they are
+ * next to its ASS font size (both from the fonts list).
+ */
+export function estimateViralBigTitleHeightFrac(
+  lines: string[],
+  font?: { widthFactor: number; capAss: number; lineStepFactor?: number }
+): number {
   if (lines.length === 0) return 0;
   const widest = Math.max(...lines.map((l) => l.replace('|', ' ').length));
+  const REF_CAP = 0.5675;
+  const capAss = font && font.capAss > 0 ? font.capAss : REF_CAP;
+  const capRatio = capAss / REF_CAP;
   // League Gothic capitals: about 0.235 font sizes wide each (measured on real titles); the frame is 9:16
+  const charW = 0.235 * (font ? font.widthFactor * capRatio : 1);
   const fontFrac = Math.min(
-    VIRAL_TITLE_LOOK.bigFontHFrac,
-    (VIRAL_TITLE_LOOK.bigTextWFrac * 0.5625) / Math.max(1, widest * 0.235)
+    VIRAL_TITLE_LOOK.bigFontHFrac / capRatio,
+    (VIRAL_TITLE_LOOK.bigTextWFrac * 0.5625) / Math.max(1, widest * charW)
   );
-  return ((lines.length - 1) * VIRAL_TITLE_LOOK.lineStep + 0.62) * fontFrac;
+  const lineStep = VIRAL_TITLE_LOOK.lineStep * (font?.lineStepFactor && font.lineStepFactor > 0 ? font.lineStepFactor : 1);
+  return ((lines.length - 1) * lineStep + 0.62) * capRatio * fontFrac;
 }
 
 /**
