@@ -255,7 +255,7 @@ import { stampBrandMarksOnThumbnail, HD_BADGE_EMPTY_CORNER_CLAUSE, LOGO_EMPTY_CO
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '12:23 PM - 11/27/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '12:42 PM - 11/27/2026';
 
 // PRODUCTION LOCK: while promptConfig.PRODUCTION_LOCKED === 'YES' these fields never change (the server
 // enforces the same list in protectLockedDocs). Metadata, thumbnails, review marks and reframes stay editable.
@@ -14540,9 +14540,11 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           rawCapOpt === 'B' ? 'B' : rawCapOpt === 'C' ? 'C' : 'A';
         const rawCapturedDataUrl = msg.imageDataUrl || msg.imageUrl || '';
         // Every thumbnail gets the official logo (top-left) and the HD (9:16) / 8K (16:9) badge (top-right)
+        // A recapture says which orientation it was asked for; a normal capture uses the documentary's
+        const capturedOrientation = String(msg.orientation || curViewingDoc?.thumbnailOrientation || '');
         const dataUrl = await stampBrandMarksOnThumbnail(
           rawCapturedDataUrl,
-          curViewingDoc?.thumbnailOrientation === 'VERTICAL_9X16' ? 'vertical' : 'horizontal',
+          capturedOrientation === 'VERTICAL_9X16' ? 'vertical' : 'horizontal',
           officialLogoUrl
         );
         const sourceLabel = 'Gemini Web';
@@ -14567,7 +14569,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           if (syncSafePreview) {
             nextPreviewMap[opt] = syncSafePreview;
           }
-          const isVertOrientation = curViewingDoc?.thumbnailOrientation === 'VERTICAL_9X16';
+          const isVertOrientation = capturedOrientation === 'VERTICAL_9X16';
           updateActiveDoc({
             ...(syncSafePreview
               ? isVertOrientation
@@ -15673,6 +15675,31 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     } finally {
       setRestampingThumb(null);
     }
+  };
+
+  // Etapa 3 — "Recapturar de Gemini": asks the extension for the original image still in the Gemini chat where the
+  // thumbnail was created; it comes back through the normal capture path (8K, logo, badge, 03_Miniaturas).
+  const handleRecaptureThumbnailFromGemini = (slot: 'HORIZONTAL_16X9' | 'VERTICAL_9X16') => {
+    const curDoc = activeDocRef.current || activeDoc;
+    if (!curDoc) return;
+    if (!extensionInstalled) {
+      setBridgeStatusType('ERROR');
+      setBridgeStatusMsg('⚠️ «Recapturar de Gemini» solo funciona en el Chrome de tu Mac con la extensión de Huellas Master activa.');
+      return;
+    }
+    const rawVariant = String(curDoc.thumbnailPsychVariant || 'A').toUpperCase();
+    const opt: 'A' | 'B' | 'C' = rawVariant === 'B' ? 'B' : rawVariant === 'C' ? 'C' : 'A';
+    if (curDoc.thumbnailOrientation !== slot) updateActiveDoc({ thumbnailOrientation: slot });
+    setBridgeStatusType('WORKING');
+    setBridgeStatusMsg(
+      `🔁 Buscando la miniatura ${slot === 'VERTICAL_9X16' ? 'vertical' : 'horizontal'} original en las pestañas de Gemini abiertas...`
+    );
+    sendCommandToWebBridge('GEMINI', {
+      action: 'SCAN_GEMINI_THUMBNAILS',
+      docId: curDoc.id,
+      optionLabel: opt,
+      orientation: slot,
+    } as any);
   };
 
   const handleGenerateThumbnailTextOptions = async () => {
@@ -22523,22 +22550,15 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             </div>
 
                             <div className="flex items-center gap-2 flex-wrap">
-                              <label className="flex-1 min-w-[160px] py-2 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow">
-                                <Upload className="w-3.5 h-3.5" />
-                                {effectiveHorizontalThumb
-                                  ? '🔄 Cambiar Horizontal (16:9)'
-                                  : '📤 Subir Horizontal (16:9)'}
-                                <input
-                                  type="file"
-                                  accept="image/*"
-                                  className="hidden"
-                                  onChange={(e) => {
-                                    const file = e.target.files?.[0];
-                                    if (file) handleUploadSlotThumbnailFile(file, 'HORIZONTAL_16X9');
-                                    e.currentTarget.value = '';
-                                  }}
-                                />
-                              </label>
+                              <button
+                                type="button"
+                                onClick={() => handleRecaptureThumbnailFromGemini('HORIZONTAL_16X9')}
+                                className="flex-1 min-w-[160px] py-2 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow"
+                                title="Volver a traer la imagen original desde el chat de Gemini abierto en tu Mac: se amplía a 8K, se le ponen el logo y el sello y reemplaza esta miniatura"
+                              >
+                                <Download className="w-3.5 h-3.5" />
+                                Recapturar de Gemini
+                              </button>
                               {effectiveHorizontalThumb && (
                                 <button
                                   type="button"
@@ -22686,22 +22706,15 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             </div>
 
                             <div className="flex items-center gap-2 flex-wrap">
-                              <label className="flex-1 min-w-[140px] py-2 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow">
-                                <Upload className="w-3.5 h-3.5" />
-                                {effectiveVerticalThumb
-                                  ? '🔄 Cambiar Vertical (9:16)'
-                                  : '📤 Subir Vertical (9:16)'}
-                                <input
-                                  type="file"
-                                  accept="image/*"
-                                  className="hidden"
-                                  onChange={(e) => {
-                                    const file = e.target.files?.[0];
-                                    if (file) handleUploadSlotThumbnailFile(file, 'VERTICAL_9X16');
-                                    e.currentTarget.value = '';
-                                  }}
-                                />
-                              </label>
+                              <button
+                                type="button"
+                                onClick={() => handleRecaptureThumbnailFromGemini('VERTICAL_9X16')}
+                                className="flex-1 min-w-[140px] py-2 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow"
+                                title="Volver a traer la imagen original desde el chat de Gemini abierto en tu Mac: se amplía a 8K, se le ponen el logo y el sello y reemplaza esta miniatura"
+                              >
+                                <Download className="w-3.5 h-3.5" />
+                                Recapturar de Gemini
+                              </button>
                               {effectiveVerticalThumb && (
                                 <button
                                   type="button"

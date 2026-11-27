@@ -5358,16 +5358,26 @@
     if (msg.action === 'SCAN_GEMINI_THUMBNAILS' || msg.action === 'GRAB_LAST_MEDIA') {
       (async () => {
         const responses = getModelResponseElements();
+        // "Recapturar de Gemini" asks for one orientation: an image of the other shape is not the one wanted
+        const wantOrientation = String(msg.orientation || '');
+        const fitsOrientation = (src) => {
+          if (!wantOrientation) return true;
+          const im = Array.from(document.querySelectorAll('img')).find((i) => i.src === src);
+          if (!im || !im.naturalWidth || !im.naturalHeight) return true;
+          const portrait = im.naturalHeight > im.naturalWidth;
+          return wantOrientation === 'VERTICAL_9X16' ? portrait : !portrait;
+        };
         let foundUrl = '';
-        for (let i = responses.length - 1; i >= 0; i--) {
+        for (let i = responses.length - 1; i >= 0 && !foundUrl; i--) {
           const extracted = extractCleanResponseFromElement(responses[i]);
-          if (extracted.images && extracted.images.length > 0) {
-            foundUrl = extracted.images[extracted.images.length - 1];
-            break;
-          }
+          const imgs = (extracted.images || []).filter(fitsOrientation);
+          if (imgs.length > 0) foundUrl = imgs[imgs.length - 1];
         }
         if (!foundUrl) {
-          reportStatus('ERROR', '⚠️ No se encontró ninguna miniatura generada en este chat de Gemini Web.');
+          // quietIfNone: the background is trying every Gemini tab and reports the final result itself
+          if (!msg.quietIfNone) {
+            reportStatus('ERROR', '⚠️ No se encontró ninguna miniatura generada en este chat de Gemini Web.');
+          }
           sendResponse({ handled: false });
           return;
         }
@@ -5381,6 +5391,7 @@
             imageDataUrl: dataUrl,
             imageUrl: foundUrl,
             docId: msg.docId || '',
+            ...(wantOrientation ? { orientation: wantOrientation } : {}),
           })
           .catch(() => {});
         reportStatus('COMPLETED', `🖼️ Miniatura capturada desde Gemini Web e importada a Huellas Master.`);

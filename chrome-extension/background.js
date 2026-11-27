@@ -2690,6 +2690,40 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     (async () => {
       try {
       const { geminiTabs, flowTabs, sunoTabs } = await getConnectedAiTabsInWindow(senderWindowId);
+
+      // "Recapturar de Gemini" (Etapa 3): the thumbnail lives in its own standalone chat, not in the documentary's
+      // chat, so every open Gemini tab is asked (most recently used first) until one has the image.
+      if (targetService === 'GEMINI' && action === 'SCAN_GEMINI_THUMBNAILS') {
+        let scanTabs = [];
+        try {
+          scanTabs = await chrome.tabs.query({ url: 'https://gemini.google.com/*' });
+        } catch {}
+        scanTabs = await filterOutExternalAskTabs(scanTabs);
+        scanTabs.sort((a, b) => (b.lastAccessed || 0) - (a.lastAccessed || 0));
+        for (const t of scanTabs) {
+          if (!t || !t.id) continue;
+          try {
+            await ensureScriptInjected(t.id, 'gemini-content.js');
+            await sleep(100);
+            const r = await chrome.tabs.sendMessage(t.id, { ...payload, quietIfNone: true });
+            if (r && r.handled) {
+              sendResponse({ ok: true, tabId: t.id });
+              return;
+            }
+          } catch {}
+        }
+        broadcastToHuellasTabsInSameWindow(senderWindowId, {
+          type: 'BRIDGE_STATUS',
+          service: 'GEMINI',
+          status: 'ERROR',
+          message:
+            scanTabs.length === 0
+              ? '⚠️ No hay ninguna pestaña de Gemini abierta. Abre el chat donde se creó la miniatura y vuelve a pulsar «Recapturar de Gemini».'
+              : '⚠️ Ninguna pestaña de Gemini abierta tiene una miniatura con esa forma. Abre el chat donde se creó y vuelve a pulsar «Recapturar de Gemini».',
+        });
+        sendResponse({ ok: false, noImage: true });
+        return;
+      }
       // Etapa 8: el motor de música decide la pestaña (Flow Music o Suno), nunca se mezclan
       const musicEngine = String(payload.engine || '').toUpperCase() === 'SUNO' ? 'SUNO' : 'FLOWMUSIC';
       const isEngineTab = (t) => {
@@ -6332,6 +6366,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
               option: normalizedOpt,
               optionLabel: normalizedOpt,
               imageDataUrl: message.imageDataUrl || message.imageUrl || '',
+              ...(message.orientation ? { orientation: message.orientation } : {}),
             }),
           });
           if (resp.ok) {
