@@ -1,23 +1,7 @@
 {
   "docId": "doc-1795644959273-rmqo",
-  "savedAt": 1795816867131,
+  "savedAt": 1795816910601,
   "youtubeUrl": "",
-  "docStyle": {
-    "titleFont": "limelight",
-    "captionFont": "changa_one",
-    "titleColor": "#E8DCC0",
-    "titleAccentColor": "#3FB58F",
-    "captionColor": "#F2E6C8",
-    "captionActiveColor": "#3FD6A4",
-    "texture": "none",
-    "textureAmount": 60,
-    "outline": "thin",
-    "shadow": "glow",
-    "titleAnimation": "zoom",
-    "captionAnimation": "underline",
-    "source": "manual",
-    "reason": ""
-  },
   "clips": [
     {
       "id": "vc-1795812125081-0",
