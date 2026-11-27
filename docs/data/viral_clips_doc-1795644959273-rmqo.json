@@ -1,7 +1,23 @@
 {
   "docId": "doc-1795644959273-rmqo",
-  "savedAt": 1795816910601,
+  "savedAt": 1795818407897,
   "youtubeUrl": "",
+  "docStyle": {
+    "titleFont": "piedra",
+    "captionFont": "fjalla_one",
+    "titleColor": "#F4EFE6",
+    "titleAccentColor": "#38E4C6",
+    "captionColor": "#F4EFE6",
+    "captionActiveColor": "#38E4C6",
+    "texture": "stone",
+    "textureAmount": 65,
+    "outline": "thick",
+    "shadow": "hard",
+    "titleAnimation": "wipe",
+    "captionAnimation": "highlight",
+    "source": "gemini",
+    "reason": "La tipografía tallada en piedra con textura pétrea, el blanco calizo del estuco y el turquesa jade evocan directamente la arquitectura lacustre de Tenochtitlan y la paradoja del agua en la Cuenca de México."
+  },
   "clips": [
     {
       "id": "vc-1795812125081-0",
