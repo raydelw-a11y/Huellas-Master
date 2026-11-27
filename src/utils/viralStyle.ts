@@ -169,7 +169,26 @@ export interface ViralDocStyle {
   reason?: string;
 }
 
-/** The look every clip had before designs existed (and still has when a documentary has none) */
+/**
+ * What a documentary's clips look like while it has no design of its own: plain white letters, no texture, no
+ * colour accents. Every other look (the first one, of Video 30, included) is a design chosen for a documentary.
+ */
+export const VIRAL_PLAIN_STYLE: ViralDocStyle = {
+  titleFont: 'bebas_neue',
+  captionFont: 'arial_black',
+  titleColor: '#FFFFFF',
+  titleAccentColor: '#FFFFFF',
+  captionColor: '#FFFFFF',
+  captionActiveColor: '#FFFFFF',
+  texture: 'none',
+  textureAmount: 0,
+  outline: 'thin',
+  shadow: 'soft',
+  titleAnimation: 'fade',
+  captionAnimation: 'pop',
+};
+
+/** The first design (Video 30's): poster letters in bone white and gold, yellow captions */
 export const VIRAL_CLASSIC_STYLE: ViralDocStyle = {
   titleFont: 'league_gothic',
   captionFont: 'arial_black',
@@ -277,7 +296,9 @@ export function normalizeViralStyle(raw: any): ViralDocStyle | null {
   // Letters with no edge at all cannot be read over a bright picture
   if (style.shadow === 'none' && style.outline === 'none') style.outline = 'thin';
   // The spoken word must stand out from the rest of the caption
-  if (!colorsDiffer(style.captionColor, style.captionActiveColor)) {
+  // (only where the colour is what marks it: with the other animations both may be the same)
+  const colourMarksWord = style.captionAnimation === 'highlight' || style.captionAnimation === 'box';
+  if (colourMarksWord && !colorsDiffer(style.captionColor, style.captionActiveColor)) {
     style.captionActiveColor = colorsDiffer(style.captionColor, '#FFFFFF') ? '#FFFFFF' : style.titleAccentColor;
     if (!colorsDiffer(style.captionColor, style.captionActiveColor)) style.captionActiveColor = '#FFE600';
   }

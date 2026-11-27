@@ -47,6 +47,7 @@ import {
   VIRAL_CAPTION_FONTS,
   VIRAL_CAPTION_REF_CAP_EM,
   VIRAL_CLASSIC_STYLE,
+  VIRAL_PLAIN_STYLE,
   VIRAL_OUTLINES,
   VIRAL_SHADOWS,
   VIRAL_TEXTURES,
@@ -524,6 +525,8 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
   // by hand. `docStyleLocked`: Gemini never changes it (asking for clips again keeps the design).
   const [docStyle, setDocStyle] = useState<ViralDocStyle | null>(null);
   const [docStyleLocked, setDocStyleLocked] = useState<boolean>(false);
+  // What is drawn: the documentary's design, or plain white letters while it has none
+  const lookStyle: ViralDocStyle = docStyle || VIRAL_PLAIN_STYLE;
   const docStyleLockedRef = useRef<boolean>(false);
   docStyleLockedRef.current = docStyleLocked;
   // Designs of the other documentaries: a whole combination is never repeated
@@ -939,7 +942,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
   }, [sourceMode, selectedDocId]);
   /** A change made by hand to the design (from the classic look when there is none yet). */
   const changeDocStyle = (patch: Partial<ViralDocStyle>) => {
-    setDocStyle((prev) => normalizeViralStyle({ ...(prev || VIRAL_CLASSIC_STYLE), ...patch, source: 'manual', reason: '' }));
+    setDocStyle((prev) => normalizeViralStyle({ ...(prev || VIRAL_PLAIN_STYLE), ...patch, source: 'manual', reason: '' }));
   };
   // Another documentary with exactly this combination (the whole combination must never repeat)
   const docStyleTwin = useMemo(() => {
@@ -1760,7 +1763,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
 
   const activeCaptionChunk = useMemo(() => {
     if (!clipCuts || clipLocalWords.length === 0) return null;
-    const safePerLine = docStyle?.captionAnimation === 'single' ? 1 : Math.max(1, Math.min(2, wordsPerLine));
+    const safePerLine = lookStyle?.captionAnimation === 'single' ? 1 : Math.max(1, Math.min(2, wordsPerLine));
     const words = clipLocalWords;
     // Igual que la exportación: cada línea se corta también a los 16 caracteres y nunca cruza el paso
     // del gancho al cuerpo del clip
@@ -1811,14 +1814,14 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
       return { chunk, activeIdx };
     }
     return null;
-  }, [clipCuts, clipLocalWords, captionSec, wordsPerLine, docStyle?.captionAnimation]);
+  }, [clipCuts, clipLocalWords, captionSec, wordsPerLine, lookStyle?.captionAnimation]);
   // The design's caption font (loaded from the Mac the first time it is needed)
-  const captionFontDef = docStyle ? viralFontById(docStyle.captionFont) : null;
+  const captionFontDef = lookStyle ? viralFontById(lookStyle.captionFont) : null;
   useViralFontTick(captionFontDef);
 
   // Poster title in the preview: the same lines, moments and places as the render. A design's font can be
   // wider than the classic one, and then the title takes more lines.
-  const titleWidthFactor = docStyle ? viralFontById(docStyle.titleFont).widthFactor : 1;
+  const titleWidthFactor = lookStyle ? viralFontById(lookStyle.titleFont).widthFactor : 1;
   const posterTitleLines = useMemo(
     () => (showHookBanner ? splitViralTitleLines(selectedClip?.hookBannerText || '', titleWidthFactor) : []),
     [showHookBanner, selectedClip?.hookBannerText, titleWidthFactor]
@@ -1895,7 +1898,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
     previewFrameH,
     VIRAL_TITLE_LOOK.noticeTextWFrac,
     VIRAL_TITLE_LOOK.noticeFontHFrac,
-    docStyle
+    lookStyle
   );
   // Frames offered as the clip's cover, with the one the page proposes
   const coverWanted = Boolean(selectedClip) && showCover && titleStyle === 'poster_gold' && showHookBanner;
@@ -1919,7 +1922,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
           reframeMode: selectedClip.reframeMode,
           focusX: selectedClip.focusX,
           hookBannerText: selectedClip.hookBannerText,
-          docStyle: docStyle || undefined,
+          docStyle: lookStyle,
         }),
       })
         .then((r) => (r.ok ? r.json() : null))
@@ -1942,14 +1945,14 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
       window.clearTimeout(timer);
       setCoverLoading(false);
     };
-  }, [titleFacesKey, coverWanted, coverTitleKey, sourceMode, docStyle?.titleFont]);
+  }, [titleFacesKey, coverWanted, coverTitleKey, sourceMode, lookStyle?.titleFont]);
   const posterBigFontPx = useViralPosterFontPx(
     posterTitleLines,
     previewFrameW,
     previewFrameH,
     VIRAL_TITLE_LOOK.bigTextWFrac,
     VIRAL_TITLE_LOOK.bigFontHFrac,
-    docStyle
+    lookStyle
   );
   const posterSmallFontPxFit = useViralPosterFontPx(
     posterSmallLines,
@@ -1957,10 +1960,10 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
     previewFrameH,
     VIRAL_TITLE_LOOK.smallTextWFrac,
     VIRAL_TITLE_LOOK.bigFontHFrac * VIRAL_TITLE_LOOK.smallFontScale,
-    docStyle
+    lookStyle
   );
   // As in the render: the line that stays is never bigger than the opening title
-  const posterSmallFontPx = docStyle ? Math.min(posterSmallFontPxFit, posterBigFontPx) : posterSmallFontPxFit;
+  const posterSmallFontPx = lookStyle ? Math.min(posterSmallFontPxFit, posterBigFontPx) : posterSmallFontPxFit;
   const posterTitle = useMemo(() => {
     const timeline = computeViralTitleTimeline(clipCuts ? clipCuts.totalDurSec : 0, {
       hasTitle: posterTitleLines.length > 0,
@@ -1970,7 +1973,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
     // The notice sits under the small title (under the logo when the yellow banner is used instead)
     const smallTextH =
       titleStyle === 'poster_gold' && timeline.small
-        ? viralPosterTextHeightPx(posterSmallLines.length, posterSmallFontPx, docStyle)
+        ? viralPosterTextHeightPx(posterSmallLines.length, posterSmallFontPx, lookStyle)
         : 0;
     // The big title goes below a face it would cover, as in the render
     const bigTopPx =
@@ -1978,7 +1981,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
       computeViralBigTitleTopFrac({
         defaultTopFrac: topPx / Math.max(1, previewFrameH),
         textHeightFrac:
-          viralPosterTextHeightPx(posterTitleLines.length, posterBigFontPx, docStyle) / Math.max(1, previewFrameH),
+          viralPosterTextHeightPx(posterTitleLines.length, posterBigFontPx, lookStyle) / Math.max(1, previewFrameH),
         faces: titleFaces,
         maxBottomFrac: viralTitleMaxBottomFrac(captionYPercent),
       });
@@ -1989,7 +1992,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
         previewFrameH *
         computeViralBigTitleTopFrac({
           defaultTopFrac: noticeTopPx / Math.max(1, previewFrameH),
-          textHeightFrac: viralPosterTextHeightPx(1, posterNoticeFontPx, docStyle) / Math.max(1, previewFrameH),
+          textHeightFrac: viralPosterTextHeightPx(1, posterNoticeFontPx, lookStyle) / Math.max(1, previewFrameH),
           faces: noticeFaces[i] || [],
           maxBottomFrac: viralTitleMaxBottomFrac(captionYPercent),
         })
@@ -2019,7 +2022,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
     titleFaces,
     noticeFaces,
     captionYPercent,
-    docStyle,
+    lookStyle,
   ]);
 
   // Exports ("Guardar Clip ##"): each click queues a render on the Mac; several can run at once (the Mac
@@ -2163,7 +2166,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
           showYoutubeNotice,
           showCover,
           // The documentary's design (absent: the classic look)
-          docStyle: sourceMode === 'doc' && docStyle ? docStyle : undefined,
+          docStyle: lookStyle,
           coverClipSec: typeof clip.coverSec === 'number' ? clip.coverSec : undefined,
           // Background job in the Mac's queue (through the tunnel a request open more than 100 s is cut)
           async: true,
@@ -2707,7 +2710,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                     maxFontHFrac={VIRAL_TITLE_LOOK.bigFontHFrac}
                     topPx={posterTitle.bigTopPx}
                     visible={captionSec < posterTitle.timeline.big.endSec - 0.15}
-                    docStyle={docStyle}
+                    docStyle={lookStyle}
                     clipSec={captionSec}
                     playing={isPlaying}
                     getClipSec={() => {
@@ -2725,7 +2728,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                     maxFontHFrac={VIRAL_TITLE_LOOK.bigFontHFrac * VIRAL_TITLE_LOOK.smallFontScale}
                     topPx={posterTitle.topPx}
                     visible={captionSec >= posterTitle.timeline.small.startSec}
-                    docStyle={docStyle}
+                    docStyle={lookStyle}
                   />
                 )}
                 {posterTitle.timeline.notices.length > 0 && (
@@ -2745,7 +2748,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                     visible={posterTitle.timeline.notices.some(
                       (span) => captionSec >= span.startSec && captionSec < span.endSec + 0.05
                     )}
-                    docStyle={docStyle}
+                    docStyle={lookStyle}
                   />
                 )}
 
@@ -2778,11 +2781,11 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                   className="absolute inset-x-3 z-20 flex justify-center pointer-events-none"
                   style={{ top: `${captionYPercent}%`, transform: 'translateY(-100%)' }}
                 >
-                  {activeCaptionChunk && docStyle && captionFontDef ? (
+                  {activeCaptionChunk && lookStyle && captionFontDef ? (
                     (() => {
                       // The design's captions: its font (capitals as tall as the classic ones), colours and
                       // animation, with the same black edge and shadow the render draws
-                      const anim = docStyle.captionAnimation;
+                      const anim = lookStyle.captionAnimation;
                       const emPx = (look916 ? look916.captionEmOfHeight * previewFrameH : 17) * fontSizeScale;
                       const grow = viralCaptionSizeFactor(captionFontDef, anim);
                       const capPx = emPx * VIRAL_CAPTION_REF_CAP_EM * grow;
@@ -2790,7 +2793,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                       const refAss = emPx * 1.41 * grow;
                       const edge = Math.max(0.6, refAss * 0.09);
                       const drop = Math.max(0.4, refAss * 0.05);
-                      const activeColor = docStyle.captionActiveColor;
+                      const activeColor = lookStyle.captionActiveColor;
                       return (
                         <div
                           className="px-3 py-1.5 text-center leading-tight flex flex-wrap items-center justify-center gap-y-0.5"
@@ -2807,7 +2810,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                             const isActive = idx === activeCaptionChunk.activeIdx;
                             const base: React.CSSProperties = {
                               display: 'inline-block',
-                              color: docStyle.captionColor,
+                              color: lookStyle.captionColor,
                               WebkitTextStroke: `${(edge * 2).toFixed(2)}px #000`,
                               paintOrder: 'stroke fill',
                               textShadow: `${drop.toFixed(2)}px ${drop.toFixed(2)}px 0 rgba(0,0,0,0.5)`,
@@ -2836,7 +2839,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                               } else if (anim === 'single') {
                                 active = {
                                   ['--vc-active' as any]: activeColor,
-                                  ['--vc-base' as any]: docStyle.captionColor,
+                                  ['--vc-base' as any]: lookStyle.captionColor,
                                   animation: 'viralCapSingle 0.3s linear forwards',
                                 };
                               } else {
@@ -2978,16 +2981,16 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                   </>
                   )}
 
-                  {docStyle && (
+                  {lookStyle && (
                     <div className="text-[11px] text-slate-400 pt-1 border-t border-slate-800">
                       <span className="font-bold text-slate-300">Captions:</span> los del diseño de este documental (
-                      {viralFontById(docStyle.captionFont).label},{' '}
-                      {(VIRAL_CAPTION_ANIMS.find((x) => x.id === docStyle.captionAnimation)?.label || '').toLowerCase()}). Se
+                      {viralFontById(lookStyle.captionFont).label},{' '}
+                      {(VIRAL_CAPTION_ANIMS.find((x) => x.id === lookStyle.captionAnimation)?.label || '').toLowerCase()}). Se
                       cambian en «Diseño de este documental».
                     </div>
                   )}
                   <div
-                    className={`flex items-center justify-between gap-1 pt-1 border-t border-slate-800 ${docStyle ? 'hidden' : ''}`}
+                    className={`flex items-center justify-between gap-1 pt-1 border-t border-slate-800 ${lookStyle ? 'hidden' : ''}`}
                   >
                     <span className="text-[11px] font-bold text-slate-400">Estilo Captions:</span>
                     <div className="flex items-center gap-1 flex-wrap">
@@ -3374,7 +3377,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-bold text-amber-300">🎨 Diseño de este documental</span>
                     <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-900 border border-slate-700 text-slate-300 shrink-0">
-                      {docStyle ? (docStyle.source === 'gemini' ? 'Elegido por Gemini' : 'Ajustado a mano') : 'Clásico'}
+                      {docStyle ? (docStyle.source === 'gemini' ? 'Elegido por Gemini' : 'Ajustado a mano') : 'Básico'}
                     </span>
                   </div>
                   <p className="text-[11px] text-slate-400">
@@ -3384,7 +3387,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                         } · ${VIRAL_TITLE_ANIMS.find((x) => x.id === docStyle.titleAnimation)?.label || ''} · ${
                           VIRAL_CAPTION_ANIMS.find((x) => x.id === docStyle.captionAnimation)?.label || ''
                         }.`
-                      : 'El de siempre: título póster en blanco hueso y dorado, captions amarillos. Vale para todos los clips de este documental.'}
+                      : 'Sin diseño propio todavía: texto blanco básico, sin textura ni colores. Pídeselo a Gemini o ajústalo a mano.'}
                   </p>
                   {docStyle?.reason && <p className="text-[11px] text-amber-100/80 italic">“{docStyle.reason}”</p>}
                   {docStyleTwin && (
@@ -3420,7 +3423,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                         onClick={() => setDocStyle(null)}
                         className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 font-bold text-[11px] cursor-pointer"
                       >
-                        Volver al clásico
+                        Quitar el diseño (texto blanco)
                       </button>
                     )}
                   </div>
@@ -3435,7 +3438,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                   </label>
                   {showDesignEditor &&
                     (() => {
-                      const st = docStyle || VIRAL_CLASSIC_STYLE;
+                      const st = lookStyle;
                       const pick = (
                         label: string,
                         key: 'titleFont' | 'captionFont' | 'texture' | 'outline' | 'shadow' | 'titleAnimation' | 'captionAnimation',
@@ -3593,7 +3596,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                     titleLines={posterTitle.lines}
                     titleTopPct={look916?.hookBannerTopPct ?? 13.5}
                     loading={coverLoading}
-                    docStyle={docStyle}
+                    docStyle={lookStyle}
                   />
                 )}
                 {showCover && titleStyle !== 'poster_gold' && (

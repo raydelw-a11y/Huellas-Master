@@ -74,6 +74,7 @@ import {
 } from './server/viralTitleArt';
 import {
   VIRAL_FONT_FILES,
+  VIRAL_PLAIN_STYLE,
   VIRAL_CAPTION_BOX_PAD_CAPS,
   normalizeViralStyle,
   viralFontById,
@@ -22691,6 +22692,17 @@ app.get('/api/viral-clips/saved', (req, res) => {
   }
 });
 
+/** The design saved for a documentary's clips (null when it has none). */
+function viralSavedDocStyle(docId: string): ViralDocStyle | null {
+  try {
+    if (!docId) return null;
+    const f = viralSavedFileFor(docId);
+    return fs.existsSync(f) ? normalizeViralStyle(JSON.parse(fs.readFileSync(f, 'utf8'))?.docStyle) : null;
+  } catch {
+    return null;
+  }
+}
+
 // Designs the other documentaries already have, so a new one never repeats a whole combination
 app.get('/api/viral-clips/styles', (req, res) => {
   try {
@@ -24090,7 +24102,9 @@ async function renderViralClipMp4Internal(params: {
   } = params;
   const look916 = getViral916Look(docId);
   // The documentary's design. Without one, everything below draws exactly the classic look.
-  const docStyle = normalizeViralStyle(params.docStyle);
+  // The design sent by the page; an older page does not send it, so the documentary's saved one is used;
+  // a documentary with no design gets plain white letters
+  const docStyle: ViralDocStyle = normalizeViralStyle(params.docStyle) || viralSavedDocStyle(docId) || VIRAL_PLAIN_STYLE;
   const titleDrawLook = docStyle ? viralTitleDrawLookFor(docStyle) : undefined;
   const titleFontDef = docStyle ? viralFontById(docStyle.titleFont) : null;
   const titleWidthFactor = titleFontDef ? titleFontDef.widthFactor : 1;
@@ -25150,7 +25164,7 @@ app.post('/api/viral-clips/cover-candidates', async (req, res) => {
   try {
     const body = req.body || {};
     const look = getViral916Look(String(body.docId || ''));
-    const coverStyle = normalizeViralStyle(body.docStyle);
+    const coverStyle = normalizeViralStyle(body.docStyle) || viralSavedDocStyle(String(body.docId || '')) || VIRAL_PLAIN_STYLE;
     const coverFont = coverStyle ? viralFontById(coverStyle.titleFont) : null;
     const result = await listViralCoverCandidates(
       viralFrameSourceFromBody(body),
