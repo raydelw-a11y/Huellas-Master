@@ -9496,6 +9496,109 @@ interface SmartReframeClipResult {
   unreadable?: boolean;
 }
 
+// A clip that already pans sideways on its own gets a fixed centred 9:16 window: a reframe pan laid on top of the
+// camera's pan reads as two movements fighting each other. "Pans" = the picture travels steadily one way by at
+// least CAMERA_PAN_MIN_NET_PCT of the frame width over the clip (zooms and shake do not count: they have no
+// steady sideways travel).
+const CAMERA_PAN_MIN_NET_PCT = 10;
+const CAMERA_PAN_MIN_CONSISTENCY = 0.75;
+const CAMERA_PAN_MIN_RELIABLE_SHARE = 0.5;
+
+interface CameraPanEstimate {
+  /** Net sideways travel of the picture over the clip, as % of the frame width (+ = the camera moves right). */
+  netShiftPct: number;
+  /** 0..1: how much of the sideways movement goes in one direction (1 = a steady pan, ~0 = shake or nothing). */
+  consistency: number;
+  /** Share of the one-second steps where the movement could be measured. */
+  reliableShare: number;
+  steps: number;
+}
+
+async function estimateClipCameraPanX(ffmpegBin: string, mp4Path: string): Promise<CameraPanEstimate | null> {
+  const W = 320;
+  const H = 180;
+  const frameBytes = W * H;
+  const raw = await new Promise<Buffer>((resolve) => {
+    const chunks: Buffer[] = [];
+    const proc = spawn(
+      ffmpegBin,
+      ['-hide_banner', '-loglevel', 'error', '-i', mp4Path, '-vf', `fps=2,scale=${W}:${H}:flags=bilinear,format=gray`, '-frames:v', '24', '-f', 'rawvideo', '-pix_fmt', 'gray', 'pipe:1'],
+      { stdio: ['ignore', 'pipe', 'ignore'] }
+    );
+    proc.stdout?.on('data', (c: Buffer) => chunks.push(c));
+    proc.on('close', () => resolve(Buffer.concat(chunks)));
+    proc.on('error', () => resolve(Buffer.alloc(0)));
+  });
+  const n = Math.floor(raw.length / frameBytes);
+  if (n < 5) return null;
+  const MAX_SHIFT = 56;
+  // Mean absolute difference between frame A moved `s` px and frame B (every other row, middle 80% of the height)
+  const sadAt = (a: number, b: number, s: number): number => {
+    const x0 = Math.max(0, -s);
+    const x1 = Math.min(W, W - s);
+    let sum = 0;
+    let cnt = 0;
+    for (let y = 18; y < H - 18; y += 2) {
+      const ra = a * frameBytes + y * W;
+      const rb = b * frameBytes + y * W;
+      for (let x = x0; x < x1; x += 2) {
+        sum += Math.abs(raw[ra + x + s] - raw[rb + x]);
+        cnt++;
+      }
+    }
+    return cnt > 0 ? sum / cnt : 255;
+  };
+  let net = 0;
+  let absSum = 0;
+  let reliable = 0;
+  let steps = 0;
+  // One-second steps (frames are half a second apart)
+  for (let i = 0; i + 2 < n; i += 2) {
+    steps++;
+    let best = 0;
+    let bestSad = Infinity;
+    let sadSum = 0;
+    const sads: number[] = [];
+    for (let s = -MAX_SHIFT; s <= MAX_SHIFT; s++) {
+      const v = sadAt(i, i + 2, s);
+      sads.push(v);
+      sadSum += v;
+      if (v < bestSad) {
+        bestSad = v;
+        best = s;
+      }
+    }
+    const meanSad = sadSum / sads.length;
+    // A flat or completely changed picture has no clear best position: skip that step
+    if (!(bestSad < meanSad * 0.72)) continue;
+    reliable++;
+    let shift = best;
+    const k = best + MAX_SHIFT;
+    if (k > 0 && k < sads.length - 1) {
+      const d = sads[k - 1] - 2 * sads[k] + sads[k + 1];
+      if (d > 1e-6) shift += (0.5 * (sads[k - 1] - sads[k + 1])) / d;
+    }
+    // Content that moves left in the picture means the camera travels right
+    net += shift;
+    absSum += Math.abs(shift);
+  }
+  return {
+    netShiftPct: Number(((net / W) * 100).toFixed(2)),
+    consistency: absSum > 0.5 ? Number((Math.abs(net) / absSum).toFixed(2)) : 0,
+    reliableShare: steps > 0 ? Number((reliable / steps).toFixed(2)) : 0,
+    steps,
+  };
+}
+
+function isClipCameraPan(e: CameraPanEstimate | null): boolean {
+  return Boolean(
+    e &&
+      Math.abs(e.netShiftPct) >= CAMERA_PAN_MIN_NET_PCT &&
+      e.consistency >= CAMERA_PAN_MIN_CONSISTENCY &&
+      e.reliableShare >= CAMERA_PAN_MIN_RELIABLE_SHARE
+  );
+}
+
 async function analyzeClipSmartReframe9x16(
   ffmpegBin: string,
   mp4Path: string,
@@ -9503,6 +9606,20 @@ async function analyzeClipSmartReframe9x16(
   fileName: string,
   promptHint = ''
 ): Promise<SmartReframeClipResult> {
+  const cameraPan = await estimateClipCameraPanX(ffmpegBin, mp4Path);
+  if (isClipCameraPan(cameraPan)) {
+    return {
+      clipNumber,
+      fileName,
+      reframe9x16Mode: 'auto_center',
+      focusXStart: 50,
+      focusXEnd: 50,
+      focusY: 50,
+      confidence: 0.9,
+      reason: `El clip ya trae paneo de cámara hacia la ${cameraPan!.netShiftPct > 0 ? 'derecha' : 'izquierda'} (${Math.abs(cameraPan!.netShiftPct).toFixed(0)}% del ancho): encuadre central fijo, sin paneo añadido`,
+    };
+  }
+
   const W = 160;
   const H = 90;
   const winW = 51; // 9:16 vertical window width inside a 160x90 (16:9) frame
@@ -10286,8 +10403,11 @@ app.post('/api/editor/auto-reframe-9x16', async (req, res) => {
           statSize = st.size;
         } catch {}
 
-        const cacheKey = `v3_${clipNum}_${info.fileName}`;
-        const existing = cachedMap[cacheKey] || cachedMap[String(clipNum)];
+        // v4: clips that pan on their own are kept centred (v3 results could carry a reframe pan on top of them)
+        const cacheKey = `v4_${clipNum}_${info.fileName}`;
+        const legacyKey = `v3_${clipNum}_${info.fileName}`;
+        const legacy = cachedMap[legacyKey] || cachedMap[String(clipNum)];
+        const existing = cachedMap[cacheKey] || ((legacy as any)?.verifiedAudit === true ? legacy : undefined);
         if (
           existing &&
           ((existing as any).verifiedAudit === true ||
@@ -10296,6 +10416,8 @@ app.post('/api/editor/auto-reframe-9x16', async (req, res) => {
           existing.mtimeMs = statMtime;
           existing.sizeBytes = statSize;
           cachedMap[cacheKey] = existing;
+          delete cachedMap[legacyKey];
+          delete cachedMap[String(clipNum)];
           results.push(existing);
           continue;
         }
@@ -10309,12 +10431,14 @@ app.post('/api/editor/auto-reframe-9x16', async (req, res) => {
         );
         if (analyzed.unreadable) {
           // Unreadable file (not downloaded from iCloud yet): keep any earlier analysis, never cache the placeholder
-          results.push(existing || analyzed);
+          results.push(existing || legacy || analyzed);
           continue;
         }
         analyzed.mtimeMs = statMtime;
         analyzed.sizeBytes = statSize;
         cachedMap[cacheKey] = analyzed;
+        delete cachedMap[legacyKey];
+        delete cachedMap[String(clipNum)];
         results.push(analyzed);
       }
     };
