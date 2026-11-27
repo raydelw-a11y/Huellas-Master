@@ -255,7 +255,7 @@ import { stampBrandMarksOnThumbnail, HD_BADGE_EMPTY_CORNER_CLAUSE, LOGO_EMPTY_CO
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '12:42 PM - 11/27/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '01:00 PM - 11/27/2026';
 
 // PRODUCTION LOCK: while promptConfig.PRODUCTION_LOCKED === 'YES' these fields never change (the server
 // enforces the same list in protectLockedDocs). Metadata, thumbnails, review marks and reframes stay editable.
@@ -14542,12 +14542,23 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
         // Every thumbnail gets the official logo (top-left) and the HD (9:16) / 8K (16:9) badge (top-right)
         // A recapture says which orientation it was asked for; a normal capture uses the documentary's
         const capturedOrientation = String(msg.orientation || curViewingDoc?.thumbnailOrientation || '');
-        const dataUrl = await stampBrandMarksOnThumbnail(
+        // Locked until the finished image (8K + logo + badge) is saved: no download in the meantime
+        setThumbFinalizing(capturedOrientation === 'VERTICAL_9X16' ? 'vertical' : 'horizontal');
+        const stampedCapture = await stampBrandMarksOnThumbnail(
           rawCapturedDataUrl,
           capturedOrientation === 'VERTICAL_9X16' ? 'vertical' : 'horizontal',
           officialLogoUrl
         );
         const sourceLabel = 'Gemini Web';
+        // If the logo and badge could not be put on, the raw image comes back unchanged: it is not kept or saved
+        const dataUrl = stampedCapture && stampedCapture !== rawCapturedDataUrl ? stampedCapture : '';
+        if (!dataUrl) {
+          setThumbFinalizing(null);
+          setBridgeStatusType('ERROR');
+          setBridgeStatusMsg(
+            '⚠️ La miniatura llegó pero no se pudieron ampliar a 8K y poner el logo y el sello, así que no se guardó. Pulsa «Recapturar de Gemini» para intentarlo de nuevo.'
+          );
+        }
         if (dataUrl) {
           setCapturedThumbnailsMap((prev) => ({ ...prev, [opt]: dataUrl }));
           const serverPreview =
@@ -14594,7 +14605,11 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
           });
           // One file per orientation (the same image used to be written 3 times with different names)
           const thumbFileName = isVertOrientation ? 'Miniatura_Vertical_9x16.png' : 'Miniatura_Horizontal_16x9.png';
-          await handleSaveAnyFileToChosenFolder(thumbFileName, dataUrl, '03_Miniaturas');
+          try {
+            await handleSaveAnyFileToChosenFolder(thumbFileName, dataUrl, '03_Miniaturas');
+          } finally {
+            setThumbFinalizing(null);
+          }
           const folderLabel =
             effectiveDocFolderName ||
             getCanonicalFolderNameForDoc(curViewingDoc) ||
@@ -15563,6 +15578,18 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
   // logo and the HD/8K badge stamped with the current size and replaces this orientation's thumbnail, exactly like
   // a thumbnail captured from Gemini or Flow (app, 03_Miniaturas files and CTR audit).
   const [restampingThumb, setRestampingThumb] = useState<'horizontal' | 'vertical' | null>(null);
+  // A thumbnail that is being captured, enlarged to 8K and stamped: until it is finished (logo + badge on it)
+  // it can be neither downloaded nor saved, and its slot shows a "working" panel instead of the image.
+  const [thumbFinalizing, setThumbFinalizing] = useState<'horizontal' | 'vertical' | null>(null);
+  useEffect(() => {
+    if (!thumbFinalizing) return;
+    // Safety net: never leave the slot locked if the capture never arrives
+    const timer = setTimeout(() => setThumbFinalizing(null), 180000);
+    return () => clearTimeout(timer);
+  }, [thumbFinalizing]);
+  useEffect(() => {
+    if (bridgeStatusType === 'ERROR') setThumbFinalizing(null);
+  }, [bridgeStatusType]);
   const applyOriginalThumbnailWithLogos = async (
     rawDataUrl: string,
     orientation: 'horizontal' | 'vertical',
@@ -15690,6 +15717,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     const rawVariant = String(curDoc.thumbnailPsychVariant || 'A').toUpperCase();
     const opt: 'A' | 'B' | 'C' = rawVariant === 'B' ? 'B' : rawVariant === 'C' ? 'C' : 'A';
     if (curDoc.thumbnailOrientation !== slot) updateActiveDoc({ thumbnailOrientation: slot });
+    setThumbFinalizing(slot === 'VERTICAL_9X16' ? 'vertical' : 'horizontal');
     setBridgeStatusType('WORKING');
     setBridgeStatusMsg(
       `🔁 Buscando la miniatura ${slot === 'VERTICAL_9X16' ? 'vertical' : 'horizontal'} original en las pestañas de Gemini abiertas...`
@@ -22296,6 +22324,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                       (activeDoc.thumbnailOrientation === 'VERTICAL_9X16' ? activeDoc.thumbnailImageUrl : '') ||
                       '';
                     const hasAnyThumb = Boolean(effectiveHorizontalThumb || effectiveVerticalThumb);
+                    // Slot being captured / enlarged / stamped right now: no download until it is finished
+                    const thumbBusySlot = thumbFinalizing || restampingThumb;
+                    const thumbsLocked = Boolean(thumbBusySlot || thumbnailGeneratingOption);
 
                     const handleUploadSlotThumbnailFile = async (
                       file: File,
@@ -22353,7 +22384,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             {hasAnyThumb && (
                               <button
                                 type="button"
+                                disabled={thumbsLocked}
                                 onClick={async () => {
+                                  if (thumbsLocked) return;
                                   await ensureSingleDownloadFolderReadyOnGesture();
                                   let savedCount = 0;
                                   if (effectiveHorizontalThumb) {
@@ -22383,8 +22416,12 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                     );
                                   }
                                 }}
-                                className="px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs flex items-center gap-1.5 cursor-pointer shadow"
-                                title="Guardar las miniaturas cargadas directamente en la subcarpeta 03_Miniaturas"
+                                className="px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs flex items-center gap-1.5 cursor-pointer shadow disabled:opacity-40 disabled:cursor-not-allowed"
+                                title={
+                                  thumbsLocked
+                                    ? 'Espera: la miniatura se está capturando, ampliando a 8K y sellando con los logos'
+                                    : 'Guardar las miniaturas cargadas directamente en la subcarpeta 03_Miniaturas'
+                                }
                               >
                                 <Download className="w-3.5 h-3.5" />
                                 {effectiveHorizontalThumb && effectiveVerticalThumb
@@ -22451,7 +22488,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                 >
                                   {effectiveHorizontalThumb ? '✓ Lista (16:9)' : 'Sin subir'}
                                 </span>
-                                {effectiveHorizontalThumb && (
+                                {effectiveHorizontalThumb && thumbBusySlot !== 'horizontal' && (
                                   <button
                                     type="button"
                                     onClick={() => setFullscreenThumb({ url: effectiveHorizontalThumb, label: 'Miniatura Horizontal 16:9' })}
@@ -22510,7 +22547,17 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             </div>
 
                             <div className="aspect-video w-full bg-black/60 border border-dashed border-amber-500/40 rounded-xl overflow-hidden flex items-center justify-center relative">
-                              {thumbnailGeneratingOption && currentOrientation === 'HORIZONTAL_16X9' ? (
+                              {thumbBusySlot === 'horizontal' ? (
+                                <div className="flex flex-col items-center justify-center gap-2 p-4 text-center">
+                                  <div className="w-7 h-7 rounded-full border-2 border-amber-400 border-t-transparent animate-spin" />
+                                  <span className="text-xs font-bold text-amber-300">
+                                    Capturando, ampliando a 8K y poniendo el logo y el sello...
+                                  </span>
+                                  <span className="text-[10px] text-slate-400">
+                                    No se puede descargar ni guardar hasta que esté lista
+                                  </span>
+                                </div>
+                              ) : thumbnailGeneratingOption && currentOrientation === 'HORIZONTAL_16X9' ? (
                                 <div className="flex flex-col items-center justify-center gap-2 p-4 text-center">
                                   <div className="w-7 h-7 rounded-full border-2 border-amber-400 border-t-transparent animate-spin" />
                                   <span className="text-xs font-bold text-amber-300">
@@ -22610,7 +22657,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                 >
                                   {effectiveVerticalThumb ? '✓ Lista (9:16)' : 'Sin subir'}
                                 </span>
-                                {effectiveVerticalThumb && (
+                                {effectiveVerticalThumb && thumbBusySlot !== 'vertical' && (
                                   <button
                                     type="button"
                                     onClick={() => setFullscreenThumb({ url: effectiveVerticalThumb, label: 'Miniatura Vertical 9:16' })}
@@ -22669,7 +22716,17 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             </div>
 
                             <div className="aspect-[9/16] max-h-[260px] mx-auto w-full max-w-[150px] bg-black/60 border border-dashed border-amber-500/40 rounded-xl overflow-hidden flex items-center justify-center relative">
-                              {thumbnailGeneratingOption && currentOrientation === 'VERTICAL_9X16' ? (
+                              {thumbBusySlot === 'vertical' ? (
+                                <div className="flex flex-col items-center justify-center gap-2 p-3 text-center">
+                                  <div className="w-6 h-6 rounded-full border-2 border-amber-400 border-t-transparent animate-spin" />
+                                  <span className="text-[11px] font-bold text-amber-300">
+                                    Ampliando a 8K y poniendo logos...
+                                  </span>
+                                  <span className="text-[10px] text-slate-400">
+                                    Sin descarga hasta que esté lista
+                                  </span>
+                                </div>
+                              ) : thumbnailGeneratingOption && currentOrientation === 'VERTICAL_9X16' ? (
                                 <div className="flex flex-col items-center justify-center gap-2 p-3 text-center">
                                   <div className="w-6 h-6 rounded-full border-2 border-amber-400 border-t-transparent animate-spin" />
                                   <span className="text-[11px] font-bold text-amber-300">
@@ -22751,6 +22808,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                   <div
                                     key={opt}
                                     onClick={async () => {
+                                      if (thumbsLocked) return;
                                       const syncSafe =
                                         (await compressImageDataUrlForCloudSync(url, 42000)) ||
                                         (url.length <= 58000 ? url : '');

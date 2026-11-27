@@ -11794,10 +11794,17 @@ app.post('/api/gemini-web/save-captured-thumbnail', async (req, res) => {
     const isVerticalCapture =
       String(req.body?.orientation || doc?.thumbnailOrientation || '').toUpperCase() === 'VERTICAL_9X16';
     // Every thumbnail carries the official logo (top-left) and the HD (9:16) / 8K (16:9) badge (top-right)
-    imgBuffer = stampBrandMarksOnThumbnailServer(imgBuffer, isVerticalCapture ? 'vertical' : 'horizontal');
+    const stampedBuffer = stampBrandMarksOnThumbnailServer(imgBuffer, isVerticalCapture ? 'vertical' : 'horizontal');
+    // The file in 03_Miniaturas is only written when the image is finished (8K + logo + badge): if the stamping
+    // failed, the function returns the same raw buffer and nothing is saved to the folder.
+    const thumbnailIsFinished = stampedBuffer !== imgBuffer;
+    if (!thumbnailIsFinished) {
+      console.warn('[Thumbnail] La miniatura no quedó lista (8K + logos); no se guarda en 03_Miniaturas.');
+    }
+    imgBuffer = stampedBuffer;
 
     const savedPaths: string[] = [];
-    if (resolvedRoot) {
+    if (resolvedRoot && thumbnailIsFinished) {
       ensureDocumentarySubfolders(resolvedRoot);
       const thumbsDir = path.join(resolvedRoot, '03_Miniaturas');
       if (!fs.existsSync(thumbsDir)) {
@@ -11807,8 +11814,8 @@ app.post('/api/gemini-web/save-captured-thumbnail', async (req, res) => {
         ? ['Miniatura_Vertical_9x16.png']
         : ['Miniatura_Horizontal_16x9.png']; // one file per orientation (it used to be written 3 times)
       for (const name of targetNames) {
-        const targetFile = path.join(thumbsDir, name);
-        fs.writeFileSync(targetFile, imgBuffer);
+        // Atomic write: the file never exists half-written while it is being saved
+        const targetFile = writeBufferAtomicallyToDir(imgBuffer, thumbsDir, name);
         try {
           execSync(`chflags nohidden "${targetFile.replace(/"/g, '\\"')}"`, { stdio: 'ignore' });
         } catch {}
