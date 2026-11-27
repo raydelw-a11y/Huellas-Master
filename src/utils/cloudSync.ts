@@ -421,7 +421,10 @@ export function applyStoredClipReviewStateToDocs(
         Boolean(c.videoReady) !== mergedVid ||
         Boolean(c.imageReady) !== mergedImg ||
         (c.videoSavedFileName || '') !== mergedFile ||
-        Boolean(c.isStaticBroll) !== Boolean(isMergedBroll) ||
+        // Only a rendered B-roll file sets the mark here. A marked row whose file is a real video keeps its
+        // mark and prompt (the file decides how it is shown, see isActiveStaticBroll), so it is not a change:
+        // counting it as one rewrote the same row on every pass.
+        (isMergedBroll && !c.isStaticBroll) ||
         (isMergedBroll && c.brollCameraMotion !== nextBrollMotion) ||
         Number(c.videoDiscardOverriddenAt || 0) !== effOverrideAt ||
         shouldClearStaleRejectionOnClip

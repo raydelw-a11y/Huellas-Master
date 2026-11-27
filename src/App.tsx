@@ -133,6 +133,7 @@ import {
   sanitizePromptRemovePersonNames,
   sanitizeImagePromptForFlowSafety,
   isImageOnlyBrollPrompt,
+  isActiveStaticBroll,
   sanitizeVideoClipPromptForFlowSafety,
   normalizeClip1Line1Format,
   reformatSrtText,
@@ -254,7 +255,7 @@ import { stampBrandMarksOnThumbnail, HD_BADGE_EMPTY_CORNER_CLAUSE, LOGO_EMPTY_CO
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '06:19 PM - 11/26/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '09:08 PM - 11/26/2026';
 
 // PRODUCTION LOCK: while promptConfig.PRODUCTION_LOCKED === 'YES' these fields never change (the server
 // enforces the same list in protectLockedDocs). Metadata, thumbnails, review marks and reframes stay editable.
@@ -23514,7 +23515,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             <option value="OFF">Desactivado</option>
                           </select>
                           <span className="px-2 py-0.5 rounded-md bg-sky-500/15 border border-sky-400/40 text-sky-200 text-[11px] font-black">
-                            🖼️ {(activeDoc.clips || []).filter((c) => c.isStaticBroll).length} B-Roll Estáticos activos
+                            🖼️ {(activeDoc.clips || []).filter((c) => isActiveStaticBroll(c)).length} B-Roll Estáticos activos
                           </span>
                           {typeof activeDoc.promptConfig?.SHOT_PLAN_AUDIT === 'string' &&
                             activeDoc.promptConfig.SHOT_PLAN_AUDIT && (
@@ -23617,7 +23618,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                               min)
                             </button>
                           )}
-                          {(activeDoc.clips || []).some((c) => c.isStaticBroll) && (
+                          {(activeDoc.clips || []).some((c) => isActiveStaticBroll(c)) && (
                             <button
                               type="button"
                               onClick={() => {
@@ -23630,7 +23631,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                             >
                               {clipStatusFilter === 'STATIC_BROLL'
                                 ? '📋 Ver Todos los Clips'
-                                : `🔍 Ver ${(activeDoc.clips || []).filter((c) => c.isStaticBroll).length} B-Roll`}
+                                : `🔍 Ver ${(activeDoc.clips || []).filter((c) => isActiveStaticBroll(c)).length} B-Roll`}
                             </button>
                           )}
                         </div>
@@ -24016,7 +24017,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                         case 'SIN_REVISAR':
                           return isClipCreated(c) && !c.reviewedForEditor;
                         case 'STATIC_BROLL':
-                          return Boolean(c.isStaticBroll);
+                          return isActiveStaticBroll(c);
                         default:
                           return true;
                       }
@@ -24033,7 +24034,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                       {
                         key: 'STATIC_BROLL',
                         label: '🖼️ B-Roll Estático',
-                        count: allClipsList.filter((c) => c.isStaticBroll).length,
+                        count: allClipsList.filter((c) => isActiveStaticBroll(c)).length,
                         activeClass: 'bg-sky-400 text-slate-950 border-sky-200 shadow',
                         idleClass:
                           'bg-sky-950/40 text-sky-200 border-sky-500/45 hover:bg-sky-950/60',
@@ -24349,7 +24350,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
 
                                   {/* Production Status Badges inside Timeline Card */}
                                   <div className="flex items-center gap-1 flex-wrap">
-                                    {clip.isStaticBroll && (
+                                    {isActiveStaticBroll(clip) && (
                                       <span className="px-1.5 py-0.5 rounded bg-sky-500/25 border border-sky-400/60 text-[10px] font-black text-sky-200">
                                         🖼️ {BROLL_MOTION_UI_LABEL_ES[clip.brollCameraMotion || 'zoom_in'] || 'B-Roll'}
                                       </span>
@@ -24636,7 +24637,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                         case 'SIN_REVISAR':
                           return isCardCreated(clip) && !clip.reviewedForEditor;
                         case 'STATIC_BROLL':
-                          return Boolean(clip.isStaticBroll);
+                          return isActiveStaticBroll(clip);
                         default:
                           return true;
                       }
@@ -26099,7 +26100,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                   );
                                 })()}
                                 <span className="absolute top-2 left-2 px-2.5 py-0.5 rounded-lg bg-black/85 border border-emerald-500/40 text-xs font-mono font-bold text-emerald-300 pointer-events-none shadow">
-                                  {clip.isStaticBroll ? '🖼️ B-Roll' : '🎬 Clip'} {paddedNum} ({clip.timeRange || 'S/T'})
+                                  {isActiveStaticBroll(clip) ? '🖼️ B-Roll' : '🎬 Clip'} {paddedNum} ({clip.timeRange || 'S/T'})
                                   {clip.videoAttempts && clip.videoAttempts > 1
                                     ? ` • Intento #${clip.videoAttempts}`
                                     : ''}

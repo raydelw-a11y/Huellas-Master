@@ -72,6 +72,39 @@ export function isImageOnlyBrollPrompt(text?: string | null): boolean {
   );
 }
 
+/**
+ * A row whose prompt is a static B-roll plate, but whose saved video is a real generated clip (not the
+ * "..._Broll_4K" render of the plate). The file decides: such a row is shown, played and exported as a video
+ * clip. Its B-roll prompt and `isStaticBroll` mark are left alone, so the row is a B-roll again as soon as
+ * that video is discarded or removed.
+ */
+export function clipHasRealVideoOverBroll(
+  clip?: {
+    videoSavedFileName?: unknown;
+    discardedVideoFileName?: unknown;
+    videoAuditStatus?: unknown;
+  } | null
+): boolean {
+  const file = String(clip?.videoSavedFileName || '').trim();
+  if (!file || !/\.(?:mp4|mov|webm)$/i.test(file)) return false;
+  if (/_broll_4k\.(?:mp4|mov|webm)$/i.test(file)) return false;
+  if (String(clip?.discardedVideoFileName || '').trim() === file) return false;
+  if (clip?.videoAuditStatus === 'rejected') return false;
+  return true;
+}
+
+/** True while the row is really working as a static B-roll (marked as one and without a real video over it). */
+export function isActiveStaticBroll(
+  clip?: {
+    isStaticBroll?: unknown;
+    videoSavedFileName?: unknown;
+    discardedVideoFileName?: unknown;
+    videoAuditStatus?: unknown;
+  } | null
+): boolean {
+  return Boolean(clip?.isStaticBroll) && !clipHasRealVideoOverBroll(clip);
+}
+
 export function extractInlineTimeRangeFromPrompt(text?: string | null): string | undefined {
   if (!text) return undefined;
   const tagMatch = text.match(/\[Time\s*:\s*(\d{1,3}:\d{2}(?:\.\d+)?\s*-\s*\d{1,3}:\d{2}(?:\.\d+)?)\]/i);

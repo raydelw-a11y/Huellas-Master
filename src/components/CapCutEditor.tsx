@@ -51,6 +51,7 @@ import {
   balanceCaptionsFor16x9,
   BROLL_MOTION_UI_LABEL_ES,
   normalizeBrollImagePrompt,
+  isActiveStaticBroll,
 } from '../utils/smartParsers';
 import {
   getMediaBridgeSnapshot,
@@ -7464,10 +7465,17 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         : undefined;
 
       const computedFileName = c.videoSavedFileName || buildClipSixWordFileName(c, activeDoc);
+      // The file decides: a B-roll row that now has a real generated video plays as a normal video clip
+      // (its B-roll prompt and mark stay, so it is a B-roll again when that video goes away)
+      const urlIsRealVideo = Boolean(videoUrl) && !/_broll_4k/i.test(videoUrl);
       const isBrollClip = Boolean(
         isClipReviewed &&
-          (c.isStaticBroll || /_broll_4k/i.test(computedFileName) || /_broll_4k/i.test(videoUrl))
+          !urlIsRealVideo &&
+          (isActiveStaticBroll(c) || /_broll_4k/i.test(computedFileName) || /_broll_4k/i.test(videoUrl))
       );
+      // It was a muted B-roll and is a video now: its sound comes back unless the volume was set by hand
+      const leftBrollForVideo =
+        !isBrollClip && Boolean(existingItem?.isStaticBroll) && !existingItem?.customVolumeSet;
       const nextVideoTs = getUrlTimestampMs(videoUrl);
       const prevVideoTs = getUrlTimestampMs(existingRewrittenUrl);
       const nextVideoMeta = extractEditorMediaUrlMeta(videoUrl);
@@ -7560,7 +7568,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         foleyVolume:
           isBrollClip && !existingItem?.customVolumeSet
             ? 0
-            : existingItem
+            : existingItem && !leftBrollForVideo
               ? existingItem.foleyVolume
               : isClip1
                 ? 80
@@ -7569,7 +7577,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         audioMuted:
           isBrollClip && !existingItem?.customVolumeSet
             ? true
-            : existingItem?.audioMuted !== undefined
+            : leftBrollForVideo
+              ? false
+              : existingItem?.audioMuted !== undefined
               ? existingItem.audioMuted
               : isBrollClip,
         audioFadeInSec: existingItem?.audioFadeInSec,
@@ -7945,12 +7955,16 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               ? rewriteMediaBridgeUrl(baseOpticalFlowUrl)
               : undefined;
 
+          // Same rule as the timeline build: with a real video on the row it is not a B-roll
+          const restoredUrlIsRealVideo = Boolean(effectiveVideoUrl) && !/_broll_4k/i.test(effectiveVideoUrl || '');
           const isRestoredBroll = Boolean(
-            docClipMatch?.isStaticBroll ||
-              tc.isStaticBroll ||
-              /_broll_4k/i.test(tc.fileName || '') ||
-              /_broll_4k/i.test(effectiveVideoUrl || '')
+            !restoredUrlIsRealVideo &&
+              ((docClipMatch ? isActiveStaticBroll(docClipMatch) : tc.isStaticBroll) ||
+                /_broll_4k/i.test(tc.fileName || '') ||
+                /_broll_4k/i.test(effectiveVideoUrl || ''))
           );
+          // Saved as a muted B-roll, restored as a video: its sound comes back unless set by hand
+          const restoredLeftBroll = !isRestoredBroll && Boolean(tc.isStaticBroll) && !tc.customVolumeSet;
           const isClip1Restored = tc.clipNumber === 1;
           const hasExplicitAudioVolume =
             Boolean(tc.customVolumeSet) ||
@@ -7958,7 +7972,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             (typeof tc.foleyVolume === 'number' && tc.foleyVolume !== 40);
           const repairedFoleyVolume = isRestoredBroll && !tc.customVolumeSet
             ? 0
-            : isIntroOrOutroRestored || isClip1Restored || hasExplicitAudioVolume
+            : restoredLeftBroll
+              ? isClip1Restored
+                ? 80
+                : 20
+              : isIntroOrOutroRestored || isClip1Restored || hasExplicitAudioVolume
               ? tc.foleyVolume
               : 20;
 
@@ -8094,9 +8112,9 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             brollCameraMotion: isRestoredBroll
               ? docClipMatch?.brollCameraMotion || tc.brollCameraMotion || 'zoom_in'
               : undefined,
-            audioMuted: isRestoredBroll && !tc.customVolumeSet ? true : tc.audioMuted,
+            audioMuted: isRestoredBroll && !tc.customVolumeSet ? true : restoredLeftBroll ? false : tc.audioMuted,
             foleyVolume: repairedFoleyVolume,
-            customVolumeSet: isRestoredBroll
+            customVolumeSet: isRestoredBroll || restoredLeftBroll
               ? Boolean(tc.customVolumeSet)
               : Boolean(tc.customVolumeSet) ||
                 Boolean(tc.audioMuted) ||
@@ -20332,7 +20350,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                       (dc) => dc.clipNumber === selectedClip.clipNumber
                     );
                     const isSelectedBroll = Boolean(
-                      selectedDocClip?.isStaticBroll ||
+                      isActiveStaticBroll(selectedDocClip) ||
                         selectedClip.isStaticBroll ||
                         /_broll_4k/i.test(selectedClip.fileName || '')
                     );
@@ -20610,7 +20628,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                             selectedClip.isStaticBroll ||
                               /_broll_4k/i.test(selectedClip.fileName || '') ||
                               activeDoc?.clips?.some(
-                                (dc) => dc.clipNumber === selectedClip.clipNumber && dc.isStaticBroll
+                                (dc) => dc.clipNumber === selectedClip.clipNumber && isActiveStaticBroll(dc)
                               )
                           );
                           handleUpdateClipsAudio({
@@ -23722,7 +23740,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                                     }`}
                               </span>
                               {activeDoc?.clips?.some(
-                                (dc) => dc.clipNumber === clip.clipNumber && dc.isStaticBroll
+                                (dc) => dc.clipNumber === clip.clipNumber && isActiveStaticBroll(dc)
                               ) && (
                                 <span className="px-0.5 py-0.2 rounded bg-sky-400/95 text-[7px] font-black text-slate-950 leading-none">
                                   🖼️ B-Roll
@@ -23827,7 +23845,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                                 <div className="absolute top-1 right-1 flex flex-col items-end gap-0.5">
                                   {(() => {
                                     const brollDocClip = activeDoc?.clips?.find(
-                                      (dc) => dc.clipNumber === clip.clipNumber && dc.isStaticBroll
+                                      (dc) => dc.clipNumber === clip.clipNumber && isActiveStaticBroll(dc)
                                     );
                                     const isCardBroll = Boolean(
                                       brollDocClip ||
@@ -23878,7 +23896,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                                   )}
                                 </div>
                                 {activeDoc?.clips?.some(
-                                (dc) => dc.clipNumber === clip.clipNumber && dc.isStaticBroll
+                                (dc) => dc.clipNumber === clip.clipNumber && isActiveStaticBroll(dc)
                               ) && (
                                 <span className="px-0.5 py-0.2 rounded bg-sky-400/95 text-[7px] font-black text-slate-950 leading-none">
                                   🖼️ B-Roll
