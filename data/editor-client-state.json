@@ -1,6 +1,6 @@
 {
-  "aspectRatio": "16:9",
-  "exportResolution": "8K_4320P",
+  "aspectRatio": "9:16",
+  "exportResolution": "2K_1440P",
   "exportFps": 30,
   "formatProfiles": {
     "16:9": {
@@ -48,11 +48,11 @@
     "_v10_9x16_captionBottom20": true,
     "_v11_profile_ratio_repair": true
   },
-  "updatedAt": "2026-11-27T20:00:04.207Z",
+  "updatedAt": "2026-11-27T20:32:44.959Z",
   "overlayStyles": {
-    "logoScalePct": 5,
+    "logoScalePct": 12,
     "logoOpacity": 95,
-    "logoPosX": 3,
+    "logoPosX": 10,
     "logoPosY": 3,
     "logoDefault16x9V4": true,
     "logoAnimIn": "fade",
@@ -84,16 +84,16 @@
     "hookLine2AnimOutDur": 1,
     "clip1OverlayEndSec": 8,
     "captionFontFamily": "'Cinzel', Georgia, 'Times New Roman', serif",
-    "captionFontSize": 25,
+    "captionFontSize": 21,
     "captionFontSize16x9": 25,
     "captionFontSize9x16": 21,
     "captionWordsPerLine16x9": 0,
     "captionWordsPerLine9x16": 0,
-    "captionMaxChars": 32,
-    "captionLineMode": "original",
+    "captionMaxChars": 16,
+    "captionLineMode": "subdivide",
     "captionOriginal16x9V1": true,
     "captionFontSizeV25": true,
-    "captionBottomPct": 11,
+    "captionBottomPct": 20,
     "captionBottom16x9V10": true,
     "captionColor": "white",
     "captionCustomColor": "#ffffff",
@@ -186,10 +186,11 @@
       "foleyVolume": 20,
       "customVolumeSet": false,
       "audioMuted": false,
-      "reframe9x16Mode": "auto_pan",
-      "reframeFocusXStart": 22,
-      "reframeFocusXEnd": 78,
-      "reframeFocusY": 50
+      "reframe9x16Mode": "auto_center",
+      "reframeFocusXStart": 50,
+      "reframeFocusXEnd": 50,
+      "reframeFocusY": 50,
+      "userReframed9x16": true
     },
     {
       "id": "clip-4-1795649050151-4",
