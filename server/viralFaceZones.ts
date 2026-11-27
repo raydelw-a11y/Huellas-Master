@@ -77,6 +77,26 @@ const run = (bin: string, args: string[], timeoutMs: number): Promise<{ ok: bool
     });
   });
 
+// Frames are read a few at a time, whoever asks: one frame of an 8K final video takes about 1.4 GB of memory
+// while it is decoded, and a list of clips opening at once asked for 30 of them together (the Mac ran out of
+// memory and the server stopped answering). The rest wait their turn.
+const FRAME_GRAB_MAX_AT_ONCE = 3;
+let frameGrabsRunning = 0;
+const frameGrabWaiters: Array<() => void> = [];
+async function withFrameGrabTurn<T>(job: () => Promise<T>): Promise<T> {
+  if (frameGrabsRunning >= FRAME_GRAB_MAX_AT_ONCE) {
+    await new Promise<void>((resolve) => frameGrabWaiters.push(resolve));
+  }
+  frameGrabsRunning++;
+  try {
+    return await job();
+  } finally {
+    frameGrabsRunning--;
+    const next = frameGrabWaiters.shift();
+    if (next) next();
+  }
+}
+
 let detectorPromise: Promise<string | null> | null = null;
 
 /** Path of the compiled detector (compiles it the first time, about half a minute); null if it cannot be built. */
@@ -144,10 +164,13 @@ export async function analyzeViralFrames(opts: {
       opts.samples.map(async (s, i) => {
         const out = path.join(os.tmpdir(), `viral_face_${stamp}_${i}.jpg`);
         frames.push(out);
-        const r = await run(
-          opts.ffmpegBin,
-          ['-hide_banner', '-v', 'error', '-y', '-ss', Math.max(0, s.sourceSec).toFixed(3), '-i', opts.sourceVideoPath, '-frames:v', '1', '-vf', s.vf, '-q:v', '4', out],
-          45000
+        // The 45 s limit starts when the frame's turn comes, not while it waits
+        const r = await withFrameGrabTurn(() =>
+          run(
+            opts.ffmpegBin,
+            ['-hide_banner', '-v', 'error', '-y', '-ss', Math.max(0, s.sourceSec).toFixed(3), '-i', opts.sourceVideoPath, '-frames:v', '1', '-vf', s.vf, '-q:v', '4', out],
+            45000
+          )
         );
         return r.ok && fs.existsSync(out) ? out : '';
       })

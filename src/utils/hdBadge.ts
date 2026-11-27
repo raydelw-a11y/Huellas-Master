@@ -1,5 +1,6 @@
 import hdBadgeUrl from '../assets/brand/hd_badge_9x16.png';
 import k8BadgeUrl from '../assets/brand/k8_badge_16x9.png';
+import { getMediaBridgeSnapshot, getOrderedMediaBridgeBases } from './mediaBridge';
 
 /**
  * Brand marks stamped on every new thumbnail instead of letting the AI draw them:
@@ -41,7 +42,9 @@ let cachedOfficialLogo = '';
 async function getOfficialLogoDataUrl(): Promise<string> {
   if (cachedOfficialLogo) return cachedOfficialLogo;
   try {
-    const resp = await fetch('/api/assets/official-logo');
+    // The Mac's own address (the page may be the GitHub Pages copy, where a relative /api path fails)
+    const macOrigin = getMediaBridgeSnapshot().activeOrigin || getOrderedMediaBridgeBases()[0] || '';
+    const resp = await fetch(`${macOrigin}/api/assets/official-logo`);
     if (resp.ok) {
       const data = await resp.json();
       if (data?.logoDataUrl && String(data.logoDataUrl).startsWith('data:image/')) {

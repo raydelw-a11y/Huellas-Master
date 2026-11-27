@@ -23776,6 +23776,8 @@ function buildOpusClipAssSubtitles(params: {
 // while because the page asks again every time the clip is opened.
 const VIRAL_FACE_BIN_DIR = path.join(VIRAL_CLIPS_DIR, 'bin');
 const viralFramesCache = new Map<string, { at: number; infos: Array<ViralFrameInfo | null> }>();
+// The same question asked again while it is being answered (the page asks on every open) shares the answer
+const viralFramesInFlight = new Map<string, Promise<Array<ViralFrameInfo | null>>>();
 // The detector is compiled once (about half a minute): do it shortly after start, not during the first export
 setTimeout(() => {
   void ensureViralFaceDetector(VIRAL_FACE_BIN_DIR);
@@ -23818,6 +23820,15 @@ async function analyzeViralClipFrames(
     ]);
     const hit = viralFramesCache.get(key);
     if (hit && Date.now() - hit.at < 6 * 60 * 60 * 1000) return hit.infos;
+    const flying = viralFramesInFlight.get(key);
+    if (flying) return await flying;
+    // The light 720p copy made for the player shows the same picture at the same seconds: frames are read
+    // from it when it exists (an 8K frame costs about 1.4 GB of memory to decode, a 720p one very little)
+    let frameReadPath = p.sourceVideoPath;
+    try {
+      const proxyPath = path.join(VIRAL_PROXY_DIR, viralProxyNameFor(p.sourceVideoPath, stat));
+      if (fs.existsSync(proxyPath)) frameReadPath = proxyPath;
+    } catch {}
     const hasBurnedDocCaptions =
       !p.sourceIsViralMaster && /[\\/]06_Video_Final[\\/]/i.test(String(p.sourceVideoPath || ''));
     const preCrop = hasBurnedDocCaptions ? 'crop=iw:trunc(ih*0.78/2)*2:0:0,' : '';
@@ -23831,13 +23842,20 @@ async function analyzeViralClipFrames(
       const panX = p.reframeMode === 'auto_pan' ? 0.25 + 0.5 * Math.min(1, clipSec / Math.max(1, total)) : fX;
       return `${preCrop}scale=360:640:force_original_aspect_ratio=increase,crop=360:640:(iw-ow)*${panX.toFixed(3)}:(ih-oh)/2`;
     };
-    const infos = await analyzeViralFrames({
+    const work = analyzeViralFrames({
       ffmpegBin: getFfmpegPath(),
       binDir: VIRAL_FACE_BIN_DIR,
-      sourceVideoPath: p.sourceVideoPath,
+      sourceVideoPath: frameReadPath,
       samples: clipTimes.map((clipSec) => ({ sourceSec: viralClipSecToSourceSec(p, clipSec), vf: geometryVf(clipSec) })),
       withThumbs,
     });
+    viralFramesInFlight.set(key, work);
+    let infos: Array<ViralFrameInfo | null>;
+    try {
+      infos = await work;
+    } finally {
+      viralFramesInFlight.delete(key);
+    }
     // Nothing read at all (detector still compiling, file busy…): do not remember that as the answer
     if (infos.some((x) => x)) {
       viralFramesCache.set(key, { at: Date.now(), infos });

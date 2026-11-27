@@ -255,7 +255,7 @@ import { stampBrandMarksOnThumbnail, HD_BADGE_EMPTY_CORNER_CLAUSE, LOGO_EMPTY_CO
 
 declare const __BUILD_TIMESTAMP__: string | undefined;
 const LAST_UPDATED_TEXT =
-  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '03:39 PM - 11/27/2026';
+  typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '04:22 PM - 11/27/2026';
 
 // PRODUCTION LOCK: while promptConfig.PRODUCTION_LOCKED === 'YES' these fields never change (the server
 // enforces the same list in protectLockedDocs). Metadata, thumbnails, review marks and reframes stay editable.
@@ -21536,7 +21536,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                                   .slice()
                                   .reverse()
                                   .map((t) => t.filename);
-                                const res = await fetch('/api/tts/merge', {
+                                // The Mac merges the audio: reached at its own address (the page may be the GitHub Pages copy)
+                                const ttsMergeOrigin = getMacMediaBridgeBases().find(Boolean) ?? '';
+                                const res = await fetch(`${ttsMergeOrigin}/api/tts/merge`, {
                                   method: 'POST',
                                   headers: { 'Content-Type': 'application/json' },
                                   body: JSON.stringify({
@@ -26999,7 +27001,9 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
                       } catch {}
 
                       try {
-                        fetch('/api/editor/sync-client-state', {
+                        // Sent to the Mac's own address (the page may be the GitHub Pages copy)
+                        const captionSyncOrigin = getMacMediaBridgeBases().find(Boolean) ?? '';
+                        fetch(`${captionSyncOrigin}/api/editor/sync-client-state`, {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({

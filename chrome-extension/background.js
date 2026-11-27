@@ -2651,7 +2651,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'HUELLAS_LOCAL_API') {
     const apiPath = String(message.path || '');
     const method = String(message.method || 'GET').toUpperCase();
-    const ALLOWED_LOCAL_API_PATHS = new Set(['/api/system/rename-doc-folder']);
+    // master-recipe: the editor's recipe for the clean 9:16 master of Viral Clips (the Mac only takes it
+    // straight from its own Chrome, never through the tunnel)
+    const ALLOWED_LOCAL_API_PATHS = new Set(['/api/system/rename-doc-folder', '/api/viral-clips/master-recipe']);
     if (!ALLOWED_LOCAL_API_PATHS.has(apiPath) || (method !== 'GET' && method !== 'POST')) {
       sendResponse({ ok: false, status: 403, error: 'ruta local no permitida' });
       return false;

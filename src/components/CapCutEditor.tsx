@@ -68,7 +68,9 @@ import {
   isOfficialAssetMedia,
   verifyMediaBridgeHealthOrRefresh,
   toCanonicalMediaBridgePath,
+  isLocalMediaRuntimeOrigin,
 } from '../utils/mediaBridge';
+import { callLocalApiViaExtension } from '../utils/webStudioBridge';
 import { useNoticeStack } from '../utils/noticeStack';
 import DocGraphicsLayer, { browserGraphicMeasure } from './DocGraphicsLayer';
 import DocGraphicsPanel from './DocGraphicsPanel';
@@ -15579,12 +15581,23 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         };
         const key = JSON.stringify(body);
         if (key === viralRecipeLastSentRef.current) return;
-        const resp = await fetch('/api/viral-clips/master-recipe', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ docId: docAtSchedule.id, body }),
-        });
-        if (resp.ok) viralRecipeLastSentRef.current = key;
+        // The Mac only takes the recipe from its own editor (a phone's editor has its own saved settings and
+        // would make the master be rebuilt back and forth). On the Mac the page is usually the GitHub Pages
+        // copy, where a relative /api path goes to github.io and the recipe never arrived: the 9:16 master
+        // stayed "preparing the recipe" for ever. From there it goes through the Huellas extension, which
+        // only this Mac's Chrome has and which reaches the local server directly.
+        const recipePayload = { docId: docAtSchedule.id, body };
+        if (isLocalMediaRuntimeOrigin()) {
+          const resp = await fetch('/api/viral-clips/master-recipe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(recipePayload),
+          });
+          if (resp.ok) viralRecipeLastSentRef.current = key;
+        } else {
+          const viaExt = await callLocalApiViaExtension('/api/viral-clips/master-recipe', 'POST', recipePayload, 30000);
+          if (viaExt.ok && !viaExt.data?.ignored) viralRecipeLastSentRef.current = key;
+        }
       } catch {}
     }, 15000);
     return () => window.clearTimeout(timer);
