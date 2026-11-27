@@ -3436,7 +3436,6 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                   {showDesignEditor &&
                     (() => {
                       const st = docStyle || VIRAL_CLASSIC_STYLE;
-                      // The classic look's own value is one more option of every list, marked as such
                       const pick = (
                         label: string,
                         key: 'titleFont' | 'captionFont' | 'texture' | 'outline' | 'shadow' | 'titleAnimation' | 'captionAnimation',
@@ -3452,12 +3451,18 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                             {options.map((o) => (
                               <option key={o.id} value={o.id}>
                                 {o.label}
-                                {o.id === VIRAL_CLASSIC_STYLE[key] ? ' — clásico' : ''}
                               </option>
                             ))}
                           </select>
                         </label>
                       );
+                      // The colours of the first design (Video 30), offered by their own names
+                      const colourNames = {
+                        titleColor: 'Blanco hueso',
+                        titleAccentColor: 'Dorado',
+                        captionColor: 'Amarillo',
+                        captionActiveColor: 'Blanco',
+                      } as const;
                       const colour = (label: string, key: 'titleColor' | 'titleAccentColor' | 'captionColor' | 'captionActiveColor') => (
                         <div className="flex items-center gap-2 min-w-0">
                           <label className="flex items-center gap-2 min-w-0 flex-1 cursor-pointer">
@@ -3469,11 +3474,10 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                             />
                             <span className="text-[10px] text-slate-300 leading-tight">{label}</span>
                           </label>
-                          {/* The classic look's colour for this piece, one tap away */}
                           <button
                             type="button"
                             onClick={() => changeDocStyle({ [key]: VIRAL_CLASSIC_STYLE[key] })}
-                            title={`Usar el color clásico (${VIRAL_CLASSIC_STYLE[key]})`}
+                            title={`Usar ${colourNames[key].toLowerCase()} (${VIRAL_CLASSIC_STYLE[key]})`}
                             className={`shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded border text-[9px] cursor-pointer ${
                               String(st[key]).toUpperCase() === VIRAL_CLASSIC_STYLE[key]
                                 ? 'border-amber-400 text-amber-200'
@@ -3484,7 +3488,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                               className="inline-block w-3 h-3 rounded-sm border border-black/40"
                               style={{ background: VIRAL_CLASSIC_STYLE[key] }}
                             />
-                            clásico
+                            {colourNames[key]}
                           </button>
                         </div>
                       );
