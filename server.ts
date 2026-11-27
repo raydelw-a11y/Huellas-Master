@@ -21916,6 +21916,23 @@ for (const d of [VIRAL_CLIPS_DIR, VIRAL_UPLOADS_DIR, VIRAL_YOUTUBE_DIR, VIRAL_EX
 }
 
 app.use('/viral-clips-media', express.static(VIRAL_CLIPS_DIR));
+// Player diagnosis sent by the Viral Clips viewer from a phone (temporary): what the video element reports
+// when a jump is dropped. Kept in data/viral-clips/player-diag.log, never above ~512 KB.
+app.post('/api/viral-clips/player-diag', (req, res) => {
+  try {
+    const file = path.join(VIRAL_CLIPS_DIR, 'player-diag.log');
+    const line = JSON.stringify({
+      at: new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }),
+      ua: String(req.headers['user-agent'] || '').slice(0, 160),
+      ...(req.body && typeof req.body === 'object' ? req.body : {}),
+    }).slice(0, 1500);
+    try {
+      if (fs.existsSync(file) && fs.statSync(file).size > 512 * 1024) fs.writeFileSync(file, '');
+    } catch {}
+    fs.appendFileSync(file, line + '\n');
+  } catch {}
+  res.json({ ok: true });
+});
 
 interface InstagramAutoDmRule {
   enabled: boolean;

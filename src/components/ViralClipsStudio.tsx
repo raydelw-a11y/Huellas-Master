@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+declare const __BUILD_TIMESTAMP__: string | undefined;
 import {
   computeViralClipCuts,
   buildViralLocalWords,
@@ -1373,6 +1374,9 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
       if (clipCuts && toClipTime(vid.currentTime) >= clipCuts.totalDurSec - 0.3) seekClipTime(0);
       vid.play().catch(() => {});
       setIsPlaying(true);
+      sendPlayerDiag('play');
+      window.setTimeout(() => sendPlayerDiagRef.current('play+1.5s'), 1500);
+      window.setTimeout(() => sendPlayerDiagRef.current('play+4s'), 4000);
     } else {
       vid.pause();
       setIsPlaying(false);
@@ -1425,11 +1429,73 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
     };
   }, [clipCuts, useMasterSource, viralMaster?.builtAt]);
   const partRef = useRef<number>(0);
-  // Where the player should be (seconds of the source video). An iPhone ignores a jump made before the video
-  // has data and then plays from 00:00, far before the clip: the captions stayed on the first line and the
-  // title never changed. applyClipCutsAt puts the video back here when it finds it before its piece.
+  // Where the player should be (seconds of the source video). An iPhone can drop a jump (before the video has
+  // data, and at other moments) and keep playing from where it was: the captions stayed on the first line,
+  // the title never changed and a new clip went on from the previous one's place. Every jump is therefore
+  // kept as "pending" until the video is really there; applyClipCutsAt asks again meanwhile.
   const wantedSourceRef = useRef<number>(0);
+  const pendingSeekRef = useRef<number | null>(null);
+  const seekRetriesRef = useRef<number>(0);
+  const seekGaveUpRef = useRef<boolean>(false);
   const lastSeekFixAtRef = useRef<number>(0);
+  const requestVideoSeek = (vid: HTMLVideoElement, sourceSec: number) => {
+    wantedSourceRef.current = sourceSec;
+    pendingSeekRef.current = sourceSec;
+    seekRetriesRef.current = 0;
+    seekGaveUpRef.current = false;
+    lastSeekFixAtRef.current = performance.now();
+    try {
+      vid.currentTime = sourceSec;
+    } catch {}
+  };
+  // Player diagnosis from a phone or any device that is not the Mac (temporary, to see why jumps are dropped
+  // there): a few lines per page load, kept by the Mac in data/viral-clips/player-diag.log
+  const playCutsRef = useRef(playCuts);
+  playCutsRef.current = playCuts;
+  const playerDiagCountRef = useRef<number>(0);
+  const sendPlayerDiag = (label: string) => {
+    try {
+      if (!getViralServerOrigin() || playerDiagCountRef.current >= 60) return;
+      const vid = videoRef.current;
+      if (!vid) return;
+      playerDiagCountRef.current += 1;
+      const ranges = (r: TimeRanges) => {
+        const out: number[][] = [];
+        for (let i = 0; i < Math.min(3, r.length); i++) out.push([Number(r.start(i).toFixed(1)), Number(r.end(i).toFixed(1))]);
+        return out;
+      };
+      const cuts = playCutsRef.current;
+      const part = cuts?.parts[Math.max(0, Math.min((cuts?.parts.length || 1) - 1, partRef.current))];
+      void fetch(viralApi('/api/viral-clips/player-diag'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        keepalive: true,
+        body: JSON.stringify({
+          label,
+          n: playerDiagCountRef.current,
+          build: typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : '',
+          file: String(vid.currentSrc || '').split('?')[0].split('/').pop(),
+          ct: Number(vid.currentTime.toFixed(2)),
+          dur: Number.isFinite(vid.duration) ? Number(vid.duration.toFixed(1)) : String(vid.duration),
+          rs: vid.readyState,
+          ns: vid.networkState,
+          paused: vid.paused,
+          seeking: vid.seeking,
+          seekable: ranges(vid.seekable),
+          buffered: ranges(vid.buffered),
+          err: vid.error?.code || 0,
+          part: part ? [part.srcStart, part.srcEnd] : null,
+          partIdx: partRef.current,
+          wanted: wantedSourceRef.current,
+          pending: pendingSeekRef.current,
+          retries: seekRetriesRef.current,
+          gaveUp: seekGaveUpRef.current,
+        }),
+      }).catch(() => {});
+    } catch {}
+  };
+  const sendPlayerDiagRef = useRef(sendPlayerDiag);
+  sendPlayerDiagRef.current = sendPlayerDiag;
   const toClipTime = (sourceSec: number) => (playCuts ? viralSourceToClipTime(playCuts, sourceSec, partRef.current) : 0);
   /** Moves the player to a point of the exported clip (0 … total) */
   const seekClipTime = (clipSec: number) => {
@@ -1438,7 +1504,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
     const { partIndex, sourceSec } = viralClipTimeToSource(playCuts, ct);
     partRef.current = partIndex;
     wantedSourceRef.current = sourceSec;
-    if (videoRef.current) videoRef.current.currentTime = sourceSec;
+    if (videoRef.current) requestVideoSeek(videoRef.current, sourceSec);
     setPlayheadSec(sourceSec);
     setCaptionSec(ct);
   };
@@ -1447,23 +1513,43 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
     if (!playCuts || playCuts.parts.length === 0) return false;
     const idx = Math.max(0, Math.min(playCuts.parts.length - 1, partRef.current));
     const part = playCuts.parts[idx];
-    if (vid.currentTime < part.srcStart - 0.3) {
-      // The video is before its piece: the jump was ignored (iPhone, before the video had data). Jump again,
-      // at most every 0.4 s, once the video can take it.
-      const now = performance.now();
-      if (vid.readyState >= 1 && now - lastSeekFixAtRef.current > 400) {
-        lastSeekFixAtRef.current = now;
-        const wanted = wantedSourceRef.current;
-        vid.currentTime = wanted >= part.srcStart && wanted < part.srcEnd ? wanted : part.srcStart;
+    // A video found well before its piece with no jump pending: ask for the jump again
+    if (pendingSeekRef.current === null && !seekGaveUpRef.current && vid.currentTime < part.srcStart - 1.5) {
+      const wanted = wantedSourceRef.current;
+      pendingSeekRef.current = wanted >= part.srcStart && wanted < part.srcEnd ? wanted : part.srcStart;
+      seekRetriesRef.current = 0;
+    }
+    const pending = pendingSeekRef.current;
+    if (pending !== null) {
+      const off = vid.currentTime - pending;
+      if (off >= -1.5 && off <= 3) {
+        // The video is there: the jump is done once it has a picture at that point
+        if (!vid.seeking && vid.readyState >= 2) pendingSeekRef.current = null;
+      } else {
+        // The jump was dropped: ask again, at most every 0.4 s and for about 12 s
+        const now = performance.now();
+        if (vid.readyState >= 1 && now - lastSeekFixAtRef.current > 400) {
+          lastSeekFixAtRef.current = now;
+          seekRetriesRef.current += 1;
+          if (seekRetriesRef.current > 30) {
+            pendingSeekRef.current = null;
+            seekGaveUpRef.current = true;
+            sendPlayerDiag('abandonado');
+          } else {
+            try {
+              vid.currentTime = pending;
+            } catch {}
+            if (seekRetriesRef.current <= 5) sendPlayerDiag('reintento');
+          }
+        }
+        return true;
       }
-      return true;
     }
     if (vid.currentTime >= part.srcEnd - 0.01) {
       const next = playCuts.parts[idx + 1];
       if (next) {
         partRef.current = idx + 1;
-        wantedSourceRef.current = next.srcStart;
-        vid.currentTime = next.srcStart;
+        requestVideoSeek(vid, next.srcStart);
       } else {
         vid.pause();
         setIsPlaying(false);
@@ -1480,8 +1566,19 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
       videoRef.current.pause();
       setIsPlaying(false);
       seekClipTime(0);
+      sendPlayerDiag('clip');
     }
   }, [selectedClip?.id, playCuts]);
+  // A paused video gives almost no events: check twice a second whether a jump is still pending
+  const applyClipCutsRef = useRef(applyClipCutsAt);
+  applyClipCutsRef.current = applyClipCutsAt;
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      const vid = videoRef.current;
+      if (vid && pendingSeekRef.current !== null) applyClipCutsRef.current(vid);
+    }, 500);
+    return () => window.clearInterval(timer);
+  }, []);
 
   // Caption clock: 'timeupdate' only fires ~4 times a second, so captions changed up to 0.25 s late.
   // While playing, a frame loop reads the video time and re-renders only when it crosses a word start/end
@@ -2425,7 +2522,10 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                       onLoadedMetadata={() => {
                         // Keep the place (on the clip's own timeline) when the player switches source or preview
                         seekClipTime(captionSec);
+                        sendPlayerDiag('metadata');
                       }}
+                      onSeeked={(e) => void applyClipCutsAt(e.currentTarget)}
+                      onError={() => sendPlayerDiag('error')}
                       onLoadedData={(e) => void applyClipCutsAt(e.currentTarget)}
                       onCanPlay={(e) => void applyClipCutsAt(e.currentTarget)}
                       onPlaying={(e) => void applyClipCutsAt(e.currentTarget)}
