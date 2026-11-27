@@ -1,22 +1,22 @@
 {
   "docId": "doc-1795644959273-rmqo",
-  "savedAt": 1795816653315,
+  "savedAt": 1795816867131,
   "youtubeUrl": "",
   "docStyle": {
-    "titleFont": "piedra",
+    "titleFont": "limelight",
     "captionFont": "changa_one",
     "titleColor": "#E8DCC0",
     "titleAccentColor": "#3FB58F",
     "captionColor": "#F2E6C8",
     "captionActiveColor": "#3FD6A4",
-    "texture": "stone",
+    "texture": "none",
     "textureAmount": 60,
     "outline": "thin",
-    "shadow": "hard",
+    "shadow": "glow",
     "titleAnimation": "zoom",
-    "captionAnimation": "box",
-    "source": "gemini",
-    "reason": "Letras talladas en piedra con tonos de jade para la ciudad mexica levantada sobre el lago."
+    "captionAnimation": "underline",
+    "source": "manual",
+    "reason": ""
   },
   "clips": [
     {
