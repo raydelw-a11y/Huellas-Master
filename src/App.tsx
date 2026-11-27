@@ -420,6 +420,9 @@ function formatConcisePinnedComment(raw: string): string {
     .replace(/\s*\n+\s*/g, ' ')
     .trim();
   if (!clean) return '';
+  // While Gemini is still thinking the reply only holds the title of its thought plus "Gemini said":
+  // that is never a pinned comment (it was once saved as one when the chat was read mid-answer).
+  if (clean.length < 400 && /(?:gemini said|gemini dijo|dijo gemini)[.…:]*$/i.test(clean)) return '';
   // If Gemini prepended a heavy historical summary sentence before the concise 3-sentence structure (> 580 chars),
   // keep only the last declarative connection sentence right before the "¿...?" question + the question + CTA.
   if (clean.length > 580) {
@@ -6940,6 +6943,8 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     const isPinnedMissing = !cleanedPinned.trim();
     const isFbMissing = !cleanedFb.trim();
     const isTagsMissing = !cleanedTags.trim();
+    // Never while an order is running: the chat would be read mid-answer and an unfinished reply saved
+    if (aiGenerating || pendingStage11QueueRef.current.length > 0) return;
     if (
       (isYtIncomplete || isPinnedMissing || isFbMissing || isTagsMissing) &&
       (extensionInstalled || isHuellasExtensionDetected())
@@ -6962,6 +6967,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
     activeDoc?.pinnedComment,
     activeDoc?.youtubeTags,
     extensionInstalled,
+    aiGenerating,
   ]);
 
   const extractDocVideoNumber = (text?: string): string => {
@@ -14198,6 +14204,7 @@ Explora cómo el idioma, la comida, el fútbol y la identidad argentina fueron m
             !looksLikeCode(candidatePinned) &&
             !looksLikeScriptOrOtherStage(candidatePinned) &&
             !(candidatePinned === candidatePinned.toUpperCase() && candidatePinned.length < 120) &&
+            !!formatConcisePinnedComment(candidatePinned) &&
             candidatePinned.length >= 40;
           const validTags =
             !!candidateTags &&

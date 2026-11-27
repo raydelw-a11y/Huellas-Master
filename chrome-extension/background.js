@@ -2577,7 +2577,11 @@ function huellasStartGeminiTicks(tabId) {
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (!message) return false;
-  if (message.type === 'GEMINI_RESPONSE_READY' && sender?.tab?.id && message.taskType !== 'AUTO_RECOVER_STAGE11') {
+  if (
+    message.type === 'GEMINI_RESPONSE_READY' &&
+    sender?.tab?.id &&
+    !/^(?:AUTO_RECOVER|MANUAL_GRAB)/.test(String(message.taskType || ''))
+  ) {
     huellasGeminiTickTabs.delete(sender.tab.id);
   }
   if (message.type === 'HUELLAS_DEBUG_LOG') {
@@ -3637,6 +3641,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 ).trim();
                 if (!remaining || remaining.length < 3) return;
                 if (isAnswering()) return;
+                // One Send per order: the content script (or an earlier run of this one) already pressed it.
+                // In a hidden tab Gemini is slow to show that, and a second press went out as a second order.
+                if (sentRecently()) return;
                 // Never send the prompt written twice (Gemini answers a doubled long prompt with a blank
                 // response): put it back once through Quill and try again on the next tick.
                 try {

@@ -10,8 +10,8 @@
     oldGeminiBar.remove();
   }
 
-  if (window.__HUELLAS_GEMINI_SCRIPT_VERSION__ === 22) return;
-  window.__HUELLAS_GEMINI_SCRIPT_VERSION__ = 22;
+  if (window.__HUELLAS_GEMINI_SCRIPT_VERSION__ === 23) return;
+  window.__HUELLAS_GEMINI_SCRIPT_VERSION__ = 23;
   window.__HUELLAS_GEMINI_SCRIPT_LOADED__ = true;
 
   // Chrome frena a 1 vez por minuto los temporizadores de pestañas ocultas. Mientras hay una orden en
@@ -161,6 +161,20 @@
       document.documentElement.setAttribute('data-huellas-sent-at', String(Date.now()));
     } catch {}
   }
+
+  // Milliseconds since Send was last pressed for the current order (by this script or by the MAIN-world one).
+  function msSincePromptSent() {
+    try {
+      const at = Number(document.documentElement.getAttribute('data-huellas-sent-at') || 0);
+      return at > 0 ? Date.now() - at : Infinity;
+    } catch {
+      return Infinity;
+    }
+  }
+  // After pressing Send, wait this long for Gemini to show the message before pressing again. In a hidden
+  // tab Gemini takes a second or more to show it: a second press there went out as a second identical
+  // order, which cut the first answer and left Gemini stuck on "Stop" until the tab was shown.
+  const SEND_CONFIRM_WAIT_MS = 5000;
 
   function findSendButton() {
     if (isGeminiStillGenerating()) return null;
@@ -630,10 +644,15 @@
       youtubeTags: '',
     };
 
+    // The answer Gemini is still writing is not a result yet: while it thinks, it only holds the title of its
+    // current thought plus "Gemini said" (that once got saved as the pinned comment).
+    const answerInProgressEl = isGeminiStillGenerating() ? responses[responses.length - 1] : null;
     for (const el of responses) {
+      if (el === answerInProgressEl) continue;
       const { text } = extractCleanResponseFromElement(el);
       const clean = String(text || '').trim();
       if (!clean || clean.length < 35) continue;
+      if (clean.length < 400 && /(?:^|\n)\s*(?:gemini said|gemini dijo|dijo gemini)[.…:]*\s*$/i.test(clean)) continue;
       if (/^(?:Act[uú]a como (?:estratega|especialista)|Act as (?:Chief Publishing|Publishing Strategist|Community & Retention|YouTube SEO|Editorial Director)|\[STAGE_11[1-5]_)/i.test(clean)) continue;
 
       const userPrompt = getPrecedingUserPromptForResponse(el);
@@ -1619,8 +1638,11 @@
     );
 
     let lastUnattendedFocusAskAt = 0;
+    // Real clock, not a tick count: in a hidden tab the ticks can slow to one a minute and the time limits
+    // below would then take hours.
+    const watchStartedAtReal = Date.now();
     activeWatchTimer = setInterval(() => {
-      elapsedMs += 800;
+      elapsedMs = Date.now() - watchStartedAtReal;
 
       // Hidden page while an order runs: ask to be put in front (granted only if nobody is at the Mac)
       if (document.hidden && Date.now() - lastUnattendedFocusAskAt > 30000) {
@@ -1668,13 +1690,23 @@
       }
       // Hidden page + answer text untouched for 5 real minutes = Gemini finished but could not repaint its
       // buttons. Deep Research and image orders are excluded: they legitimately sit still for many minutes.
+      // Short answers (titles, metadata, pinned comment, tags) are accepted after 1 real minute without
+      // changes, once the order has started and the text is a finished answer, not Gemini's thinking label.
+      const frozenForMs = Date.now() - frozenWatchChangedAt;
+      const isShortAnswerStage = [101, 111, 112, 113, 114, 115, 12].includes(stageNumInit);
       const hiddenFrozenFinish =
         stillStreamingRaw &&
         document.hidden &&
         !isDeepResearch &&
         !isImageOrder &&
-        latest.text.length >= 1500 &&
-        Date.now() - frozenWatchChangedAt >= 300000;
+        ((latest.text.length >= 1500 && frozenForMs >= 300000) ||
+          (isShortAnswerStage &&
+            hasStarted &&
+            frozenForMs >= 60000 &&
+            latest.text.length > 10 &&
+            latest.text !== initialLastText &&
+            !isThinkingOnlyText(latest.text) &&
+            isStageResponseSemanticallyComplete(stageNumInit, latest.text)));
       if (hiddenFrozenFinish && !hasReportedFrozenFinish) {
         hasReportedFrozenFinish = true;
         try {
@@ -4779,7 +4811,7 @@
 
         if (payload.autoSubmit !== false) {
           // 3. Persistent submit retry loop: keep clicking Send / waking Quill until the text box empties or Gemini starts generating
-          for (let attempt = 0; attempt < 16; attempt++) {
+          for (let attempt = 0; attempt < 30; attempt++) {
             await sleep(attempt === 0 ? 350 : 400);
 
             const currentResponsesCount = getModelResponseElements().length;
@@ -4801,6 +4833,8 @@
             ) {
               break;
             }
+            // One Send per order: never press again until Gemini has had time to show the first one
+            if (msSincePromptSent() < SEND_CONFIRM_WAIT_MS) continue;
             // An empty box does NOT mean it was sent: Gemini turns very long pastes into an attached
             // "pasted text" chip, so keep clicking Send while it is enabled.
             if (remainingText.length < 5) {
@@ -4814,7 +4848,7 @@
                 } catch {}
                 continue;
               }
-              if (attempt >= 6) break;
+              if (attempt >= 14) break;
               continue;
             }
 
@@ -4845,6 +4879,7 @@
                 sendBtn.click();
               } catch {}
             } else {
+              markPromptSentNow();
               currentInputEl.focus();
               currentInputEl.dispatchEvent(
                 new KeyboardEvent('keydown', {
