@@ -1,7 +1,23 @@
 {
   "docId": "doc-1793066748998-7if4",
-  "savedAt": 1795792156311,
+  "savedAt": 1795819182769,
   "youtubeUrl": "https://youtu.be/ZJVaGxrCmlU",
+  "docStyle": {
+    "titleFont": "league_gothic",
+    "captionFont": "arial_black",
+    "titleColor": "#EFE7D6",
+    "titleAccentColor": "#E3AA3C",
+    "captionColor": "#FFE600",
+    "captionActiveColor": "#FFFFFF",
+    "texture": "worn",
+    "textureAmount": 50,
+    "outline": "none",
+    "shadow": "soft",
+    "titleAnimation": "fade",
+    "captionAnimation": "highlight",
+    "source": "manual",
+    "reason": ""
+  },
   "clips": [
     {
       "id": "vc-1795362366209-0",
