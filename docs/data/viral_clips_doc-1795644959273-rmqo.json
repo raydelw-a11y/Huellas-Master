@@ -1,0 +1,192 @@
+{
+  "docId": "doc-1795644959273-rmqo",
+  "savedAt": 1795812259927,
+  "youtubeUrl": "",
+  "clips": [
+    {
+      "id": "vc-1795812125081-0",
+      "rank": 1,
+      "title": "Por qué la Ciudad de México se hunde como una esponja exprimida",
+      "viralityScore": 99,
+      "scoreBreakdown": {
+        "hook": 95,
+        "retention": 92,
+        "emotion": 94,
+        "completeness": 91
+      },
+      "viralityReason": "Conecta la historia prehispánica con una realidad visible y cotidiana de 22 millones de personas, usando el icónico ejemplo de los escalones del Ángel de la Independencia.",
+      "structureMode": "continuous",
+      "startSec": 496.5,
+      "endSec": 553.8,
+      "durationSec": 57.3,
+      "hookBannerText": "CDMX: POR QUÉ EL ÁNGEL TIENE MÁS ESCALONES",
+      "socialCaption": "Al secar el antiguo lago de Texcoco y pavimentar su lecho para 22 millones de personas, la Ciudad de México comenzó a extraer el 70 por ciento de su agua de un subsuelo de arcilla porosa. Como demostró Nabor Carrillo Flores, el sobrebombeo comprime el terreno como una esponja exprimida y ha hundido el Centro Histórico hasta 14 metros desde 1862. ¿Cuántos kilómetros cuesta arriba debe bombear hoy la capital para traer agua desde fuera?",
+      "hashtags": "#HundimientoCDMX #AngelIndependencia #NaborCarrillo #AcuiferoSubterraneo #CrisisHidrica",
+      "pinnedComment": "🏛️ ¿Sabías que al Ángel de la Independencia le tuvieron que añadir más de una decena de escalones porque la avenida se hunde a su alrededor?",
+      "reframeMode": "center_fill",
+      "focusX": 50,
+      "captionStyle": "yellow_white",
+      "origin": "gemini"
+    },
+    {
+      "id": "vc-1795812125082-1",
+      "rank": 2,
+      "title": "26 de mayo de 1521: el día que Cortés cortó el agua a Tenochtitlan",
+      "viralityScore": 98,
+      "scoreBreakdown": {
+        "hook": 95,
+        "retention": 92,
+        "emotion": 94,
+        "completeness": 91
+      },
+      "viralityReason": "Es el gran giro táctico de la caída de Tenochtitlan, contado desde un ángulo poco habitual: el colapso por sed tras romper el acueducto de Chapultepec.",
+      "structureMode": "continuous",
+      "startSec": 333.7,
+      "endSec": 379.5,
+      "durationSec": 45.8,
+      "hookBannerText": "CHAPULTEPEC, 1521: ASÍ CORTARON EL AGUA",
+      "socialCaption": "El 26 de mayo de 1521, durante el asedio a Tenochtitlan, Hernán Cortés ordenó a Pedro de Alvarado y Cristóbal de Olid quebrar los caños de piedra de Chapultepec. Durante casi 80 días de bloqueo, los defensores cavaron pozos de los que solo brotaba agua rojiza y salitrosa hasta la caída de la ciudad. ¿Qué error cometieron los españoles al reconstruir la capital sobre la misma isla?",
+      "hashtags": "#AcueductoChapultepec #AsedioTenochtitlan #HernanCortes #AnalesTlatelolco #CaidaTenochtitlan",
+      "pinnedComment": "⚔️ ¿Sabías que cortar el acueducto de Chapultepec fue tan decisivo para la caída de Tenochtitlan en 1521?",
+      "reframeMode": "center_fill",
+      "focusX": 50,
+      "captionStyle": "yellow_white",
+      "origin": "gemini"
+    },
+    {
+      "id": "vc-1795812125082-2",
+      "rank": 3,
+      "title": "El Diluvio de San Mateo en 1629: 5 años bajo el agua en CDMX",
+      "viralityScore": 97,
+      "scoreBreakdown": {
+        "hook": 95,
+        "retention": 92,
+        "emotion": 94,
+        "completeness": 91
+      },
+      "viralityReason": "Un dato histórico impactante y casi increíble: la capital mexicana pasó cinco años inundada hasta dos metros, con una marca física visible hoy en día.",
+      "structureMode": "continuous",
+      "startSec": 441.3,
+      "endSec": 488.4,
+      "durationSec": 47.1,
+      "hookBannerText": "CIUDAD DE MÉXICO, 1629: CINCO AÑOS BAJO EL AGUA",
+      "socialCaption": "El 21 de septiembre de 1629, tras 36 horas de lluvia incesante, Enrico Martínez tapó el túnel de Huehuetoca y la Ciudad de México quedó hasta dos metros bajo el agua durante cinco años. Al menos 50 mil vecinos emigraron, hubo cerca de 30 mil bajas humanas y hoy una cabeza de león en Madero y Motolinia marca aquella altura. ¿Qué consecuencias geológicas provocó la decisión posterior de secar el lago por completo?",
+      "hashtags": "#DiluvioSanMateo #InundacionColonial #EnricoMartinez #CentroHistorico #MexicoVirreinal",
+      "pinnedComment": "🦁 ¿Alguna vez has visto la cabeza de león en la esquina de Madero y Motolinia que marca el nivel del agua en 1629?",
+      "reframeMode": "center_fill",
+      "focusX": 50,
+      "captionStyle": "yellow_white",
+      "origin": "gemini"
+    },
+    {
+      "id": "vc-1795812125082-3",
+      "rank": 4,
+      "title": "Tenochtitlan 1325: por qué fundaron un imperio en un lago salado",
+      "viralityScore": 96,
+      "scoreBreakdown": {
+        "hook": 95,
+        "retention": 92,
+        "emotion": 94,
+        "completeness": 91
+      },
+      "viralityReason": "Rompe la idea romántica de la fundación de Tenochtitlan con una paradoja inmediata: construyeron una metrópoli sobre un lago alcalino e imbebible que nadie más quería.",
+      "structureMode": "continuous",
+      "startSec": 53.7,
+      "endSec": 136,
+      "durationSec": 47,
+      "segments": [
+        {
+          "startSec": 53.7,
+          "endSec": 70.1
+        },
+        {
+          "startSec": 105.4,
+          "endSec": 136
+        }
+      ],
+      "hookBannerText": "TENOCHTITLAN, 1325: EL PEOR TERRENO DEL VALLE",
+      "socialCaption": "En 1325, los mexicas fundaron Tenochtitlan sobre un islote pantanoso del lago de Texcoco que ningún señorío vecino deseaba ocupar. Al ser el sumidero alcalino de una cuenca cerrada, su agua era amarillenta, tenía un pH de 9.8 y resultaba imposible de beber. ¿Cómo lograron alimentar a cientos de miles de personas sobre un lago que quemaba las raíces?",
+      "hashtags": "#LagoTexcoco #ImperioMexica #FundacionTenochtitlan #AguaSalada #CuencaMexico",
+      "pinnedComment": "💧 ¿Sabías que el agua del lago de Texcoco era salobre y alcalina? ¿Habrías aceptado fundar una ciudad en un terreno así?",
+      "reframeMode": "center_fill",
+      "focusX": 50,
+      "captionStyle": "yellow_white",
+      "origin": "gemini"
+    },
+    {
+      "id": "vc-1795812125082-4",
+      "rank": 5,
+      "title": "Las chinampas de Tenochtitlan nunca flotaron sobre el lago",
+      "viralityScore": 95,
+      "scoreBreakdown": {
+        "hook": 95,
+        "retention": 92,
+        "emotion": 94,
+        "completeness": 91
+      },
+      "viralityReason": "Desmiente uno de los mitos escolares más extendidos en América Latina con humor seco y datos precisos de ingeniería agrícola prehispánica.",
+      "structureMode": "continuous",
+      "startSec": 141.8,
+      "endSec": 191.7,
+      "durationSec": 49.9,
+      "hookBannerText": "CHINAMPAS MEXICAS: EL MITO DE QUE FLOTABAN",
+      "socialCaption": "En la Tenochtitlan prehispánica, las famosas chinampas alimentaban hasta a 250 mil habitantes con tres cosechas al año. Contra la creencia popular, jamás fueron huertos flotantes, sino islas artificiales ancladas al fondo con estacas y raíces de sauces ahuejotes. ¿Cómo protegieron estos cultivos cuando las tormentas empujaban el agua salada de Texcoco?",
+      "hashtags": "#ChinampasMexicas #AgriculturaPrehispanica #CultivosAntiguos #SaucesAhuejotes #MitoHistorico",
+      "pinnedComment": "🌱 ¿A ti también te enseñaron en la escuela que las chinampas flotaban? ¿Has visitado las que aún sobreviven en Xochimilco?",
+      "reframeMode": "center_fill",
+      "focusX": 50,
+      "captionStyle": "yellow_white",
+      "origin": "gemini"
+    },
+    {
+      "id": "vc-1795812125082-5",
+      "rank": 6,
+      "title": "El muro de Nezahualcóyotl que partió el lago de Texcoco en 1449",
+      "viralityScore": 94,
+      "scoreBreakdown": {
+        "hook": 95,
+        "retention": 92,
+        "emotion": 94,
+        "completeness": 91
+      },
+      "viralityReason": "Presenta una proeza de ingeniería mesoamericana poco conocida: un dique de 16 kilómetros capaz de separar químicamente el agua dulce de la salada.",
+      "structureMode": "continuous",
+      "startSec": 193,
+      "endSec": 240.6,
+      "durationSec": 47.6,
+      "hookBannerText": "TENOCHTITLAN, 1449: EL MURO QUE PARTIÓ UN LAGO",
+      "socialCaption": "Tras las lluvias torrenciales que anegaron Tenochtitlan entre 1446 y 1449, Moctezuma Ilhuicamina pidió ayuda al gobernante de Texcoco, Nezahualcóyotl. El célebre poeta diseñó un albarradón de 16 kilómetros con compuertas que dividió el lago en dos químicas distintas: sal al oriente y agua dulce al poniente. ¿Por qué aquel triunfo hidráulico terminó despertando una soberbia peligrosa?",
+      "hashtags": "#AlbarradonNezahualcoyotl #IngenieriaPrehispanica #DiqueAntiguo #LagunaMexico #ObrasHidraulicas",
+      "pinnedComment": "🧱 ¿Conocías el lado de ingeniero hidráulico de Nezahualcóyotl o solo su faceta de poeta?",
+      "reframeMode": "center_fill",
+      "focusX": 50,
+      "captionStyle": "yellow_white",
+      "origin": "gemini"
+    },
+    {
+      "id": "vc-1795812125082-6",
+      "rank": 7,
+      "title": "Ahuízotl en 1499: ignoró una advertencia e inundó Tenochtitlan",
+      "viralityScore": 93,
+      "scoreBreakdown": {
+        "hook": 95,
+        "retention": 92,
+        "emotion": 94,
+        "completeness": 91
+      },
+      "viralityReason": "Historia breve con arco dramático perfecto de soberbia, advertencia ignorada y castigo inmediato que engancha de principio a fin.",
+      "structureMode": "continuous",
+      "startSec": 241.6,
+      "endSec": 282.8,
+      "durationSec": 41.2,
+      "hookBannerText": "TENOCHTITLAN, 1499: EL ERROR DE AHUÍZOTL",
+      "socialCaption": "Hacia 1499, el gobernante mexica Ahuízotl decidió llevar el manantial de Acuecuexcatl desde Coyoacán hasta Tenochtitlan pese a la advertencia técnica del señor local, Tzutzumatzin. Ahuízotl ignoró el aviso, abrió el conducto y cuarenta días después el agua inundó la capital y lo obligó a huir de su propio palacio. ¿Cómo lograron resolver después el abasto de agua potable en la isla?",
+      "hashtags": "#GobernanteAhuizotl #ManantialCoyoacan #InundacionTenochtitlan #CronicasAntiguas #HistoriaMexica",
+      "pinnedComment": "🌊 ¿Qué opinas de lo que le pasó a Ahuízotl por ignorar a quien sí conocía el manantial de Coyoacán?",
+      "reframeMode": "center_fill",
+      "focusX": 50,
+      "captionStyle": "yellow_white",
+      "origin": "gemini"
+    }
+  ]
+}
