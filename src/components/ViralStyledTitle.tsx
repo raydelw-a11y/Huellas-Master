@@ -92,31 +92,31 @@ function textureMaskStyle(texture: ViralTexture, amount: number, unit: number): 
   } else if (texture === 'grain') {
     size = 200;
     sizeUnits = 1.1;
-    filter = `<feTurbulence type='fractalNoise' baseFrequency='1.25' numOctaves='1' seed='4'/>` + alphaRow(-2.2 * a, 1 + 0.75 * a);
+    filter = `<feTurbulence type='fractalNoise' baseFrequency='1.25' numOctaves='1' seed='4'/>` + alphaRow(-1.2 * a, 1 + 0.42 * a);
   } else if (texture === 'scratched') {
     size = 320;
     sizeUnits = 2.4;
     filter =
       `<feTurbulence type='fractalNoise' baseFrequency='0.006 0.6' numOctaves='2' seed='3'/>` +
-      alphaRow(-30, 19.4 + (0.5 - a) * 2.6).replace('/>', ` result='h'/>`) +
+      alphaRow(-30, 20.6 + (0.5 - a) * 2).replace('/>', ` result='h'/>`) +
       `<feTurbulence type='fractalNoise' baseFrequency='0.7 0.008' numOctaves='2' seed='9'/>` +
-      alphaRow(-30, 20.4 + (0.5 - a) * 2).replace('/>', ` result='v'/>`) +
+      alphaRow(-30, 21.4 + (0.5 - a) * 1.6).replace('/>', ` result='v'/>`) +
       `<feComposite in='h' in2='v' operator='in'/>`;
   } else if (texture === 'stone') {
     size = 320;
     sizeUnits = 2.6;
     filter =
       `<feTurbulence type='fractalNoise' baseFrequency='0.11' numOctaves='3' seed='11'/>` +
-      alphaRow(-16, 10.6 + (0.5 - a) * 2.2).replace('/>', ` result='c'/>`) +
-      pits(a * 0.9, 'p') +
+      alphaRow(-16, 11.7 + (0.5 - a) * 1.6).replace('/>', ` result='c'/>`) +
+      pits(a * 0.45, 'p') +
       `<feComposite in='c' in2='p' operator='in'/>`;
   } else if (texture === 'ink') {
     size = 320;
     sizeUnits = 3;
     filter =
       `<feTurbulence type='fractalNoise' baseFrequency='0.03' numOctaves='2' seed='5'/>` +
-      alphaRow(-4.2 * a, 1 + 2 * a).replace('/>', ` result='b'/>`) +
-      pits(a * 0.5, 'p') +
+      alphaRow(-2.2 * a, 1 + 1.1 * a).replace('/>', ` result='b'/>`) +
+      pits(a * 0.25, 'p') +
       `<feComposite in='b' in2='p' operator='in'/>`;
   }
   if (!filter) return {};

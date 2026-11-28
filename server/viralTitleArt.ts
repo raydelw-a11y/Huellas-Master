@@ -352,22 +352,22 @@ function texturedTitleGraph(opts: {
       scratches(a);
     } else if (look.texture === 'grain') {
       // Film grain: every letter is finely speckled, no holes
-      chains.push(`${src(`255*(1-${n(Math.min(0.8, a * 0.8))}*${hash(83)})`, canvasW / (g * 0.8), canvasH / (g * 0.8))},${up('bilinear')}[mgrain]`);
+      chains.push(`${src(`255*(1-${n(Math.min(0.5, a * 0.45))}*${hash(83)})`, canvasW / (g * 0.8), canvasH / (g * 0.8))},${up('bilinear')}[mgrain]`);
       masks.push('mgrain');
-      pits(a * 0.35);
+      pits(a * 0.2);
     } else if (look.texture === 'scratched') {
-      scratches(Math.min(5, a * 4.5));
-      pits(a * 0.3);
+      scratches(Math.min(3, a * 2.2));
+      pits(a * 0.2);
     } else if (look.texture === 'stone') {
       // Carved stone: bigger chipped patches and coarse pitting, no scratches
-      chips(Math.min(4.5, a * 3.2), 4.5, 37, 'mchip');
-      chips(Math.min(4.5, a * 2.2), 10, 41, 'mchipbig');
-      pits(a * 0.9);
+      chips(Math.min(2.5, a * 1.5), 4.5, 37, 'mchip');
+      chips(Math.min(2, a * 0.9), 10, 41, 'mchipbig');
+      pits(a * 0.55);
     } else if (look.texture === 'ink') {
       // Uneven ink: whole areas print thin, as from a badly inked stamp
       chains.push(`${src(`255*${hash(11)}`, canvasW / g, canvasH / g)},${up('bilinear')}[nfine]`);
       chains.push(`${src(`255*${hash(29)}`, canvasW / (g * 16), canvasH / (g * 16))},${up('bicubic')}[nblot]`);
-      chains.push(`[nfine][nblot]blend=all_expr='if(gt(A,255-${n(Math.min(230, a * 300), 1)}*max(0,B-105)/150),0,255)',gblur=sigma=0.8[mink]`);
+      chains.push(`[nfine][nblot]blend=all_expr='if(gt(A,255-${n(Math.min(140, a * 150), 1)}*max(0,B-105)/150),0,255)',gblur=sigma=0.8[mink]`);
       masks.push('mink');
     }
   }
