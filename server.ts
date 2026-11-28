@@ -25671,6 +25671,12 @@ function pumpViralRenderQueue() {
     job.body.sourceVideoPath = viralTramoVideoFile(st.tramo.id);
     job.body.sourceIsViralMaster = true;
     job.body.viralMasterSkipRanges = viralTramoSkipRanges(st.tramo.ranges);
+    // A page that could not reach the Mac when it loaded (iPhone, GitHub Pages) sends no folder: the clip is
+    // still copied to the documentary's own 07_Viral_Clips
+    if (!job.body.docRootFolder) {
+      const root = viralRecipeInfoFor(job.docId)?.rootFolder;
+      if (root) job.body.docRootFolder = root;
+    }
   }
   if ([...viralRenderJobs.values()].some((j) => j.status === 'waiting_master')) tickViralTramos();
   const running = [...viralRenderJobs.values()].filter((j) => j.status === 'running').length;
