@@ -435,21 +435,30 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
   const [isLoadingSource, setIsLoadingSource] = useState<boolean>(false);
   const [sourceStatusMsg, setSourceStatusMsg] = useState<string>('');
   // Video maestro que está solo en iCloud (sin descargar en la Mac): no se puede ver ni renderizar hasta bajarlo
-  // Clean 9:16 master of the documentary (made by the editor's exporter on its own, without captions): the viral
-  // clips of a documentary are cut from it and the preview plays it, so the page shows the editor's framing
-  const [viralMaster, setViralMaster] = useState<{
-    state: 'ready' | 'building' | 'stale' | 'missing' | 'no_recipe';
+  // The 9:16 picture of the clip on screen: its own stretch of the documentary, rendered on the Mac by the
+  // editor's exporter (the editor's framing per scene, logo, no captions). The preview plays it and a saved clip
+  // is cut from one like it; there is no whole-documentary 9:16 master any more.
+  type ViralClipStretch = {
+    state: 'ready' | 'building' | 'no_recipe' | 'error';
     reasons: string[];
     building: boolean;
+    /** The Mac's exporter is busy with something else: this stretch waits its turn */
+    waiting?: boolean;
     progressPct: number;
     exists: boolean;
     fresh: boolean;
     lastError: string;
     path: string;
     url: string;
+    /** Timeline ranges the file does NOT hold (everything before and between its scenes) */
     skipRanges916: Array<{ start: number; end: number }>;
+    /** Timeline ranges the file holds, laid end to end */
+    ranges?: Array<{ start: number; end: number }>;
     builtAt: number;
-  } | null>(null);
+    /** The clip pieces this answer was asked for */
+    forKey?: string;
+  };
+  const [viralMaster, setViralMaster] = useState<ViralClipStretch | null>(null);
   // Documentary clips changed after the final 16:9 video was exported (viral clips are cut from that file)
   const [staleMasterClips, setStaleMasterClips] = useState<number[]>([]);
   const [masterExportedAt, setMasterExportedAt] = useState<number>(0);
@@ -676,7 +685,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
           setStaleMasterClips(
             Array.isArray(data.clipsNewerThanMaster) ? data.clipsNewerThanMaster.map(Number) : []
           );
-          setViralMaster(data.viralMaster && typeof data.viralMaster === 'object' ? data.viralMaster : null);
+          setViralMaster(null);
           setMasterExportedAt(Number(data.masterExportedAt) || 0);
           setCloudOnlyMaster(
             data.masterVideoCloudOnly && data.masterVideoPath
@@ -685,16 +694,16 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
           );
           setSourceStatusMsg(
             data.masterVideoCloudOnly
-              ? `☁️ El video maestro está solo en iCloud (no descargado en la Mac) • ${
+              ? `☁️ El video 16:9 exportado está solo en iCloud (no descargado en la Mac) • ${
                   (data.transcriptSegments || []).length
-                } segmentos de voz listos. Puedes elegir clips; para verlos y renderizar, descárgalo.`
+                } segmentos de voz listos. No hace falta descargarlo: los clips salen directo del editor.`
               : data.masterVideoPath
               ? `✅ Video Master detectado (${formatMMSS(data.durationSec)}) • ${
                   (data.transcriptSegments || []).length
                 } segmentos de voz listos.`
               : `📝 Guion cargado (${
                   (data.transcriptSegments || []).length
-                } segmentos). Exporta el video en el Editor (06_Video_Final) o sube un MP4 para renderizar.`
+                } segmentos). No hace falta exportar el video: los clips salen directo del editor.`
           );
           setIsLoadingSource(false);
           return;
@@ -1439,17 +1448,61 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
   };
 
 
+  // Compute current active word chunk for the live 9:16 preview player
+  // The preview plays exactly what gets exported (src/utils/viralClipCuts.ts, same as the render): the clip's
+  // pieces one after another, cut between whole words. captionSec is the CLIP time (0 = first frame of the
+  // exported Reel); partRef says which piece of the source video is playing.
+  const clipCuts = useMemo(
+    () =>
+      selectedClip
+        ? computeViralClipCuts({
+            startSec: selectedClip.startSec,
+            endSec: selectedClip.endSec,
+            segments: selectedClip.segments,
+            words: selectedClip.words || [],
+          })
+        : null,
+    [selectedClip?.id, selectedClip?.startSec, selectedClip?.endSec, selectedClip?.segments, selectedClip?.words]
+  );
+
+  // The clip's pieces on the documentary's timeline: what its 9:16 stretch has to hold
+  const clipPartsKey = useMemo(
+    () =>
+      sourceMode === 'doc' && selectedDocId && clipCuts && clipCuts.parts.length > 0
+        ? `${selectedDocId}|${clipCuts.parts.map((p) => `${p.srcStart.toFixed(2)}-${(p.srcStart + p.dur).toFixed(2)}`).join(',')}`
+        : '',
+    [sourceMode, selectedDocId, clipCuts]
+  );
+  // The stretch in use by the player. A new one is taken up only while the player is stopped: a preview that
+  // is playing is never cut short because its 9:16 picture just got ready.
+  const [activeStretch, setActiveStretch] = useState<ViralClipStretch | null>(null);
+  useEffect(() => {
+    if (!isPlaying) setActiveStretch(viralMaster);
+  }, [viralMaster, isPlaying]);
+  // It serves the clip on screen when it was made for these very pieces, or when it already holds them (the
+  // times were nudged inside what it has: no new render, no change of picture)
+  const stretchHoldsClip = useMemo(() => {
+    if (!activeStretch?.exists || !activeStretch.path || !clipCuts || !clipPartsKey) return false;
+    if (activeStretch.forKey === clipPartsKey) return true;
+    if (!String(activeStretch.forKey || '').startsWith(`${selectedDocId}|`)) return false;
+    const ranges = activeStretch.ranges || [];
+    return clipCuts.parts.every((p) =>
+      ranges.some((r) => r.start <= p.srcStart + 0.05 && r.end >= p.srcStart + p.dur - 0.05)
+    );
+  }, [activeStretch, clipCuts, clipPartsKey, selectedDocId]);
+
   // Light 720p preview of the final video (the 8K original stutters in the browser). The player switches to
   // it as soon as it is ready; renders keep using the original file.
   const [previewProxyUrl, setPreviewProxyUrl] = useState<string>('');
   const [previewProxyPct, setPreviewProxyPct] = useState<number | null>(null);
-  // A documentary plays its clean 9:16 master as soon as one exists (the clips wait for an up-to-date one)
-  const useMasterSource = sourceMode === 'doc' && Boolean(viralMaster?.exists && viralMaster?.path);
-  const previewSourcePath = useMasterSource ? String(viralMaster?.path || '') : sourceLocalPath;
+  // A documentary clip plays its own 9:16 stretch as soon as it is ready; until then, the final 16:9 video
+  const useMasterSource = sourceMode === 'doc' && stretchHoldsClip;
+  const previewSourcePath = sourceLocalPath;
   useEffect(() => {
     setPreviewProxyUrl('');
     setPreviewProxyPct(null);
-    if (!previewSourcePath || (!useMasterSource && cloudOnlyMaster)) return;
+    // (a stretch is light already: it plays as it is)
+    if (!previewSourcePath || useMasterSource || cloudOnlyMaster) return;
     let cancelled = false;
     let timer: number | null = null;
     const poll = async () => {
@@ -1481,36 +1534,53 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
       cancelled = true;
       if (timer) window.clearTimeout(timer);
     };
-  }, [previewSourcePath, useMasterSource, cloudOnlyMaster, viralMaster?.builtAt]);
-  const playerVideoUrl = previewProxyUrl || (useMasterSource ? String(viralMaster?.url || '') : sourceVideoUrl);
+  }, [previewSourcePath, useMasterSource, cloudOnlyMaster]);
+  const playerVideoUrl = useMasterSource ? String(activeStretch?.url || '') : previewProxyUrl || sourceVideoUrl;
 
-  // While the master is missing, being made or out of date, ask the Mac every few seconds how it goes
+  // Ask the Mac for the 9:16 stretch of the clip on screen, and keep asking while it is being made (that is what
+  // keeps it wanted: a clip nobody looks at any more is not rendered). Once ready, a slow check notices when the
+  // editor changed one of its scenes. Starts a moment after the last change, so dragging the times asks once.
+  const clipPartsRef = useRef<Array<{ start: number; end: number }>>([]);
+  clipPartsRef.current = clipCuts ? clipCuts.parts.map((p) => ({ start: p.srcStart, end: p.srcStart + p.dur })) : [];
   useEffect(() => {
-    if (sourceMode !== 'doc' || !selectedDocId) return;
+    if (!clipPartsKey) return;
+    const docId = selectedDocId;
     let cancelled = false;
     let timer: number | null = null;
     const poll = async () => {
+      let nextMs = 8000;
       try {
-        const r = await fetch(viralApi(`/api/viral-clips/master-status?docId=${encodeURIComponent(selectedDocId)}`), {
+        const r = await fetch(viralApi('/api/viral-clips/clip-source'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           cache: 'no-store',
+          body: JSON.stringify({ docId, parts: clipPartsRef.current }),
         });
         const data = r.ok ? await r.json() : null;
-        if (!cancelled && data?.ok && data.master) {
+        if (!cancelled && data?.ok && data.source) {
+          const next: ViralClipStretch = { ...data.source, forKey: clipPartsKey };
           setViralMaster((prev) =>
-            prev && prev.builtAt === data.master.builtAt && prev.state === data.master.state && prev.progressPct === data.master.progressPct
+            prev &&
+            prev.forKey === next.forKey &&
+            prev.builtAt === next.builtAt &&
+            prev.state === next.state &&
+            prev.progressPct === next.progressPct &&
+            prev.waiting === next.waiting &&
+            prev.lastError === next.lastError
               ? prev
-              : data.master
+              : next
           );
+          nextMs = next.state === 'ready' ? 30000 : next.state === 'building' ? 4000 : 15000;
         }
       } catch {}
-      if (!cancelled) timer = window.setTimeout(poll, viralMaster?.state === 'ready' ? 30000 : 5000);
+      if (!cancelled) timer = window.setTimeout(poll, nextMs);
     };
-    timer = window.setTimeout(poll, 3000);
+    timer = window.setTimeout(poll, 800);
     return () => {
       cancelled = true;
       if (timer) window.clearTimeout(timer);
     };
-  }, [sourceMode, selectedDocId, viralMaster?.state]);
+  }, [clipPartsKey]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1583,27 +1653,12 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
   // the render cuts that strip away, and the preview does the same.
   const hasBurnedDocCaptions = /[\\/]06_Video_Final[\\/]/i.test(String(sourceLocalPath || ''));
 
-  // Compute current active word chunk for the live 9:16 preview player
-  // The preview plays exactly what gets exported (src/utils/viralClipCuts.ts, same as the render): the clip's
-  // pieces one after another, cut between whole words. captionSec is the CLIP time (0 = first frame of the
-  // exported Reel); partRef says which piece of the source video is playing.
-  const clipCuts = useMemo(
-    () =>
-      selectedClip
-        ? computeViralClipCuts({
-            startSec: selectedClip.startSec,
-            endSec: selectedClip.endSec,
-            segments: selectedClip.segments,
-            words: selectedClip.words || [],
-          })
-        : null,
-    [selectedClip?.id, selectedClip?.startSec, selectedClip?.endSec, selectedClip?.segments, selectedClip?.words]
-  );
-  // The player's pieces: on the 9:16 master the times move back by the intro/outro the master leaves out
-  // (captions keep using clipCuts, on the documentary's timeline like the words)
+  // The player's pieces: the clip's 9:16 stretch holds only its own scenes, so a timeline second moves back by
+  // everything the file leaves out before it (captions keep using clipCuts, on the documentary's timeline like
+  // the words)
   const playCuts = useMemo(() => {
     if (!clipCuts || !useMasterSource) return clipCuts;
-    const skip = viralMaster?.skipRanges916 || [];
+    const skip = activeStretch?.skipRanges916 || [];
     return {
       ...clipCuts,
       parts: clipCuts.parts.map((p) => {
@@ -1611,7 +1666,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
         return { ...p, srcStart, srcEnd: srcStart + p.dur };
       }),
     };
-  }, [clipCuts, useMasterSource, viralMaster?.builtAt]);
+  }, [clipCuts, useMasterSource, activeStretch?.builtAt]);
   const partRef = useRef<number>(0);
   // Where the player should be (seconds of the source video). An iPhone can drop a jump (before the video has
   // data, and at other moments) and keep playing from where it was: the captions stayed on the first line,
@@ -2117,10 +2172,9 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
   }, [renderJobsDocId, hasActiveRenderJobs, renderJobsTick]);
 
   const handleRenderViralClip = async (clip: ViralClipSuggestion) => {
-    if (!sourceLocalPath) {
-      alert(
-        'Para guardar el clip, primero exporta el video del documental en 06_Video_Final, o sube un archivo MP4, o usa un enlace de YouTube.'
-      );
+    // A documentary clip comes straight from the editor's exporter (its own 9:16 stretch): no exported video needed
+    if (!sourceLocalPath && !(sourceMode === 'doc' && renderJobsDocId)) {
+      alert('Para guardar el clip, sube un archivo MP4 o usa un enlace de YouTube.');
       return;
     }
     const clipNumber = Math.max(1, viralClips.findIndex((c) => c.id === clip.id) + 1);
@@ -2336,37 +2390,41 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
               </div>
             )}
 
-            {sourceMode === 'doc' && viralMaster && (
-              <div
-                className={`mt-2 px-3 py-2 rounded-xl text-xs leading-relaxed border ${
-                  viralMaster.state === 'ready'
-                    ? 'bg-emerald-950/50 border-emerald-500/40 text-emerald-100'
-                    : viralMaster.lastError
-                    ? 'bg-rose-950/60 border-rose-500/50 text-rose-100'
-                    : 'bg-amber-950/50 border-amber-500/40 text-amber-100'
-                }`}
-              >
-                {viralMaster.state === 'ready' ? (
-                  <>🎞 Master 9:16 limpio listo: los clips salen con el encuadre del editor y los clips vigentes.</>
-                ) : viralMaster.state === 'building' ? (
-                  <>
-                    ⚙️ Preparando el master 9:16 limpio{viralMaster.progressPct ? ` (${viralMaster.progressPct}%)` : ''}. Se hace
-                    solo, en segundo plano; si exportas algo en el editor, se pausa y sigue después. Los clips que guardes
-                    esperan a que esté.
-                  </>
-                ) : viralMaster.state === 'no_recipe' ? (
-                  <>⏳ Preparando la receta del master 9:16 desde el editor (unos segundos con el documental abierto en la Mac).</>
-                ) : viralMaster.lastError ? (
-                  <>⚠️ No se pudo preparar el master 9:16: {viralMaster.lastError.split('\n').filter(Boolean).slice(-1)[0]}</>
-                ) : (
-                  <>
-                    ⏳ {viralMaster.exists ? 'El master 9:16 está desactualizado' : 'Todavía no hay master 9:16'}
-                    {viralMaster.reasons.includes('clips_nuevos') ? ' (hay clips más nuevos)' : ''}. Se prepara cuando
-                    guardes un clip (ya no se rehace solo con cada cambio de encuadre).
-                  </>
-                )}
-              </div>
-            )}
+            {sourceMode === 'doc' && selectedClip && clipPartsKey && (() => {
+              // What the Mac says about the 9:16 picture of the clip on screen (an answer for other times is old)
+              const mine = viralMaster && viralMaster.forKey === clipPartsKey ? viralMaster : null;
+              const state = useMasterSource && (!mine || mine.state === 'ready') ? 'ready' : mine ? mine.state : 'asking';
+              const lastErrorLine = String(mine?.lastError || '').split('\n').filter(Boolean).slice(-1)[0] || '';
+              return (
+                <div
+                  className={`mt-2 px-3 py-2 rounded-xl text-xs leading-relaxed border ${
+                    state === 'ready'
+                      ? 'bg-emerald-950/50 border-emerald-500/40 text-emerald-100'
+                      : state === 'error'
+                      ? 'bg-rose-950/60 border-rose-500/50 text-rose-100'
+                      : 'bg-amber-950/50 border-amber-500/40 text-amber-100'
+                  }`}
+                >
+                  {state === 'ready' ? (
+                    <>🎞 Vista previa 9:16 de este clip lista: sale directo del editor, con su encuadre escena por escena.</>
+                  ) : state === 'no_recipe' ? (
+                    <>
+                      ⏳ Falta que el editor mande sus ajustes: abre este documental en el Editor de Video en la Mac y espera
+                      unos segundos.{sourceVideoUrl ? ' Mientras tanto se ve el video 16:9 recortado.' : ''}
+                    </>
+                  ) : state === 'error' ? (
+                    <>⚠️ No se pudo preparar el 9:16 de este clip: {lastErrorLine || 'error del exportador'}</>
+                  ) : (
+                    <>
+                      ⚙️ Preparando el 9:16 de este clip desde el editor
+                      {mine?.progressPct ? ` (${mine.progressPct}%)` : ''}
+                      {mine?.waiting ? ' — en cola, el exportador de la Mac está ocupado' : ''}. Solo se hace el tramo del clip
+                      (alrededor de un minuto){sourceVideoUrl ? '; mientras tanto se ve el video 16:9 recortado' : ''}.
+                    </>
+                  )}
+                </div>
+              );
+            })()}
 
             {cloudOnlyMaster && (
               <button
@@ -2655,7 +2713,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                       }`}
                       style={
                         useMasterSource
-                          ? // The clean 9:16 master is already framed by the editor (and carries the logo)
+                          ? // The clip's 9:16 stretch is already framed by the editor (and carries the logo)
                             { objectPosition: '50% 50%' }
                           : selectedClip.reframeMode === 'fit_blur'
                           ? {
@@ -2916,10 +2974,10 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                 {/* Reframe & Caption Controls */}
                 <div className="bg-slate-950 border border-slate-800 rounded-xl p-2.5 space-y-2 text-xs">
                   {sourceMode === 'doc' ? (
-                    // A documentary's viral clips come from its clean 9:16 master: the framing is the editor's
+                    // A documentary's viral clips come straight from the editor's exporter: the framing is the editor's
                     <div className="text-[11px] text-slate-400">
                       <span className="font-bold text-slate-300">Encuadre 9:16:</span> el del Editor de Video (escena por
-                      escena), tomado del master 9:16 limpio.
+                      escena). Cada clip sale directo del editor: solo se exporta su tramo.
                     </div>
                   ) : (
                   <>
@@ -3633,7 +3691,9 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                         <span>
                           {myJob
                             ? myJob.status === 'waiting_master'
-                              ? `⏳ Clip ${clipNo} esperando el master 9:16...`
+                              ? myJob.masterState === 'no_recipe'
+                                ? `⏳ Clip ${clipNo}: abre el documental en el Editor (Mac)`
+                                : `⚙️ Clip ${clipNo}: preparando su tramo 9:16${myJob.masterProgressPct ? ` ${myJob.masterProgressPct}%` : ''}...`
                               : myJob.status === 'queued'
                               ? `⏳ Clip ${clipNo} en cola...`
                               : `Guardando Clip ${clipNo}... ${myJob.progressPct}%`
@@ -3666,7 +3726,11 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                               }`}
                             >
                               {j.status === 'waiting_master'
-                                ? `⏳ Esperando master 9:16${j.masterProgressPct ? ` (${j.masterProgressPct}%)` : ''}`
+                                ? j.masterState === 'no_recipe'
+                                  ? '⏳ Falta abrir el documental en el Editor (Mac)'
+                                  : j.masterState === 'building'
+                                  ? `⚙️ Preparando su tramo 9:16${j.masterProgressPct ? ` (${j.masterProgressPct}%)` : ''}`
+                                  : '⏳ En cola (tramo 9:16)'
                                 : j.status === 'queued'
                                 ? '⏳ En cola'
                                 : j.status === 'running'

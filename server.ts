@@ -6448,7 +6448,7 @@ app.post('/api/editor/voice-diagnostic', (req, res) => {
   res.json({ ok: true });
 });
 
-// Background exports (the clean 9:16 master that Viral Clips cuts from) run through this same exporter, but the
+// Background exports (the 9:16 stretch a viral clip is cut from) run through this same exporter, but the
 // editor never sees them: while one runs, render-status keeps answering what the user's last export left, and a
 // user export stops the background one at once (stopBackgroundRenderForUser) instead of being refused.
 const INTERNAL_RENDER_TOKEN = crypto.randomBytes(16).toString('hex');
@@ -6967,11 +6967,65 @@ async function normalizeExportLoudness(
   return { applied: true, message: `${inputI.toFixed(1)} LUFS → ${EXPORT_TARGET_LUFS} LUFS (${gainDb >= 0 ? '+' : ''}${gainDb.toFixed(1)} dB)` };
 }
 
+// Window render ("solo el tramo"): the exporter can be asked for just the part of the timeline a viral clip
+// needs. Only the clips that overlap the windows are encoded — each one whole, exactly as in a full export (same
+// framing, fades and logo, decided against the complete clip list) — and laid end to end; voice, music and
+// effects are mixed on the documentary's clock and then cut to those same ranges. The answer says which ranges of
+// the timeline the file holds.
+type RenderTimeRange = { start: number; end: number };
+function normalizeRenderWindows(raw: unknown): RenderTimeRange[] {
+  const list = (Array.isArray(raw) ? raw : [])
+    .map((r: any) => ({ start: Math.max(0, Number(r?.start)), end: Number(r?.end) }))
+    .filter((r) => Number.isFinite(r.start) && Number.isFinite(r.end) && r.end > r.start + 0.01)
+    .sort((a, b) => a.start - b.start);
+  const merged: RenderTimeRange[] = [];
+  for (const r of list) {
+    const last = merged[merged.length - 1];
+    if (last && r.start <= last.end + 0.001) last.end = Math.max(last.end, r.end);
+    else merged.push({ ...r });
+  }
+  return merged;
+}
+function timeRangeTouchesWindows(start: number, end: number, windows: RenderTimeRange[]): boolean {
+  return windows.some((w) => start < w.end - 0.001 && end > w.start + 0.001);
+}
+/** Where a clip of an export request sits on the timeline, before any file is looked at (0 length = unknown). */
+function exportClipSlot(c: any, runningTimelineSec: number): { start: number; dur: number; isIntro: boolean; isOutro: boolean } {
+  const fileName = String(c?.fileName || '');
+  const isIntro = Number(c?.clipNumber) === 0 || c?.id === 'fixed-doc-intro' || /intro_huellas/i.test(fileName);
+  const isOutro = Number(c?.clipNumber) === 999 || c?.id === 'fixed-doc-outro' || /outro_huellas/i.test(fileName);
+  const slot =
+    Number(c?.durationSec) > 0.3
+      ? Number(c.durationSec)
+      : Number(c?.end) > Number(c?.start) + 0.2
+      ? Math.max(0.4, Number(c.end) - Number(c.start))
+      : 0;
+  const dur = isIntro || isOutro ? (slot > 0.5 ? slot : 8) : slot > 0.3 ? slot : 0;
+  const start = Number.isFinite(Number(c?.start)) && Number(c.start) >= 0 ? Number(c.start) : runningTimelineSec;
+  return { start, dur, isIntro, isOutro };
+}
+/** true when the clip is left out of a window render: outside every window, or inside a range 9:16 cuts out. */
+function exportClipOutsideWindows(
+  slot: { start: number; dur: number },
+  windows: RenderTimeRange[],
+  skipRanges916: unknown,
+  aspectRatio: string
+): boolean {
+  if (!(slot.dur > 0)) return false;
+  const end = slot.start + slot.dur;
+  const skipped =
+    aspectRatio === '9:16' &&
+    (Array.isArray(skipRanges916) ? skipRanges916 : []).some(
+      (r: any) => Number(r?.start) <= slot.start + 0.05 && Number(r?.end) >= end - 0.05
+    );
+  return skipped || !timeRangeTouchesWindows(slot.start, end, windows);
+}
+
 app.post('/api/editor/render-ffmpeg', async (req, res) => {
   const startedAt = Date.now();
   let render8KRequested = false;
   const workDir = path.join(os.tmpdir(), `huellas_ffmpeg_render_${startedAt}`);
-  // Background export of the clean 9:16 master for Viral Clips (only the server itself can ask for it)
+  // Background export of a viral clip's 9:16 stretch (only the server itself can ask for it)
   const isBackgroundMaster = Boolean(req.body?.viralMasterExport) && isInternalRenderRequest(req);
   // One export at a time: the editor can be minimized while rendering, so a second request must be refused.
   // A background master is the exception: it gives way to the user's export at once.
@@ -7028,6 +7082,11 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       overlays = {},
       skipRanges916 = [],
     } = req.body;
+    // Only the server itself asks for a window render (the piece of the documentary a viral clip needs)
+    const renderWindows = isBackgroundMaster ? normalizeRenderWindows(req.body?.renderWindows) : [];
+    const renderWindowMode = renderWindows.length > 0;
+    const renderedRanges: RenderTimeRange[] = [];
+    const renderedSources: Array<{ index: number; clipNumber: number; path: string; mtimeMs: number; size: number }> = [];
 
     const resolvedDocFolder = resolveLocalDocumentaryFolder(folderPath, folderName, docTitle);
     const targetRoot =
@@ -7044,7 +7103,9 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
     }
 
     // Automatic macOS iCloud Drive storage guard: if free SSD space < 45 GB, evict local cache of older sibling episodes in both Videos/ and Reels/ already uploaded to iCloud
-    if (process.platform === 'darwin' && targetRoot.includes('com~apple~CloudDocs')) {
+    // (never for a background stretch of a viral clip: it writes little, outside iCloud, and this step holds the
+    // whole server for about a minute while it runs)
+    if (!isBackgroundMaster && process.platform === 'darwin' && targetRoot.includes('com~apple~CloudDocs')) {
       try {
         const dfOut = execSync('df -k /', { encoding: 'utf8' });
         const dfLines = dfOut.trim().split('\n');
@@ -7539,6 +7600,25 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         Number(c.clipNumber) === 999 ||
         c.id === 'fixed-doc-outro' ||
         /outro_huellas/i.test(fileName);
+
+      // Window render: a clip outside the windows is not encoded, but the timeline keeps running through it (the
+      // clips after it, and an Intro in the middle of the voice, must stay where a full export puts them)
+      if (renderWindowMode) {
+        const slot = exportClipSlot(c, runningTimelineSec);
+        if (exportClipOutsideWindows(slot, renderWindows, skipRanges916, aspectRatio)) {
+          runningTimelineSec = slot.start + slot.dur;
+          const slotStartFrame = Math.round(slot.start * safeFps);
+          const slotEndFrame = Math.max(slotStartFrame + 1, Math.round((slot.start + slot.dur) * safeFps));
+          if (isIntroClip && i > 0 && slotStartFrame / safeFps > Math.max(0, Number(voiceoverStartSec || 0)) + 0.08) {
+            midTimelineIntroBounds = {
+              startSec: slotStartFrame / safeFps,
+              endSec: slotEndFrame / safeFps,
+              durationSec: (slotEndFrame - slotStartFrame) / safeFps,
+            };
+          }
+          continue;
+        }
+      }
 
       const candidate0 = path.join(clipsVideoSubdir, fileName);
       const candidate1 = path.join(targetRoot, fileName);
@@ -8741,6 +8821,22 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         });
 
       const segLabel = isIntroClip ? 'Intro' : isOutroClip ? 'Outro' : `Clip ${c.clipNumber || i}`;
+      if (renderWindowMode) {
+        const lastRange = renderedRanges[renderedRanges.length - 1];
+        if (lastRange && Math.abs(lastRange.end - segStartSec) < 0.002) lastRange.end = segEndSec;
+        else renderedRanges.push({ start: segStartSec, end: segEndSec });
+        let srcStat: fs.Stats | null = null;
+        try {
+          srcStat = fs.statSync(sourceMp4);
+        } catch {}
+        renderedSources.push({
+          index: i,
+          clipNumber: Number(c.clipNumber) || 0,
+          path: sourceMp4,
+          mtimeMs: srcStat ? Math.round(srcStat.mtimeMs) : 0,
+          size: srcStat ? srcStat.size : 0,
+        });
+      }
       normalizedClipPaths.push(segOut);
       segmentEncodeTasks.push({
         idx: segmentEncodeTasks.length,
@@ -8945,7 +9041,7 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         fs.mkdirSync(videoFinalSubdir, { recursive: true });
       } catch {}
     }
-    // A background Viral Clips master goes to the app's own folder (never over the user's 06_Video_Final files)
+    // A background Viral Clips stretch goes to the app's own folder (never over the user's 06_Video_Final files)
     const finalOutputPath =
       isBackgroundMaster && typeof req.body?.viralMasterOutputPath === 'string' && req.body.viralMasterOutputPath
         ? String(req.body.viralMasterOutputPath)
@@ -9000,7 +9096,10 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       // The muxed video lasts the SUM of its segments; if clips overlap on the timeline that sum is longer than the
       // last clip's end, and trimming audio to the timeline end cut the Outro's sound before its picture ended.
       const summedSegmentsSec = segmentEncodeTasks.reduce((acc, t) => acc + (Number(t?.durationSec) || 0), 0);
-      const totalTimelineDurStr = Math.max(1, runningTimelineSec, summedSegmentsSec).toFixed(3);
+      // Window render: the picture is only the rendered clips laid end to end, so their sound lasts their sum
+      const totalTimelineDurStr = (
+        renderWindowMode ? Math.max(0.2, summedSegmentsSec) : Math.max(1, runningTimelineSec, summedSegmentsSec)
+      ).toFixed(3);
       const filterParts: string[] = [
         `[0:a]asetpts=N/SR/TB,atrim=start_sample=1024,asetpts=N/SR/TB,aformat=sample_fmts=fltp:sample_rates=44100:channel_layouts=stereo,apad=whole_dur=${totalTimelineDurStr},atrim=0:${totalTimelineDurStr}[clip_a]`,
       ];
@@ -9184,6 +9283,36 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
 
       // Master safety limiter: voice + music + clip audio are summed without scaling, so loud moments together
       // could pass 0 dBFS and clip in the AAC encoder. It only acts on those peaks (-1 dBFS ceiling).
+      // Window render: voice, music and effects were placed on the documentary's clock. They are summed there,
+      // over the whole timeline, and then cut to the rendered ranges and laid end to end like the picture.
+      if (renderWindowMode && mixLabels.length > 1 && renderedRanges.length > 0) {
+        const bedLabels = mixLabels.slice(1);
+        const fullTimelineDurStr = Math.max(
+          1,
+          runningTimelineSec,
+          renderedRanges[renderedRanges.length - 1].end
+        ).toFixed(3);
+        const bedSum =
+          bedLabels.length === 1
+            ? bedLabels[0]
+            : `${bedLabels.join('')}amix=inputs=${bedLabels.length}:duration=longest:dropout_transition=2:normalize=0,`;
+        filterParts.push(
+          `${bedSum}apad=whole_dur=${fullTimelineDurStr},atrim=0:${fullTimelineDurStr},asetpts=N/SR/TB[bed_abs]`
+        );
+        const cutOf = (r: RenderTimeRange) => `atrim=start=${r.start.toFixed(4)}:end=${r.end.toFixed(4)},asetpts=N/SR/TB`;
+        if (renderedRanges.length === 1) {
+          filterParts.push(`[bed_abs]${cutOf(renderedRanges[0])}[bed_cut]`);
+        } else {
+          filterParts.push(
+            `[bed_abs]asplit=${renderedRanges.length}${renderedRanges.map((_, ri) => `[bed_s${ri}]`).join('')}`
+          );
+          renderedRanges.forEach((r, ri) => filterParts.push(`[bed_s${ri}]${cutOf(r)}[bed_p${ri}]`));
+          filterParts.push(
+            `${renderedRanges.map((_, ri) => `[bed_p${ri}]`).join('')}concat=n=${renderedRanges.length}:v=0:a=1[bed_cut]`
+          );
+        }
+        mixLabels.splice(1, mixLabels.length - 1, '[bed_cut]');
+      }
       filterParts.push(
         `${mixLabels.join('')}amix=inputs=${mixLabels.length}:duration=first:dropout_transition=2:normalize=0,alimiter=limit=0.891:attack=3:release=100:level=disabled:latency=1,asetpts=N/SR/TB[aout]`
       );
@@ -9392,7 +9521,8 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       .map((r: any) => ({ start: Number(r?.start), end: Number(r?.end) }))
       .filter((r) => Number.isFinite(r.start) && Number.isFinite(r.end) && r.end > r.start + 0.05)
       .sort((a, b) => a.start - b.start);
-    if (aspectRatio === '9:16' && skipList.length > 0 && fs.existsSync(finalOutputPath)) {
+    // (a window render never encodes those ranges in the first place)
+    if (aspectRatio === '9:16' && skipList.length > 0 && !renderWindowMode && fs.existsSync(finalOutputPath)) {
       activeRenderJobState = { ...activeRenderJobState, progressPct: 99, stageLabel: 'Quitando intro/outro del Reel 9:16...' };
       const keeps: { start: number; end: number | null }[] = [];
       let cursor = 0;
@@ -9472,7 +9602,6 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
     if (!isBackgroundMaster && aspectRatio === '9:16' && docId) {
       try {
         saveViralMasterRecipe(String(docId), req.body, 'export');
-        viralMasterWanted.set(String(docId), Date.now());
       } catch (e) {
         console.warn('[ViralMaster] No se pudo guardar la receta del master tras la exportación 9:16:', e);
       }
@@ -9484,6 +9613,7 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
       fileName: finalFileName,
       clipsRendered: normalizedClipPaths.length,
       elapsedSec: elapsedTotalSec,
+      ...(renderWindowMode ? { renderedRanges, renderedSources } : {}),
     });
   } catch (err: any) {
     try {
@@ -23496,8 +23626,8 @@ app.post('/api/viral-clips/resolve-doc-source', async (req, res) => {
       masterVideoCloudOnly,
       clipsNewerThanMaster,
       masterExportedAt,
-      // Clean 9:16 master the viral clips are cut from (prepared by itself, see VIRAL CLIPS — CLEAN 9:16 MASTER)
-      viralMaster: viralMasterPublicStatus(String(doc.id || '')),
+      // No whole-documentary 9:16 master any more: each clip gets its own stretch (/api/viral-clips/clip-source)
+      viralMaster: null,
       masterVideoSizeMB,
       masterVideoUrl:
         masterVideoPath && !masterVideoCloudOnly
@@ -24861,20 +24991,17 @@ async function renderViralClipMp4Internal(params: {
 }
 
 // ============================================================================
-// VIRAL CLIPS — CLEAN 9:16 MASTER (automatic, no buttons)
-// Viral clips are cut from a 9:16 version of the documentary made by the editor's own exporter: the user's
-// framing and focus per scene, the clips as they are now, voice, music and logo, but WITHOUT the documentary's
-// captions or clip-1 title (each viral clip draws its own). Its "recipe" is the 9:16 export request: the editor
-// on the Mac sends it by itself while the documentary is open, and every 9:16 export the user makes refreshes it.
-// The master rebuilds itself when it is missing or out of date (recipe changed, or a clip file newer than the
-// master): right away when a viral clip waits for it or a 9:16 export just ended, otherwise after 10 quiet
-// minutes. It is kept on the Mac (not in iCloud) and never blocks the user: their exports stop it at once.
+// VIRAL CLIPS — THE CLIP'S OWN 9:16 STRETCH ("tramo"), STRAIGHT FROM THE EDITOR (automatic, no buttons)
+// A viral clip is cut from a 9:16 render of just its stretch of the documentary, made by the editor's own
+// exporter (window render): the user's framing and focus per scene, the clips as they are now, voice, music and
+// logo, but WITHOUT the documentary's captions or clip-1 title (each viral clip draws its own). There is no
+// whole-documentary 9:16 master any more. The "recipe" is the 9:16 export request: the editor on the Mac sends it
+// by itself while the documentary is open, and every 9:16 export the user makes refreshes it. A stretch is
+// rendered when a clip is saved (2K) or looked at in the page (a lighter copy for the preview), and it is used
+// again while the scenes it holds are unchanged. Stretches are kept on the Mac (not in iCloud) and never block
+// the user: their exports stop a stretch render at once.
 // ============================================================================
 const VIRAL_MASTERS_DIR = path.join(VIRAL_CLIPS_DIR, 'masters');
-const VIRAL_MASTER_QUIET_MS = 10 * 60 * 1000;
-const viralMasterWanted = new Map<string, number>();
-const viralMasterFailures = new Map<string, { at: number; fingerprint: string; error: string }>();
-let viralMasterBuilding: { docId: string; startedAt: number; fingerprint: string } | null = null;
 
 function viralMasterFiles(docId: string) {
   const safe = String(docId || 'doc').replace(/[^a-zA-Z0-9_-]+/g, '_');
@@ -24954,79 +25081,6 @@ function saveViralMasterRecipe(docId: string, rawBody: any, source: 'editor' | '
   });
   return { changed, fingerprint };
 }
-function newestClipFileMtime(rootFolder: string): number {
-  let newest = 0;
-  try {
-    const dir = path.join(rootFolder, '05_Clips_Video');
-    if (!rootFolder || !fs.existsSync(dir)) return 0;
-    for (const name of fs.readdirSync(dir)) {
-      if (!/\.(mp4|mov|m4v|webm)$/i.test(name)) continue;
-      try {
-        newest = Math.max(newest, fs.statSync(path.join(dir, name)).mtimeMs);
-      } catch {}
-    }
-  } catch {}
-  return newest;
-}
-function viralMasterState(docId: string) {
-  const files = viralMasterFiles(docId);
-  const recipe = readJsonSafe(files.recipe);
-  const meta = readJsonSafe(files.meta);
-  const exists = !!meta && fs.existsSync(files.video);
-  const rootFolder = recipe?.body
-    ? resolveLocalDocumentaryFolder(
-        String(recipe.body.folderPath || ''),
-        String(recipe.body.folderName || ''),
-        String(recipe.body.docTitle || '')
-      ) || ''
-    : '';
-  const clipsChangedAt = rootFolder ? newestClipFileMtime(rootFolder) : 0;
-  const reasons: string[] = [];
-  if (!recipe) reasons.push('sin_receta');
-  if (!exists) reasons.push('sin_master');
-  else {
-    if (recipe && meta.fingerprint !== recipe.fingerprint) reasons.push('receta_cambiada');
-    if (clipsChangedAt > Number(meta.createdAt || 0)) reasons.push('clips_nuevos');
-  }
-  const building = viralMasterBuilding?.docId === docId;
-  const failure = viralMasterFailures.get(docId);
-  return {
-    docId,
-    files,
-    recipe,
-    meta,
-    exists,
-    fresh: exists && reasons.length === 0,
-    reasons,
-    clipsChangedAt,
-    building,
-    progressPct:
-      building && activeRenderIsBackground && activeBackgroundRenderDocId === docId
-        ? Number(activeRenderJobState.progressPct) || 0
-        : 0,
-    waitingForUserExport: building && !activeRenderIsBackground && activeRenderJobState.running,
-    lastError: failure && recipe && failure.fingerprint === recipe.fingerprint ? failure.error : '',
-  };
-}
-/** What the page needs to know about a documentary's master. */
-function viralMasterPublicStatus(docId: string) {
-  const st = viralMasterState(docId);
-  return {
-    state: st.building ? 'building' : st.fresh ? 'ready' : !st.recipe ? 'no_recipe' : st.exists ? 'stale' : 'missing',
-    reasons: st.reasons,
-    building: st.building,
-    progressPct: st.progressPct,
-    exists: st.exists,
-    fresh: st.fresh,
-    lastError: st.lastError,
-    path: st.exists ? st.files.video : '',
-    url: st.exists
-      ? `/viral-clips-media/masters/${encodeURIComponent(path.basename(st.files.video))}?v=${Number(st.meta?.builtAt || 0)}`
-      : '',
-    skipRanges916: st.exists && Array.isArray(st.meta?.skipRanges916) ? st.meta.skipRanges916 : [],
-    builtAt: Number(st.meta?.builtAt || 0),
-  };
-}
 function postInternalJson(pathname: string, body: any): Promise<{ status: number; json: any }> {
   return new Promise((resolve) => {
     const payload = Buffer.from(JSON.stringify(body));
@@ -25059,96 +25113,493 @@ function postInternalJson(pathname: string, body: any): Promise<{ status: number
     r.end(payload);
   });
 }
-async function buildViralMaster(docId: string) {
-  const st = viralMasterState(docId);
-  if (!st.recipe?.body || viralMasterBuilding) return;
-  const files = st.files;
-  fs.mkdirSync(VIRAL_MASTERS_DIR, { recursive: true });
+const VIRAL_TRAMOS_DIR = path.join(VIRAL_MASTERS_DIR, 'tramos');
+/** Bump when the window render changes what a stretch looks or sounds like (older stretches are then remade). */
+const VIRAL_TRAMO_VERSION = 1;
+type ViralTramoQuality = 'final' | 'preview';
+const VIRAL_TRAMO_QUALITY: Record<ViralTramoQuality, { resolution: string; bitrateMbps: number; padSec: number }> = {
+  // What a saved clip is cut from (the clip itself comes out in 2K)
+  final: { resolution: '2K_1440P', bitrateMbps: 35, padSec: 0.5 },
+  // What the page plays: lighter, and with room on both sides so nudging the clip's times needs no new render
+  preview: { resolution: 'HD_1080P', bitrateMbps: 8, padSec: 3 },
+};
+const VIRAL_TRAMO_REQUEST_TTL_MS = 90 * 1000;
+const VIRAL_TRAMO_FAILURE_HOLD_MS = 10 * 60 * 1000;
+const VIRAL_TRAMOS_MAX_BYTES = 6 * 1024 * 1024 * 1024;
+const VIRAL_TRAMOS_MAX_AGE_MS = 21 * 24 * 3600 * 1000;
+
+type ViralTramoMeta = {
+  id: string;
+  docId: string;
+  quality: ViralTramoQuality;
+  baseKey: string;
+  audioStamp: string;
+  /** The scenes of the timeline the file holds (index in the recipe) and what each one looked like when rendered */
+  clips: Array<{ index: number; hash: string }>;
+  /** The ranges of the documentary's timeline the file holds, laid end to end */
+  ranges: RenderTimeRange[];
+  sources: Array<{ index: number; clipNumber: number; path: string; mtimeMs: number; size: number }>;
+  builtAt: number;
+  usedAt: number;
+  sizeBytes: number;
+  elapsedSec: number;
+};
+type ViralTramoRequest = {
+  key: string;
+  docId: string;
+  quality: ViralTramoQuality;
+  parts: RenderTimeRange[];
+  createdAt: number;
+  askedAt: number;
+  error: string;
+  failedAt: number;
+  /** The recipe it failed with (its content, not its date: the editor re-sends the same recipe often) */
+  failedRecipeKey: string;
+};
+type ViralRecipeInfo = {
+  docId: string;
+  mtimeMs: number;
+  recipe: any;
+  rootFolder: string;
+  slots: Array<{ start: number; dur: number; isIntro: boolean; isOutro: boolean }>;
+  clipHashes: string[];
+  baseKeys: Record<ViralTramoQuality, string>;
+};
+const viralTramos = new Map<string, ViralTramoMeta>();
+let viralTramosLoaded = false;
+const viralTramoRequests = new Map<string, ViralTramoRequest>();
+let viralTramoBuilding: { key: string; docId: string; quality: ViralTramoQuality; startedAt: number } | null = null;
+const viralRecipeInfoCache = new Map<string, ViralRecipeInfo>();
+const viralAudioStampCache = new Map<string, { at: number; stamp: string }>();
+
+const viralTramoVideoFile = (id: string) => path.join(VIRAL_TRAMOS_DIR, `${id}.mp4`);
+const viralTramoMetaFile = (id: string) => path.join(VIRAL_TRAMOS_DIR, `${id}.json`);
+const sha1Of = (text: string) => crypto.createHash('sha1').update(text).digest('hex');
+const viralRecipeKey = (info: ViralRecipeInfo) => String(info.recipe?.fingerprint || info.mtimeMs);
+
+function loadViralTramos() {
+  if (viralTramosLoaded) return;
+  viralTramosLoaded = true;
   try {
-    if (fs.existsSync(files.next)) fs.unlinkSync(files.next);
+    if (!fs.existsSync(VIRAL_TRAMOS_DIR)) return;
+    for (const name of fs.readdirSync(VIRAL_TRAMOS_DIR)) {
+      const full = path.join(VIRAL_TRAMOS_DIR, name);
+      // A render the last run of the server left half done
+      if (/\.next\.mp4$/i.test(name)) {
+        try {
+          fs.unlinkSync(full);
+        } catch {}
+        continue;
+      }
+      if (!name.endsWith('.json')) continue;
+      const meta = readJsonSafe(full) as ViralTramoMeta | null;
+      if (!meta?.id || !Array.isArray(meta.ranges) || !Array.isArray(meta.clips) || !fs.existsSync(viralTramoVideoFile(meta.id))) {
+        try {
+          fs.unlinkSync(full);
+        } catch {}
+        continue;
+      }
+      viralTramos.set(meta.id, meta);
+    }
   } catch {}
+}
+
+/** The documentary's recipe with what a stretch is checked against (worked out once per saved recipe). */
+function viralRecipeInfoFor(docId: string): ViralRecipeInfo | null {
+  if (!docId) return null;
+  const file = viralMasterFiles(docId).recipe;
+  let mtimeMs = 0;
+  try {
+    mtimeMs = Math.round(fs.statSync(file).mtimeMs);
+  } catch {
+    return null;
+  }
+  const hit = viralRecipeInfoCache.get(docId);
+  if (hit && hit.mtimeMs === mtimeMs) return hit;
+  const recipe = readJsonSafe(file);
+  const body = recipe?.body;
+  const clips: any[] = Array.isArray(body?.clips) ? body.clips : [];
+  if (!body || clips.length === 0) return null;
+  // Where each scene sits, exactly as the exporter walks the timeline
+  const slots: ViralRecipeInfo['slots'] = [];
+  let running = 0;
+  for (const c of clips) {
+    const slot = exportClipSlot(c, running);
+    if (slot.dur > 0) running = slot.start + slot.dur;
+    slots.push(slot);
+  }
+  // A scene, with its neighbours: fades and joins are decided looking at the scene before and the one after
+  const cleanClips = clips.map((c) => {
+    const { videoUrl, videoDataUrl, opticalFlowUrl, ...rest } = c || {};
+    return JSON.stringify(rest);
+  });
+  const clipHashes = cleanClips.map((own, i) => sha1Of(`${i}|${cleanClips[i - 1] || ''}|${own}|${cleanClips[i + 1] || ''}`));
+  // Everything that is not a scene: voice, music, logo, sizes. An Intro in the middle of the voice moves the
+  // voice and stops the music from there on, so its place counts for every stretch.
+  const { clips: _clips, voiceoverDataUrl: _vo, resolution: _res, bitrateMbps: _br, ...rest } = body;
+  const general = JSON.stringify({
+    ...rest,
+    musicTracks: (Array.isArray(body.musicTracks) ? body.musicTracks : []).map((m: any) => {
+      const { audioDataUrl, ...track } = m || {};
+      return track;
+    }),
+    intros: slots.map((sl, i) => (sl.isIntro ? [i, sl.start, sl.dur] : null)).filter(Boolean),
+  });
+  const baseKeyOf = (quality: ViralTramoQuality) =>
+    sha1Of(`${VIRAL_TRAMO_VERSION}|${VIRAL_TRAMO_QUALITY[quality].resolution}|${VIRAL_TRAMO_QUALITY[quality].bitrateMbps}|${general}`);
+  const info: ViralRecipeInfo = {
+    docId,
+    mtimeMs,
+    recipe,
+    rootFolder:
+      resolveLocalDocumentaryFolder(String(body.folderPath || ''), String(body.folderName || ''), String(body.docTitle || '')) || '',
+    slots,
+    clipHashes,
+    baseKeys: { final: baseKeyOf('final'), preview: baseKeyOf('preview') },
+  };
+  viralRecipeInfoCache.set(docId, info);
+  return info;
+}
+/** The voice and the songs of the documentary as they are on disk (a new voice file makes every stretch old). */
+function viralDocAudioStamp(info: ViralRecipeInfo): string {
+  const hit = viralAudioStampCache.get(info.docId);
+  if (hit && Date.now() - hit.at < 5000) return hit.stamp;
+  const lines: string[] = [];
+  for (const sub of ['02_Audio', 'Audio']) {
+    try {
+      const dir = path.join(info.rootFolder, sub);
+      if (!info.rootFolder || !fs.existsSync(dir)) continue;
+      for (const name of fs.readdirSync(dir).sort()) {
+        if (!/\.(mp3|m4a|wav)$/i.test(name)) continue;
+        try {
+          const st = fs.statSync(path.join(dir, name));
+          lines.push(`${sub}/${name}:${st.size}:${Math.round(st.mtimeMs)}`);
+        } catch {}
+      }
+    } catch {}
+  }
+  const stamp = sha1Of(lines.join('\n'));
+  viralAudioStampCache.set(info.docId, { at: Date.now(), stamp });
+  return stamp;
+}
+/** The pieces of the documentary's timeline a viral clip is made of. */
+function viralClipPartsFromBody(body: any): RenderTimeRange[] {
+  const cuts = computeViralClipCuts({
+    startSec: Number(body?.startSec) || 0,
+    endSec: Number(body?.endSec) || 0,
+    segments: body?.segments,
+    words: Array.isArray(body?.words) ? body.words : [],
+  });
+  return normalizeViralParts(cuts.parts.map((p) => ({ start: p.srcStart, end: p.srcStart + p.dur })));
+}
+function normalizeViralParts(raw: unknown): RenderTimeRange[] {
+  return (Array.isArray(raw) ? raw : [])
+    .slice(0, 40)
+    .map((r: any) => ({ start: Math.max(0, Number(r?.start)), end: Number(r?.end) }))
+    .filter((r) => Number.isFinite(r.start) && Number.isFinite(r.end) && r.end > r.start + 0.01);
+}
+/** Scenes of the recipe (by index) that a window render of these ranges encodes. */
+function viralScenesForRanges(info: ViralRecipeInfo, windows: RenderTimeRange[]): number[] {
+  const out: number[] = [];
+  info.slots.forEach((slot, i) => {
+    if (!exportClipOutsideWindows(slot, windows, info.recipe.body.skipRanges916, '9:16')) out.push(i);
+  });
+  return out;
+}
+/** A stretch as the clip render reads it: the timeline ranges it does NOT hold, in the master's "skipped" form. */
+function viralTramoSkipRanges(ranges: RenderTimeRange[]): RenderTimeRange[] {
+  const out: RenderTimeRange[] = [];
+  let cursor = 0;
+  for (const r of ranges) {
+    if (r.start > cursor + 0.0005) out.push({ start: cursor, end: r.start });
+    cursor = Math.max(cursor, r.end);
+  }
+  return out;
+}
+/** A finished stretch that still shows these pieces exactly as the editor has them now (null: none). */
+function findViralTramo(info: ViralRecipeInfo, quality: ViralTramoQuality, parts: RenderTimeRange[]): ViralTramoMeta | null {
+  loadViralTramos();
+  if (parts.length === 0) return null;
+  const scenes = viralScenesForRanges(info, normalizeRenderWindows(parts));
+  if (scenes.length === 0) return null;
+  const audioStamp = viralDocAudioStamp(info);
+  let best: ViralTramoMeta | null = null;
+  for (const t of viralTramos.values()) {
+    if (t.docId !== info.docId || t.quality !== quality) continue;
+    if (t.baseKey !== info.baseKeys[quality] || t.audioStamp !== audioStamp) continue;
+    const hashByIndex = new Map(t.clips.map((c) => [c.index, c.hash]));
+    if (!scenes.every((i) => hashByIndex.get(i) === info.clipHashes[i])) continue;
+    // The scene files themselves, unchanged since the render
+    const sceneSet = new Set(scenes);
+    const filesSame = t.sources
+      // (mtimeMs 0: a file that only existed during the render, nothing to compare with)
+      .filter((src) => sceneSet.has(src.index) && src.mtimeMs > 0)
+      .every((src) => {
+        try {
+          const st = fs.statSync(src.path);
+          return Math.round(st.mtimeMs) === src.mtimeMs && st.size === src.size;
+        } catch {
+          return false;
+        }
+      });
+    if (!filesSame || !fs.existsSync(viralTramoVideoFile(t.id))) continue;
+    if (!best || t.builtAt > best.builtAt) best = t;
+  }
+  return best;
+}
+const viralTramoRequestKey = (docId: string, quality: ViralTramoQuality, parts: RenderTimeRange[]) =>
+  `${docId}|${quality}|${parts.map((p) => `${p.start.toFixed(2)}-${p.end.toFixed(2)}`).join(',')}`;
+
+type ViralTramoStatus = {
+  state: 'ready' | 'building' | 'waiting' | 'no_recipe' | 'error';
+  tramo: ViralTramoMeta | null;
+  progressPct: number;
+  error: string;
+};
+/**
+ * Where the stretch of these pieces stands. With `ask`, it is also asked for: it gets rendered as soon as the
+ * exporter is free, and whoever wants it keeps asking (a stretch nobody asks for any more is dropped).
+ */
+function viralTramoStatus(docId: string, quality: ViralTramoQuality, rawParts: RenderTimeRange[], ask: boolean): ViralTramoStatus {
+  const parts = normalizeViralParts(rawParts);
+  const info = viralRecipeInfoFor(docId);
+  if (!info) return { state: 'no_recipe', tramo: null, progressPct: 0, error: '' };
+  if (parts.length === 0) {
+    return { state: 'error', tramo: null, progressPct: 0, error: 'El clip no tiene ningún tramo de la línea de tiempo.' };
+  }
+  const key = viralTramoRequestKey(docId, quality, parts);
+  const ready = findViralTramo(info, quality, parts);
+  if (ready) {
+    if (ask) ready.usedAt = Date.now();
+    if (viralTramoBuilding?.key !== key) viralTramoRequests.delete(key);
+    return { state: 'ready', tramo: ready, progressPct: 100, error: '' };
+  }
+  if (viralScenesForRanges(info, normalizeRenderWindows(parts)).length === 0) {
+    return {
+      state: 'error',
+      tramo: null,
+      progressPct: 0,
+      error: 'Ese tramo queda fuera de la línea de tiempo del documental (o dentro del intro/outro que el 9:16 quita).',
+    };
+  }
+  let req = viralTramoRequests.get(key);
+  if (!req && ask) {
+    req = { key, docId, quality, parts, createdAt: Date.now(), askedAt: Date.now(), error: '', failedAt: 0, failedRecipeKey: '' };
+    viralTramoRequests.set(key, req);
+  }
+  if (!req) return { state: 'waiting', tramo: null, progressPct: 0, error: '' };
+  if (ask) req.askedAt = Date.now();
+  if (req.failedAt) {
+    // Tried and failed: not tried again until the editor sends a new recipe or some minutes pass
+    const stillHeld = req.failedRecipeKey === viralRecipeKey(info) && Date.now() - req.failedAt < VIRAL_TRAMO_FAILURE_HOLD_MS;
+    if (stillHeld) return { state: 'error', tramo: null, progressPct: 0, error: req.error };
+    req.failedAt = 0;
+    req.error = '';
+  }
+  const building = viralTramoBuilding?.key === key;
+  return {
+    state: building ? 'building' : 'waiting',
+    tramo: null,
+    progressPct:
+      building && activeRenderIsBackground && activeBackgroundRenderDocId === docId
+        ? Number(activeRenderJobState.progressPct) || 0
+        : 0,
+    error: '',
+  };
+}
+function pruneViralTramos() {
+  loadViralTramos();
+  const now = Date.now();
+  const inUse = new Set<string>();
+  for (const j of viralRenderJobs.values()) {
+    if ((j.status === 'queued' || j.status === 'running') && j.body?.sourceVideoPath) inUse.add(String(j.body.sourceVideoPath));
+  }
+  const drop = (t: ViralTramoMeta) => {
+    viralTramos.delete(t.id);
+    for (const f of [viralTramoVideoFile(t.id), viralTramoMetaFile(t.id)]) {
+      try {
+        if (fs.existsSync(f)) fs.unlinkSync(f);
+      } catch {}
+    }
+  };
+  let total = 0;
+  for (const t of [...viralTramos.values()].sort((a, b) => b.usedAt - a.usedAt)) {
+    const file = viralTramoVideoFile(t.id);
+    if (!fs.existsSync(file)) {
+      drop(t);
+      continue;
+    }
+    if (inUse.has(file) || now - t.usedAt < 3600 * 1000) {
+      total += t.sizeBytes;
+      continue;
+    }
+    // Out of date with the editor: its scenes, voice or music are no longer what it shows
+    const info = viralRecipeInfoFor(t.docId);
+    const stale =
+      !!info &&
+      (t.baseKey !== info.baseKeys[t.quality] || t.clips.some((c) => info.clipHashes[c.index] !== c.hash));
+    if (stale || now - t.usedAt > VIRAL_TRAMOS_MAX_AGE_MS || total + t.sizeBytes > VIRAL_TRAMOS_MAX_BYTES) {
+      drop(t);
+      continue;
+    }
+    total += t.sizeBytes;
+  }
+}
+async function buildViralTramo(req: ViralTramoRequest) {
+  const info = viralRecipeInfoFor(req.docId);
+  if (!info || viralTramoBuilding) return;
+  const quality = VIRAL_TRAMO_QUALITY[req.quality];
+  const windows = normalizeRenderWindows(
+    req.parts.map((p) => ({ start: Math.max(0, p.start - quality.padSec), end: p.end + quality.padSec }))
+  );
+  const id = `${String(req.docId).replace(/[^a-zA-Z0-9_-]+/g, '_')}_${req.quality}_${Date.now().toString(36)}${Math.random()
+    .toString(36)
+    .slice(2, 6)}`;
+  const nextFile = path.join(VIRAL_TRAMOS_DIR, `${id}.next.mp4`);
+  fs.mkdirSync(VIRAL_TRAMOS_DIR, { recursive: true });
   const startedAt = Date.now();
-  const fingerprint = String(st.recipe.fingerprint || '');
-  viralMasterBuilding = { docId, startedAt, fingerprint };
-  console.log(`[ViralMaster] Preparando el master 9:16 limpio de ${docId} (${st.reasons.join(', ')})...`);
+  const audioStamp = viralDocAudioStamp(info);
+  viralTramoBuilding = { key: req.key, docId: req.docId, quality: req.quality, startedAt };
+  const label = `${req.docId} ${req.quality} ${windows.map((w) => `${w.start.toFixed(1)}–${w.end.toFixed(1)} s`).join(', ')}`;
+  console.log(`[ViralTramo] Preparando el tramo 9:16 (${label})...`);
+  const fail = (message: string) => {
+    req.error = String(message || 'No se pudo preparar el tramo 9:16.').slice(0, 600);
+    req.failedAt = Date.now();
+    req.failedRecipeKey = viralRecipeKey(info);
+    console.warn(`[ViralTramo] No se pudo preparar el tramo (${label}):`, req.error);
+  };
   try {
     const result = await postInternalJson('/api/editor/render-ffmpeg', {
-      ...st.recipe.body,
-      docId,
+      ...info.recipe.body,
+      resolution: quality.resolution,
+      bitrateMbps: quality.bitrateMbps,
+      docId: req.docId,
       viralMasterExport: true,
-      viralMasterOutputPath: files.next,
+      viralMasterOutputPath: nextFile,
+      renderWindows: windows,
     });
     finishBackgroundRenderState();
-    if (result.status === 200 && result.json?.ok && fs.existsSync(files.next)) {
-      fs.renameSync(files.next, files.video);
-      const skipRanges916 = (Array.isArray(st.recipe.body.skipRanges916) ? st.recipe.body.skipRanges916 : [])
-        .map((r: any) => ({ start: Number(r?.start), end: Number(r?.end) }))
-        .filter((r: any) => Number.isFinite(r.start) && Number.isFinite(r.end) && r.end > r.start + 0.05);
-      writeJsonAtomicSafe(files.meta, {
-        docId,
-        fingerprint,
-        // Clip files changed after the build started make it out of date
-        createdAt: startedAt,
+    const ranges = normalizeRenderWindows(result.json?.renderedRanges);
+    if (result.status === 200 && result.json?.ok && ranges.length > 0 && fs.existsSync(nextFile)) {
+      fs.renameSync(nextFile, viralTramoVideoFile(id));
+      const sources: ViralTramoMeta['sources'] = (Array.isArray(result.json.renderedSources) ? result.json.renderedSources : []).map(
+        (src: any) => {
+          // A scene read from a file that only lived during the render is not checked for changes later
+          const stillThere = !!src?.path && fs.existsSync(String(src.path));
+          return {
+            index: Number(src?.index) || 0,
+            clipNumber: Number(src?.clipNumber) || 0,
+            path: String(src?.path || ''),
+            mtimeMs: stillThere ? Number(src?.mtimeMs) || 0 : 0,
+            size: stillThere ? Number(src?.size) || 0 : 0,
+          };
+        }
+      );
+      const meta: ViralTramoMeta = {
+        id,
+        docId: req.docId,
+        quality: req.quality,
+        baseKey: info.baseKeys[req.quality],
+        audioStamp,
+        clips: sources.map((src) => ({ index: src.index, hash: info.clipHashes[src.index] || '' })),
+        ranges,
+        sources,
         builtAt: Date.now(),
-        skipRanges916,
-      });
-      viralMasterWanted.delete(docId);
-      viralMasterFailures.delete(docId);
-      console.log(`[ViralMaster] Master 9:16 limpio listo (${docId}) en ${Math.round((Date.now() - startedAt) / 1000)} s.`);
-    } else if (result.json?.cancelled) {
-      // The user started an export: the master starts again when the exporter is free
-      console.log(`[ViralMaster] Master de ${docId} pausado por una exportación del usuario; se retoma después.`);
+        usedAt: Date.now(),
+        sizeBytes: fs.statSync(viralTramoVideoFile(id)).size,
+        elapsedSec: Math.round((Date.now() - startedAt) / 1000),
+      };
+      writeJsonAtomicSafe(viralTramoMetaFile(id), meta);
+      viralTramos.set(id, meta);
+      // Made, yet it does not serve the clip it was made for, with the editor unchanged meanwhile: never loop on it
+      const infoNow = viralRecipeInfoFor(req.docId);
+      if (infoNow && viralRecipeKey(infoNow) === viralRecipeKey(info) && !findViralTramo(infoNow, req.quality, req.parts)) {
+        fail('El tramo 9:16 se preparó, pero no contiene todas las escenas del clip. Revisa que sus clips estén en la línea de tiempo del editor.');
+      } else {
+        viralTramoRequests.delete(req.key);
+      }
+      console.log(
+        `[ViralTramo] Tramo 9:16 listo (${label}) en ${meta.elapsedSec} s: ${sources.length} escena(s), ${Math.round(
+          meta.sizeBytes / 1048576
+        )} MB.`
+      );
+      try {
+        pruneViralTramos();
+      } catch {}
+    } else if (result.json?.cancelled || (result.status === 409 && !result.json?.missingClips)) {
+      // The user started an export (or one was already running): it is tried again when the exporter is free
+      console.log(`[ViralTramo] Tramo en pausa por una exportación del usuario (${label}); se retoma después.`);
     } else {
-      viralMasterFailures.set(docId, {
-        at: Date.now(),
-        fingerprint,
-        error: String(result.json?.error || `HTTP ${result.status}`).slice(0, 600),
-      });
-      console.warn(`[ViralMaster] No se pudo preparar el master de ${docId}:`, result.json?.error || result.status);
+      fail(String(result.json?.error || `HTTP ${result.status}`));
     }
   } catch (e: any) {
     finishBackgroundRenderState();
-    viralMasterFailures.set(docId, { at: Date.now(), fingerprint, error: String(e?.message || e).slice(0, 600) });
-    console.warn('[ViralMaster] Error preparando el master:', e);
+    fail(String(e?.message || e));
   } finally {
     try {
-      if (fs.existsSync(files.next)) fs.unlinkSync(files.next);
+      if (fs.existsSync(nextFile)) fs.unlinkSync(nextFile);
     } catch {}
-    viralMasterBuilding = null;
+    viralTramoBuilding = null;
     pumpViralRenderQueue();
   }
 }
-function tickViralMasters() {
-  if (viralMasterBuilding || activeRenderJobState.running) return;
-  let recipeFiles: string[] = [];
-  try {
-    recipeFiles = fs.existsSync(VIRAL_MASTERS_DIR)
-      ? fs.readdirSync(VIRAL_MASTERS_DIR).filter((f) => f.endsWith('_9x16_receta.json'))
-      : [];
-  } catch {
-    return;
+function tickViralTramos() {
+  const now = Date.now();
+  for (const [key, r] of viralTramoRequests) {
+    if (viralTramoBuilding?.key !== key && now - r.askedAt > VIRAL_TRAMO_REQUEST_TTL_MS) viralTramoRequests.delete(key);
   }
-  const candidates: Array<{ docId: string; wantedAt: number }> = [];
-  for (const f of recipeFiles) {
-    const docId = String(readJsonSafe(path.join(VIRAL_MASTERS_DIR, f))?.docId || '');
-    if (!docId) continue;
-    const st = viralMasterState(docId);
-    if (st.fresh) viralMasterWanted.delete(docId);
-    if (st.fresh || !st.recipe) continue;
-    const wantedAt = viralMasterWanted.get(docId) || 0;
-    // Only documentaries that have viral clips (or a viral clip waiting) get a master
-    if (!wantedAt && !fs.existsSync(viralSavedFileFor(docId))) continue;
-    const failure = viralMasterFailures.get(docId);
-    if (failure && failure.fingerprint === st.recipe.fingerprint && Date.now() - failure.at < 30 * 60 * 1000) continue;
-    // Only when a viral clip is waiting for it. It used to be rebuilt by itself after every change of framing
-    // (VIRAL_MASTER_QUIET_MS after the last edit): 10 to 25 minutes of encoding each time, wanted or not.
-    if (wantedAt) candidates.push({ docId, wantedAt });
-  }
-  if (candidates.length === 0) return;
-  candidates.sort((a, b) => b.wantedAt - a.wantedAt);
-  void buildViralMaster(candidates[0].docId);
+  if (viralTramoBuilding || activeRenderJobState.running) return;
+  const pending = [...viralTramoRequests.values()].filter((r) => !r.failedAt);
+  if (pending.length === 0) return;
+  // A clip being saved goes first (in the order they were sent); then the clip being looked at right now
+  pending.sort((a, b) =>
+    a.quality !== b.quality ? (a.quality === 'final' ? -1 : 1) : a.quality === 'final' ? a.createdAt - b.createdAt : b.createdAt - a.createdAt
+  );
+  void buildViralTramo(pending[0]);
 }
-setInterval(tickViralMasters, 20000);
+setInterval(() => {
+  if ([...viralRenderJobs.values()].some((j) => j.status === 'waiting_master')) pumpViralRenderQueue();
+  else tickViralTramos();
+}, 4000);
+
+/** What the page needs to know about the 9:16 source of the clip it is showing. */
+function viralClipSourcePublicStatus(docId: string, parts: RenderTimeRange[]) {
+  const st = viralTramoStatus(docId, 'preview', parts, true);
+  const t = st.tramo;
+  return {
+    state: st.state === 'ready' ? 'ready' : st.state === 'no_recipe' ? 'no_recipe' : st.state === 'error' ? 'error' : 'building',
+    reasons: [] as string[],
+    building: st.state === 'building' || st.state === 'waiting',
+    // The exporter is busy with something else (an export of the user, another clip): this one waits its turn
+    waiting: st.state === 'waiting',
+    progressPct: st.progressPct,
+    exists: !!t,
+    fresh: !!t,
+    lastError: st.error,
+    path: t ? viralTramoVideoFile(t.id) : '',
+    url: t ? `/viral-clips-media/masters/tramos/${encodeURIComponent(`${t.id}.mp4`)}?v=${t.builtAt}` : '',
+    // The file holds only `ranges` of the timeline; a timeline second moves back by everything missing before it
+    skipRanges916: t ? viralTramoSkipRanges(t.ranges) : [],
+    ranges: t ? t.ranges : [],
+    builtAt: t ? t.builtAt : 0,
+  };
+}
+/** Pages loaded before the whole-documentary master was retired still ask for it: there is none. */
+function viralMasterRetiredStatus() {
+  return {
+    state: 'missing',
+    reasons: [] as string[],
+    building: false,
+    progressPct: 0,
+    exists: false,
+    fresh: false,
+    lastError: '',
+    path: '',
+    url: '',
+    skipRanges916: [] as RenderTimeRange[],
+    builtAt: 0,
+  };
+}
 
 // The editor on the Mac sends the 9:16 recipe by itself while a documentary is open (never from another device:
 // its local settings could differ from the Mac's)
@@ -25157,15 +25608,24 @@ app.post('/api/viral-clips/master-recipe', (req, res) => {
   try {
     const docId = String(req.body?.docId || '').trim();
     const r = saveViralMasterRecipe(docId, req.body?.body, 'editor');
-    res.json({ ok: true, ...r, master: viralMasterPublicStatus(docId) });
+    res.json({ ok: true, ...r, master: viralMasterRetiredStatus() });
   } catch (e: any) {
     res.status(500).json({ ok: false, error: e?.message || 'No se pudo guardar la receta del master.' });
   }
 });
-app.get('/api/viral-clips/master-status', (req, res) => {
-  const docId = String(req.query.docId || '').trim();
-  if (!docId) return res.json({ ok: true, master: null });
-  res.json({ ok: true, master: viralMasterPublicStatus(docId) });
+app.get('/api/viral-clips/master-status', (_req, res) => {
+  res.json({ ok: true, master: viralMasterRetiredStatus() });
+});
+// The 9:16 picture of one clip for the page's player: its own stretch of the documentary, rendered by the
+// editor's exporter. The page keeps asking while it shows the clip; that is what keeps the render wanted.
+app.post('/api/viral-clips/clip-source', (req, res) => {
+  try {
+    const docId = String(req.body?.docId || '').trim();
+    if (!docId) return res.json({ ok: true, source: null });
+    res.json({ ok: true, source: viralClipSourcePublicStatus(docId, normalizeViralParts(req.body?.parts)) });
+  } catch (e: any) {
+    res.status(500).json({ ok: false, error: e?.message || 'No se pudo consultar el tramo 9:16 del clip.' });
+  }
 });
 
 // Renders run as background jobs when the page asks for it (async: true): through the Cloudflare tunnel
@@ -25178,7 +25638,7 @@ type ViralRenderJob = {
   clipId: string;
   clipNumber: number;
   title: string;
-  /** waiting_master: a documentary clip waits for its clean 9:16 master to be ready (or up to date) */
+  /** waiting_master: a documentary clip waits for its 9:16 stretch to be rendered by the editor's exporter */
   status: 'waiting_master' | 'queued' | 'running' | 'done' | 'error';
   progressPct: number;
   createdAt: number;
@@ -25191,22 +25651,28 @@ type ViralRenderJob = {
 const VIRAL_RENDER_PARALLEL = 2;
 const viralRenderJobs = new Map<string, ViralRenderJob>();
 function pumpViralRenderQueue() {
-  // Clips of a documentary are cut from its clean 9:16 master: they wait until it is ready and up to date
+  // A documentary clip is cut from its own 9:16 stretch, rendered by the editor's exporter: it waits for it
   for (const job of viralRenderJobs.values()) {
     if (job.status !== 'queued' && job.status !== 'waiting_master') continue;
     if (!job.docId || !job.body) continue;
-    const st = viralMasterState(job.docId);
-    if (!st.fresh) {
+    const st = viralTramoStatus(job.docId, 'final', viralClipPartsFromBody(job.body), true);
+    if (st.state === 'error') {
+      job.status = 'error';
+      job.error = st.error;
+      job.finishedAt = Date.now();
+      job.body = undefined;
+      continue;
+    }
+    if (st.state !== 'ready' || !st.tramo) {
       job.status = 'waiting_master';
-      if (!viralMasterWanted.has(job.docId)) viralMasterWanted.set(job.docId, Date.now());
       continue;
     }
     job.status = 'queued';
-    job.body.sourceVideoPath = st.files.video;
+    job.body.sourceVideoPath = viralTramoVideoFile(st.tramo.id);
     job.body.sourceIsViralMaster = true;
-    job.body.viralMasterSkipRanges = Array.isArray(st.meta?.skipRanges916) ? st.meta.skipRanges916 : [];
+    job.body.viralMasterSkipRanges = viralTramoSkipRanges(st.tramo.ranges);
   }
-  if ([...viralRenderJobs.values()].some((j) => j.status === 'waiting_master')) tickViralMasters();
+  if ([...viralRenderJobs.values()].some((j) => j.status === 'waiting_master')) tickViralTramos();
   const running = [...viralRenderJobs.values()].filter((j) => j.status === 'running').length;
   let free = VIRAL_RENDER_PARALLEL - running;
   const queued = [...viralRenderJobs.values()]
@@ -25257,10 +25723,14 @@ function publicViralRenderJob(j: ViralRenderJob) {
     savedInDocFolderPath: j.result?.savedInDocFolderPath || '',
     durationSec: j.result?.durationSec || 0,
     error: j.error || '',
-    ...(j.status === 'waiting_master' && j.docId
+    ...(j.status === 'waiting_master' && j.docId && j.body
       ? (() => {
-          const m = viralMasterPublicStatus(j.docId);
-          return { masterState: m.state, masterProgressPct: m.progressPct, masterError: m.lastError };
+          const st = viralTramoStatus(j.docId, 'final', viralClipPartsFromBody(j.body), false);
+          return {
+            masterState: st.state === 'no_recipe' ? 'no_recipe' : st.state === 'building' ? 'building' : 'waiting',
+            masterProgressPct: st.progressPct,
+            masterError: st.error,
+          };
         })()
       : {}),
   };
@@ -25285,6 +25755,12 @@ app.post('/api/viral-clips/render', async (req, res) => {
         ((clipId && j.clipId === clipId) || (!clipId && clipNumber > 0 && j.clipNumber === clipNumber))
     );
     if (dup) return res.json({ ok: true, jobId: dup.id, alreadyQueued: true });
+    for (const r of viralTramoRequests.values()) {
+      if (r.docId === docId && r.quality === 'final' && r.failedAt) {
+        r.failedAt = 0;
+        r.error = '';
+      }
+    }
     const jobId = `vr-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     viralRenderJobs.set(jobId, {
       id: jobId,
@@ -25317,18 +25793,21 @@ app.post('/api/viral-clips/render', async (req, res) => {
   }
 });
 
-// The clip's source exactly as the render will read it: its clean 9:16 master when that is ready
+// The clip's source exactly as the render will read it: its 9:16 stretch when one is ready (the 2K one a save
+// made, or the lighter one of the page's player: same picture)
 function viralFrameSourceFromBody(body: any): ViralClipFrameSource {
   const docId = String(body?.docId || '');
   let sourceVideoPath = String(body?.sourceVideoPath || '');
   let sourceIsViralMaster = false;
   let viralMasterSkipRanges: Array<{ start: number; end: number }> = [];
-  if (docId) {
-    const st = viralMasterState(docId);
-    if (st.fresh) {
-      sourceVideoPath = st.files.video;
+  const info = docId ? viralRecipeInfoFor(docId) : null;
+  if (info) {
+    const parts = viralClipPartsFromBody(body);
+    const tramo = findViralTramo(info, 'final', parts) || findViralTramo(info, 'preview', parts);
+    if (tramo) {
+      sourceVideoPath = viralTramoVideoFile(tramo.id);
       sourceIsViralMaster = true;
-      viralMasterSkipRanges = Array.isArray(st.meta?.skipRanges916) ? st.meta.skipRanges916 : [];
+      viralMasterSkipRanges = viralTramoSkipRanges(tramo.ranges);
     }
   }
   return {
