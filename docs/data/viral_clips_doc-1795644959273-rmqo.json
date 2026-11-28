@@ -1,6 +1,6 @@
 {
   "docId": "doc-1795644959273-rmqo",
-  "savedAt": 1795834658480,
+  "savedAt": 1795834712879,
   "youtubeUrl": "",
   "docStyle": {
     "titleFont": "piedra",
@@ -9,7 +9,7 @@
     "titleAccentColor": "#38E4C6",
     "captionColor": "#F4EFE6",
     "captionActiveColor": "#38E4C6",
-    "texture": "scratched",
+    "texture": "ink",
     "textureAmount": 65,
     "outline": "thick",
     "shadow": "hard",
