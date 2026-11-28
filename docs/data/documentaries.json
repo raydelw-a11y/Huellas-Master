@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-11-25T22:15:59.273Z",
-    "updatedAt": "2026-11-28T04:26:14.651Z",
+    "updatedAt": "2026-11-28T04:27:24.702Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -42,7 +42,7 @@
       "FIELD_CLEARED_AT_clip1OptionsRaw": "0",
       "FIELD_CLEARED_AT_clip1Line1LocationTime": "0",
       "FIELD_CLEARED_AT_clip1Line2Hook": "0",
-      "PROMPTS_RESTORED_AT": "1795839974651",
+      "PROMPTS_RESTORED_AT": "1795840044702",
       "FIELD_CLEARED_AT_rawClipsText": "0",
       "CAPTION_BOTTOM_PCT_16X9": 11,
       "CAPTION_SETTINGS_UPDATED_AT": "1795837262006",
@@ -2931,14 +2931,14 @@
         "videoAuditReason": "",
         "videoAuditIssues": [],
         "reviewedUpdatedAt": 1795717842765,
-        "reframe9x16Mode": "auto_pan",
-        "reframeFocusXStart": 28,
-        "reframeFocusXEnd": 72,
+        "reframe9x16Mode": "auto_center",
+        "reframeFocusXStart": 50,
+        "reframeFocusXEnd": 50,
         "reframeFocusY": 50,
         "reframeConfidence": 0.82,
-        "reframeReason": "Paneo dinámico Izquierda → Derecha (28% → 72%)",
+        "reframeReason": "Encuadre central (50%)",
         "userReframed9x16": true,
-        "reframeUpdatedAt": 1795837430915
+        "reframeUpdatedAt": 1795840043986
       },
       {
         "id": "clip-69-1795649050155-69",
