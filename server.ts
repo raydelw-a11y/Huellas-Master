@@ -9649,6 +9649,36 @@ async function analyzeClipSmartReframe9x16(
   promptHint = '',
   peopleFree = false
 ): Promise<SmartReframeClipResult> {
+  if (peopleFree) {
+    // Nothing to analyse: only make sure the file can be read (a clip that lives only in iCloud must still be
+    // reported as unreadable, so its placeholder is never applied)
+    const readable = await new Promise<boolean>((resolve) => {
+      let bytes = 0;
+      const proc = spawn(
+        ffmpegBin,
+        ['-hide_banner', '-loglevel', 'error', '-i', mp4Path, '-frames:v', '1', '-vf', 'scale=16:9', '-f', 'rawvideo', '-pix_fmt', 'gray', 'pipe:1'],
+        { stdio: ['ignore', 'pipe', 'ignore'] }
+      );
+      proc.stdout?.on('data', (c: Buffer) => (bytes += c.length));
+      proc.on('close', () => resolve(bytes > 0));
+      proc.on('error', () => resolve(false));
+    });
+    return {
+      clipNumber,
+      fileName,
+      reframe9x16Mode: 'auto_center',
+      focusXStart: 50,
+      focusXEnd: 50,
+      focusY: 50,
+      confidence: readable ? 0.8 : 0.5,
+      reason: readable
+        ? 'Plano sin personas: encuadre central fijo (50%), sin paneo ni enfoque lateral'
+        : 'Encuadre central estándar (50%)',
+      peopleFree: true,
+      ...(readable ? {} : { unreadable: true }),
+    };
+  }
+
   const cameraPan = await estimateClipCameraPanX(ffmpegBin, mp4Path);
   if (isClipCameraPan(cameraPan)) {
     return {
@@ -9709,20 +9739,6 @@ async function analyzeClipSmartReframe9x16(
       confidence: 0.5,
       reason: 'Encuadre central estándar (50%)',
       unreadable: true,
-    };
-  }
-
-  if (peopleFree) {
-    return {
-      clipNumber,
-      fileName,
-      reframe9x16Mode: 'auto_center',
-      focusXStart: 50,
-      focusXEnd: 50,
-      focusY: 50,
-      confidence: 0.8,
-      reason: 'Plano sin personas: encuadre central fijo (50%), sin paneo ni enfoque lateral',
-      peopleFree: true,
     };
   }
 
