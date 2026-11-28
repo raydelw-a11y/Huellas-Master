@@ -3180,6 +3180,20 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                 </div>
 
                 {/* The parts that can be changed by hand, out of the way until they are needed */}
+                {/* Always in sight (it used to hide inside "Editar textos de este clip"): the link the Facebook comment carries */}
+                <div className="space-y-1">
+                  <span className="text-[11px] font-bold text-slate-300 block">
+                    🔗 Enlace del documental en YouTube (para el comentario de Facebook; si falta, lleva el del canal):
+                  </span>
+                  <input
+                    type="url"
+                    inputMode="url"
+                    value={docYoutubeUrl}
+                    onChange={(e) => setDocYoutubeUrl(e.target.value)}
+                    placeholder="https://youtu.be/…"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-base sm:text-xs text-sky-300"
+                  />
+                </div>
                 <div className="space-y-1.5">
                   <button
                     type="button"
@@ -3214,16 +3228,6 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                         onChange={(e) => updateSelectedClip({ pinnedComment: e.target.value })}
                         placeholder="Pregunta para fijar como primer comentario"
                         className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-200 outline-none"
-                      />
-                      <span className="text-[11px] font-bold text-slate-300 block">
-                        Enlace del documental en YouTube (opcional; si falta, el comentario de Facebook lleva el del canal):
-                      </span>
-                      <input
-                        type="url"
-                        value={docYoutubeUrl}
-                        onChange={(e) => setDocYoutubeUrl(e.target.value)}
-                        placeholder="https://youtu.be/…"
-                        className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-sky-300"
                       />
                     </div>
                   )}
