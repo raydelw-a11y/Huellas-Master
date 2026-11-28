@@ -9516,6 +9516,8 @@ interface SmartReframeClipResult {
   sizeBytes?: number;
   /** The clip file could not be decoded (e.g. it lives only in iCloud): the values are a placeholder. */
   unreadable?: boolean;
+  /** The analysis treated the shot as free of people (see isPeopleFreeShotPrompt). */
+  peopleFree?: boolean;
 }
 
 // A clip that already pans sideways on its own gets a fixed centred 9:16 window: a reframe pan laid on top of the
@@ -9621,12 +9623,31 @@ function isClipCameraPan(e: CameraPanEstimate | null): boolean {
   );
 }
 
+// A shot whose prompt declares it free of people has no subject this analyser can recognise: its cues are human
+// ones (skin, upright figures, dark silhouettes, movement) and, with nobody in the picture, what is left to score
+// is texture — glass towers, grass, cracked ground — which pulled the window away from what the shot shows (the
+// Angel's column, centred between two glass towers, got a pan from one tower to empty sky). Those shots keep the
+// centred window, where the pictures are composed; a real off-centre subject is set by hand in the editor.
+// The sentence is written by the app's own prompt builder when it finds no person in the description. It misses
+// a few words ("three colonial residents poling canoes… with no people present"), so those are checked here.
+const REFRAME_NO_PEOPLE_DECLARED_RE = /\bno people present\b|\bzero human figures\b|\bzero people\b|\bsin personas\b/i;
+const REFRAME_PEOPLE_WORDS_RE =
+  /\b(?:\d+-year-old|residents?|inhabitants?|villagers?|citizens?|mothers?|fathers?|famil(?:y|ies)|commanders?|carvers?|boatm[ae]n|rowers?|poling|rowing|wearing|dressed)\b/i;
+function isPeopleFreeShotPrompt(imagePrompt: unknown, videoPrompt: unknown): boolean {
+  // The video prompt describes the clip; a clip made from a still image only has the image's prompt
+  const governing = String(videoPrompt || '').trim() || String(imagePrompt || '').trim();
+  if (!REFRAME_NO_PEOPLE_DECLARED_RE.test(governing)) return false;
+  const described = governing.replace(/,?\s*with no people present[\s\S]*$/i, ' ');
+  return !REFRAME_PEOPLE_WORDS_RE.test(described);
+}
+
 async function analyzeClipSmartReframe9x16(
   ffmpegBin: string,
   mp4Path: string,
   clipNumber: number,
   fileName: string,
-  promptHint = ''
+  promptHint = '',
+  peopleFree = false
 ): Promise<SmartReframeClipResult> {
   const cameraPan = await estimateClipCameraPanX(ffmpegBin, mp4Path);
   if (isClipCameraPan(cameraPan)) {
@@ -9688,6 +9709,20 @@ async function analyzeClipSmartReframe9x16(
       confidence: 0.5,
       reason: 'Encuadre central estándar (50%)',
       unreadable: true,
+    };
+  }
+
+  if (peopleFree) {
+    return {
+      clipNumber,
+      fileName,
+      reframe9x16Mode: 'auto_center',
+      focusXStart: 50,
+      focusXEnd: 50,
+      focusY: 50,
+      confidence: 0.8,
+      reason: 'Plano sin personas: encuadre central fijo (50%), sin paneo ni enfoque lateral',
+      peopleFree: true,
     };
   }
 
@@ -10355,6 +10390,7 @@ app.post('/api/editor/auto-reframe-9x16', async (req, res) => {
 
     // Discover numbered clips in searchDirs (prioritizing 05_Clips_Video and _4K.mp4)
     const promptHintByClipNum = new Map<number, string>();
+    const peopleFreeByClipNum = new Map<number, boolean>();
     try {
       const allDocs = readDocumentaries();
       const normRootBase = path.basename(targetRoot).normalize('NFC').toLowerCase();
@@ -10377,6 +10413,7 @@ app.post('/api/editor/auto-reframe-9x16', async (req, res) => {
               cn,
               `${c.imagePrompt || ''} ${c.videoPrompt || ''} ${c.narrationSegment || ''}`
             );
+            peopleFreeByClipNum.set(cn, isPeopleFreeShotPrompt(c.imagePrompt, c.videoPrompt));
           }
         }
       }
@@ -10426,20 +10463,24 @@ app.post('/api/editor/auto-reframe-9x16', async (req, res) => {
         } catch {}
 
         // v4: clips that pan on their own are kept centred (v3 results could carry a reframe pan on top of them)
-        const cacheKey = `v4_${clipNum}_${info.fileName}`;
-        const legacyKey = `v3_${clipNum}_${info.fileName}`;
-        const legacy = cachedMap[legacyKey] || cachedMap[String(clipNum)];
+        // v5: shots without people are kept centred (v4 chose their window by texture)
+        const peopleFree = peopleFreeByClipNum.get(clipNum) === true;
+        const cacheKey = `v5_${clipNum}_${info.fileName}`;
+        const legacyKeys = [`v4_${clipNum}_${info.fileName}`, `v3_${clipNum}_${info.fileName}`, String(clipNum)];
+        const legacy = legacyKeys.map((k) => cachedMap[k]).find(Boolean);
         const existing = cachedMap[cacheKey] || ((legacy as any)?.verifiedAudit === true ? legacy : undefined);
         if (
           existing &&
           ((existing as any).verifiedAudit === true ||
-            (!forceRefresh && existing.mtimeMs === statMtime && existing.sizeBytes === statSize))
+            (!forceRefresh &&
+              existing.mtimeMs === statMtime &&
+              existing.sizeBytes === statSize &&
+              Boolean(existing.peopleFree) === peopleFree))
         ) {
           existing.mtimeMs = statMtime;
           existing.sizeBytes = statSize;
           cachedMap[cacheKey] = existing;
-          delete cachedMap[legacyKey];
-          delete cachedMap[String(clipNum)];
+          for (const k of legacyKeys) delete cachedMap[k];
           results.push(existing);
           continue;
         }
@@ -10449,7 +10490,8 @@ app.post('/api/editor/auto-reframe-9x16', async (req, res) => {
           info.filePath,
           clipNum,
           info.fileName,
-          promptHintByClipNum.get(clipNum) || ''
+          promptHintByClipNum.get(clipNum) || '',
+          peopleFree
         );
         if (analyzed.unreadable) {
           // Unreadable file (not downloaded from iCloud yet): keep any earlier analysis, never cache the placeholder
@@ -10459,8 +10501,7 @@ app.post('/api/editor/auto-reframe-9x16', async (req, res) => {
         analyzed.mtimeMs = statMtime;
         analyzed.sizeBytes = statSize;
         cachedMap[cacheKey] = analyzed;
-        delete cachedMap[legacyKey];
-        delete cachedMap[String(clipNum)];
+        for (const k of legacyKeys) delete cachedMap[k];
         results.push(analyzed);
       }
     };
