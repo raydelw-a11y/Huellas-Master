@@ -563,6 +563,12 @@ export interface ClipFrameKey {
   y: number;
   /** 9:16 only: horizontal focus of the vertical crop over the 16:9 clip, 0 (left) .. 100 (right). */
   f?: number;
+  /**
+   * Second of the clip's FILE this point belongs to (the first frame after a cut). `t` is where that falls on the
+   * timeline as the editor sees it; the exporter places the point from `src`, with its own stretch of the clip,
+   * so the framing changes on the exact frame of the cut.
+   */
+  src?: number;
 }
 /** Width of a 16:9 clip measured in widths of the 9:16 frame it fills (percent). */
 const SOURCE_16X9_WIDTH_IN_9X16_FRAME_PCT = ((16 / 9) / (9 / 16)) * 100;
@@ -594,6 +600,9 @@ function getClipFrameKeys(clip: ClipFrameSource, ratio: string): ClipFrameKey[] 
         y: Number(k?.y),
         ...(ratio === '9:16' && (k as any)?.f !== undefined && (k as any)?.f !== null && Number.isFinite(f)
           ? { f: Math.max(0, Math.min(100, f)) }
+          : {}),
+        ...(typeof (k as any)?.src === 'number' && Number.isFinite((k as any).src) && (k as any).src >= 0
+          ? { src: (k as any).src }
           : {}),
       } as ClipFrameKey;
     })
@@ -653,7 +662,11 @@ function buildAutoCutFrameKeys(
   const point = (t: number, f: number): ClipFrameKey => ({ t, z: 100, x: 0, y: 0, f });
   if (at <= 0.1) return [point(0, focus[1])];
   if (at >= slot - 0.1) return [point(0, focus[0])];
-  return [point(0, focus[0]), point(Math.round((at - AUTO_CUT_KEY_GAP_SEC) * 1000) / 1000, focus[0]), point(at, focus[1])];
+  return [
+    point(0, focus[0]),
+    point(Math.round((at - AUTO_CUT_KEY_GAP_SEC) * 1000) / 1000, focus[0]),
+    { ...point(at, focus[1]), src: cutSec },
+  ];
 }
 
 /** Framing at `elapsedSec` between points: holds the first point before it and the last point after it. */

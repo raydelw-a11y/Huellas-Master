@@ -8320,10 +8320,30 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
             fk?.f !== undefined && fk?.f !== null && fk?.f !== '' && Number.isFinite(Number(fk.f))
               ? Math.max(0, Math.min(1, Number(fk.f) / 100))
               : NaN,
+          // Second of the file the point is tied to (the first frame after a cut); NaN when it has none
+          src: typeof fk?.src === 'number' && Number.isFinite(fk.src) && fk.src >= 0 ? Number(fk.src) : NaN,
         }))
         .filter((fk) => [fk.t, fk.z, fk.x, fk.y].every((n) => Number.isFinite(n)) && fk.t >= 0)
         .sort((a, b) => a.t - b.t)
         .slice(0, 8);
+      // A point tied to a frame of the file (a cut) is placed where that frame really lands in this segment: the
+      // clip is stretched here to fill its slot, so the editor's own time for it can be a couple of frames off.
+      // The `fps` filter shows the frame on the output frame nearest to its time; the point goes half a frame
+      // before it, so that output frame is the first one with the new framing. The point next to it (the hold
+      // before the jump) moves with it.
+      if (!usingPrebakedOpticalFlow && !isIntroClip && !isOutroClip) {
+        for (let ki = 0; ki < frameKeys.length; ki++) {
+          const fk = frameKeys[ki];
+          if (!Number.isFinite(fk.src)) continue;
+          const landsAtSec = (fk.src - trimStartSec) * Number(ptsFactor);
+          if (!(landsAtSec > 0)) continue;
+          const exactT = Math.max(0, (Math.round(landsAtSec * safeFps) - 0.5) / safeFps);
+          const prev = ki > 0 ? frameKeys[ki - 1] : null;
+          const prevIsHold = Boolean(prev && fk.t - prev.t <= FRAME_KEY_STEP_GAP_SEC);
+          fk.t = exactT;
+          if (prev && prevIsHold) prev.t = Math.max(0, exactT - 0.04);
+        }
+      }
       // Points that only move the 9:16 focus (full size, centred) need no moving window: the crop follows them
       const frameKeysOnlyFocus =
         !hasFrameZoom &&
