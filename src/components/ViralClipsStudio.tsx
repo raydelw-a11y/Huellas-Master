@@ -281,6 +281,8 @@ async function pushViralPublishedMarksToGitHub(docId: string, newMarks: ViralPub
 
 // Closing line of the pinned comment on Facebook: it carries the link the description promises ("el enlace
 // está en los comentarios") — the documentary's own link when it was pasted, otherwise the channel's
+// Last text to copy, for every network: the call to tap the link
+const VIRAL_TAP_HERE_TEXT = '¡TOCA AQUÍ PARA VER EL DOCUMENTAL COMPLETO!';
 const VIRAL_FACEBOOK_COMMENT_CLOSING = '¡Para ver el documental completo, visita nuestro canal de YouTube!';
 const VIRAL_YOUTUBE_CHANNEL_URL = 'https://youtube.com/@huellas_de_la_humanidad';
 
@@ -3252,6 +3254,24 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                     </p>
                   </div>
                 )}
+
+                {/* Call to tap the link: every network */}
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-slate-300">👆 Texto del enlace:</span>
+                    <button
+                      type="button"
+                      onClick={() => copyText('tapHere', VIRAL_TAP_HERE_TEXT)}
+                      className="text-[11px] text-amber-300 hover:text-amber-200 flex items-center gap-1 cursor-pointer"
+                    >
+                      {copiedField === 'tapHere' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                      <span>{copiedField === 'tapHere' ? '¡Copiado!' : 'Copiar texto del enlace'}</span>
+                    </button>
+                  </div>
+                  <p className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-300 break-words">
+                    {VIRAL_TAP_HERE_TEXT}
+                  </p>
+                </div>
 
                 {/* Posted or not: marked by hand after publishing the clip; the date can be corrected */}
                 {(() => {
