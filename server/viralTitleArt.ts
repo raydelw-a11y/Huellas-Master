@@ -19,6 +19,7 @@ import {
   viralTitleUnit,
   viralTitleLineStepFactor,
   viralTitleEntrance,
+  viralTextureStrength,
   VIRAL_TITLE_SLIDE_FRAC,
   VIRAL_TITLE_ZOOM_FROM,
   VIRAL_TITLE_BLUR_UNITS,
@@ -51,7 +52,7 @@ export function viralTitleDrawLookFor(style?: ViralDocStyle | null): ViralTitleD
     mainAss: viralHexToAss(st.titleColor),
     accentAss: viralHexToAss(st.titleAccentColor),
     texture: st.texture,
-    textureAmount: Math.max(0, Math.min(1, (Number(st.textureAmount) || 0) / 100)),
+    textureAmount: viralTextureStrength(st.textureAmount),
     outline: st.outline,
     shadow: st.shadow,
   };

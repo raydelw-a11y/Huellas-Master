@@ -197,12 +197,20 @@ export const VIRAL_CLASSIC_STYLE: ViralDocStyle = {
   captionColor: '#FFE600',
   captionActiveColor: '#FFFFFF',
   texture: 'worn',
-  textureAmount: 50,
+  textureAmount: 80,
   outline: 'none',
   shadow: 'soft',
   titleAnimation: 'fade',
   captionAnimation: 'highlight',
 };
+
+/**
+ * How hard a texture bites for an amount of 0–100: nothing at 0, barely there at 5, moderate at 100.
+ * (80 is the wear the first design, Video 30's, has always had.)
+ */
+export function viralTextureStrength(amount: number): number {
+  return Math.max(0, Math.min(1, (Number(amount) || 0) / 100)) * 0.625;
+}
 
 // --- Colours ---------------------------------------------------------------------------------------------
 
@@ -357,7 +365,7 @@ export function buildViralStyleRequest(usedByOthers: Array<{ title: string; styl
     ` ON-SCREEN DESIGN: also return a top-level "style" object with the design shared by ALL the clips of this documentary (the big on-screen title and the captions). Choose every value from THIS documentary's era, place, story and mood, so the design belongs to this documentary and to no other (for example: letters carved in stone with jade and obsidian tones for the Aztec world, blackletter with parchment and blood-red tones for medieval Europe, art-deco letters with brass and midnight-blue tones for 1930s New York).` +
     ` Use ONLY these ids. "titleFont", one of: ${list(VIRAL_TITLE_FONTS)}.` +
     ` "captionFont", one of: ${list(VIRAL_CAPTION_FONTS)}.` +
-    ` "texture" of the title letters, one of: ${list(VIRAL_TEXTURES)}; "textureAmount" from 0 to 100: keep it very subtle, normally between 5 and 15 and never above 25, so the letters stay clean and easy to read (the texture is a faint hint, never damage).` +
+    ` "texture" of the title letters, one of: ${list(VIRAL_TEXTURES)}; "textureAmount" from 0 to 100: keep it subtle, normally between 10 and 30 (100 is only moderate wear), so the letters stay clean and easy to read (the texture is a faint hint, never damage).` +
     ` "outline": none, thin or thick (a dark edge around the title letters). "shadow": soft, hard, glow or none.` +
     ` "titleAnimation", how the title comes in, one of: ${list(VIRAL_TITLE_ANIMS)}.` +
     ` "captionAnimation", one of: ${list(VIRAL_CAPTION_ANIMS)}.` +

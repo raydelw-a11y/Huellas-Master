@@ -5,6 +5,7 @@ import {
   viralFontById,
   viralTitleEntrance,
   viralTitleEntranceState,
+  viralTextureStrength,
   viralTitleLineStepFactor,
   viralTitleWordLines,
   type ViralDocStyle,
@@ -77,13 +78,13 @@ const svgMask = (size: number, filter: string): string =>
 const alphaRow = (slope: number, offset: number) =>
   `<feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 ${slope.toFixed(2)} ${offset.toFixed(2)}'/>`;
 
-/** CSS mask that wears the letters like the render's texture does. `amount`: 0–1 (0.5 is the classic wear). */
+/** CSS mask that wears the letters like the render's texture does. `amount`: the texture's strength (see viralTextureStrength; 0.5 is the first design's wear). */
 function textureMaskStyle(texture: ViralTexture, amount: number, unit: number): React.CSSProperties {
   if (texture === 'none' || amount <= 0) return {};
   const a = Math.max(0, Math.min(1, amount));
   const pits = (strength: number, result: string) =>
     `<feTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='2' seed='7'/>` +
-    alphaRow(-13, 9.9 + (0.5 - strength) * 2.4).replace('/>', ` result='${result}'/>`);
+    alphaRow(-13, 11.96 - 3.9 * strength).replace('/>', ` result='${result}'/>`);
   let filter = '';
   let size = 260;
   let sizeUnits = 1.84;
@@ -98,16 +99,16 @@ function textureMaskStyle(texture: ViralTexture, amount: number, unit: number): 
     sizeUnits = 2.4;
     filter =
       `<feTurbulence type='fractalNoise' baseFrequency='0.006 0.6' numOctaves='2' seed='3'/>` +
-      alphaRow(-30, 20.6 + (0.5 - a) * 2).replace('/>', ` result='h'/>`) +
+      alphaRow(-30, 27.9 - 12 * a).replace('/>', ` result='h'/>`) +
       `<feTurbulence type='fractalNoise' baseFrequency='0.7 0.008' numOctaves='2' seed='9'/>` +
-      alphaRow(-30, 21.4 + (0.5 - a) * 1.6).replace('/>', ` result='v'/>`) +
+      alphaRow(-30, 28.5 - 12 * a).replace('/>', ` result='v'/>`) +
       `<feComposite in='h' in2='v' operator='in'/>`;
   } else if (texture === 'stone') {
     size = 320;
     sizeUnits = 2.6;
     filter =
       `<feTurbulence type='fractalNoise' baseFrequency='0.11' numOctaves='3' seed='11'/>` +
-      alphaRow(-16, 11.7 + (0.5 - a) * 1.6).replace('/>', ` result='c'/>`) +
+      alphaRow(-16, 14.4 - 5.44 * a).replace('/>', ` result='c'/>`) +
       pits(a * 0.45, 'p') +
       `<feComposite in='c' in2='p' operator='in'/>`;
   } else if (texture === 'ink') {
@@ -258,7 +259,7 @@ export const ViralStyledTitle: React.FC<ViralStyledTitleProps> = ({
       ...(stroke > 0 ? { WebkitTextStroke: `${px(stroke)} rgba(0,0,0,${docStyle.outline !== 'none' ? 1 : 0.9})` } : {}),
     };
   };
-  const mask = textureMaskStyle(docStyle.texture, (Number(docStyle.textureAmount) || 0) / 100, unit);
+  const mask = textureMaskStyle(docStyle.texture, viralTextureStrength(docStyle.textureAmount), unit);
   let k = -1;
   return (
     <div
