@@ -35,6 +35,7 @@ import {
   sanitizeImagePromptForFlowSafety,
   sanitizeVideoClipPromptForFlowSafety,
   balanceCaptionsFor16x9,
+  detectPromptSceneHasHumanSubjects,
 } from './src/utils/smartParsers';
 import { buildShotDirectionClause } from './src/utils/shotCatalogue';
 import {
@@ -8323,8 +8324,17 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
         .filter((fk) => [fk.t, fk.z, fk.x, fk.y].every((n) => Number.isFinite(n)) && fk.t >= 0)
         .sort((a, b) => a.t - b.t)
         .slice(0, 8);
+      // Points that only move the 9:16 focus (full size, centred) need no moving window: the crop follows them
+      const frameKeysOnlyFocus =
+        !hasFrameZoom &&
+        !hasFrameShift &&
+        frameKeys.every((fk) => Math.abs(fk.z - 1) < 0.0005 && Math.abs(fk.x) < 0.0005 && Math.abs(fk.y) < 0.0005);
       const useFrameKeys =
-        !isIntroClip && !isOutroClip && frameKeys.length >= 2 && frameKeys.every((fk) => fk.z >= 0.999 && fk.z <= 3.001);
+        !isIntroClip &&
+        !isOutroClip &&
+        frameKeys.length >= 2 &&
+        !frameKeysOnlyFocus &&
+        frameKeys.every((fk) => fk.z >= 0.999 && fk.z <= 3.001);
       // Piecewise eased value over the output frame number `on`
       const buildKeyExpr = (pick: (fk: { z: number; x: number; y: number }) => number) => {
         let expr = pick(frameKeys[frameKeys.length - 1]).toFixed(5);
@@ -8409,7 +8419,11 @@ app.post('/api/editor/render-ffmpeg', async (req, res) => {
             const b = focusKeys[ki + 1];
             const span = Math.max(unit === 'on' ? 1 : 0.04, (b.t - a.t) * k);
             const p = `((${unit}-${tv(a.t)})/${unit === 'on' ? Math.round(span) : span.toFixed(3)})`;
-            const seg = `(${a.f.toFixed(4)}+(${(b.f - a.f).toFixed(4)})*${p}*${p}*(3-2*${p}))`;
+            // Two points next to each other are a jump (the cut between two shots), not a very fast slide
+            const seg =
+              b.t - a.t <= FRAME_KEY_STEP_GAP_SEC
+                ? a.f.toFixed(4)
+                : `(${a.f.toFixed(4)}+(${(b.f - a.f).toFixed(4)})*${p}*${p}*(3-2*${p}))`;
             expr = `if(lt(${unit},${tv(b.t)}),${seg},${expr})`;
           }
           return `if(lt(${unit},${tv(focusKeys[0].t)}),${focusKeys[0].f.toFixed(4)},${expr})`;
@@ -9518,7 +9532,14 @@ interface SmartReframeClipResult {
   unreadable?: boolean;
   /** The analysis treated the shot as free of people (see isPeopleFreeShotPrompt). */
   peopleFree?: boolean;
+  /** A clip made of two shots: second of the file where the second shot starts… */
+  cutSec?: number;
+  /** …and the fixed focus (0..100) of the shot before the cut and of the shot after it. */
+  cutFocusX?: [number, number];
 }
+
+/** Part of the file to analyse (one shot of a clip that has a cut). */
+type ReframeAnalysisRange = { startSec: number; durSec: number };
 
 // A clip that already pans sideways on its own gets a fixed centred 9:16 window: a reframe pan laid on top of the
 // camera's pan reads as two movements fighting each other. "Pans" = the picture travels steadily one way by at
@@ -9538,7 +9559,11 @@ interface CameraPanEstimate {
   steps: number;
 }
 
-async function estimateClipCameraPanX(ffmpegBin: string, mp4Path: string): Promise<CameraPanEstimate | null> {
+async function estimateClipCameraPanX(
+  ffmpegBin: string,
+  mp4Path: string,
+  range?: ReframeAnalysisRange
+): Promise<CameraPanEstimate | null> {
   const W = 320;
   const H = 180;
   const frameBytes = W * H;
@@ -9546,7 +9571,7 @@ async function estimateClipCameraPanX(ffmpegBin: string, mp4Path: string): Promi
     const chunks: Buffer[] = [];
     const proc = spawn(
       ffmpegBin,
-      ['-hide_banner', '-loglevel', 'error', '-i', mp4Path, '-vf', `fps=2,scale=${W}:${H}:flags=bilinear,format=gray`, '-frames:v', '24', '-f', 'rawvideo', '-pix_fmt', 'gray', 'pipe:1'],
+      ['-hide_banner', '-loglevel', 'error', ...(range ? ['-ss', range.startSec.toFixed(3), '-t', range.durSec.toFixed(3)] : []), '-i', mp4Path, '-vf', `fps=2,scale=${W}:${H}:flags=bilinear,format=gray`, '-frames:v', '24', '-f', 'rawvideo', '-pix_fmt', 'gray', 'pipe:1'],
       { stdio: ['ignore', 'pipe', 'ignore'] }
     );
     proc.stdout?.on('data', (c: Buffer) => chunks.push(c));
@@ -9647,7 +9672,8 @@ async function analyzeClipSmartReframe9x16(
   clipNumber: number,
   fileName: string,
   promptHint = '',
-  peopleFree = false
+  peopleFree = false,
+  range?: ReframeAnalysisRange
 ): Promise<SmartReframeClipResult> {
   if (peopleFree) {
     // Nothing to analyse: only make sure the file can be read (a clip that lives only in iCloud must still be
@@ -9679,7 +9705,7 @@ async function analyzeClipSmartReframe9x16(
     };
   }
 
-  const cameraPan = await estimateClipCameraPanX(ffmpegBin, mp4Path);
+  const cameraPan = await estimateClipCameraPanX(ffmpegBin, mp4Path, range);
   if (isClipCameraPan(cameraPan)) {
     return {
       clipNumber,
@@ -9701,17 +9727,19 @@ async function analyzeClipSmartReframe9x16(
 
   const rawBuffer = await new Promise<Buffer>((resolve) => {
     const chunks: Buffer[] = [];
-    // Sample ~6 keyframes across the clip (approx every 1.3s on an 8s clip)
+    // Sample ~6 keyframes across the clip (approx every 1.3s on an 8s clip), or across the one shot analysed
+    const sampleFps = range ? Math.max(0.75, Math.min(4, 6 / Math.max(0.5, range.durSec))) : 0.75;
     const proc = spawn(
       ffmpegBin,
       [
         '-hide_banner',
         '-loglevel',
         'error',
+        ...(range ? ['-ss', range.startSec.toFixed(3), '-t', range.durSec.toFixed(3)] : []),
         '-i',
         mp4Path,
         '-vf',
-        `fps=0.75,scale=${W}:${H}:flags=fast_bilinear`,
+        `fps=${sampleFps.toFixed(3)},scale=${W}:${H}:flags=fast_bilinear`,
         '-frames:v',
         '6',
         '-f',
@@ -10007,7 +10035,12 @@ async function analyzeClipSmartReframe9x16(
   const bimodalBalance =
     Math.min(leftBestVal, rightBestVal) / Math.max(1, Math.max(leftBestVal, rightBestVal));
   const valleyRatio = centerMinVal / Math.max(1, (leftBestVal + rightBestVal) * 0.5);
-  const lowerPrompt = String(promptHint || '').toLowerCase();
+  // "exactly two shots joined by one clean hard cut" describes a cut, not two people in the frame (that reading
+  // forced a left-to-right pan on every clip that has a cut)
+  const lowerPrompt = String(promptHint || '')
+    .toLowerCase()
+    .replace(/exactly two shots joined by one[^,.]*/g, ' ')
+    .replace(/two-shot clip/g, ' ');
   const hasNoPeoplePrompt =
     /zero people|no people|strictly zero people|sin personas|zero human figures/i.test(lowerPrompt);
   const hasTwoShotPrompt =
@@ -10345,6 +10378,113 @@ async function analyzeClipSmartReframe9x16(
   };
 }
 
+// A clip can be two shots joined by a hard cut. One window (or one pan) for the whole clip slides across two
+// unrelated pictures, so each shot is analysed on its own and gets its own fixed window, which changes exactly
+// at the cut. The cut is the one frame whose picture differs sharply from the frame before it.
+/** Framing points closer than this are a jump, not a slide (same value as the editor's FRAME_KEY_STEP_GAP_SEC). */
+const FRAME_KEY_STEP_GAP_SEC = 0.05;
+const REFRAME_CUT_MIN_SCORE = 0.3;
+const REFRAME_CUT_MIN_SHOT_SEC = 1;
+async function detectClipCutSec(
+  ffmpegBin: string,
+  mp4Path: string
+): Promise<{ cutSec: number; durSec: number; score: number } | null> {
+  const out = await new Promise<string>((resolve) => {
+    const chunks: Buffer[] = [];
+    const proc = spawn(
+      ffmpegBin,
+      ['-hide_banner', '-loglevel', 'error', '-i', mp4Path, '-an', '-vf', "scale=160:90:flags=fast_bilinear,select='gte(scene,0)',metadata=print:file=-", '-f', 'null', '-'],
+      { stdio: ['ignore', 'pipe', 'ignore'] }
+    );
+    proc.stdout?.on('data', (c: Buffer) => chunks.push(c));
+    proc.on('close', () => resolve(Buffer.concat(chunks).toString('utf8')));
+    proc.on('error', () => resolve(''));
+  });
+  const frames: Array<{ t: number; score: number }> = [];
+  let t = NaN;
+  for (const line of out.split('\n')) {
+    const mt = line.match(/pts_time:([0-9.]+)/);
+    if (mt) t = Number(mt[1]);
+    const ms = line.match(/lavfi\.scene_score=([0-9.]+)/);
+    if (ms && Number.isFinite(t)) frames.push({ t, score: Number(ms[1]) });
+  }
+  if (frames.length < 24) return null;
+  const durSec = frames[frames.length - 1].t + (frames[frames.length - 1].t - frames[frames.length - 2].t);
+  // The first frames always score against nothing; a cut that leaves a shot under a second is not worth a window
+  const inside = frames.filter((f) => f.t >= REFRAME_CUT_MIN_SHOT_SEC && f.t <= durSec - REFRAME_CUT_MIN_SHOT_SEC);
+  if (inside.length === 0) return null;
+  const best = inside.reduce((a, b) => (b.score > a.score ? b : a));
+  if (best.score < REFRAME_CUT_MIN_SCORE) return null;
+  // One clear peak: fast movement or a flash raises several frames, a cut raises one
+  const rest = inside.filter((f) => Math.abs(f.t - best.t) > 0.2).reduce((m, f) => Math.max(m, f.score), 0);
+  if (rest > best.score * 0.5) return null;
+  return { cutSec: Number(best.t.toFixed(3)), durSec, score: best.score };
+}
+
+async function analyzeClipSmartReframeByShots(
+  ffmpegBin: string,
+  mp4Path: string,
+  clipNumber: number,
+  fileName: string,
+  imagePrompt: string,
+  videoPrompt: string,
+  narration: string,
+  peopleFree: boolean
+): Promise<SmartReframeClipResult> {
+  const wholeHint = `${imagePrompt} ${videoPrompt} ${narration}`;
+  // Without people both shots stay centred: nothing changes at the cut
+  if (peopleFree) return analyzeClipSmartReframe9x16(ffmpegBin, mp4Path, clipNumber, fileName, wholeHint, true);
+  const cut = await detectClipCutSec(ffmpegBin, mp4Path);
+  if (!cut) return analyzeClipSmartReframe9x16(ffmpegBin, mp4Path, clipNumber, fileName, wholeHint, false);
+
+  // What the prompt says of each shot ("first shot, … then a hard cut to a second shot, …")
+  const split = videoPrompt.split(/\bthen\s+a\s+hard\s+cut\s+to\s+a\s+second\s+shot\b/i);
+  const shotTexts = split.length === 2 ? [split[0], split[1].replace(/,?\s*(?:fixed subject count|solid, non-deforming|steady continuous)[\s\S]*$/i, ' ')] : null;
+  // Keep clear of the frames next to the cut
+  const ranges: ReframeAnalysisRange[] = [
+    { startSec: 0.1, durSec: Math.max(0.5, cut.cutSec - 0.3) },
+    { startSec: cut.cutSec + 0.15, durSec: Math.max(0.5, cut.durSec - cut.cutSec - 0.3) },
+  ];
+  const shots: SmartReframeClipResult[] = [];
+  for (let i = 0; i < 2; i++) {
+    const text = shotTexts ? shotTexts[i] : '';
+    // A shot with nobody in it keeps the centred window, like a whole clip without people
+    const shotPeopleFree = Boolean(text.trim()) && !detectPromptSceneHasHumanSubjects(text) && !REFRAME_PEOPLE_WORDS_RE.test(text);
+    shots.push(
+      await analyzeClipSmartReframe9x16(
+        ffmpegBin,
+        mp4Path,
+        clipNumber,
+        fileName,
+        shotTexts ? text : wholeHint,
+        shotPeopleFree,
+        ranges[i]
+      )
+    );
+  }
+  if (shots.some((r) => r.unreadable)) {
+    return analyzeClipSmartReframe9x16(ffmpegBin, mp4Path, clipNumber, fileName, wholeHint, false);
+  }
+  // One fixed window per shot. Where the analysis proposes a pan, the window sits halfway: inside a 3-4 second
+  // shot the pan would be a sweep, and its two ends are the least reliable part of the analysis.
+  const focus = shots.map((r) =>
+    Math.round(r.reframe9x16Mode === 'auto_pan' ? (r.focusXStart + r.focusXEnd) / 2 : r.focusXStart)
+  ) as [number, number];
+  const same = Math.abs(focus[0] - focus[1]) < 2;
+  return {
+    clipNumber,
+    fileName,
+    reframe9x16Mode: focus[0] === 50 && same ? 'auto_center' : 'auto_focus',
+    focusXStart: focus[0],
+    focusXEnd: focus[0],
+    focusY: 50,
+    confidence: Number(Math.min(shots[0].confidence, shots[1].confidence).toFixed(2)),
+    reason: `Clip con corte en ${cut.cutSec.toFixed(2)} s: plano 1 al ${focus[0]}% y plano 2 al ${focus[1]}% (ventana fija en cada plano, cambia en el corte)`,
+    cutSec: cut.cutSec,
+    cutFocusX: focus,
+  };
+}
+
 function resolveLocalFlowProjectFolder(
   folderPathQuery?: string,
   folderNameQuery?: string,
@@ -10405,8 +10545,8 @@ app.post('/api/editor/auto-reframe-9x16', async (req, res) => {
     }
 
     // Discover numbered clips in searchDirs (prioritizing 05_Clips_Video and _4K.mp4)
-    const promptHintByClipNum = new Map<number, string>();
     const peopleFreeByClipNum = new Map<number, boolean>();
+    const promptPartsByClipNum = new Map<number, { image: string; video: string; narration: string }>();
     try {
       const allDocs = readDocumentaries();
       const normRootBase = path.basename(targetRoot).normalize('NFC').toLowerCase();
@@ -10425,11 +10565,12 @@ app.post('/api/editor/auto-reframe-9x16', async (req, res) => {
         for (const c of matchedDoc.clips) {
           const cn = Number(c?.clipNumber);
           if (Number.isFinite(cn) && cn > 0) {
-            promptHintByClipNum.set(
-              cn,
-              `${c.imagePrompt || ''} ${c.videoPrompt || ''} ${c.narrationSegment || ''}`
-            );
             peopleFreeByClipNum.set(cn, isPeopleFreeShotPrompt(c.imagePrompt, c.videoPrompt));
+            promptPartsByClipNum.set(cn, {
+              image: String(c.imagePrompt || ''),
+              video: String(c.videoPrompt || ''),
+              narration: String(c.narrationSegment || ''),
+            });
           }
         }
       }
@@ -10480,9 +10621,15 @@ app.post('/api/editor/auto-reframe-9x16', async (req, res) => {
 
         // v4: clips that pan on their own are kept centred (v3 results could carry a reframe pan on top of them)
         // v5: shots without people are kept centred (v4 chose their window by texture)
+        // v6: a clip with a cut gets one window per shot (v5 gave it one window or one pan across both)
         const peopleFree = peopleFreeByClipNum.get(clipNum) === true;
-        const cacheKey = `v5_${clipNum}_${info.fileName}`;
-        const legacyKeys = [`v4_${clipNum}_${info.fileName}`, `v3_${clipNum}_${info.fileName}`, String(clipNum)];
+        const cacheKey = `v6_${clipNum}_${info.fileName}`;
+        const legacyKeys = [
+          `v5_${clipNum}_${info.fileName}`,
+          `v4_${clipNum}_${info.fileName}`,
+          `v3_${clipNum}_${info.fileName}`,
+          String(clipNum),
+        ];
         const legacy = legacyKeys.map((k) => cachedMap[k]).find(Boolean);
         const existing = cachedMap[cacheKey] || ((legacy as any)?.verifiedAudit === true ? legacy : undefined);
         if (
@@ -10501,12 +10648,15 @@ app.post('/api/editor/auto-reframe-9x16', async (req, res) => {
           continue;
         }
 
-        const analyzed = await analyzeClipSmartReframe9x16(
+        const parts = promptPartsByClipNum.get(clipNum) || { image: '', video: '', narration: '' };
+        const analyzed = await analyzeClipSmartReframeByShots(
           ffmpegBin,
           info.filePath,
           clipNum,
           info.fileName,
-          promptHintByClipNum.get(clipNum) || '',
+          parts.image,
+          parts.video,
+          parts.narration,
           peopleFree
         );
         if (analyzed.unreadable) {
@@ -24970,8 +25120,9 @@ function tickViralMasters() {
     if (!wantedAt && !fs.existsSync(viralSavedFileFor(docId))) continue;
     const failure = viralMasterFailures.get(docId);
     if (failure && failure.fingerprint === st.recipe.fingerprint && Date.now() - failure.at < 30 * 60 * 1000) continue;
-    const quietSince = Math.max(Number(st.recipe.changedAt) || 0, st.clipsChangedAt);
-    if (wantedAt || Date.now() - quietSince >= VIRAL_MASTER_QUIET_MS) candidates.push({ docId, wantedAt });
+    // Only when a viral clip is waiting for it. It used to be rebuilt by itself after every change of framing
+    // (VIRAL_MASTER_QUIET_MS after the last edit): 10 to 25 minutes of encoding each time, wanted or not.
+    if (wantedAt) candidates.push({ docId, wantedAt });
   }
   if (candidates.length === 0) return;
   candidates.sort((a, b) => b.wantedAt - a.wantedAt);

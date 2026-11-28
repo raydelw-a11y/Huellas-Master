@@ -611,6 +611,51 @@ function getClipFrameKeys(clip: ClipFrameSource, ratio: string): ClipFrameKey[] 
   }
   return [];
 }
+/** Points closer than this are a jump from one framing to the next (the exporter uses the same value). */
+const FRAME_KEY_STEP_GAP_SEC = 0.05;
+const AUTO_CUT_KEY_GAP_SEC = 0.04;
+
+/**
+ * The points the 9:16 analysis writes on a clip made of two shots: full size, centred, and only the focus set —
+ * one point, or three with the last two next to each other (the cut). Points the user made look different, and
+ * those are never replaced.
+ */
+function isAutoCutFrameKeys(keys: ClipFrameKey[] | undefined | null): boolean {
+  if (!Array.isArray(keys) || (keys.length !== 1 && keys.length !== 3)) return false;
+  if (!keys.every((k) => Number(k?.z) === 100 && Number(k?.x) === 0 && Number(k?.y) === 0 && typeof k?.f === 'number')) {
+    return false;
+  }
+  if (Number(keys[0].t) !== 0) return false;
+  return keys.length === 1 || (keys[0].f === keys[1].f && keys[2].t - keys[1].t <= FRAME_KEY_STEP_GAP_SEC);
+}
+
+/**
+ * Per-shot focus points for a piece of the timeline: `cutSec` is the second of the FILE where the second shot
+ * starts, so it is moved to the piece's own clock (its trim and its speed). A piece that lies in one shot only
+ * gets that shot's focus as a single point.
+ */
+function buildAutoCutFrameKeys(
+  clip: { trimStart?: number; trimEnd?: number; sourceDuration?: number; speed?: number; duration: number },
+  cutSec: number,
+  focus: [number, number]
+): ClipFrameKey[] {
+  const slot = Math.max(0.2, Number(clip.duration) || 0);
+  const trimStart = Math.max(0, Number(clip.trimStart) || 0);
+  const srcDur = Number(clip.sourceDuration) || 0;
+  const trimEnd = typeof clip.trimEnd === 'number' && clip.trimEnd > trimStart + 0.05 ? clip.trimEnd : srcDur;
+  const playable = trimEnd > trimStart ? trimEnd - trimStart : 0;
+  const speed = Number(clip.speed) || 1;
+  // Same rule as the viewer: the picture plays at 1.0x unless it was trimmed, sped or is shorter than its slot
+  const adjusted =
+    trimStart > 0.04 || Math.abs(speed - 1) > 0.02 || (playable > 0 && (playable < slot - 0.02 || Math.abs(playable - slot) > 0.3));
+  const rate = !adjusted ? 1 : playable > 0 ? Math.max(0.15, Math.min(4, playable / slot)) : Math.max(0.2, Math.min(4, speed));
+  const at = Math.round(((cutSec - trimStart) / rate) * 1000) / 1000;
+  const point = (t: number, f: number): ClipFrameKey => ({ t, z: 100, x: 0, y: 0, f });
+  if (at <= 0.1) return [point(0, focus[1])];
+  if (at >= slot - 0.1) return [point(0, focus[0])];
+  return [point(0, focus[0]), point(Math.round((at - AUTO_CUT_KEY_GAP_SEC) * 1000) / 1000, focus[0]), point(at, focus[1])];
+}
+
 /** Framing at `elapsedSec` between points: holds the first point before it and the last point after it. */
 function interpolateClipFrameKeys(
   keys: ClipFrameKey[],
@@ -622,6 +667,11 @@ function interpolateClipFrameKeys(
   for (let i = 0; i < keys.length - 1; i++) {
     const a = keys[i];
     const b = keys[i + 1];
+    // Two points next to each other are a jump (the cut between two shots), not a very fast slide
+    if (b.t - a.t <= FRAME_KEY_STEP_GAP_SEC) {
+      if (elapsedSec >= a.t && elapsedSec < b.t) return a;
+      continue;
+    }
     if (elapsedSec >= a.t && elapsedSec <= b.t) {
       const e = getFrameZoomInProgress(elapsedSec - a.t, b.t - a.t);
       // A point without its own focus takes the neighbour's, so the focus only moves between points that set it
@@ -3713,6 +3763,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
           focusY: number;
           confidence: number;
           reason: string;
+          cutSec?: number;
+          cutFocusX?: [number, number];
         }
       >();
       let countCenter = 0;
@@ -3737,6 +3789,34 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
         return;
       }
 
+      // A clip with a cut gets one focus per shot, as points that jump at the cut. Points the user made stay as
+      // they are; the analysis' own points are replaced, or removed when the clip no longer needs them.
+      const autoKeysAt = Date.now();
+      const autoCutKeysPatch = (
+        holder: { frameKeys9x16?: ClipFrameKey[]; frameZoomInSec9x16?: number },
+        piece: TimelineClipItem,
+        res: { cutSec?: number; cutFocusX?: [number, number] }
+      ): Record<string, any> => {
+        const current = Array.isArray(holder.frameKeys9x16) ? holder.frameKeys9x16 : [];
+        const ownOffset = getClipFrameOffsetPct(holder as any, '9:16');
+        const hasUserPoints =
+          (current.length > 0 && !isAutoCutFrameKeys(current)) ||
+          Number(holder.frameZoomInSec9x16 || 0) > 0 ||
+          getClipFrameZoomPct(holder as any, '9:16') !== 100 ||
+          ownOffset.x !== 0 ||
+          ownOffset.y !== 0;
+        if (hasUserPoints) return {};
+        const wanted =
+          typeof res.cutSec === 'number' &&
+          Array.isArray(res.cutFocusX) &&
+          Math.abs(res.cutFocusX[0] - res.cutFocusX[1]) >= 2
+            ? buildAutoCutFrameKeys(piece, res.cutSec, res.cutFocusX)
+            : [];
+        if (wanted.length === 0 && current.length === 0) return {};
+        if (JSON.stringify(wanted) === JSON.stringify(current)) return {};
+        return { frameKeys9x16: wanted, frameTransformAt: autoKeysAt };
+      };
+
       const docId = activeDoc?.id || 'default';
       setTimelineClips((prev) => {
         const updated = prev.map((tc) => {
@@ -3752,6 +3832,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             reframeFocusY: res.focusY ?? 50,
             reframeConfidence: res.confidence,
             reframeReason: res.reason,
+            ...autoCutKeysPatch(tc, tc, res),
           };
         });
         const summaryTxt = `🎯 IA 9:16: ${countFocus} Foco Lateral • ${countPan} Paneo Dinámico • ${countCenter} Centro`;
@@ -3768,6 +3849,8 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
             const res = resultByClipNum.get(c.clipNumber);
             if (!res) return c;
             if ((c as any).userReframed9x16 || c.reframe9x16Mode === 'manual') return c;
+            // The documentary keeps one copy per clip: the points of its first piece on the timeline
+            const piece = timelineClips.find((tc) => tc.clipNumber === c.clipNumber);
             return {
               ...c,
               reframe9x16Mode: res.reframe9x16Mode,
@@ -3776,6 +3859,7 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
               reframeFocusY: res.focusY ?? 50,
               reframeConfidence: res.confidence,
               reframeReason: res.reason,
+              ...(piece ? autoCutKeysPatch(c as any, piece, res) : {}),
             };
           }),
         });
@@ -3816,10 +3900,36 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
     const docId = activeDoc?.id || 'default';
     const matchedClip = timelineClips.find((tc) => tc.id === clipId);
     const targetClipNum = matchedClip ? matchedClip.clipNumber : -1;
+    // A clip with the analysis' per-shot points (two shots joined by a cut): a fixed focus chosen here goes to
+    // the shot under the playhead and the other shot keeps its own; a pan or "Encajar" is for the whole clip, so
+    // the points go away.
+    const shotKeys =
+      matchedClip && isAutoCutFrameKeys(matchedClip.frameKeys9x16) ? getClipFrameKeys(matchedClip, '9:16') : [];
+    const fixedFocus =
+      typeof patch.reframeFocusXStart === 'number' &&
+      (patch.reframeFocusXEnd ?? patch.reframeFocusXStart) === patch.reframeFocusXStart &&
+      patch.reframe9x16Mode !== 'auto_pan' &&
+      patch.reframe9x16Mode !== 'fit_blur'
+        ? patch.reframeFocusXStart
+        : null;
+    let shotKeysPatch: { frameKeys9x16?: ClipFrameKey[]; frameTransformAt?: number } = {};
+    if (matchedClip && shotKeys.length > 0) {
+      if (fixedFocus !== null) {
+        const cutAt = shotKeys.length === 3 ? shotKeys[2].t : Infinity;
+        const inSecondShot = getClipElapsedAtPlayhead(matchedClip) >= cutAt;
+        shotKeysPatch = {
+          frameKeys9x16: shotKeys.map((k) => (k.t >= cutAt === inSecondShot ? { ...k, f: fixedFocus } : k)),
+          frameTransformAt: Date.now(),
+        };
+      } else {
+        shotKeysPatch = { frameKeys9x16: [], frameTransformAt: Date.now() };
+      }
+    }
     const lockedPatch = {
       ...patch,
       userReframed9x16: true,
       reframeUpdatedAt: Date.now(),
+      ...shotKeysPatch,
     };
     setTimelineClips((prev) => {
       const updated = prev.map((tc) => {
@@ -18693,7 +18803,11 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                       min={10}
                       max={90}
                       step={1}
-                      value={Math.round(activeClipAtPlayhead.reframeFocusXStart ?? 50)}
+                      value={Math.round(
+                        getClipFrameAt(activeClipAtPlayhead, '9:16', getClipElapsedAtPlayhead(activeClipAtPlayhead)).f ??
+                          activeClipAtPlayhead.reframeFocusXStart ??
+                          50
+                      )}
                       onChange={(e) => {
                         const val = Number(e.target.value);
                         handleUpdateClipReframe9x16(activeClipAtPlayhead.id, {
@@ -18707,7 +18821,12 @@ export const CapCutEditor: React.FC<CapCutEditorProps> = ({
                       title="Desliza para mover el enfoque horizontal del clip actual en 9:16"
                     />
                     <span className="font-mono text-amber-300 w-7 text-right">
-                      {Math.round(activeClipAtPlayhead.reframeFocusXStart ?? 50)}%
+                      {Math.round(
+                        getClipFrameAt(activeClipAtPlayhead, '9:16', getClipElapsedAtPlayhead(activeClipAtPlayhead)).f ??
+                          activeClipAtPlayhead.reframeFocusXStart ??
+                          50
+                      )}
+                      %
                     </span>
                   </div>
                 )}

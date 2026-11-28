@@ -2361,8 +2361,8 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                 ) : (
                   <>
                     ⏳ {viralMaster.exists ? 'El master 9:16 está desactualizado' : 'Todavía no hay master 9:16'}
-                    {viralMaster.reasons.includes('clips_nuevos') ? ' (hay clips más nuevos)' : ''}. Se prepara solo
-                    {viralMaster.exists ? ' cuando dejes de editar unos minutos' : ''}; si guardas un clip, empieza enseguida.
+                    {viralMaster.reasons.includes('clips_nuevos') ? ' (hay clips más nuevos)' : ''}. Se prepara cuando
+                    guardes un clip (ya no se rehace solo con cada cambio de encuadre).
                   </>
                 )}
               </div>
