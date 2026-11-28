@@ -6,7 +6,7 @@
     "productionType": "DOCUMENTAL_16X9",
     "status": "planificacion",
     "createdAt": "2026-11-25T22:15:59.273Z",
-    "updatedAt": "2026-11-28T05:30:08.132Z",
+    "updatedAt": "2026-11-28T05:33:50.972Z",
     "promptConfig": {
       "TIPO_PRODUCCION": "REELS",
       "SUB_OPCION_POST": "EXPECTATIVA_ESTRENO",
@@ -42,7 +42,7 @@
       "FIELD_CLEARED_AT_clip1OptionsRaw": "0",
       "FIELD_CLEARED_AT_clip1Line1LocationTime": "0",
       "FIELD_CLEARED_AT_clip1Line2Hook": "0",
-      "PROMPTS_RESTORED_AT": "1795843808132",
+      "PROMPTS_RESTORED_AT": "1795844030972",
       "FIELD_CLEARED_AT_rawClipsText": "0",
       "CAPTION_BOTTOM_PCT_16X9": 11,
       "CAPTION_SETTINGS_UPDATED_AT": "1795837262006",
@@ -996,12 +996,12 @@
         "videoDiscardOverriddenAt": 1795665726769,
         "videoSavedAt": 1795665726769,
         "reviewedUpdatedAt": 1795667487366,
-        "reframe9x16Mode": "auto_pan",
-        "reframeFocusXStart": 36,
-        "reframeFocusXEnd": 21,
+        "reframe9x16Mode": "auto_focus",
+        "reframeFocusXStart": 51,
+        "reframeFocusXEnd": 51,
         "reframeFocusY": 50,
-        "reframeConfidence": 0.62,
-        "reframeReason": "Paneo dinámico IA (36% → 21%) siguiendo acción/sujeto",
+        "reframeConfidence": 0.8,
+        "reframeReason": "Clip con corte en 4.04 s: plano 1 al 51% y plano 2 al 50% (ventana fija en cada plano, cambia en el corte)",
         "videoAuditStatus": "approved",
         "videoAuditReason": "",
         "videoAuditIssues": []
@@ -1117,14 +1117,39 @@
         "videoSavedAt": 1795665682752,
         "reviewedUpdatedAt": 1795667539804,
         "reframe9x16Mode": "auto_focus",
-        "reframeFocusXStart": 20,
-        "reframeFocusXEnd": 20,
+        "reframeFocusXStart": 23,
+        "reframeFocusXEnd": 23,
         "reframeFocusY": 50,
-        "reframeConfidence": 0.67,
-        "reframeReason": "Enfoque inteligente IA en tercio izquierdo (20%)",
+        "reframeConfidence": 0.69,
+        "reframeReason": "Clip con corte en 3.96 s: plano 1 al 23% y plano 2 al 50% (ventana fija en cada plano, cambia en el corte)",
         "videoAuditStatus": "approved",
         "videoAuditReason": "",
-        "videoAuditIssues": []
+        "videoAuditIssues": [],
+        "frameKeys9x16": [
+          {
+            "t": 0,
+            "z": 100,
+            "x": 0,
+            "y": 0,
+            "f": 23
+          },
+          {
+            "t": 3.918,
+            "z": 100,
+            "x": 0,
+            "y": 0,
+            "f": 23
+          },
+          {
+            "t": 3.958,
+            "z": 100,
+            "x": 0,
+            "y": 0,
+            "f": 50,
+            "src": 3.958
+          }
+        ],
+        "frameTransformAt": 1795844030758
       },
       {
         "id": "clip-9-1795649050152-9",
@@ -2083,12 +2108,37 @@
         "videoAuditReason": "",
         "videoAuditIssues": [],
         "reviewedUpdatedAt": 1795711367501,
-        "reframe9x16Mode": "auto_pan",
-        "reframeFocusXStart": 34,
-        "reframeFocusXEnd": 78,
+        "reframe9x16Mode": "auto_focus",
+        "reframeFocusXStart": 55,
+        "reframeFocusXEnd": 55,
         "reframeFocusY": 50,
-        "reframeConfidence": 0.78,
-        "reframeReason": "Paneo dinámico IA (34% → 78%) entre dos sujetos (Izq → Der)"
+        "reframeConfidence": 0.8,
+        "reframeReason": "Clip con corte en 4.17 s: plano 1 al 55% y plano 2 al 50% (ventana fija en cada plano, cambia en el corte)",
+        "frameKeys9x16": [
+          {
+            "t": 0,
+            "z": 100,
+            "x": 0,
+            "y": 0,
+            "f": 55
+          },
+          {
+            "t": 4.127,
+            "z": 100,
+            "x": 0,
+            "y": 0,
+            "f": 55
+          },
+          {
+            "t": 4.167,
+            "z": 100,
+            "x": 0,
+            "y": 0,
+            "f": 50,
+            "src": 4.167
+          }
+        ],
+        "frameTransformAt": 1795844030758
       },
       {
         "id": "clip-41-1795649050153-41",
@@ -2113,12 +2163,37 @@
         "videoAuditIssues": [],
         "videoDiscardOverriddenAt": 1795710073443,
         "reviewedUpdatedAt": 1795711370216,
-        "reframe9x16Mode": "auto_pan",
+        "reframe9x16Mode": "auto_focus",
         "reframeFocusXStart": 64,
-        "reframeFocusXEnd": 49,
+        "reframeFocusXEnd": 64,
         "reframeFocusY": 50,
         "reframeConfidence": 0.55,
-        "reframeReason": "Paneo dinámico IA (64% → 49%) siguiendo acción/sujeto"
+        "reframeReason": "Clip con corte en 3.96 s: plano 1 al 64% y plano 2 al 50% (ventana fija en cada plano, cambia en el corte)",
+        "frameKeys9x16": [
+          {
+            "t": 0,
+            "z": 100,
+            "x": 0,
+            "y": 0,
+            "f": 64
+          },
+          {
+            "t": 3.918,
+            "z": 100,
+            "x": 0,
+            "y": 0,
+            "f": 64
+          },
+          {
+            "t": 3.958,
+            "z": 100,
+            "x": 0,
+            "y": 0,
+            "f": 50,
+            "src": 3.958
+          }
+        ],
+        "frameTransformAt": 1795844030758
       },
       {
         "id": "clip-42-1795649050153-42",
@@ -2295,12 +2370,37 @@
         "videoAuditIssues": [],
         "videoDiscardOverriddenAt": 1795710073443,
         "reviewedUpdatedAt": 1795711389625,
-        "reframe9x16Mode": "auto_pan",
-        "reframeFocusXStart": 34,
-        "reframeFocusXEnd": 78,
+        "reframe9x16Mode": "auto_focus",
+        "reframeFocusXStart": 50,
+        "reframeFocusXEnd": 50,
         "reframeFocusY": 50,
-        "reframeConfidence": 0.98,
-        "reframeReason": "Paneo dinámico IA (34% → 78%) entre dos sujetos (Izq → Der)"
+        "reframeConfidence": 0.8,
+        "reframeReason": "Clip con corte en 3.50 s: plano 1 al 50% y plano 2 al 20% (ventana fija en cada plano, cambia en el corte)",
+        "frameKeys9x16": [
+          {
+            "t": 0,
+            "z": 100,
+            "x": 0,
+            "y": 0,
+            "f": 50
+          },
+          {
+            "t": 3.46,
+            "z": 100,
+            "x": 0,
+            "y": 0,
+            "f": 50
+          },
+          {
+            "t": 3.5,
+            "z": 100,
+            "x": 0,
+            "y": 0,
+            "f": 20,
+            "src": 3.5
+          }
+        ],
+        "frameTransformAt": 1795844030758
       },
       {
         "id": "clip-48-1795649050154-48",
@@ -2569,12 +2669,37 @@
         "videoAuditReason": "",
         "videoAuditIssues": [],
         "reviewedUpdatedAt": 1795713413681,
-        "reframe9x16Mode": "auto_pan",
-        "reframeFocusXStart": 22,
-        "reframeFocusXEnd": 79,
+        "reframe9x16Mode": "auto_focus",
+        "reframeFocusXStart": 16,
+        "reframeFocusXEnd": 16,
         "reframeFocusY": 50,
-        "reframeConfidence": 0.88,
-        "reframeReason": "Paneo dinámico IA (22% → 79%) entre dos sujetos (Izq → Der)"
+        "reframeConfidence": 0.78,
+        "reframeReason": "Clip con corte en 4.00 s: plano 1 al 16% y plano 2 al 50% (ventana fija en cada plano, cambia en el corte)",
+        "frameKeys9x16": [
+          {
+            "t": 0,
+            "z": 100,
+            "x": 0,
+            "y": 0,
+            "f": 16
+          },
+          {
+            "t": 3.96,
+            "z": 100,
+            "x": 0,
+            "y": 0,
+            "f": 16
+          },
+          {
+            "t": 4,
+            "z": 100,
+            "x": 0,
+            "y": 0,
+            "f": 50,
+            "src": 4
+          }
+        ],
+        "frameTransformAt": 1795844030758
       },
       {
         "id": "clip-57-1795649050154-57",
