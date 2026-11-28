@@ -1124,7 +1124,32 @@
         "reframeReason": "Enfoque inteligente IA en tercio izquierdo (20%)",
         "videoAuditStatus": "approved",
         "videoAuditReason": "",
-        "videoAuditIssues": []
+        "videoAuditIssues": [],
+        "frameTransformAt": 1795844030758,
+        "frameKeys9x16": [
+          {
+            "t": 0,
+            "z": 100,
+            "x": 0,
+            "y": 0,
+            "f": 23
+          },
+          {
+            "t": 3.918,
+            "z": 100,
+            "x": 0,
+            "y": 0,
+            "f": 23
+          },
+          {
+            "t": 3.958,
+            "z": 100,
+            "x": 0,
+            "y": 0,
+            "f": 50,
+            "src": 3.958
+          }
+        ]
       },
       {
         "id": "clip-9-1795649050152-9",
@@ -2088,7 +2113,32 @@
         "reframeFocusXEnd": 78,
         "reframeFocusY": 50,
         "reframeConfidence": 0.78,
-        "reframeReason": "Paneo dinámico IA (34% → 78%) entre dos sujetos (Izq → Der)"
+        "reframeReason": "Paneo dinámico IA (34% → 78%) entre dos sujetos (Izq → Der)",
+        "frameTransformAt": 1795844030758,
+        "frameKeys9x16": [
+          {
+            "t": 0,
+            "z": 100,
+            "x": 0,
+            "y": 0,
+            "f": 55
+          },
+          {
+            "t": 4.127,
+            "z": 100,
+            "x": 0,
+            "y": 0,
+            "f": 55
+          },
+          {
+            "t": 4.167,
+            "z": 100,
+            "x": 0,
+            "y": 0,
+            "f": 50,
+            "src": 4.167
+          }
+        ]
       },
       {
         "id": "clip-41-1795649050153-41",
@@ -2118,7 +2168,32 @@
         "reframeFocusXEnd": 49,
         "reframeFocusY": 50,
         "reframeConfidence": 0.55,
-        "reframeReason": "Paneo dinámico IA (64% → 49%) siguiendo acción/sujeto"
+        "reframeReason": "Paneo dinámico IA (64% → 49%) siguiendo acción/sujeto",
+        "frameTransformAt": 1795844030758,
+        "frameKeys9x16": [
+          {
+            "t": 0,
+            "z": 100,
+            "x": 0,
+            "y": 0,
+            "f": 64
+          },
+          {
+            "t": 3.918,
+            "z": 100,
+            "x": 0,
+            "y": 0,
+            "f": 64
+          },
+          {
+            "t": 3.958,
+            "z": 100,
+            "x": 0,
+            "y": 0,
+            "f": 50,
+            "src": 3.958
+          }
+        ]
       },
       {
         "id": "clip-42-1795649050153-42",
@@ -2300,7 +2375,32 @@
         "reframeFocusXEnd": 78,
         "reframeFocusY": 50,
         "reframeConfidence": 0.98,
-        "reframeReason": "Paneo dinámico IA (34% → 78%) entre dos sujetos (Izq → Der)"
+        "reframeReason": "Paneo dinámico IA (34% → 78%) entre dos sujetos (Izq → Der)",
+        "frameTransformAt": 1795844030758,
+        "frameKeys9x16": [
+          {
+            "t": 0,
+            "z": 100,
+            "x": 0,
+            "y": 0,
+            "f": 50
+          },
+          {
+            "t": 3.46,
+            "z": 100,
+            "x": 0,
+            "y": 0,
+            "f": 50
+          },
+          {
+            "t": 3.5,
+            "z": 100,
+            "x": 0,
+            "y": 0,
+            "f": 20,
+            "src": 3.5
+          }
+        ]
       },
       {
         "id": "clip-48-1795649050154-48",
@@ -2574,7 +2674,32 @@
         "reframeFocusXEnd": 79,
         "reframeFocusY": 50,
         "reframeConfidence": 0.88,
-        "reframeReason": "Paneo dinámico IA (22% → 79%) entre dos sujetos (Izq → Der)"
+        "reframeReason": "Paneo dinámico IA (22% → 79%) entre dos sujetos (Izq → Der)",
+        "frameTransformAt": 1795844030758,
+        "frameKeys9x16": [
+          {
+            "t": 0,
+            "z": 100,
+            "x": 0,
+            "y": 0,
+            "f": 16
+          },
+          {
+            "t": 3.96,
+            "z": 100,
+            "x": 0,
+            "y": 0,
+            "f": 16
+          },
+          {
+            "t": 4,
+            "z": 100,
+            "x": 0,
+            "y": 0,
+            "f": 50,
+            "src": 4
+          }
+        ]
       },
       {
         "id": "clip-57-1795649050154-57",
