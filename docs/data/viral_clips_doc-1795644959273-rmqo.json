@@ -1,6 +1,6 @@
 {
   "docId": "doc-1795644959273-rmqo",
-  "savedAt": 1795877783113,
+  "savedAt": 1795878200774,
   "youtubeUrl": "https://youtu.be/XiJYAztvZSQ",
   "docStyle": {
     "titleFont": "piedra",
@@ -42,7 +42,10 @@
       "reframeMode": "center_fill",
       "focusX": 50,
       "captionStyle": "yellow_white",
-      "origin": "gemini"
+      "origin": "gemini",
+      "published": true,
+      "publishedAt": "2026-11-28T15:03:18.980Z",
+      "publishedChangedAt": 1795878198980
     },
     {
       "id": "vc-1795812125082-1",
