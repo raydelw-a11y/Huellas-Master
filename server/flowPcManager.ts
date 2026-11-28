@@ -761,6 +761,58 @@ export function createFlowPcManager(deps: FlowPcManagerDeps, serverPort: number)
     }
   }
 
+  /**
+   * Both copies of the envelope in ONE commit (each commit starts a GitHub Pages deployment, and two in a row
+   * cancel each other). False when it could not be done: the caller then uploads them one by one.
+   */
+  async function putGitHubEncryptedFilesTogether(repoFilePaths: string[], contentUtf8: string): Promise<boolean> {
+    const token = deps.getLocalGitHubToken();
+    if (!token) return true;
+    const api = `https://api.github.com/repos/${deps.githubOwner}/${deps.githubRepo}`;
+    const headers = {
+      Accept: 'application/vnd.github+json',
+      Authorization: `token ${token}`,
+      'Content-Type': 'application/json',
+      'User-Agent': 'HuellasMaster-FlowPC',
+    };
+    const post = async (url: string, body: any, method = 'POST') => {
+      const r = await fetch(url, { method, headers, body: JSON.stringify(body) });
+      return r.ok ? ((await r.json()) as any) : null;
+    };
+    try {
+      const blob = await post(`${api}/git/blobs`, { content: contentUtf8, encoding: 'utf-8' });
+      if (!blob?.sha) return false;
+      // Another push can land in between: the branch is read again and the commit rebuilt on top of it
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const refRes = await fetch(`${api}/git/ref/heads/${deps.githubBranch}?t=${Date.now()}`, { headers });
+        const headSha = refRes.ok ? ((await refRes.json()) as any)?.object?.sha : '';
+        if (!headSha) return false;
+        const headRes = await fetch(`${api}/git/commits/${headSha}`, { headers });
+        const baseTree = headRes.ok ? ((await headRes.json()) as any)?.tree?.sha : '';
+        if (!baseTree) return false;
+        const tree = await post(`${api}/git/trees`, {
+          base_tree: baseTree,
+          tree: repoFilePaths.map((p) => ({ path: p, mode: '100644', type: 'blob', sha: blob.sha })),
+        });
+        if (!tree?.sha) return false;
+        // Already the same on GitHub: nothing to commit
+        if (tree.sha === baseTree) return true;
+        const commit = await post(`${api}/git/commits`, {
+          message: 'chore(flow-pc): update AES-256-GCM encrypted tunnel envelope',
+          tree: tree.sha,
+          parents: [headSha],
+        });
+        if (!commit?.sha) return false;
+        const moved = await post(`${api}/git/refs/heads/${deps.githubBranch}`, { sha: commit.sha, force: false }, 'PATCH');
+        if (moved) return true;
+      }
+      return false;
+    } catch (e: any) {
+      console.warn('[FlowPC] GitHub encrypted envelope push warning:', e?.message || e);
+      return false;
+    }
+  }
+
   let latestPublishedEnvelopeUpdatedAt = 0;
   let latestReceivedEnvelopeUpdatedAt = 0;
   let githubEnvelopePushChain: Promise<void> = Promise.resolve();
@@ -853,6 +905,11 @@ export function createFlowPcManager(deps: FlowPcManagerDeps, serverPort: number)
         .catch(() => {})
         .then(async () => {
           if (updatedAt < latestPublishedEnvelopeUpdatedAt) return;
+          const together = await putGitHubEncryptedFilesTogether(
+            ['data/flow_pc_tunnel.enc.json', 'docs/data/flow_pc_tunnel.enc.json'],
+            encJson
+          );
+          if (together) return;
           await putGitHubEncryptedFile('data/flow_pc_tunnel.enc.json', encJson);
           if (updatedAt < latestPublishedEnvelopeUpdatedAt) return;
           await putGitHubEncryptedFile('docs/data/flow_pc_tunnel.enc.json', encJson);

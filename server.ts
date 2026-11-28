@@ -1209,13 +1209,20 @@ function writeDocumentaries(list: any[], skipCloudPush = false) {
 }
 
 let githubPushTimer: NodeJS.Timeout | null = null;
+// Automatic pushes are spaced out: every commit starts a GitHub Pages deployment, and deployments that
+// arrive one on top of another cancel each other, so a new version of the page took minutes to go live.
+// The first change after a quiet minute still goes up 2.5 s later; changes made right after it go together.
+const GITHUB_AUTO_PUSH_MIN_GAP_MS = 60000;
+let githubLastAutoPushAt = 0;
 function scheduleGitHubPush() {
   if (githubPushTimer) clearTimeout(githubPushTimer);
+  const waitMs = Math.max(2500, githubLastAutoPushAt + GITHUB_AUTO_PUSH_MIN_GAP_MS - Date.now());
   githubPushTimer = setTimeout(() => {
+    githubLastAutoPushAt = Date.now();
     syncDocumentariesWithGitHubServer(false).catch((e) =>
       console.warn('[CloudSync] Auto push warning:', e?.message || e)
     );
-  }, 2500);
+  }, waitMs);
 }
 
 async function getServerGitHubFileSha(filePath: string, token: string): Promise<string | null> {
@@ -22563,8 +22570,8 @@ const viralSavedFileFor = (docId: string) =>
 
 // Copy of each documentary's clip texts on GitHub Pages (docs/data/viral_clips_<docId>.json): titles,
 // descriptions, hashtags, comments and the "published" mark, without words or transcripts. With the Mac
-// off, the phone still shows them and their copy buttons. Written a little after each save, and only when
-// something changed.
+// off, the phone still shows them and their copy buttons. Written two minutes after the last save (so a
+// run of edits is one upload, not one per edit), and only when something changed.
 const viralPublicCopyTimers = new Map<string, NodeJS.Timeout>();
 const viralPublicCopyLastHash = new Map<string, string>();
 function buildViralPublicCopy(docId: string): string | null {
@@ -22640,7 +22647,7 @@ async function pushViralPublicCopy(docId: string): Promise<void> {
     console.warn('[ViralClips] Copia de textos en GitHub:', e?.message || e);
   }
 }
-function scheduleViralPublicCopy(docId: string, delayMs = 15000): void {
+function scheduleViralPublicCopy(docId: string, delayMs = 120000): void {
   if (!docId) return;
   const prev = viralPublicCopyTimers.get(docId);
   if (prev) clearTimeout(prev);
