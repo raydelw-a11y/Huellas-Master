@@ -3597,6 +3597,13 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                     titleTopPct={look916?.hookBannerTopPct ?? 13.5}
                     loading={coverLoading}
                     docStyle={lookStyle}
+                    logoXPct={look916?.logoXPct}
+                    logoYPct={look916?.logoYPct}
+                    logo={
+                      officialLogoDataUrl && look916 && !useMasterSource
+                        ? { url: officialLogoDataUrl, wPct: look916.logoWPct, opacity: look916.logoOpacity }
+                        : null
+                    }
                   />
                 )}
                 {showCover && titleStyle !== 'poster_gold' && (

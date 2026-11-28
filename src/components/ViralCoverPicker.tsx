@@ -2,6 +2,7 @@ import React from 'react';
 import { ViralPosterTitle, useViralPosterFontPx, viralPosterTextHeightPx } from './ViralPosterTitle';
 import { VIRAL_TITLE_LOOK, computeViralCoverTitlePlacement, type ViralFaceBox } from '../utils/viralTitle';
 import type { ViralDocStyle } from '../utils/viralStyle';
+import hdBadgeUrl from '../assets/brand/hd_badge_9x16.png';
 
 // Cover of a viral clip: the clip's last frame is a still with the big title. Shows the cover as it will be
 // exported (picture + title in its usual place, full size) and the frames it can be changed to.
@@ -29,7 +30,12 @@ export const ViralCoverPicker: React.FC<{
   loading: boolean;
   /** The documentary's design (the cover's title is drawn with it); absent, the classic look */
   docStyle?: ViralDocStyle | null;
-}> = ({ candidates, bestClipSec, chosenClipSec, onChoose, titleLines, titleTopPct, loading, docStyle }) => {
+  /** Where the official logo sits (% of the frame): the gold HD badge mirrors it on the right, as in the export */
+  logoXPct?: number;
+  logoYPct?: number;
+  /** The official logo, when the frames do not carry it already (the export adds it) */
+  logo?: { url: string; wPct: number; opacity: number } | null;
+}> = ({ candidates, bestClipSec, chosenClipSec, onChoose, titleLines, titleTopPct, loading, docStyle, logoXPct, logoYPct, logo }) => {
   const activeSec =
     typeof chosenClipSec === 'number' && candidates.some((c) => c.clipSec === chosenClipSec)
       ? chosenClipSec
@@ -67,6 +73,21 @@ export const ViralCoverPicker: React.FC<{
         style={{ width: COVER_W, height: COVER_H }}
       >
         {active?.thumb && <img src={active.thumb} alt="Portada del clip" className="absolute inset-0 w-full h-full object-cover" />}
+        {logo?.url && (
+          <img
+            src={logo.url}
+            alt=""
+            className="absolute pointer-events-none"
+            style={{ left: `${logoXPct ?? 2.9}%`, top: `${logoYPct ?? 3.8}%`, width: `${logo.wPct}%`, opacity: logo.opacity }}
+          />
+        )}
+        {/* Gold HD badge, top right: same size (430/3072 of the width) and place as on the exported cover */}
+        <img
+          src={hdBadgeUrl}
+          alt=""
+          className="absolute pointer-events-none"
+          style={{ right: `${logoXPct ?? 2.9}%`, top: `${(logoYPct ?? 3.8) + 1}%`, width: `${(430 / 3072) * 100}%` }}
+        />
         <ViralPosterTitle
           lines={titleLines}
           frameW={COVER_W}
