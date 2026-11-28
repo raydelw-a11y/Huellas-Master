@@ -50,6 +50,7 @@ import {
 import {
   computeViralClipCuts,
   buildViralLocalWords,
+  buildViralCaptionChunks,
   viralCutTimes,
   normalizeViralSegments,
   viralSegmentsDurationSec,
@@ -23662,7 +23663,7 @@ function buildOpusClipAssSubtitles(params: {
     outH,
     words,
     captionStyle,
-    wordsPerLine = 2,
+    wordsPerLine = 3,
     fontSizeScale = 1.0,
     captionYPercent = 75,
     captionEmOfHeight,
@@ -23787,8 +23788,6 @@ function buildOpusClipAssSubtitles(params: {
   // 3) Group words into chunks of `wordsPerLine` and emit word-by-word active highlight events
   //    Each line also stops at VIRAL_CAPTION_MAX_CHARS characters (a single longer word still gets its own line).
   // Viral Clips: at most 2 words per caption line
-  const safeWordsPerChunk = capAnim === 'single' ? 1 : Math.max(1, Math.min(2, Number(wordsPerLine) || 2));
-  const VIRAL_CAPTION_MAX_CHARS = 16;
   // How the word being said is drawn, by the design's caption animation
   const boxInkAss = docStyle ? viralHexToAss(viralInkOn(docStyle.captionActiveColor)) : '';
   const activeToken = (word: string): string => {
@@ -23807,37 +23806,11 @@ function buildOpusClipAssSubtitles(params: {
         return `{\\1c${highlightColorAss}\\fscx108\\fscy108}${word}${back}`;
     }
   };
-  const wordChunks: WordTimestamp[][] = [];
-  {
-    let cur: WordTimestamp[] = [];
-    let curLen = 0;
-    // Captions without periods, commas or other punctuation; a lone sign does not take a word slot
-    const cleanWords = words
-      .map((w) => ({
-        ...w,
-        word: String(w.word || '')
-          .replace(/[.,;:!?¡¿"“”‘’'«»…()\[\]{}—–]/g, '')
-          .replace(/^-+|-+$/g, '')
-          .trim(),
-      }))
-      .filter((w) => w.word);
-    for (const w of cleanWords) {
-      const wl = String(w.word || '').replace(/[{}]/g, '').length;
-      const prevStart = cur.length > 0 ? cur[cur.length - 1].start : 0;
-      const crossesBreak = cur.length > 0 && chunkBreaks.some((b) => prevStart < b && w.start >= b);
-      if (
-        cur.length > 0 &&
-        (crossesBreak || cur.length >= safeWordsPerChunk || curLen + 1 + wl > VIRAL_CAPTION_MAX_CHARS)
-      ) {
-        wordChunks.push(cur);
-        cur = [];
-        curLen = 0;
-      }
-      cur.push(w);
-      curLen += (cur.length > 1 ? 1 : 0) + wl;
-    }
-    if (cur.length > 0) wordChunks.push(cur);
-  }
+  // Shared with the page's preview: up to 3 words, never across two sentences, a pause or a cut
+  const wordChunks: WordTimestamp[][] = buildViralCaptionChunks(words, {
+    wordsPerLine: capAnim === 'single' ? 1 : wordsPerLine,
+    cutTimes: chunkBreaks,
+  });
   for (const chunk of wordChunks) {
     if (chunk.length === 0) continue;
 
@@ -24093,7 +24066,7 @@ async function renderViralClipMp4Internal(params: {
     reframeMode = 'center_fill',
     focusX = 50,
     captionStyle = 'yellow_white',
-    wordsPerLine = 2,
+    wordsPerLine = 3,
     fontSizeScale = 1.0,
     captionYPercent = 75,
     words = [],

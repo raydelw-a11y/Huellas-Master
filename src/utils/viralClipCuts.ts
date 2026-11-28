@@ -204,3 +204,67 @@ export function masterToTimelineTime(m: number, skipRanges: Array<{ start: numbe
   }
   return t;
 }
+
+// ---------------------------------------------------------------------------
+// Caption lines: the same grouping in the page's preview and in the exported clip.
+// ---------------------------------------------------------------------------
+
+/** Most words a caption line may hold, and its longest text */
+export const VIRAL_CAPTION_MAX_WORDS = 3;
+export const VIRAL_CAPTION_MAX_CHARS = 20;
+/** Silence between two words (seconds) from which they never share a line */
+export const VIRAL_CAPTION_PAUSE_SEC = 0.35;
+
+/** A word as the captions show it: no periods, commas or other punctuation. */
+export const cleanViralCaptionWord = (w: string): string =>
+  String(w || '')
+    .replace(/[.,;:!?¡¿"“”‘’'«»…()\[\]{}—–]/g, '')
+    .replace(/^-+|-+$/g, '')
+    .trim();
+
+/**
+ * The clip's words (on the clip's own timeline, as spoken, with their punctuation) grouped into caption
+ * lines. A line holds up to `wordsPerLine` words (3 at most) and never joins words of two sentences, words
+ * with a pause between them, or words on both sides of a cut. The words come back without punctuation.
+ */
+export function buildViralCaptionChunks(
+  words: ViralCutWord[],
+  opts: { wordsPerLine: number; cutTimes?: number[] }
+): ViralCutWord[][] {
+  const perLine = Math.max(1, Math.min(VIRAL_CAPTION_MAX_WORDS, Math.round(Number(opts.wordsPerLine) || VIRAL_CAPTION_MAX_WORDS)));
+  const cutTimes = opts.cutTimes || [];
+  const chunks: ViralCutWord[][] = [];
+  let cur: ViralCutWord[] = [];
+  let curLen = 0;
+  // The previous word closed its sentence (or a sign on its own did)
+  let sentenceEnded = false;
+  for (const raw of words) {
+    const rawText = String(raw.word || '');
+    const endsSentence = /[.!?…]["”’»)\]]*$/.test(rawText.trim());
+    const word = cleanViralCaptionWord(rawText);
+    if (!word) {
+      // A lone sign takes no place on screen, but it still closes the sentence
+      if (endsSentence) sentenceEnded = true;
+      continue;
+    }
+    const prev = cur.length > 0 ? cur[cur.length - 1] : null;
+    const wl = word.replace(/[{}]/g, '').length;
+    const mustBreak =
+      prev !== null &&
+      (sentenceEnded ||
+        cur.length >= perLine ||
+        curLen + 1 + wl > VIRAL_CAPTION_MAX_CHARS ||
+        raw.start - prev.end > VIRAL_CAPTION_PAUSE_SEC ||
+        cutTimes.some((b) => prev.start < b && raw.start >= b));
+    if (mustBreak) {
+      chunks.push(cur);
+      cur = [];
+      curLen = 0;
+    }
+    cur.push({ ...raw, word });
+    curLen += (cur.length > 1 ? 1 : 0) + wl;
+    sentenceEnded = endsSentence;
+  }
+  if (cur.length > 0) chunks.push(cur);
+  return chunks;
+}

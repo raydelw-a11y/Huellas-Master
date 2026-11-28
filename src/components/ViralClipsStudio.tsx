@@ -8,6 +8,7 @@ import {
   normalizeViralSegments,
   viralSegmentsDurationSec,
   timelineToMasterTime,
+  buildViralCaptionChunks,
 } from '../utils/viralClipCuts';
 import {
   Sparkles,
@@ -479,7 +480,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
 
   // 4. Global Caption & Overlay Customization
   // Viral Clips: como máximo 2 palabras por línea de caption
-  const [wordsPerLine, setWordsPerLine] = useState<number>(2);
+  const [wordsPerLine, setWordsPerLine] = useState<number>(3);
   const [fontSizeScale, setFontSizeScale] = useState<number>(1.0);
   const [captionYPercent, setCaptionYPercent] = useState<number>(75);
   // The documentary's 9:16 look (logo + captions), mirrored by the preview and used by the render
@@ -1717,6 +1718,11 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
   // (same precision as the 9:16 editor, without re-rendering the studio every frame).
   const [captionSec, setCaptionSec] = useState<number>(0);
   // Words on the exported clip's timeline, without punctuation (same as the render)
+  // The same words as spoken, with their punctuation (it tells where a sentence ends)
+  const clipRawLocalWords = useMemo(
+    () => (clipCuts && selectedClip ? buildViralLocalWords(clipCuts, selectedClip.words || []) : []) as WordTimestamp[],
+    [clipCuts, selectedClip?.words]
+  );
   const clipLocalWords = useMemo(() => {
     if (!clipCuts || !selectedClip) return [] as WordTimestamp[];
     return buildViralLocalWords(clipCuts, selectedClip.words || [])
@@ -1763,31 +1769,11 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
 
   const activeCaptionChunk = useMemo(() => {
     if (!clipCuts || clipLocalWords.length === 0) return null;
-    const safePerLine = lookStyle?.captionAnimation === 'single' ? 1 : Math.max(1, Math.min(2, wordsPerLine));
-    const words = clipLocalWords;
-    // Igual que la exportación: cada línea se corta también a los 16 caracteres y nunca cruza el paso
-    // del gancho al cuerpo del clip
-    const VIRAL_CAPTION_MAX_CHARS = 16;
-    const cutTimes = viralCutTimes(clipCuts);
-    const chunks: (typeof words)[] = [];
-    let cur: typeof words = [];
-    let curLen = 0;
-    for (const w of words) {
-      const wl = String(w.word || '').length;
-      const prevStart = cur.length > 0 ? cur[cur.length - 1].start : 0;
-      const crossesBreak = cur.length > 0 && cutTimes.some((b) => prevStart < b && w.start >= b);
-      if (
-        cur.length > 0 &&
-        (crossesBreak || cur.length >= safePerLine || curLen + 1 + wl > VIRAL_CAPTION_MAX_CHARS)
-      ) {
-        chunks.push(cur);
-        cur = [];
-        curLen = 0;
-      }
-      cur.push(w);
-      curLen += (cur.length > 1 ? 1 : 0) + wl;
-    }
-    if (cur.length > 0) chunks.push(cur);
+    // Same lines as the export: up to 3 words, never across two sentences, a pause or a cut
+    const chunks = buildViralCaptionChunks(clipRawLocalWords, {
+      wordsPerLine: lookStyle?.captionAnimation === 'single' ? 1 : wordsPerLine,
+      cutTimes: viralCutTimes(clipCuts),
+    });
     // The line that already started wins (latest start <= time). The 0.08 s lead and 0.15 s tail only fill
     // silences: before, the previous line's tail covered the next one and short words ("de", "y", "la")
     // were never highlighted during playback.
@@ -1814,7 +1800,7 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
       return { chunk, activeIdx };
     }
     return null;
-  }, [clipCuts, clipLocalWords, captionSec, wordsPerLine, lookStyle?.captionAnimation]);
+  }, [clipCuts, clipLocalWords, clipRawLocalWords, captionSec, wordsPerLine, lookStyle?.captionAnimation]);
   // The design's caption font (loaded from the Mac the first time it is needed)
   const captionFontDef = lookStyle ? viralFontById(lookStyle.captionFont) : null;
   useViralFontTick(captionFontDef);
@@ -3028,7 +3014,8 @@ export const ViralClipsStudio: React.FC<ViralClipsStudioProps> = ({
                         className="w-full bg-slate-900 border border-slate-700 rounded px-1.5 py-0.5 text-[11px]"
                       >
                         <option value={1}>1 palabra</option>
-                        <option value={2}>2 palabras (máximo)</option>
+                        <option value={2}>2 palabras</option>
+                        <option value={3}>3 palabras (máximo)</option>
                       </select>
                     </div>
                     <div>
