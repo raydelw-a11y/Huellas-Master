@@ -1,6 +1,6 @@
 {
-  "aspectRatio": "9:16",
-  "exportResolution": "2K_1440P",
+  "aspectRatio": "16:9",
+  "exportResolution": "8K_4320P",
   "exportFps": 30,
   "formatProfiles": {
     "16:9": {
@@ -48,7 +48,7 @@
     "_v10_9x16_captionBottom20": true,
     "_v11_profile_ratio_repair": true
   },
-  "updatedAt": "2026-11-28T03:28:42.248Z",
+  "updatedAt": "2026-11-28T03:43:52.500Z",
   "overlayStyles": {
     "logoScalePct": 12,
     "logoOpacity": 95,
@@ -1240,9 +1240,10 @@
       "customVolumeSet": false,
       "audioMuted": false,
       "reframe9x16Mode": "auto_pan",
-      "reframeFocusXStart": 78,
-      "reframeFocusXEnd": 24,
-      "reframeFocusY": 50
+      "reframeFocusXStart": 28,
+      "reframeFocusXEnd": 72,
+      "reframeFocusY": 50,
+      "userReframed9x16": true
     },
     {
       "id": "clip-69-1795649050155-69",
