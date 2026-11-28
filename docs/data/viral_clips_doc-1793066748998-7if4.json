@@ -10,7 +10,7 @@
     "captionColor": "#FFE600",
     "captionActiveColor": "#FFFFFF",
     "texture": "worn",
-    "textureAmount": 50,
+    "textureAmount": 80,
     "outline": "none",
     "shadow": "soft",
     "titleAnimation": "fade",
